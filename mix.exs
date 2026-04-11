@@ -39,6 +39,7 @@ defmodule XmtpElixirSdk.MixProject do
         "LICENSE",
         "README.md",
         "lib",
+        "readme-assets",
         "mix.exs"
       ],
       links: %{

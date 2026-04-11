@@ -4,6 +4,10 @@ Elixir-first XMTP SDK ported from the browser SDK surface, with a minimal browse
 shim kept only for browser-only runtime concerns such as workers and browser
 storage.
 
+This SDK is built as a port from [qntx/xmtp](https://github.com/qntx/xmtp).
+
+![Rust source explainer](readme-assets/rust-port-explainer.png)
+
 ## Installation
 
 The package is designed to be published to Hex and can be installed by adding

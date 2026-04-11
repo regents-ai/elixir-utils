@@ -1,5 +1,8 @@
 # XmtpElixirSdk
 
+[Hex package](https://hex.pm/packages/xmtp_elixir_sdk/0.1.0)  
+[Docs](https://hexdocs.pm/xmtp_elixir_sdk/0.1.0)
+
 Elixir-first XMTP SDK ported from the browser SDK surface, with a minimal browser
 shim kept only for browser-only runtime concerns such as workers and browser
 storage.

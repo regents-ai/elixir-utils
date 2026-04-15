@@ -31,7 +31,9 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   @spec reset!(XmtpElixirSdk.Runtime.t() | XmtpElixirSdk.Client.t() | atom()) :: :ok
   def reset!(runtime), do: GenServer.call(Names.conversation_server(runtime), :reset)
 
-  @spec import_conversations(XmtpElixirSdk.Runtime.t() | XmtpElixirSdk.Client.t() | atom(), [Conversation.t()]) ::
+  @spec import_conversations(XmtpElixirSdk.Runtime.t() | XmtpElixirSdk.Client.t() | atom(), [
+          Conversation.t()
+        ]) ::
           :ok
   def import_conversations(runtime, conversations) do
     GenServer.call(Names.conversation_server(runtime), {:import_conversations, conversations})
@@ -74,48 +76,72 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   @spec list_messages(XmtpElixirSdk.Client.t(), String.t(), Types.ListMessagesOptions.t()) ::
           {:ok, [Message.t()]} | {:error, Error.t()}
   def list_messages(client, conversation_id, opts) do
-    GenServer.call(Names.conversation_server(client), {:list_messages, client, conversation_id, opts})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:list_messages, client, conversation_id, opts}
+    )
   end
 
   @spec count_messages(XmtpElixirSdk.Client.t(), String.t(), Types.ListMessagesOptions.t()) ::
           {:ok, non_neg_integer()} | {:error, Error.t()}
   def count_messages(client, conversation_id, opts) do
-    GenServer.call(Names.conversation_server(client), {:count_messages, client, conversation_id, opts})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:count_messages, client, conversation_id, opts}
+    )
   end
 
   @spec send_message(XmtpElixirSdk.Client.t(), String.t(), term(), keyword()) ::
           {:ok, String.t()} | {:error, Error.t()}
   def send_message(client, conversation_id, content, opts \\ []) do
-    GenServer.call(Names.conversation_server(client), {:send_message, client, conversation_id, content, opts})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:send_message, client, conversation_id, content, opts}
+    )
   end
 
   @spec publish_messages(XmtpElixirSdk.Client.t(), String.t()) :: :ok
   def publish_messages(client, conversation_id) do
-    GenServer.call(Names.conversation_server(client), {:publish_messages, client, conversation_id})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:publish_messages, client, conversation_id}
+    )
   end
 
   @spec conversation_members(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, [GroupMember.t()]} | {:error, Error.t()}
   def conversation_members(client, conversation_id) do
-    GenServer.call(Names.conversation_server(client), {:conversation_members, client, conversation_id})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:conversation_members, client, conversation_id}
+    )
   end
 
   @spec conversation_last_message(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, Message.t() | nil} | {:error, Error.t()}
   def conversation_last_message(client, conversation_id) do
-    GenServer.call(Names.conversation_server(client), {:conversation_last_message, client, conversation_id})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:conversation_last_message, client, conversation_id}
+    )
   end
 
   @spec conversation_sync(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
   def conversation_sync(client, conversation_id) do
-    GenServer.call(Names.conversation_server(client), {:conversation_sync, client, conversation_id})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:conversation_sync, client, conversation_id}
+    )
   end
 
   @spec sync_conversations(XmtpElixirSdk.Client.t(), [Types.consent_state()]) ::
           {:ok, Types.SyncResult.t()} | {:error, Error.t()}
   def sync_conversations(client, consent_states \\ []) do
-    GenServer.call(Names.conversation_server(client), {:sync_conversations, client, consent_states})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:sync_conversations, client, consent_states}
+    )
   end
 
   @spec apply_consent_records(XmtpElixirSdk.Client.t(), [map()]) :: :ok
@@ -131,7 +157,10 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   @spec update_conversation_field(XmtpElixirSdk.Client.t(), String.t(), atom(), term()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
   def update_conversation_field(client, conversation_id, field, value) do
-    GenServer.call(Names.conversation_server(client), {:update_conversation_field, client, conversation_id, field, value})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:update_conversation_field, client, conversation_id, field, value}
+    )
   end
 
   @spec update_permission(XmtpElixirSdk.Client.t(), String.t(), atom(), atom(), atom() | nil) ::
@@ -143,101 +172,188 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     )
   end
 
-  @spec list_admins(XmtpElixirSdk.Client.t(), String.t()) :: {:ok, [String.t()]} | {:error, Error.t()}
-  def list_admins(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:list_admins, conversation_id})
+  @spec list_admins(XmtpElixirSdk.Client.t(), String.t()) ::
+          {:ok, [String.t()]} | {:error, Error.t()}
+  def list_admins(client, conversation_id),
+    do: GenServer.call(Names.conversation_server(client), {:list_admins, conversation_id})
 
   @spec list_super_admins(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, [String.t()]} | {:error, Error.t()}
-  def list_super_admins(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:list_super_admins, conversation_id})
+  def list_super_admins(client, conversation_id),
+    do: GenServer.call(Names.conversation_server(client), {:list_super_admins, conversation_id})
 
-  @spec is_admin(XmtpElixirSdk.Client.t(), String.t(), String.t()) :: {:ok, boolean()} | {:error, Error.t()}
-  def is_admin(client, conversation_id, inbox_id), do: GenServer.call(Names.conversation_server(client), {:is_admin, conversation_id, inbox_id})
+  @spec is_admin(XmtpElixirSdk.Client.t(), String.t(), String.t()) ::
+          {:ok, boolean()} | {:error, Error.t()}
+  def is_admin(client, conversation_id, inbox_id),
+    do: GenServer.call(Names.conversation_server(client), {:is_admin, conversation_id, inbox_id})
 
   @spec is_super_admin(XmtpElixirSdk.Client.t(), String.t(), String.t()) ::
           {:ok, boolean()} | {:error, Error.t()}
-  def is_super_admin(client, conversation_id, inbox_id), do: GenServer.call(Names.conversation_server(client), {:is_super_admin, conversation_id, inbox_id})
+  def is_super_admin(client, conversation_id, inbox_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:is_super_admin, conversation_id, inbox_id}
+      )
 
   @spec add_members(XmtpElixirSdk.Client.t(), String.t(), [String.t()]) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def add_members(client, conversation_id, inbox_ids), do: GenServer.call(Names.conversation_server(client), {:mutate_members, client, conversation_id, inbox_ids, :add})
+  def add_members(client, conversation_id, inbox_ids),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:mutate_members, client, conversation_id, inbox_ids, :add}
+      )
 
   @spec remove_members(XmtpElixirSdk.Client.t(), String.t(), [String.t()]) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def remove_members(client, conversation_id, inbox_ids), do: GenServer.call(Names.conversation_server(client), {:mutate_members, client, conversation_id, inbox_ids, :remove})
+  def remove_members(client, conversation_id, inbox_ids),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:mutate_members, client, conversation_id, inbox_ids, :remove}
+      )
 
   @spec add_admin(XmtpElixirSdk.Client.t(), String.t(), String.t()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def add_admin(client, conversation_id, inbox_id), do: GenServer.call(Names.conversation_server(client), {:mutate_admin, client, conversation_id, inbox_id, :add_admin})
+  def add_admin(client, conversation_id, inbox_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:mutate_admin, client, conversation_id, inbox_id, :add_admin}
+      )
 
   @spec remove_admin(XmtpElixirSdk.Client.t(), String.t(), String.t()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def remove_admin(client, conversation_id, inbox_id), do: GenServer.call(Names.conversation_server(client), {:mutate_admin, client, conversation_id, inbox_id, :remove_admin})
+  def remove_admin(client, conversation_id, inbox_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:mutate_admin, client, conversation_id, inbox_id, :remove_admin}
+      )
 
   @spec add_super_admin(XmtpElixirSdk.Client.t(), String.t(), String.t()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def add_super_admin(client, conversation_id, inbox_id), do: GenServer.call(Names.conversation_server(client), {:mutate_admin, client, conversation_id, inbox_id, :add_super_admin})
+  def add_super_admin(client, conversation_id, inbox_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:mutate_admin, client, conversation_id, inbox_id, :add_super_admin}
+      )
 
   @spec remove_super_admin(XmtpElixirSdk.Client.t(), String.t(), String.t()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def remove_super_admin(client, conversation_id, inbox_id), do: GenServer.call(Names.conversation_server(client), {:mutate_admin, client, conversation_id, inbox_id, :remove_super_admin})
+  def remove_super_admin(client, conversation_id, inbox_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:mutate_admin, client, conversation_id, inbox_id, :remove_super_admin}
+      )
 
   @spec request_removal(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def request_removal(client, conversation_id), do: update_conversation_field(client, conversation_id, :pending_removal, true)
+  def request_removal(client, conversation_id),
+    do: update_conversation_field(client, conversation_id, :pending_removal, true)
 
   @spec is_pending_removal(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, boolean()} | {:error, Error.t()}
-  def is_pending_removal(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:is_pending_removal, conversation_id})
+  def is_pending_removal(client, conversation_id),
+    do: GenServer.call(Names.conversation_server(client), {:is_pending_removal, conversation_id})
 
   @spec conversation_disappearing_settings(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, Types.DisappearingSettings.t() | nil} | {:error, Error.t()}
-  def conversation_disappearing_settings(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:conversation_disappearing_settings, conversation_id})
+  def conversation_disappearing_settings(client, conversation_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:conversation_disappearing_settings, conversation_id}
+      )
 
-  @spec update_disappearing_settings(XmtpElixirSdk.Client.t(), String.t(), Types.DisappearingSettings.t()) ::
+  @spec update_disappearing_settings(
+          XmtpElixirSdk.Client.t(),
+          String.t(),
+          Types.DisappearingSettings.t()
+        ) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def update_disappearing_settings(client, conversation_id, settings), do: update_conversation_field(client, conversation_id, :disappearing_settings, settings)
+  def update_disappearing_settings(client, conversation_id, settings),
+    do: update_conversation_field(client, conversation_id, :disappearing_settings, settings)
 
   @spec remove_disappearing_settings(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def remove_disappearing_settings(client, conversation_id), do: update_conversation_field(client, conversation_id, :disappearing_settings, nil)
+  def remove_disappearing_settings(client, conversation_id),
+    do: update_conversation_field(client, conversation_id, :disappearing_settings, nil)
 
   @spec is_disappearing_enabled(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, boolean()} | {:error, Error.t()}
-  def is_disappearing_enabled(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:is_disappearing_enabled, conversation_id})
+  def is_disappearing_enabled(client, conversation_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:is_disappearing_enabled, conversation_id}
+      )
 
   @spec paused_for_version(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, String.t() | nil} | {:error, Error.t()}
-  def paused_for_version(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:paused_for_version, conversation_id})
+  def paused_for_version(client, conversation_id),
+    do: GenServer.call(Names.conversation_server(client), {:paused_for_version, conversation_id})
 
   @spec hmac_keys(XmtpElixirSdk.Client.t(), String.t() | :all) ::
           {:ok, [Types.HmacKeyEntry.t()]} | {:error, Error.t()}
-  def hmac_keys(client, conversation_id_or_all), do: GenServer.call(Names.conversation_server(client), {:hmac_keys, conversation_id_or_all})
+  def hmac_keys(client, conversation_id_or_all),
+    do: GenServer.call(Names.conversation_server(client), {:hmac_keys, conversation_id_or_all})
 
   @spec last_read_times(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, [LastReadTime.t()]} | {:error, Error.t()}
-  def last_read_times(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:last_read_times, conversation_id})
+  def last_read_times(client, conversation_id),
+    do: GenServer.call(Names.conversation_server(client), {:last_read_times, conversation_id})
 
-  @spec duplicate_dms(XmtpElixirSdk.Client.t(), String.t()) :: {:ok, [Conversation.t()]} | {:error, Error.t()}
-  def duplicate_dms(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:duplicate_dms, conversation_id})
+  @spec duplicate_dms(XmtpElixirSdk.Client.t(), String.t()) ::
+          {:ok, [Conversation.t()]} | {:error, Error.t()}
+  def duplicate_dms(client, conversation_id),
+    do: GenServer.call(Names.conversation_server(client), {:duplicate_dms, conversation_id})
 
   @spec process_streamed_message(XmtpElixirSdk.Client.t(), String.t(), binary()) ::
           {:ok, [Message.t()]} | {:error, Error.t()}
   def process_streamed_message(client, conversation_id, envelope_bytes) do
-    GenServer.call(Names.conversation_server(client), {:process_streamed_message, client, conversation_id, envelope_bytes})
+    GenServer.call(
+      Names.conversation_server(client),
+      {:process_streamed_message, client, conversation_id, envelope_bytes}
+    )
   end
 
   @spec conversation_debug_info(XmtpElixirSdk.Client.t(), String.t()) ::
           {:ok, Types.ConversationDebugInfo.t()} | {:error, Error.t()}
-  def conversation_debug_info(client, conversation_id), do: GenServer.call(Names.conversation_server(client), {:conversation_debug_info, conversation_id})
+  def conversation_debug_info(client, conversation_id),
+    do:
+      GenServer.call(
+        Names.conversation_server(client),
+        {:conversation_debug_info, conversation_id}
+      )
 
   @impl true
   def init(%{runtime: runtime}) do
-    {:ok, %{runtime: runtime, conversations: %{}, dm_index: %{}, message_index: %{}, next_conversation_id: 1, next_message_id: 1}}
+    {:ok,
+     %{
+       runtime: runtime,
+       conversations: %{},
+       dm_index: %{},
+       message_index: %{},
+       next_conversation_id: 1,
+       next_message_id: 1
+     }}
   end
 
   @impl true
   def handle_call(:reset, _from, state) do
-    {:reply, :ok, %{state | conversations: %{}, dm_index: %{}, message_index: %{}, next_conversation_id: 1, next_message_id: 1}}
+    {:reply, :ok,
+     %{
+       state
+       | conversations: %{},
+         dm_index: %{},
+         message_index: %{},
+         next_conversation_id: 1,
+         next_message_id: 1
+     }}
   end
 
   def handle_call({:import_conversations, conversations}, _from, state) do
@@ -346,8 +462,12 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   def handle_call({:send_message, client, conversation_id, content, opts}, _from, state) do
     with {:ok, conversation} <- fetch_conversation(state, conversation_id),
          :ok <- validate_content(content) do
-      delivery_status = if Keyword.get(opts, :is_optimistic, false), do: :unpublished, else: :published
-      {next_state, message} = append_message(state, client, conversation, content, delivery_status)
+      delivery_status =
+        if Keyword.get(opts, :is_optimistic, false), do: :unpublished, else: :published
+
+      {next_state, message} =
+        append_message(state, client, conversation, content, delivery_status)
+
       StatsServer.bump_api(state.runtime, :send_group_messages)
       {:reply, {:ok, message.id}, next_state}
     else
@@ -361,7 +481,12 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         {:ok, conversation} ->
           messages = Enum.map(conversation.messages, &%{&1 | delivery_status: :published})
           state = put_in(state.conversations[conversation_id].messages, messages)
-          state = Enum.reduce(messages, state, fn message, acc -> put_in(acc.message_index[message.id], message) end)
+
+          state =
+            Enum.reduce(messages, state, fn message, acc ->
+              put_in(acc.message_index[message.id], message)
+            end)
+
           {state, Enum.map(messages, & &1.id)}
 
         :error ->
@@ -369,8 +494,17 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
       end
 
     StatsServer.bump_api(state.runtime, :publish_commit_log)
-    Events.emit(state.runtime, {:messages, client.id}, %Events.MessagePublished{conversation_id: conversation_id, message_ids: published_ids})
-    Events.emit(state.runtime, {:messages, conversation_id}, %Events.MessagePublished{conversation_id: conversation_id, message_ids: published_ids})
+
+    Events.emit(state.runtime, {:messages, client.id}, %Events.MessagePublished{
+      conversation_id: conversation_id,
+      message_ids: published_ids
+    })
+
+    Events.emit(state.runtime, {:messages, conversation_id}, %Events.MessagePublished{
+      conversation_id: conversation_id,
+      message_ids: published_ids
+    })
+
     {:reply, :ok, next_state}
   end
 
@@ -383,7 +517,9 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   def handle_call({:conversation_last_message, client, conversation_id}, _from, state) do
     with {:ok, conversation} <- fetch_conversation(state, conversation_id) do
-      last_visible = conversation.messages |> Enum.filter(&visible_message?(&1, client)) |> List.last()
+      last_visible =
+        conversation.messages |> Enum.filter(&visible_message?(&1, client)) |> List.last()
+
       {:reply, {:ok, last_visible}, state}
     else
       {:error, error} -> {:reply, {:error, error}, state}
@@ -392,6 +528,7 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   def handle_call({:conversation_sync, client, conversation_id}, _from, state) do
     next_state = prune_expired_messages(state, client.id, conversation_id)
+
     case fetch_conversation(next_state, conversation_id) do
       {:ok, conversation} -> {:reply, {:ok, conversation}, next_state}
       {:error, error} -> {:reply, {:error, error}, next_state}
@@ -403,7 +540,9 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
       state.conversations
       |> Map.values()
       |> Enum.filter(&member_of?(&1, client.inbox_id))
-      |> Enum.filter(fn conversation -> Enum.empty?(consent_states) or conversation.consent_state in consent_states end)
+      |> Enum.filter(fn conversation ->
+        Enum.empty?(consent_states) or conversation.consent_state in consent_states
+      end)
       |> Enum.map(& &1.id)
 
     next_state =
@@ -428,21 +567,48 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     end
   end
 
-  def handle_call({:update_conversation_field, client, conversation_id, field, value}, _from, state) do
+  def handle_call(
+        {:update_conversation_field, client, conversation_id, field, value},
+        _from,
+        state
+      ) do
     reply = update_conv_field(state, client, conversation_id, field, value)
+
     case reply do
       {{:ok, conversation}, next_state} -> {:reply, {:ok, conversation}, next_state}
       {{:error, error}, next_state} -> {:reply, {:error, error}, next_state}
     end
   end
 
-  def handle_call({:update_permission, client, conversation_id, update_type, policy, metadata_field}, _from, state) do
+  def handle_call(
+        {:update_permission, client, conversation_id, update_type, policy, metadata_field},
+        _from,
+        state
+      ) do
     case fetch_conversation(state, conversation_id) do
       {:ok, conversation} ->
-        policies = put_permission_policy(conversation.permissions.policies, update_type, policy, metadata_field)
-        updated = %{conversation | permissions: %{conversation.permissions | policies: policies}}
-        next_state = put_in(state.conversations[conversation_id], updated) |> emit_conversation_updated(client.id, updated)
-        {:reply, {:ok, updated}, next_state}
+        with :ok <- ensure_permission(client, conversation, :manage_permissions, nil) do
+          policies =
+            put_permission_policy(
+              conversation.permissions.policies,
+              update_type,
+              policy,
+              metadata_field
+            )
+
+          updated = %{
+            conversation
+            | permissions: %{conversation.permissions | policies: policies}
+          }
+
+          next_state =
+            put_in(state.conversations[conversation_id], updated)
+            |> emit_conversation_updated(client.id, updated)
+
+          {:reply, {:ok, updated}, next_state}
+        else
+          {:error, error} -> {:reply, {:error, error}, state}
+        end
 
       {:error, error} ->
         {:reply, {:error, error}, state}
@@ -502,7 +668,10 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   end
 
   def handle_call({:hmac_keys, :all}, _from, state) do
-    {:reply, {:ok, Enum.flat_map(state.conversations, fn {_id, conversation} -> conversation.hmac_keys end)}, state}
+    {:reply,
+     {:ok,
+      Enum.flat_map(state.conversations, fn {_id, conversation} -> conversation.hmac_keys end)},
+     state}
   end
 
   def handle_call({:hmac_keys, conversation_id}, _from, state) do
@@ -519,7 +688,10 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         duplicates =
           state.conversations
           |> Map.values()
-          |> Enum.filter(&(&1.conversation_type == :dm and &1.id != conversation.id and &1.metadata.creator_inbox_id == conversation.metadata.creator_inbox_id))
+          |> Enum.filter(
+            &(&1.conversation_type == :dm and &1.id != conversation.id and
+                &1.metadata.creator_inbox_id == conversation.metadata.creator_inbox_id)
+          )
 
         {:reply, {:ok, duplicates}, state}
 
@@ -528,7 +700,11 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     end
   end
 
-  def handle_call({:process_streamed_message, client, conversation_id, envelope_bytes}, _from, state) do
+  def handle_call(
+        {:process_streamed_message, client, conversation_id, envelope_bytes},
+        _from,
+        state
+      ) do
     with {:ok, conversation} <- fetch_conversation(state, conversation_id),
          {:ok, content} <- decode_streamed_content(envelope_bytes),
          :ok <- validate_content(content) do
@@ -552,7 +728,9 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
             is_commit_log_forked: nil,
             local_commit_log: "local:#{conversation.id}",
             remote_commit_log: "remote:#{conversation.id}",
-            cursor: [%Types.Cursor{originator_id: 1, sequence_id: max(length(conversation.messages), 1)}]
+            cursor: [
+              %Types.Cursor{originator_id: 1, sequence_id: max(length(conversation.messages), 1)}
+            ]
           }}, state}
 
       {:error, error} ->
@@ -562,8 +740,11 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   defp fetch_conversation(state, conversation_id) do
     case Map.fetch(state.conversations, conversation_id) do
-      {:ok, conversation} -> {:ok, conversation}
-      :error -> {:error, Error.not_found("conversation not found", %{conversation_id: conversation_id})}
+      {:ok, conversation} ->
+        {:ok, conversation}
+
+      :error ->
+        {:error, Error.not_found("conversation not found", %{conversation_id: conversation_id})}
     end
   end
 
@@ -589,14 +770,26 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   end
 
   defp emit_conversation_created(state, client_id, conversation) do
-    Events.emit(state.runtime, {:conversations, client_id}, %Events.ConversationCreated{conversation: conversation})
-    Events.emit(state.runtime, {:conversation, conversation.id}, %Events.ConversationCreated{conversation: conversation})
+    Events.emit(state.runtime, {:conversations, client_id}, %Events.ConversationCreated{
+      conversation: conversation
+    })
+
+    Events.emit(state.runtime, {:conversation, conversation.id}, %Events.ConversationCreated{
+      conversation: conversation
+    })
+
     state
   end
 
   defp emit_conversation_updated(state, client_id, conversation) do
-    Events.emit(state.runtime, {:conversations, client_id}, %Events.ConversationUpdated{conversation: conversation})
-    Events.emit(state.runtime, {:conversation, conversation.id}, %Events.ConversationUpdated{conversation: conversation})
+    Events.emit(state.runtime, {:conversations, client_id}, %Events.ConversationUpdated{
+      conversation: conversation
+    })
+
+    Events.emit(state.runtime, {:conversation, conversation.id}, %Events.ConversationUpdated{
+      conversation: conversation
+    })
+
     state
   end
 
@@ -605,13 +798,20 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   defp dm_key(a, b), do: [a, b] |> Enum.sort() |> Enum.join(":")
 
-  defp member_of?(conversation, inbox_id), do: Enum.any?(conversation.members, &(&1.inbox_id == inbox_id))
+  defp member_of?(conversation, inbox_id),
+    do: Enum.any?(conversation.members, &(&1.inbox_id == inbox_id))
 
   defp maybe_filter_messages(messages, opts) do
     Enum.filter(messages, fn message ->
-      delivery_ok? = is_nil(opts.delivery_status) or message.delivery_status == opts.delivery_status
+      delivery_ok? =
+        is_nil(opts.delivery_status) or message.delivery_status == opts.delivery_status
+
       kind_ok? = is_nil(opts.kind) or message.kind == opts.kind
-      content_types_ok? = Enum.empty?(opts.content_types) or content_type_atom(message.content_type) in opts.content_types
+
+      content_types_ok? =
+        Enum.empty?(opts.content_types) or
+          content_type_filter_key(message.content_type) in opts.content_types
+
       delivery_ok? and kind_ok? and content_types_ok?
     end)
   end
@@ -631,13 +831,28 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   defp filter_conversations(conversations, opts) do
     Enum.filter(conversations, fn conversation ->
-      type_ok? = is_nil(opts.conversation_type) or conversation.conversation_type == opts.conversation_type
-      consent_ok? = Enum.empty?(opts.consent_states) or conversation.consent_state in opts.consent_states
-      created_after_ok? = opts.created_after_ns == 0 or conversation.created_at_ns > opts.created_after_ns
-      created_before_ok? = opts.created_before_ns == 0 or conversation.created_at_ns < opts.created_before_ns
-      last_activity_after_ok? = opts.last_activity_after_ns == 0 or conversation.last_activity_ns > opts.last_activity_after_ns
-      last_activity_before_ok? = opts.last_activity_before_ns == 0 or conversation.last_activity_ns < opts.last_activity_before_ns
-      type_ok? and consent_ok? and created_after_ok? and created_before_ok? and last_activity_after_ok? and last_activity_before_ok?
+      type_ok? =
+        is_nil(opts.conversation_type) or conversation.conversation_type == opts.conversation_type
+
+      consent_ok? =
+        Enum.empty?(opts.consent_states) or conversation.consent_state in opts.consent_states
+
+      created_after_ok? =
+        opts.created_after_ns == 0 or conversation.created_at_ns > opts.created_after_ns
+
+      created_before_ok? =
+        opts.created_before_ns == 0 or conversation.created_at_ns < opts.created_before_ns
+
+      last_activity_after_ok? =
+        opts.last_activity_after_ns == 0 or
+          conversation.last_activity_ns > opts.last_activity_after_ns
+
+      last_activity_before_ok? =
+        opts.last_activity_before_ns == 0 or
+          conversation.last_activity_ns < opts.last_activity_before_ns
+
+      type_ok? and consent_ok? and created_after_ok? and created_before_ok? and
+        last_activity_after_ok? and last_activity_before_ok?
     end)
   end
 
@@ -649,7 +864,9 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   end
 
   defp index_conversation_messages(state, conversation) do
-    Enum.reduce(conversation.messages, state, fn message, acc -> put_in(acc.message_index[message.id], message) end)
+    Enum.reduce(conversation.messages, state, fn message, acc ->
+      put_in(acc.message_index[message.id], message)
+    end)
   end
 
   defp append_message(state, client, conversation, content, delivery_status) do
@@ -676,12 +893,21 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     next_state = maybe_update_last_read_times(next_state, conversation.id, message)
     next_state = %{next_state | next_message_id: next_state.next_message_id + 1}
 
-    Events.emit(next_state.runtime, {:messages, client.id}, %Events.MessageCreated{message: message})
-    Events.emit(next_state.runtime, {:messages, conversation.id}, %Events.MessageCreated{message: message})
+    Events.emit(next_state.runtime, {:messages, client.id}, %Events.MessageCreated{
+      message: message
+    })
+
+    Events.emit(next_state.runtime, {:messages, conversation.id}, %Events.MessageCreated{
+      message: message
+    })
 
     next_state =
       if message.kind == :membership_change do
-        emit_conversation_updated(next_state, client.id, Map.fetch!(next_state.conversations, conversation.id))
+        emit_conversation_updated(
+          next_state,
+          client.id,
+          Map.fetch!(next_state.conversations, conversation.id)
+        )
       else
         next_state
       end
@@ -691,19 +917,36 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   defp store_message(state, conversation_id, message) do
     conversation = Map.fetch!(state.conversations, conversation_id)
-    updated = %{conversation | messages: conversation.messages ++ [message], last_activity_ns: message.sent_at_ns}
+
+    updated = %{
+      conversation
+      | messages: conversation.messages ++ [message],
+        last_activity_ns: message.sent_at_ns
+    }
+
     state = put_in(state.conversations[conversation_id], updated)
     put_in(state.message_index[message.id], message)
   end
 
   defp append_system_message(state, client_id, conversation_id, message) do
     next_state = store_message(state, conversation_id, message)
-    Events.emit(next_state.runtime, {:messages, client_id}, %Events.MessageCreated{message: message})
-    Events.emit(next_state.runtime, {:messages, conversation_id}, %Events.MessageCreated{message: message})
+
+    Events.emit(next_state.runtime, {:messages, client_id}, %Events.MessageCreated{
+      message: message
+    })
+
+    Events.emit(next_state.runtime, {:messages, conversation_id}, %Events.MessageCreated{
+      message: message
+    })
+
     next_state
   end
 
-  defp attach_reply_and_reaction_state(state, conversation_id, %Message{content: %Content.Reaction{reference: reference}} = message) do
+  defp attach_reply_and_reaction_state(
+         state,
+         conversation_id,
+         %Message{content: %Content.Reaction{reference: reference}} = message
+       ) do
     updated_state =
       update_message_relationship(state, conversation_id, reference, fn target ->
         %{target | reactions: target.reactions ++ [message]}
@@ -712,15 +955,23 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     {message, updated_state}
   end
 
-  defp attach_reply_and_reaction_state(state, conversation_id, %Message{content: %Content.Reply{reference: reference}} = message) do
+  defp attach_reply_and_reaction_state(
+         state,
+         conversation_id,
+         %Message{content: %Content.Reply{reference: reference}} = message
+       ) do
     updated_state =
       update_message_relationship(state, conversation_id, reference, fn target ->
         %{target | num_replies: target.num_replies + 1}
       end)
 
     referenced = Map.get(updated_state.message_index, reference)
-    reply_content = if referenced, do: %{message.content | in_reply_to: referenced}, else: message.content
-    {%{message | content: reply_content, fallback: Content.fallback_for(reply_content)}, updated_state}
+
+    reply_content =
+      if referenced, do: %{message.content | in_reply_to: referenced}, else: message.content
+
+    {%{message | content: reply_content, fallback: Content.fallback_for(reply_content)},
+     updated_state}
   end
 
   defp attach_reply_and_reaction_state(state, _conversation_id, message), do: {message, state}
@@ -752,8 +1003,17 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         else
           updated = %{conversation | messages: kept}
           next_state = put_in(state.conversations[conversation_id], updated)
-          next_state = Enum.reduce(expired, next_state, fn message, acc -> put_in(acc.message_index[message.id], nil) end)
-          event = %Events.MessageDeleted{messages: expired, message_ids: Enum.map(expired, & &1.id)}
+
+          next_state =
+            Enum.reduce(expired, next_state, fn message, acc ->
+              put_in(acc.message_index[message.id], nil)
+            end)
+
+          event = %Events.MessageDeleted{
+            messages: expired,
+            message_ids: Enum.map(expired, & &1.id)
+          }
+
           Events.emit(next_state.runtime, {:deleted_messages, client_id}, event)
           next_state
         end
@@ -764,10 +1024,18 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   end
 
   defp message_expired?(%Message{expires_at_ns: nil}, _now_ns), do: false
-  defp message_expired?(%Message{content_type: %Types.ContentTypeId{type_id: "groupUpdated"}}, _now_ns), do: false
-  defp message_expired?(%Message{expires_at_ns: expires_at_ns}, now_ns), do: now_ns >= expires_at_ns
 
-  defp visible_message?(%Message{delivery_status: :unpublished, sender_inbox_id: sender}, client), do: sender == client.inbox_id
+  defp message_expired?(
+         %Message{content_type: %Types.ContentTypeId{type_id: "groupUpdated"}},
+         _now_ns
+       ), do: false
+
+  defp message_expired?(%Message{expires_at_ns: expires_at_ns}, now_ns),
+    do: now_ns >= expires_at_ns
+
+  defp visible_message?(%Message{delivery_status: :unpublished, sender_inbox_id: sender}, client),
+    do: sender == client.inbox_id
+
   defp visible_message?(%Message{}, _client), do: true
 
   defp countable_message?(%Message{kind: :application}), do: true
@@ -776,7 +1044,11 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   defp message_kind_for_content(%Content.GroupUpdated{}), do: :membership_change
   defp message_kind_for_content(_), do: :application
 
-  defp maybe_update_last_read_times(state, conversation_id, %Message{content: %Content.ReadReceipt{}, sender_inbox_id: inbox_id, sent_at_ns: sent_at_ns}) do
+  defp maybe_update_last_read_times(state, conversation_id, %Message{
+         content: %Content.ReadReceipt{},
+         sender_inbox_id: inbox_id,
+         sent_at_ns: sent_at_ns
+       }) do
     update_in(state.conversations[conversation_id], fn
       nil ->
         nil
@@ -784,8 +1056,16 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
       conversation ->
         updated_last_read_times =
           case Enum.find_index(conversation.last_read_times, &(&1.inbox_id == inbox_id)) do
-            nil -> conversation.last_read_times ++ [%LastReadTime{inbox_id: inbox_id, timestamp_ns: sent_at_ns}]
-            index -> List.update_at(conversation.last_read_times, index, &%{&1 | timestamp_ns: sent_at_ns})
+            nil ->
+              conversation.last_read_times ++
+                [%LastReadTime{inbox_id: inbox_id, timestamp_ns: sent_at_ns}]
+
+            index ->
+              List.update_at(
+                conversation.last_read_times,
+                index,
+                &%{&1 | timestamp_ns: sent_at_ns}
+              )
           end
 
         %{conversation | last_read_times: updated_last_read_times}
@@ -794,7 +1074,14 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   defp maybe_update_last_read_times(state, _conversation_id, _message), do: state
 
-  defp message_expiry_for_conversation(%Conversation{disappearing_settings: %Types.DisappearingSettings{from_ns: from_ns, in_ns: in_ns}}, sent_at_ns, _content) when in_ns > 0 do
+  defp message_expiry_for_conversation(
+         %Conversation{
+           disappearing_settings: %Types.DisappearingSettings{from_ns: from_ns, in_ns: in_ns}
+         },
+         sent_at_ns,
+         _content
+       )
+       when in_ns > 0 do
     if sent_at_ns >= from_ns, do: sent_at_ns + in_ns, else: nil
   end
 
@@ -806,10 +1093,14 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
     cond do
       Map.has_key?(state.conversations, entity) ->
-        update_in(state.conversations[entity], fn conversation -> %{conversation | consent_state: state_value} end)
+        update_in(state.conversations[entity], fn conversation ->
+          %{conversation | consent_state: state_value}
+        end)
 
       is_binary(entity) ->
-        update_conversation_members_by_inbox(state, entity, fn member -> %{member | consent_state: state_value} end)
+        update_conversation_members_by_inbox(state, entity, fn member ->
+          %{member | consent_state: state_value}
+        end)
 
       true ->
         state
@@ -819,7 +1110,11 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   defp update_conversation_members_by_inbox(state, inbox_id, updater) do
     conversations =
       Enum.into(state.conversations, %{}, fn {id, conversation} ->
-        updated_members = Enum.map(conversation.members, fn member -> if member.inbox_id == inbox_id, do: updater.(member), else: member end)
+        updated_members =
+          Enum.map(conversation.members, fn member ->
+            if member.inbox_id == inbox_id, do: updater.(member), else: member
+          end)
+
         {id, %{conversation | members: updated_members}}
       end)
 
@@ -828,9 +1123,20 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   defp update_conv_field(state, client, conversation_id, field, value) do
     with {:ok, conversation} <- fetch_conversation(state, conversation_id),
-         :ok <- ensure_permission(client, conversation, permission_action_for_field(field), metadata_field_for_update(field)) do
+         :ok <-
+           ensure_permission(
+             client,
+             conversation,
+             permission_action_for_field(field),
+             metadata_field_for_update(field)
+           ) do
       old_value = Map.get(conversation, field)
-      updated = %{Map.put(conversation, field, value) | last_activity_ns: System.system_time(:nanosecond)}
+
+      updated = %{
+        Map.put(conversation, field, value)
+        | last_activity_ns: System.system_time(:nanosecond)
+      }
+
       next_state = put_in(state.conversations[conversation_id], updated)
 
       next_state =
@@ -862,7 +1168,13 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
           :add ->
             new_members =
               Enum.map(inbox_ids, fn inbox_id ->
-                %GroupMember{inbox_id: inbox_id, account_identifiers: [inbox_id], installation_ids: [], permission_level: :member, consent_state: :unknown}
+                %GroupMember{
+                  inbox_id: inbox_id,
+                  account_identifiers: [inbox_id],
+                  installation_ids: [],
+                  permission_level: :member,
+                  consent_state: :unknown
+                }
               end)
 
             {Enum.uniq_by(conversation.members ++ new_members, & &1.inbox_id), new_members, []}
@@ -878,6 +1190,7 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         |> update_admin_lists_after_member_change()
 
       next_state = put_in(state.conversations[conversation_id], updated)
+
       next_state =
         append_system_message(
           next_state,
@@ -898,17 +1211,32 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
          :ok <- ensure_permission(client, conversation, op, nil) do
       {admins, super_admins} =
         case op do
-          :add_admin -> {Enum.uniq([inbox_id | conversation.admins]), conversation.super_admins}
-          :remove_admin -> {Enum.reject(conversation.admins, &(&1 == inbox_id)), conversation.super_admins}
-          :add_super_admin -> {conversation.admins, Enum.uniq([inbox_id | conversation.super_admins])}
-          :remove_super_admin -> {conversation.admins, Enum.reject(conversation.super_admins, &(&1 == inbox_id))}
+          :add_admin ->
+            {Enum.uniq([inbox_id | conversation.admins]), conversation.super_admins}
+
+          :remove_admin ->
+            {Enum.reject(conversation.admins, &(&1 == inbox_id)), conversation.super_admins}
+
+          :add_super_admin ->
+            {conversation.admins, Enum.uniq([inbox_id | conversation.super_admins])}
+
+          :remove_super_admin ->
+            {conversation.admins, Enum.reject(conversation.super_admins, &(&1 == inbox_id))}
         end
 
       updated =
-        %{conversation | admins: admins, super_admins: super_admins, last_activity_ns: System.system_time(:nanosecond)}
+        %{
+          conversation
+          | admins: admins,
+            super_admins: super_admins,
+            last_activity_ns: System.system_time(:nanosecond)
+        }
         |> update_admin_lists_after_member_change()
 
-      next_state = put_in(state.conversations[conversation_id], updated) |> emit_conversation_updated(client.id, updated)
+      next_state =
+        put_in(state.conversations[conversation_id], updated)
+        |> emit_conversation_updated(client.id, updated)
+
       {{:ok, updated}, next_state}
     else
       {:error, error} -> {{:error, error}, state}
@@ -917,15 +1245,35 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   defp build_dm_conversation(client, conversation_id, peer_inbox, opts) do
     members = [
-      %GroupMember{inbox_id: client.inbox_id, account_identifiers: [client.identifier.identifier], installation_ids: [client.installation_id], permission_level: :member, consent_state: :allowed},
-      %GroupMember{inbox_id: peer_inbox, account_identifiers: [peer_inbox], installation_ids: [], permission_level: :member, consent_state: :unknown}
+      %GroupMember{
+        inbox_id: client.inbox_id,
+        account_identifiers: [client.identifier.identifier],
+        installation_ids: [client.installation_id],
+        permission_level: :member,
+        consent_state: :allowed
+      },
+      %GroupMember{
+        inbox_id: peer_inbox,
+        account_identifiers: [peer_inbox],
+        installation_ids: [],
+        permission_level: :member,
+        consent_state: :unknown
+      }
     ]
 
     initial_message =
       build_group_update_message(
         client,
         conversation_id,
-        [%GroupMember{inbox_id: peer_inbox, account_identifiers: [peer_inbox], installation_ids: [], permission_level: :member, consent_state: :unknown}],
+        [
+          %GroupMember{
+            inbox_id: peer_inbox,
+            account_identifiers: [peer_inbox],
+            installation_ids: [],
+            permission_level: :member,
+            consent_state: :unknown
+          }
+        ],
         [],
         []
       )
@@ -967,23 +1315,41 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         }
       end)
 
-    admins = group_members |> Enum.filter(&(&1.permission_level == :admin)) |> Enum.map(& &1.inbox_id)
-    super_admins = if Enum.any?(group_members, &(&1.inbox_id == client.inbox_id)), do: [client.inbox_id], else: []
+    admins =
+      group_members |> Enum.filter(&(&1.permission_level == :admin)) |> Enum.map(& &1.inbox_id)
+
+    super_admins =
+      if Enum.any?(group_members, &(&1.inbox_id == client.inbox_id)),
+        do: [client.inbox_id],
+        else: []
+
     added_inboxes = Enum.reject(group_members, &(&1.inbox_id == client.inbox_id))
-    permissions = Types.permission_policies_for_preset(Map.get(opts, :permissions, :all_members), Map.get(opts, :custom_permission_policy_set))
+
+    permissions =
+      Types.permission_policies_for_preset(
+        Map.get(opts, :permissions, :all_members),
+        Map.get(opts, :custom_permission_policy_set)
+      )
+
     initial_message = build_group_update_message(client, conversation_id, added_inboxes, [], [])
 
     %Conversation{
       id: conversation_id,
       conversation_type: :group,
       created_at_ns: System.system_time(:nanosecond),
-      metadata: %ConversationMetadata{creator_inbox_id: client.inbox_id, conversation_type: :group},
+      metadata: %ConversationMetadata{
+        creator_inbox_id: client.inbox_id,
+        conversation_type: :group
+      },
       added_by_inbox_id: client.inbox_id,
       name: Map.get(opts, :name, "") || "",
       image_url: Map.get(opts, :image_url, "") || "",
       description: Map.get(opts, :description, "") || "",
       app_data: Map.get(opts, :app_data, "") || "",
-      permissions: %Types.Permissions{preset: Map.get(opts, :permissions, :all_members), policies: permissions},
+      permissions: %Types.Permissions{
+        preset: Map.get(opts, :permissions, :all_members),
+        policies: permissions
+      },
       consent_state: :allowed,
       disappearing_settings: Map.get(opts, :disappearing),
       paused_for_version: nil,
@@ -993,17 +1359,31 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
       admins: admins,
       super_admins: super_admins,
       hmac_keys: [build_hmac_entry(conversation_id)],
-      last_read_times: Enum.map(group_members, &%LastReadTime{inbox_id: &1.inbox_id, timestamp_ns: 0}),
+      last_read_times:
+        Enum.map(group_members, &%LastReadTime{inbox_id: &1.inbox_id, timestamp_ns: 0}),
       messages: [initial_message]
     }
   end
 
   defp build_hmac_entry(group_id) do
-    %HmacKeyEntry{group_id: group_id, keys: [%HmacKey{key: :crypto.hash(:sha256, group_id), epoch: 0}]}
+    %HmacKeyEntry{
+      group_id: group_id,
+      keys: [%HmacKey{key: :crypto.hash(:sha256, group_id), epoch: 0}]
+    }
   end
 
-  defp build_group_update_message(%{inbox_id: inbox_id}, conversation_id, added_inboxes, removed_inboxes, metadata_field_changes) do
-    content = %Content.GroupUpdated{metadata_field_changes: metadata_field_changes, added_inboxes: added_inboxes, removed_inboxes: removed_inboxes}
+  defp build_group_update_message(
+         %{inbox_id: inbox_id},
+         conversation_id,
+         added_inboxes,
+         removed_inboxes,
+         metadata_field_changes
+       ) do
+    content = %Content.GroupUpdated{
+      metadata_field_changes: metadata_field_changes,
+      added_inboxes: added_inboxes,
+      removed_inboxes: removed_inboxes
+    }
 
     %Message{
       id: "message-#{System.unique_integer([:positive])}",
@@ -1021,8 +1401,19 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     }
   end
 
-  defp build_group_update_message(%Conversation{} = conversation, added_inboxes, removed_inboxes, metadata_field_changes) do
-    build_group_update_message(%{inbox_id: conversation.added_by_inbox_id || conversation.metadata.creator_inbox_id}, conversation.id, added_inboxes, removed_inboxes, metadata_field_changes)
+  defp build_group_update_message(
+         %Conversation{} = conversation,
+         added_inboxes,
+         removed_inboxes,
+         metadata_field_changes
+       ) do
+    build_group_update_message(
+      %{inbox_id: conversation.added_by_inbox_id || conversation.metadata.creator_inbox_id},
+      conversation.id,
+      added_inboxes,
+      removed_inboxes,
+      metadata_field_changes
+    )
   end
 
   defp build_group_update_message_for_field(conversation, client, field, old_value, new_value) do
@@ -1051,24 +1442,55 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
     policy =
       case {action, metadata_field} do
-        {:add, _} -> conversation.permissions.policies.add_member
-        {:remove, _} -> conversation.permissions.policies.remove_member
-        {:add_admin, _} -> conversation.permissions.policies.add_admin
-        {:remove_admin, _} -> conversation.permissions.policies.remove_admin
-        {:add_super_admin, _} -> conversation.permissions.policies.add_admin
-        {:remove_super_admin, _} -> conversation.permissions.policies.remove_admin
-        {:update_metadata, :group_name} -> conversation.permissions.policies.update_group_name
-        {:update_metadata, :description} -> conversation.permissions.policies.update_group_description
-        {:update_metadata, :image_url} -> conversation.permissions.policies.update_group_image_url
-        {:update_metadata, :app_data} -> conversation.permissions.policies.update_app_data
-        {:update_metadata, :message_disappearing} -> conversation.permissions.policies.update_message_disappearing
-        _ -> :allow
+        {:add, _} ->
+          conversation.permissions.policies.add_member
+
+        {:remove, _} ->
+          conversation.permissions.policies.remove_member
+
+        {:add_admin, _} ->
+          conversation.permissions.policies.add_admin
+
+        {:remove_admin, _} ->
+          conversation.permissions.policies.remove_admin
+
+        {:add_super_admin, _} ->
+          conversation.permissions.policies.add_admin
+
+        {:remove_super_admin, _} ->
+          conversation.permissions.policies.remove_admin
+
+        {:manage_permissions, _} ->
+          :admin_only
+
+        {:update_metadata, :group_name} ->
+          conversation.permissions.policies.update_group_name
+
+        {:update_metadata, :description} ->
+          conversation.permissions.policies.update_group_description
+
+        {:update_metadata, :image_url} ->
+          conversation.permissions.policies.update_group_image_url
+
+        {:update_metadata, :app_data} ->
+          conversation.permissions.policies.update_app_data
+
+        {:update_metadata, :message_disappearing} ->
+          conversation.permissions.policies.update_message_disappearing
+
+        _ ->
+          :allow
       end
 
     if permission_allows?(policy, role) do
       :ok
     else
-      {:error, Error.conflict("permission denied", %{action: action, metadata_field: metadata_field, inbox_id: client.inbox_id})}
+      {:error,
+       Error.conflict("permission denied", %{
+         action: action,
+         metadata_field: metadata_field,
+         inbox_id: client.inbox_id
+       })}
     end
   end
 
@@ -1093,15 +1515,32 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   defp metadata_field_for_update(:disappearing_settings), do: :message_disappearing
   defp metadata_field_for_update(_), do: nil
 
-  defp put_permission_policy(policies, :add_member, policy, _), do: %{policies | add_member: policy}
-  defp put_permission_policy(policies, :remove_member, policy, _), do: %{policies | remove_member: policy}
+  defp put_permission_policy(policies, :add_member, policy, _),
+    do: %{policies | add_member: policy}
+
+  defp put_permission_policy(policies, :remove_member, policy, _),
+    do: %{policies | remove_member: policy}
+
   defp put_permission_policy(policies, :add_admin, policy, _), do: %{policies | add_admin: policy}
-  defp put_permission_policy(policies, :remove_admin, policy, _), do: %{policies | remove_admin: policy}
-  defp put_permission_policy(policies, :update_metadata, policy, :group_name), do: %{policies | update_group_name: policy}
-  defp put_permission_policy(policies, :update_metadata, policy, :description), do: %{policies | update_group_description: policy}
-  defp put_permission_policy(policies, :update_metadata, policy, :image_url), do: %{policies | update_group_image_url: policy}
-  defp put_permission_policy(policies, :update_metadata, policy, :message_disappearing), do: %{policies | update_message_disappearing: policy}
-  defp put_permission_policy(policies, :update_metadata, policy, :app_data), do: %{policies | update_app_data: policy}
+
+  defp put_permission_policy(policies, :remove_admin, policy, _),
+    do: %{policies | remove_admin: policy}
+
+  defp put_permission_policy(policies, :update_metadata, policy, :group_name),
+    do: %{policies | update_group_name: policy}
+
+  defp put_permission_policy(policies, :update_metadata, policy, :description),
+    do: %{policies | update_group_description: policy}
+
+  defp put_permission_policy(policies, :update_metadata, policy, :image_url),
+    do: %{policies | update_group_image_url: policy}
+
+  defp put_permission_policy(policies, :update_metadata, policy, :message_disappearing),
+    do: %{policies | update_message_disappearing: policy}
+
+  defp put_permission_policy(policies, :update_metadata, policy, :app_data),
+    do: %{policies | update_app_data: policy}
+
   defp put_permission_policy(policies, _update_type, _policy, _metadata_field), do: policies
 
   defp update_admin_lists_after_member_change(%Conversation{} = conversation) do
@@ -1136,7 +1575,9 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   defp validate_content(_content), do: :ok
 
   defp validate_wallet_call(%Content.WalletCall{metadata: nil}), do: :ok
-  defp validate_wallet_call(%Content.WalletCall{metadata: metadata}) when map_size(metadata) == 0, do: :ok
+
+  defp validate_wallet_call(%Content.WalletCall{metadata: metadata}) when map_size(metadata) == 0,
+    do: :ok
 
   defp validate_wallet_call(%Content.WalletCall{metadata: metadata}) do
     with :ok <- require_wallet_metadata_field(metadata, :description),
@@ -1145,18 +1586,20 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     end
   end
 
-  defp validate_wallet_call(_other), do: {:error, Error.invalid_argument("wallet call must use the canonical shape", %{})}
+  defp validate_wallet_call(_other),
+    do: {:error, Error.invalid_argument("wallet call must use the canonical shape", %{})}
 
   defp require_wallet_metadata_field(metadata, field) do
     if Map.has_key?(metadata, field) do
       :ok
     else
-      {:error, Error.invalid_argument("wallet call metadata missing required field", %{field: field})}
+      {:error,
+       Error.invalid_argument("wallet call metadata missing required field", %{field: field})}
     end
   end
 
   defp decode_streamed_content(envelope_bytes) when is_binary(envelope_bytes) do
-    case :erlang.binary_to_term(envelope_bytes) do
+    case :erlang.binary_to_term(envelope_bytes, [:safe]) do
       %Message{content: content} -> {:ok, content}
       %Content.Text{} = content -> {:ok, content}
       %Content.Markdown{} = content -> {:ok, content}
@@ -1177,18 +1620,28 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     _ -> {:error, Error.invalid_argument("invalid streamed envelope", %{})}
   end
 
-  defp content_type_atom(%Types.ContentTypeId{type_id: "text"}), do: :text
-  defp content_type_atom(%Types.ContentTypeId{type_id: "markdown"}), do: :markdown
-  defp content_type_atom(%Types.ContentTypeId{type_id: "reaction"}), do: :reaction
-  defp content_type_atom(%Types.ContentTypeId{type_id: "reply"}), do: :reply
-  defp content_type_atom(%Types.ContentTypeId{type_id: "readReceipt"}), do: :read_receipt
-  defp content_type_atom(%Types.ContentTypeId{type_id: "attachment"}), do: :attachment
-  defp content_type_atom(%Types.ContentTypeId{type_id: "remoteStaticAttachment"}), do: :remote_attachment
-  defp content_type_atom(%Types.ContentTypeId{type_id: "groupUpdated"}), do: :group_updated
-  defp content_type_atom(%Types.ContentTypeId{type_id: "actions"}), do: :actions
-  defp content_type_atom(%Types.ContentTypeId{type_id: "intent"}), do: :intent
-  defp content_type_atom(%Types.ContentTypeId{type_id: "transactionReference"}), do: :transaction_reference
-  defp content_type_atom(%Types.ContentTypeId{type_id: "walletSendCalls"}), do: :wallet_send_calls
-  defp content_type_atom(%Types.ContentTypeId{type_id: "multiRemoteAttachment"}), do: :multi_remote_attachment
-  defp content_type_atom(%Types.ContentTypeId{type_id: other}), do: String.to_atom(other)
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "text"}), do: :text
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "markdown"}), do: :markdown
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "reaction"}), do: :reaction
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "reply"}), do: :reply
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "readReceipt"}), do: :read_receipt
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "attachment"}), do: :attachment
+
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "remoteStaticAttachment"}),
+    do: :remote_attachment
+
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "groupUpdated"}), do: :group_updated
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "actions"}), do: :actions
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "intent"}), do: :intent
+
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "transactionReference"}),
+    do: :transaction_reference
+
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "walletSendCalls"}),
+    do: :wallet_send_calls
+
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: "multiRemoteAttachment"}),
+    do: :multi_remote_attachment
+
+  defp content_type_filter_key(%Types.ContentTypeId{type_id: type_id}), do: {:unknown, type_id}
 end

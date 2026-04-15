@@ -23,7 +23,13 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     GenServer.call(Names.sync_server(client), {:send_sync_request, client, options, server_url})
   end
 
-  @spec send_sync_archive(XmtpElixirSdk.Client.t(), String.t(), Types.ArchiveOptions.t(), String.t(), list()) ::
+  @spec send_sync_archive(
+          XmtpElixirSdk.Client.t(),
+          String.t(),
+          Types.ArchiveOptions.t(),
+          String.t(),
+          list()
+        ) ::
           :ok
   def send_sync_archive(client, pin, options, server_url, conversations) do
     GenServer.call(
@@ -65,7 +71,10 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   @spec sync_all_device_sync_groups(XmtpElixirSdk.Client.t(), list()) ::
           {:ok, Types.GroupSyncSummary.t(), [term()]}
   def sync_all_device_sync_groups(client, conversations) do
-    GenServer.call(Names.sync_server(client), {:sync_all_device_sync_groups, client, conversations})
+    GenServer.call(
+      Names.sync_server(client),
+      {:sync_all_device_sync_groups, client, conversations}
+    )
   end
 
   @impl true
@@ -89,7 +98,11 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     {:reply, :ok, %{state | sync_requests: state.sync_requests ++ [request]}}
   end
 
-  def handle_call({:send_sync_archive, client, pin, options, server_url, conversations}, _from, state) do
+  def handle_call(
+        {:send_sync_archive, client, pin, options, server_url, conversations},
+        _from,
+        state
+      ) do
     archive = build_archive_payload(client, pin, options, server_url, conversations)
     {:reply, :ok, %{state | archives: Map.put(state.archives, archive.pin, archive)}}
   end
@@ -97,7 +110,8 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   def handle_call({:process_sync_archive, client, archive_pin}, _from, state) do
     case find_archive(state, archive_pin) do
       nil ->
-        {:reply, {:error, Error.not_found("archive not found", %{archive_pin: archive_pin})}, state}
+        {:reply, {:error, Error.not_found("archive not found", %{archive_pin: archive_pin})},
+         state}
 
       archive ->
         Events.emit(state.runtime, {:conversations, client.id}, %Events.SyncApplied{
@@ -111,7 +125,7 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
 
   def handle_call({:list_available_archives, days_cutoff}, _from, state) do
     now = System.system_time(:nanosecond)
-    cutoff_ns = now - :timer.hours(days_cutoff * 24)
+    cutoff_ns = now - System.convert_time_unit(days_cutoff * 24 * 60 * 60, :second, :nanosecond)
 
     archives =
       state.archives
@@ -183,7 +197,8 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
       end)
 
     next_state =
-      Enum.reduce(matching_requests, %{state | sync_requests: remaining_requests}, fn request, acc ->
+      Enum.reduce(matching_requests, %{state | sync_requests: remaining_requests}, fn request,
+                                                                                      acc ->
         archive =
           build_archive_payload(client, nil, request.options, request.server_url, conversations)
 
@@ -194,7 +209,8 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
       next_state.archives
       |> Map.values()
       |> Enum.filter(fn archive ->
-        archive.inbox_id == client.inbox_id and archive.creator_installation_id != client.installation_id
+        archive.inbox_id == client.inbox_id and
+          archive.creator_installation_id != client.installation_id
       end)
 
     summary = %Types.GroupSyncSummary{
@@ -216,7 +232,8 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     |> Enum.max_by(& &1.created_at_ns, fn -> nil end)
   end
 
-  defp find_archive(state, archive_pin) when is_binary(archive_pin), do: Map.get(state.archives, archive_pin)
+  defp find_archive(state, archive_pin) when is_binary(archive_pin),
+    do: Map.get(state.archives, archive_pin)
 
   defp build_archive_payload(client, pin, options, server_url, conversations) do
     %{
@@ -232,7 +249,14 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   end
 
   defp decode_archive(data) when is_binary(data) do
-    {:ok, :erlang.binary_to_term(data)}
+    case :erlang.binary_to_term(data, [:safe]) do
+      %{pin: _, server_url: _, created_at_ns: _, item_count: _, options: _, conversations: _} =
+          archive ->
+        {:ok, archive}
+
+      _ ->
+        {:error, Error.invalid_argument("invalid archive data", %{})}
+    end
   rescue
     _ -> {:error, Error.invalid_argument("invalid archive data", %{})}
   end

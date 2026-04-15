@@ -8,6 +8,8 @@ defmodule XmtpElixirSdk.PreferencesDebugSyncTest do
   alias XmtpElixirSdk.Messages
   alias XmtpElixirSdk.Preferences
   alias XmtpElixirSdk.Sync
+  alias XmtpElixirSdk.Internal.Names
+  alias XmtpElixirSdk.Types
 
   setup :start_runtime
 
@@ -74,5 +76,53 @@ defmodule XmtpElixirSdk.PreferencesDebugSyncTest do
     assert {:ok, :ok} = Sync.process_sync_archive(sibling, nil)
     assert {:ok, groups} = XmtpElixirSdk.Conversations.list_groups(sibling)
     assert length(groups) >= 1
+  end
+
+  test "unsafe archive terms are rejected cleanly" do
+    assert {:ok, alice} = create_client("alice")
+
+    assert {:error, error} =
+             Sync.archive_metadata(alice, :erlang.term_to_binary(make_ref()), <<1, 2, 3>>)
+
+    assert error.kind == :invalid_argument
+    assert error.message == "invalid archive data"
+  end
+
+  test "archive listing respects the day cutoff using nanosecond timestamps" do
+    assert {:ok, alice} = create_client("alice")
+
+    now = System.system_time(:nanosecond)
+
+    recent_archive = %{
+      pin: "recent",
+      inbox_id: alice.inbox_id,
+      creator_installation_id: alice.installation_id,
+      server_url: "https://recent.example",
+      created_at_ns: now - System.convert_time_unit(6 * 60 * 60, :second, :nanosecond),
+      item_count: 1,
+      options: %Types.ArchiveOptions{},
+      conversations: []
+    }
+
+    stale_archive = %{
+      pin: "stale",
+      inbox_id: alice.inbox_id,
+      creator_installation_id: alice.installation_id,
+      server_url: "https://stale.example",
+      created_at_ns: now - System.convert_time_unit(25 * 60 * 60, :second, :nanosecond),
+      item_count: 1,
+      options: %Types.ArchiveOptions{},
+      conversations: []
+    }
+
+    :sys.replace_state(Names.sync_server(alice), fn state ->
+      %{
+        state
+        | archives: %{recent_archive.pin => recent_archive, stale_archive.pin => stale_archive}
+      }
+    end)
+
+    assert {:ok, archives} = Sync.list_available_archives(alice, 1)
+    assert Enum.map(archives, & &1.pin) == ["recent"]
   end
 end

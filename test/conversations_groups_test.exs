@@ -1,10 +1,12 @@
 defmodule XmtpElixirSdk.ConversationsGroupsTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import XmtpElixirSdk.TestSupport
 
   alias XmtpElixirSdk.Conversations
   alias XmtpElixirSdk.Groups
+  alias XmtpElixirSdk.Messages
+  alias XmtpElixirSdk.Internal.Names
   alias XmtpElixirSdk.Types
 
   setup :start_runtime
@@ -56,9 +58,82 @@ defmodule XmtpElixirSdk.ConversationsGroupsTest do
 
     assert {:ok, promoted} = Groups.add_admin(group, bob.inbox_id)
     assert {:ok, true} = Groups.is_admin(promoted, bob.inbox_id)
+    assert {:ok, bob_group} = Conversations.get_by_id(bob, group.id)
 
-    assert {:ok, locked} = Groups.update_permission(promoted, :update_metadata, :admin_only, :group_name)
+    assert {:ok, locked} =
+             Groups.update_permission(bob_group, :update_metadata, :admin_only, :group_name)
+
     assert locked.permissions.policies.update_group_name == :admin_only
+  end
+
+  test "regular members cannot update group permissions" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, bob} = create_client("bob")
+    assert {:ok, group} = create_group(alice, ["bob"])
+    assert {:ok, bob_group} = Conversations.get_by_id(bob, group.id)
+
+    assert {:error, error} =
+             Groups.update_permission(bob_group, :update_metadata, :admin_only, :group_name)
+
+    assert error.kind == :conflict
+    assert error.message == "permission denied"
+
+    assert {:ok, refreshed} = refresh_conversation(group)
+    assert refreshed.permissions.policies.update_group_name == :allow
+  end
+
+  test "unsafe streamed terms are rejected cleanly" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, _bob} = create_client("bob")
+    assert {:ok, group} = create_group(alice, ["bob"])
+
+    assert {:error, error} =
+             Messages.process_streamed_message(group, :erlang.term_to_binary(make_ref()))
+
+    assert error.kind == :invalid_argument
+    assert error.message == "invalid streamed envelope"
+  end
+
+  test "unknown message content types do not create atoms during filtering" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, _bob} = create_client("bob")
+    assert {:ok, group} = create_group(alice, ["bob"])
+    assert {:ok, message_id} = Messages.send_text(group, "hello")
+    assert {:ok, %Types.Message{} = message} = Messages.get_by_id(alice, message_id)
+
+    assert {:ok, [_message]} =
+             Messages.list(group, %Types.ListMessagesOptions{content_types: [:text]})
+
+    type_id = "releaseAuditUnknown#{System.unique_integer([:positive])}"
+    assert_raise ArgumentError, fn -> String.to_existing_atom(type_id) end
+
+    :sys.replace_state(Names.conversation_server(alice), fn state ->
+      unknown_content_type = %{message.content_type | type_id: type_id}
+      unknown_message = %{message | content_type: unknown_content_type}
+      conversation = state.conversations[group.id]
+
+      messages =
+        Enum.map(conversation.messages, fn stored_message ->
+          if stored_message.id == message_id, do: unknown_message, else: stored_message
+        end)
+
+      updated_conversation = %{conversation | messages: messages}
+
+      %{
+        state
+        | conversations: Map.put(state.conversations, group.id, updated_conversation),
+          message_index: Map.put(state.message_index, message_id, unknown_message)
+      }
+    end)
+
+    atom_count_before = :erlang.system_info(:atom_count)
+
+    assert {:ok, []} =
+             Messages.list(group, %Types.ListMessagesOptions{content_types: [:text]})
+
+    atom_count_after = :erlang.system_info(:atom_count)
+    assert atom_count_after == atom_count_before
+    assert_raise ArgumentError, fn -> String.to_existing_atom(type_id) end
   end
 
   test "disappearing settings and removal flow stay on the conversation" do

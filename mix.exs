@@ -36,6 +36,7 @@ defmodule XmtpElixirSdk.MixProject do
       licenses: ["MIT"],
       files: [
         ".formatter.exs",
+        "CHANGELOG.md",
         "LICENSE",
         "README.md",
         "lib",
@@ -52,7 +53,7 @@ defmodule XmtpElixirSdk.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"]
+      extras: ["README.md", "CHANGELOG.md"]
     ]
   end
 end

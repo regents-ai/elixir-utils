@@ -21,3 +21,10 @@ erl_crash.dump
 
 # Ignore package tarball (built via "mix hex.build").
 ens_elixir-*.tar
+
+# Keep local planning and agent scratch files out of the repo.
+/.codex/
+/.claude/
+/PLAN.md
+/NOTES.md
+/SCRATCH.md

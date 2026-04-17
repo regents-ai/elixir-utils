@@ -22,13 +22,66 @@ defmodule XmtpElixirSdk.PreferencesDebugSyncTest do
     :ok = Events.subscribe(alice, consent_topic)
 
     assert {:ok, _summary} = Preferences.sync(alice)
-    assert_receive {:xmtp, ^preferences_topic, %Events.PreferenceUpdated{}}, 500
+
+    assert_receive {:xmtp, ^preferences_topic, %Events.PreferenceUpdated{updates: sync_updates}},
+                   500
+
+    assert sync_updates == [%Types.PreferenceUpdate{kind: :hmac_key, consent: nil}]
 
     assert {:ok, :ok} =
-             Preferences.set_consent_states(alice, [%{inbox_id: alice.inbox_id, state: :allowed}])
+             Preferences.set_consent_states(alice, [%{entity: alice.inbox_id, state: :allowed}])
 
-    assert_receive {:xmtp, ^consent_topic, %Events.ConsentUpdated{}}, 500
+    assert_receive {:xmtp, ^consent_topic, %Events.ConsentUpdated{records: inbox_records}}, 500
+    assert inbox_records == [%{entity: alice.inbox_id, state: :allowed}]
+
+    assert_receive {:xmtp, ^preferences_topic, %Events.PreferenceUpdated{updates: inbox_updates}},
+                   500
+
+    assert inbox_updates == [
+             %Types.PreferenceUpdate{
+               kind: :consent,
+               consent: %Types.ConsentUpdate{
+                 entity_type: :inbox_id,
+                 state: :allowed,
+                 entity: alice.inbox_id
+               }
+             }
+           ]
+
     assert {:ok, :allowed} = Preferences.get_consent_state(alice, :inbox_id, alice.inbox_id)
+  end
+
+  test "group consent updates emit typed preference updates" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, _bob} = create_client("bob")
+    assert {:ok, group} = create_group(alice, ["bob"])
+    preferences_topic = {:preferences, alice.id}
+    consent_topic = {:consent, alice.id}
+
+    :ok = Events.subscribe(alice, preferences_topic)
+    :ok = Events.subscribe(alice, consent_topic)
+
+    assert {:ok, :ok} =
+             Preferences.set_consent_states(alice, [%{group_id: group.id, state: :denied}])
+
+    assert_receive {:xmtp, ^consent_topic, %Events.ConsentUpdated{records: group_records}}, 500
+    assert group_records == [%{group_id: group.id, state: :denied}]
+
+    assert_receive {:xmtp, ^preferences_topic, %Events.PreferenceUpdated{updates: group_updates}},
+                   500
+
+    assert group_updates == [
+             %Types.PreferenceUpdate{
+               kind: :consent,
+               consent: %Types.ConsentUpdate{
+                 entity_type: :group_id,
+                 state: :denied,
+                 entity: group.id
+               }
+             }
+           ]
+
+    assert {:ok, :denied} = Preferences.get_consent_state(alice, :group_id, group.id)
   end
 
   test "debug counters can be inspected and cleared" do
@@ -86,6 +139,47 @@ defmodule XmtpElixirSdk.PreferencesDebugSyncTest do
 
     assert error.kind == :invalid_argument
     assert error.message == "invalid archive data"
+  end
+
+  test "archives with wrong field types are rejected cleanly" do
+    assert {:ok, alice} = create_client("alice")
+
+    malformed_archive =
+      :erlang.term_to_binary(%{
+        pin: "archive-1",
+        inbox_id: alice.inbox_id,
+        creator_installation_id: alice.installation_id,
+        server_url: "https://archive.example",
+        created_at_ns: System.system_time(:nanosecond),
+        item_count: 1,
+        options: %Types.ArchiveOptions{},
+        conversations: :oops
+      })
+
+    assert {:error, metadata_error} = Sync.archive_metadata(alice, malformed_archive, <<1, 2, 3>>)
+    assert metadata_error.kind == :invalid_argument
+    assert metadata_error.message == "invalid archive data"
+
+    assert {:error, import_error} = Sync.import_archive(alice, malformed_archive, <<1, 2, 3>>)
+    assert import_error.kind == :invalid_argument
+    assert import_error.message == "invalid archive data"
+  end
+
+  test "malformed consent records are rejected cleanly" do
+    assert {:ok, alice} = create_client("alice")
+    preferences_topic = {:preferences, alice.id}
+    consent_topic = {:consent, alice.id}
+
+    :ok = Events.subscribe(alice, preferences_topic)
+    :ok = Events.subscribe(alice, consent_topic)
+
+    assert {:error, error} = Preferences.set_consent_states(alice, [%{state: :allowed}])
+    assert error.kind == :invalid_argument
+    assert error.message == "invalid consent record"
+
+    refute_receive {:xmtp, ^consent_topic, _event}, 100
+    refute_receive {:xmtp, ^preferences_topic, _event}, 100
+    assert {:ok, :unknown} = Preferences.get_consent_state(alice, :inbox_id, alice.inbox_id)
   end
 
   test "archive listing respects the day cutoff using nanosecond timestamps" do

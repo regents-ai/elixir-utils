@@ -1,6 +1,22 @@
 defmodule XmtpElixirSdk do
   @moduledoc """
-  Public entrypoint for the XMTP Elixir SDK.
+  The main entrypoint for the XMTP Elixir SDK.
+
+  If you are new to the SDK, start here. A typical flow looks like this:
+
+  1. Start a runtime with `start_runtime/1`.
+  2. Create or build a client with `create_client/3` or `build_client/3`.
+  3. Open or create conversations through `XmtpElixirSdk.Conversations`.
+  4. Send and read messages through `XmtpElixirSdk.Messages`.
+  5. Manage group state through `XmtpElixirSdk.Groups`.
+
+  The SDK is split into small modules on purpose:
+
+  - `XmtpElixirSdk.Clients` handles identity and client lifecycle.
+  - `XmtpElixirSdk.Conversations` handles finding and creating conversations.
+  - `XmtpElixirSdk.Messages` handles sending, listing, and decoding messages.
+  - `XmtpElixirSdk.Groups` handles group membership, roles, and group settings.
+  - `XmtpElixirSdk.Preferences` handles consent and inbox-state operations.
   """
 
   alias XmtpElixirSdk.Client

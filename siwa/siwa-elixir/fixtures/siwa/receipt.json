@@ -1,0 +1,26 @@
+{
+  "source": "@buildersgarden/siwa@0.0.24",
+  "capturedAt": "2026-04-17",
+  "case": {
+    "secret": "fixture-secret",
+    "fixedNowMs": 1776465945649,
+    "payload": {
+      "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+      "agentId": 42,
+      "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+      "chainId": 84532,
+      "verified": "onchain"
+    },
+    "receipt": "eyJhZGRyZXNzIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwiYWdlbnRJZCI6NDIsImFnZW50UmVnaXN0cnkiOiJlaXAxNTU6ODQ1MzI6MHg4MDA0QTgxOEJGQjkxMjIzM2M0OTE4NzFiM2Q4NGM4OUE0OTRCRDllIiwiY2hhaW5JZCI6ODQ1MzIsInZlcmlmaWVkIjoib25jaGFpbiIsImlhdCI6MTc3NjQ2NTk0NTY0OSwiZXhwIjoxNzc2NDY3NzQ1NjQ5fQ.Ljvg9AH1v2EM8FNPqlUhIfYx0LfNpz54dqf_vcu0Hlg",
+    "expiresAt": "2026-04-17T23:15:45.649Z",
+    "verified": {
+      "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+      "agentId": 42,
+      "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+      "chainId": 84532,
+      "verified": "onchain",
+      "iat": 1776465945649,
+      "exp": 1776467745649
+    }
+  }
+}

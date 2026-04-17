@@ -1,10 +1,16 @@
 defmodule XmtpElixirSdk.BrowserShim.Action do
   @moduledoc """
-  Canonical envelopes for the browser shim bridge.
+  Typed message envelopes for the browser-only bridge.
+
+  These structs define the contract between Elixir and a browser runtime when
+  the browser must do work the server cannot do directly, such as OPFS access
+  or worker coordination.
   """
 
   defmodule Request do
-    @moduledoc false
+    @moduledoc """
+    A request sent from Elixir to the browser shim.
+    """
 
     @enforce_keys [:id, :action]
     defstruct [:id, :action, data: %{}]
@@ -17,7 +23,9 @@ defmodule XmtpElixirSdk.BrowserShim.Action do
   end
 
   defmodule Response do
-    @moduledoc false
+    @moduledoc """
+    A successful response sent back from the browser shim.
+    """
 
     @enforce_keys [:id, :action, :result]
     defstruct [:id, :action, :result]
@@ -30,7 +38,9 @@ defmodule XmtpElixirSdk.BrowserShim.Action do
   end
 
   defmodule Error do
-    @moduledoc false
+    @moduledoc """
+    An error response sent back from the browser shim.
+    """
 
     @enforce_keys [:id, :action, :error]
     defstruct [:id, :action, :error]
@@ -43,27 +53,31 @@ defmodule XmtpElixirSdk.BrowserShim.Action do
   end
 
   defmodule StreamEvent do
-    @moduledoc false
+    @moduledoc """
+    A streamed event emitted by the browser shim.
+    """
 
-    @enforce_keys [:action, :stream_id, :result]
-    defstruct [:action, :stream_id, :result]
+    @enforce_keys [:action, :streamId, :result]
+    defstruct [:action, :streamId, :result]
 
     @type t :: %__MODULE__{
             action: String.t(),
-            stream_id: String.t(),
+            streamId: String.t(),
             result: term()
           }
   end
 
   defmodule StreamError do
-    @moduledoc false
+    @moduledoc """
+    A streamed error emitted by the browser shim.
+    """
 
-    @enforce_keys [:action, :stream_id, :error]
-    defstruct [:action, :stream_id, :error]
+    @enforce_keys [:action, :streamId, :error]
+    defstruct [:action, :streamId, :error]
 
     @type t :: %__MODULE__{
             action: String.t(),
-            stream_id: String.t(),
+            streamId: String.t(),
             error: term()
           }
   end

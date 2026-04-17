@@ -1,6 +1,17 @@
 defmodule XmtpElixirSdk.Groups do
   @moduledoc """
-  Group conversation operations.
+  Group membership, roles, permissions, and metadata.
+
+  Use this module once you already have a group conversation and need to manage
+  it.
+
+  Common tasks:
+
+  - change group name, image, description, or app data
+  - inspect or update group permissions
+  - add or remove members
+  - promote or demote admins and super admins
+  - inspect group debug information and timestamps
   """
 
   alias XmtpElixirSdk.Conversation

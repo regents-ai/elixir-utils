@@ -1,6 +1,23 @@
 defmodule XmtpElixirSdk.Clients do
   @moduledoc """
-  Client and identity operations.
+  Client lifecycle and identity operations.
+
+  Use this module to:
+
+  - create a ready-to-use client
+  - build a client before registration
+  - register a built client
+  - manage accounts, recovery identifiers, and installations
+  - check whether identifiers can receive XMTP messages
+
+  In practical terms:
+
+  - `create/3` gives you a registered client immediately
+  - `build/3` gives you a client record you can register later
+  - `register/1` finishes registration for a built client
+
+  Signature-request helpers are provided for app flows where a wallet or signer
+  must approve a step before the SDK applies it.
   """
 
   alias XmtpElixirSdk.Client

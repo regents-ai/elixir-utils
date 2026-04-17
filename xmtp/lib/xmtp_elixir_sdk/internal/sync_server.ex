@@ -250,9 +250,8 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
 
   defp decode_archive(data) when is_binary(data) do
     case :erlang.binary_to_term(data, [:safe]) do
-      %{pin: _, server_url: _, created_at_ns: _, item_count: _, options: _, conversations: _} =
-          archive ->
-        {:ok, archive}
+      archive when is_map(archive) ->
+        validate_archive(archive)
 
       _ ->
         {:error, Error.invalid_argument("invalid archive data", %{})}
@@ -260,4 +259,29 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   rescue
     _ -> {:error, Error.invalid_argument("invalid archive data", %{})}
   end
+
+  defp validate_archive(
+         %{
+           pin: pin,
+           inbox_id: inbox_id,
+           creator_installation_id: creator_installation_id,
+           server_url: server_url,
+           created_at_ns: created_at_ns,
+           item_count: item_count,
+           options: %Types.ArchiveOptions{} = options,
+           conversations: conversations
+         } = archive
+       )
+       when is_binary(pin) and is_binary(inbox_id) and is_binary(creator_installation_id) and
+              is_binary(server_url) and is_integer(created_at_ns) and created_at_ns >= 0 and
+              is_integer(item_count) and item_count >= 0 and is_list(conversations) do
+    if item_count == length(conversations) do
+      {:ok, %{archive | options: options, conversations: conversations}}
+    else
+      {:error, Error.invalid_argument("invalid archive data", %{})}
+    end
+  end
+
+  defp validate_archive(_archive),
+    do: {:error, Error.invalid_argument("invalid archive data", %{})}
 end

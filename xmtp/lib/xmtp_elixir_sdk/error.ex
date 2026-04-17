@@ -13,6 +13,7 @@ defmodule XmtpElixirSdk.Error do
           | :not_initialized
           | :unsupported
           | :conflict
+          | :io
           | :internal
 
   @type t :: %__MODULE__{
@@ -44,6 +45,9 @@ defmodule XmtpElixirSdk.Error do
 
   @spec conflict(String.t(), map()) :: t()
   def conflict(message, details \\ %{}), do: new(:conflict, message, details)
+
+  @spec io(String.t(), map()) :: t()
+  def io(message, details \\ %{}), do: new(:io, message, details)
 
   @spec internal(String.t(), map()) :: t()
   def internal(message, details \\ %{}), do: new(:internal, message, details)

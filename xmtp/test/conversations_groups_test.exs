@@ -66,6 +66,27 @@ defmodule XmtpElixirSdk.ConversationsGroupsTest do
     assert locked.permissions.policies.update_group_name == :admin_only
   end
 
+  test "admins cannot relax super-admin-only governance" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, bob} = create_client("bob")
+    assert {:ok, carol} = create_client("carol")
+    assert {:ok, group} = create_group(alice, ["bob", "carol"])
+    assert {:ok, _promoted} = Groups.add_admin(group, bob.inbox_id)
+    assert {:ok, bob_group} = Conversations.get_by_id(bob, group.id)
+
+    assert {:error, error} = Groups.update_permission(bob_group, :add_admin, :allow)
+    assert error.kind == :conflict
+    assert error.message == "permission denied"
+
+    assert {:error, add_error} = Groups.add_admin(bob_group, carol.inbox_id)
+    assert add_error.kind == :conflict
+    assert add_error.message == "permission denied"
+
+    assert {:ok, refreshed} = refresh_conversation(group)
+    assert refreshed.permissions.policies.add_admin == :super_admin_only
+    assert {:ok, false} = Groups.is_admin(refreshed, carol.inbox_id)
+  end
+
   test "regular members cannot update group permissions" do
     assert {:ok, alice} = create_client("alice")
     assert {:ok, bob} = create_client("bob")
@@ -80,6 +101,21 @@ defmodule XmtpElixirSdk.ConversationsGroupsTest do
 
     assert {:ok, refreshed} = refresh_conversation(group)
     assert refreshed.permissions.policies.update_group_name == :allow
+  end
+
+  test "unsupported permission updates are rejected" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, _bob} = create_client("bob")
+    assert {:ok, group} = create_group(alice, ["bob"])
+
+    assert {:error, error} =
+             Groups.update_permission(group, :update_metadata, :admin_only, :pinned_frame_url)
+
+    assert error.kind == :invalid_argument
+    assert error.message == "unsupported permission update"
+
+    assert {:ok, refreshed} = refresh_conversation(group)
+    refute Map.has_key?(refreshed.permissions.policies, :update_group_pinned_frame_url)
   end
 
   test "unsafe streamed terms are rejected cleanly" do

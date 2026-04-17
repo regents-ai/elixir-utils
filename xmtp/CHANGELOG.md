@@ -4,6 +4,11 @@ All notable changes to `xmtp_elixir_sdk` should be recorded here.
 
 ## Unreleased
 
+### Changed
+
+- Storage operations now classify filesystem failures as I/O errors.
+- Preference update events now use typed updates for consent and HMAC changes.
+
 ### Security
 
 - Streamed message content and stored archive data now reject malformed or hostile binary payloads safely instead of trying to load them directly.

@@ -1,6 +1,18 @@
 defmodule XmtpElixirSdk.Messages do
   @moduledoc """
-  Message operations.
+  Send, list, count, publish, and decode messages.
+
+  This module covers the day-to-day messaging flow:
+
+  - send text, markdown, replies, reactions, attachments, and structured content
+  - list messages in a conversation
+  - count messages that match a filter
+  - fetch one message by id
+  - publish optimistic messages
+  - process streamed message payloads
+
+  For most apps, `send_text/3`, `list/3`, `last_message/2`, and `publish/1` are
+  the main entry points.
   """
 
   alias XmtpElixirSdk.CodecRegistry

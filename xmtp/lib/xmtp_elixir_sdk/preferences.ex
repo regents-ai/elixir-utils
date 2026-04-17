@@ -1,6 +1,23 @@
 defmodule XmtpElixirSdk.Preferences do
   @moduledoc """
-  Consent and inbox-state operations.
+  Consent, inbox-state, and preference-sync operations.
+
+  This module deals with information that is about the client or inbox rather
+  than about one specific conversation.
+
+  Use it to:
+
+  - sync preference state
+  - inspect inbox state
+  - fetch inbox states for other inbox ids
+  - set and read consent state
+
+  Consent updates use one canonical shape:
+
+  - inbox consent: `%{entity: "inbox-id", state: :allowed | :denied | :unknown}`
+  - group consent: `%{group_id: "group-id", state: :allowed | :denied | :unknown}`
+
+  Preference events emit `XmtpElixirSdk.Types.PreferenceUpdate` structs only.
   """
 
   alias XmtpElixirSdk.Client
@@ -19,13 +36,7 @@ defmodule XmtpElixirSdk.Preferences do
         client.runtime,
         {:preferences, client.id},
         %Events.PreferenceUpdated{
-          updates: [
-            %{
-              type: :hmac_key_update,
-              key: client.installation_id_bytes,
-              installation_id: client.installation_id
-            }
-          ]
+          updates: [%Types.PreferenceUpdate{kind: :hmac_key, consent: nil}]
         }
       )
 
@@ -51,10 +62,12 @@ defmodule XmtpElixirSdk.Preferences do
     IdentityServer.inbox_state_from_inbox_ids(client, inbox_ids, true)
   end
 
-  @spec set_consent_states(Client.t(), [map()]) :: {:ok, :ok} | {:error, Error.t()}
+  @spec set_consent_states(Client.t(), [Types.consent_record()]) ::
+          {:ok, :ok} | {:error, Error.t()}
   def set_consent_states(%Client{} = client, records) do
-    with {:ok, :ok} <- IdentityServer.apply_consent_records(client, records) do
-      :ok = ConversationServer.apply_consent_records(client, records)
+    with {:ok, normalized_records} <- normalize_consent_records(records),
+         {:ok, :ok} <- IdentityServer.apply_consent_records(client, normalized_records) do
+      :ok = ConversationServer.apply_consent_records(client, normalized_records)
       {:ok, :ok}
     end
   end
@@ -67,5 +80,44 @@ defmodule XmtpElixirSdk.Preferences do
 
   def get_consent_state(%Client{} = client, :inbox_id, entity) do
     IdentityServer.consent_for_inbox(client, entity)
+  end
+
+  defp normalize_consent_records(records) when is_list(records) do
+    Enum.reduce_while(records, {:ok, []}, fn record, {:ok, acc} ->
+      case normalize_consent_record(record) do
+        {:ok, normalized} -> {:cont, {:ok, [normalized | acc]}}
+        {:error, error} -> {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      {:ok, normalized} -> {:ok, Enum.reverse(normalized)}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp normalize_consent_records(_records) do
+    {:error, Error.invalid_argument("invalid consent records", %{})}
+  end
+
+  defp normalize_consent_record(%{group_id: group_id, state: state} = record)
+       when is_binary(group_id) and state in [:unknown, :allowed, :denied] do
+    if map_size(Map.take(record, [:group_id, :state])) == map_size(record) do
+      {:ok, %{group_id: group_id, state: state}}
+    else
+      {:error, Error.invalid_argument("invalid consent record", %{record: record})}
+    end
+  end
+
+  defp normalize_consent_record(%{entity: entity, state: state} = record)
+       when is_binary(entity) and state in [:unknown, :allowed, :denied] do
+    if map_size(Map.take(record, [:entity, :state])) == map_size(record) do
+      {:ok, %{entity: entity, state: state}}
+    else
+      {:error, Error.invalid_argument("invalid consent record", %{record: record})}
+    end
+  end
+
+  defp normalize_consent_record(record) do
+    {:error, Error.invalid_argument("invalid consent record", %{record: record})}
   end
 end

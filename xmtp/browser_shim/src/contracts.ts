@@ -91,8 +91,21 @@ export type KeyPackageStatus = string | Record<string, unknown>;
 
 export type Conversation = Record<string, unknown>;
 export type DecodedMessage = Record<string, unknown>;
-export type Consent = Record<string, unknown>;
-export type UserPreferenceUpdate = Record<string, unknown>;
+export type ConsentState = "unknown" | "allowed" | "denied";
+export type ConsentEntityType = "group_id" | "inbox_id";
+export type Consent =
+  | { entity: string; state: ConsentState }
+  | { group_id: string; state: ConsentState };
+export type UserPreferenceUpdate =
+  | { kind: "hmac_key"; consent: null }
+  | {
+      kind: "consent";
+      consent: {
+        entity_type: ConsentEntityType;
+        state: ConsentState;
+        entity: string;
+      };
+    };
 
 export type EndStreamAction = {
   action: "endStream";
@@ -558,8 +571,6 @@ export type OpfsAction =
     };
 
 export type ConversationType = "group" | "dm";
-export type ConsentState = string;
-export type ConsentEntityType = string;
 export type PermissionPolicy = string;
 export type PermissionUpdateType = string;
 export type MetadataField = string;

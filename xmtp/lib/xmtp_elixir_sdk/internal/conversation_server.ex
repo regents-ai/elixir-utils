@@ -144,7 +144,7 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
     )
   end
 
-  @spec apply_consent_records(XmtpElixirSdk.Client.t(), [map()]) :: :ok
+  @spec apply_consent_records(XmtpElixirSdk.Client.t(), [Types.consent_record()]) :: :ok
   def apply_consent_records(client, records) do
     GenServer.call(Names.conversation_server(client), {:apply_consent_records, records})
   end
@@ -587,14 +587,11 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
       ) do
     case fetch_conversation(state, conversation_id) do
       {:ok, conversation} ->
-        with :ok <- ensure_permission(client, conversation, :manage_permissions, nil) do
+        with {:ok, policy_field} <- permission_policy_field(update_type, metadata_field),
+             :ok <- validate_permission_policy(policy),
+             :ok <- ensure_permission(client, conversation, :manage_permissions, policy_field) do
           policies =
-            put_permission_policy(
-              conversation.permissions.policies,
-              update_type,
-              policy,
-              metadata_field
-            )
+            put_permission_policy(conversation.permissions.policies, policy_field, policy)
 
           updated = %{
             conversation
@@ -1028,7 +1025,8 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   defp message_expired?(
          %Message{content_type: %Types.ContentTypeId{type_id: "groupUpdated"}},
          _now_ns
-       ), do: false
+       ),
+       do: false
 
   defp message_expired?(%Message{expires_at_ns: expires_at_ns}, now_ns),
     do: now_ns >= expires_at_ns
@@ -1088,7 +1086,7 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   defp message_expiry_for_conversation(_conversation, _sent_at_ns, _content), do: nil
 
   defp apply_consent_record(state, record) do
-    entity = Map.get(record, :group_id) || Map.get(record, :entity) || Map.get(record, :inbox_id)
+    entity = Map.get(record, :group_id) || Map.get(record, :entity)
     state_value = Map.get(record, :state, :unknown)
 
     cond do
@@ -1440,57 +1438,17 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         true -> :member
       end
 
-    policy =
-      case {action, metadata_field} do
-        {:add, _} ->
-          conversation.permissions.policies.add_member
-
-        {:remove, _} ->
-          conversation.permissions.policies.remove_member
-
-        {:add_admin, _} ->
-          conversation.permissions.policies.add_admin
-
-        {:remove_admin, _} ->
-          conversation.permissions.policies.remove_admin
-
-        {:add_super_admin, _} ->
-          conversation.permissions.policies.add_admin
-
-        {:remove_super_admin, _} ->
-          conversation.permissions.policies.remove_admin
-
-        {:manage_permissions, _} ->
-          :admin_only
-
-        {:update_metadata, :group_name} ->
-          conversation.permissions.policies.update_group_name
-
-        {:update_metadata, :description} ->
-          conversation.permissions.policies.update_group_description
-
-        {:update_metadata, :image_url} ->
-          conversation.permissions.policies.update_group_image_url
-
-        {:update_metadata, :app_data} ->
-          conversation.permissions.policies.update_app_data
-
-        {:update_metadata, :message_disappearing} ->
-          conversation.permissions.policies.update_message_disappearing
-
-        _ ->
-          :allow
+    with {:ok, policy} <- permission_policy_for_action(conversation, action, metadata_field) do
+      if permission_allows?(policy, role) do
+        :ok
+      else
+        {:error,
+         Error.conflict("permission denied", %{
+           action: action,
+           metadata_field: metadata_field,
+           inbox_id: client.inbox_id
+         })}
       end
-
-    if permission_allows?(policy, role) do
-      :ok
-    else
-      {:error,
-       Error.conflict("permission denied", %{
-         action: action,
-         metadata_field: metadata_field,
-         inbox_id: client.inbox_id
-       })}
     end
   end
 
@@ -1515,33 +1473,91 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   defp metadata_field_for_update(:disappearing_settings), do: :message_disappearing
   defp metadata_field_for_update(_), do: nil
 
-  defp put_permission_policy(policies, :add_member, policy, _),
-    do: %{policies | add_member: policy}
+  defp put_permission_policy(policies, policy_field, policy),
+    do: Map.put(policies, policy_field, policy)
 
-  defp put_permission_policy(policies, :remove_member, policy, _),
-    do: %{policies | remove_member: policy}
+  defp validate_permission_policy(policy)
+       when policy in [:allow, :deny, :admin_only, :super_admin_only],
+       do: :ok
 
-  defp put_permission_policy(policies, :add_admin, policy, _), do: %{policies | add_admin: policy}
+  defp validate_permission_policy(policy) do
+    {:error, Error.invalid_argument("unsupported permission policy", %{policy: policy})}
+  end
 
-  defp put_permission_policy(policies, :remove_admin, policy, _),
-    do: %{policies | remove_admin: policy}
+  defp permission_policy_for_action(conversation, :add, _metadata_field),
+    do: {:ok, conversation.permissions.policies.add_member}
 
-  defp put_permission_policy(policies, :update_metadata, policy, :group_name),
-    do: %{policies | update_group_name: policy}
+  defp permission_policy_for_action(conversation, :remove, _metadata_field),
+    do: {:ok, conversation.permissions.policies.remove_member}
 
-  defp put_permission_policy(policies, :update_metadata, policy, :description),
-    do: %{policies | update_group_description: policy}
+  defp permission_policy_for_action(conversation, :add_admin, _metadata_field),
+    do: {:ok, conversation.permissions.policies.add_admin}
 
-  defp put_permission_policy(policies, :update_metadata, policy, :image_url),
-    do: %{policies | update_group_image_url: policy}
+  defp permission_policy_for_action(conversation, :remove_admin, _metadata_field),
+    do: {:ok, conversation.permissions.policies.remove_admin}
 
-  defp put_permission_policy(policies, :update_metadata, policy, :message_disappearing),
-    do: %{policies | update_message_disappearing: policy}
+  defp permission_policy_for_action(conversation, :add_super_admin, _metadata_field),
+    do: {:ok, conversation.permissions.policies.add_admin}
 
-  defp put_permission_policy(policies, :update_metadata, policy, :app_data),
-    do: %{policies | update_app_data: policy}
+  defp permission_policy_for_action(conversation, :remove_super_admin, _metadata_field),
+    do: {:ok, conversation.permissions.policies.remove_admin}
 
-  defp put_permission_policy(policies, _update_type, _policy, _metadata_field), do: policies
+  defp permission_policy_for_action(conversation, :manage_permissions, policy_field) do
+    conversation.permissions.policies
+    |> Map.fetch!(policy_field)
+    |> policy_for_permission_edit()
+    |> then(&{:ok, &1})
+  end
+
+  defp permission_policy_for_action(conversation, :update_metadata, :group_name),
+    do: {:ok, conversation.permissions.policies.update_group_name}
+
+  defp permission_policy_for_action(conversation, :update_metadata, :description),
+    do: {:ok, conversation.permissions.policies.update_group_description}
+
+  defp permission_policy_for_action(conversation, :update_metadata, :image_url),
+    do: {:ok, conversation.permissions.policies.update_group_image_url}
+
+  defp permission_policy_for_action(conversation, :update_metadata, :app_data),
+    do: {:ok, conversation.permissions.policies.update_app_data}
+
+  defp permission_policy_for_action(conversation, :update_metadata, :message_disappearing),
+    do: {:ok, conversation.permissions.policies.update_message_disappearing}
+
+  defp permission_policy_for_action(_conversation, action, metadata_field) do
+    {:error,
+     Error.invalid_argument("unsupported permission action", %{
+       action: action,
+       metadata_field: metadata_field
+     })}
+  end
+
+  defp permission_policy_field(:add_member, nil), do: {:ok, :add_member}
+  defp permission_policy_field(:remove_member, nil), do: {:ok, :remove_member}
+  defp permission_policy_field(:add_admin, nil), do: {:ok, :add_admin}
+  defp permission_policy_field(:remove_admin, nil), do: {:ok, :remove_admin}
+  defp permission_policy_field(:update_metadata, :group_name), do: {:ok, :update_group_name}
+
+  defp permission_policy_field(:update_metadata, :description),
+    do: {:ok, :update_group_description}
+
+  defp permission_policy_field(:update_metadata, :image_url), do: {:ok, :update_group_image_url}
+
+  defp permission_policy_field(:update_metadata, :message_disappearing),
+    do: {:ok, :update_message_disappearing}
+
+  defp permission_policy_field(:update_metadata, :app_data), do: {:ok, :update_app_data}
+
+  defp permission_policy_field(update_type, metadata_field) do
+    {:error,
+     Error.invalid_argument("unsupported permission update", %{
+       update_type: update_type,
+       metadata_field: metadata_field
+     })}
+  end
+
+  defp policy_for_permission_edit(:super_admin_only), do: :super_admin_only
+  defp policy_for_permission_edit(_policy), do: :admin_only
 
   defp update_admin_lists_after_member_change(%Conversation{} = conversation) do
     member_ids = Enum.map(conversation.members, & &1.inbox_id)

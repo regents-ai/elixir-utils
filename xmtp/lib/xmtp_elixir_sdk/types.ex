@@ -25,6 +25,9 @@ defmodule XmtpElixirSdk.Types do
           | :app_data
           | :message_disappearing
   @type preference_kind :: :consent | :hmac_key
+  @type consent_record ::
+          %{required(:entity) => String.t(), required(:state) => consent_state()}
+          | %{required(:group_id) => String.t(), required(:state) => consent_state()}
 
   @spec env_url(env()) :: String.t()
   def env_url(:local), do: "http://localhost:5556"
@@ -88,6 +91,27 @@ defmodule XmtpElixirSdk.Types do
     @moduledoc "Message disappearing settings."
     defstruct from_ns: 0, in_ns: 0
     @type t :: %__MODULE__{from_ns: non_neg_integer(), in_ns: non_neg_integer()}
+  end
+
+  defmodule ConsentUpdate do
+    @moduledoc "Consent update from a preference stream."
+    defstruct [:entity_type, :state, :entity]
+
+    @type t :: %__MODULE__{
+            entity_type: XmtpElixirSdk.Types.consent_entity_type(),
+            state: XmtpElixirSdk.Types.consent_state(),
+            entity: String.t()
+          }
+  end
+
+  defmodule PreferenceUpdate do
+    @moduledoc "Preference update from a preference stream."
+    defstruct [:kind, :consent]
+
+    @type t :: %__MODULE__{
+            kind: XmtpElixirSdk.Types.preference_kind(),
+            consent: ConsentUpdate.t() | nil
+          }
   end
 
   defmodule PermissionPolicySet do

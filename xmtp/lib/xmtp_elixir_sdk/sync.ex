@@ -1,6 +1,17 @@
 defmodule XmtpElixirSdk.Sync do
   @moduledoc """
-  Archive and device-sync operations.
+  Archive, restore, and device-sync operations.
+
+  This module is for exporting conversation state, importing it somewhere else,
+  and coordinating sync between installations.
+
+  Reach for it when you need to:
+
+  - build an archive blob
+  - inspect archive metadata
+  - import an archive
+  - discover available archives
+  - request or apply device sync
   """
 
   alias XmtpElixirSdk.Client

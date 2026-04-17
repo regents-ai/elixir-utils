@@ -20,5 +20,6 @@ A few notes:
 
 - This repo is only one code tracker for all utilities.
 - Each package keeps its own version number and package settings in its own `mix.exs`.
+- `siwa/siwa-js/` is reference material only and is not tracked here.
 
 If we add more utilities later, put each new one in its own folder with its own `mix.exs` and release name.

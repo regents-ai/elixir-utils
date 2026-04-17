@@ -1,0 +1,37 @@
+{
+  "source": "@buildersgarden/siwa@0.0.24",
+  "capturedAt": "2026-04-17",
+  "case": {
+    "agent": {
+      "agentId": 42,
+      "owner": "0xowner",
+      "uri": "data:application/json;base64,eyJuYW1lIjoiRml4dHVyZSBBZ2VudCIsImRlc2NyaXB0aW9uIjoiRml4dHVyZSIsImltYWdlIjoiaXBmczovL2ltYWdlIiwic2VydmljZXMiOlt7Im5hbWUiOiJ3ZWIiLCJlbmRwb2ludCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tIn1dLCJhY3RpdmUiOnRydWUsInN1cHBvcnRlZFRydXN0IjpbInJlcHV0YXRpb24iXX0=",
+      "agentWallet": "0xwallet",
+      "metadata": {
+        "name": "Fixture Agent",
+        "description": "Fixture",
+        "image": "ipfs://image",
+        "services": [
+          {
+            "name": "web",
+            "endpoint": "https://api.example.com"
+          }
+        ],
+        "active": true,
+        "supportedTrust": [
+          "reputation"
+        ]
+      }
+    },
+    "reputation": {
+      "count": 5,
+      "score": 25,
+      "rawValue": "2500",
+      "decimals": 2
+    },
+    "encodedRegistration": {
+      "to": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+      "data": "0xf2c298be00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000014697066733a2f2f666978747572652d6167656e74000000000000000000000000"
+    }
+  }
+}

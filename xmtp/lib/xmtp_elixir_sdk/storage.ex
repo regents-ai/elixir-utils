@@ -19,7 +19,7 @@ defmodule XmtpElixirSdk.Storage do
         {:ok, storage}
 
       {:error, reason} ->
-        {:error, Error.internal("failed to initialize storage", %{reason: reason, root: root})}
+        {:error, Error.io("failed to initialize storage", %{reason: reason, root: root})}
     end
   end
 
@@ -30,7 +30,7 @@ defmodule XmtpElixirSdk.Storage do
         {:ok, Enum.map(files, &Path.join(root, &1))}
 
       {:error, reason} ->
-        {:error, Error.not_found("storage root not found", %{reason: reason, root: root})}
+        {:error, Error.io("failed to list storage files", %{reason: reason, root: root})}
     end
   end
 
@@ -54,11 +54,8 @@ defmodule XmtpElixirSdk.Storage do
       :ok ->
         {:ok, true}
 
-      {:error, :enoent} ->
-        {:ok, false}
-
       {:error, reason} ->
-        {:error, Error.internal("failed to delete file", %{reason: reason, path: full})}
+        {:error, Error.io("failed to delete file", %{reason: reason, path: full})}
     end
   end
 
@@ -71,7 +68,7 @@ defmodule XmtpElixirSdk.Storage do
         {:ok, data}
 
       {:error, reason} ->
-        {:error, Error.not_found("database not found", %{reason: reason, path: full})}
+        {:error, Error.io("failed to export database", %{reason: reason, path: full})}
     end
   end
 
@@ -85,7 +82,7 @@ defmodule XmtpElixirSdk.Storage do
         :ok
 
       {:error, reason} ->
-        {:error, Error.internal("failed to import database", %{reason: reason, path: full})}
+        {:error, Error.io("failed to import database", %{reason: reason, path: full})}
     end
   end
 
@@ -93,10 +90,13 @@ defmodule XmtpElixirSdk.Storage do
   def clear_all(%__MODULE__{root: root}) do
     case File.rm_rf(root) do
       {:ok, _} ->
-        File.mkdir_p(root)
+        case File.mkdir_p(root) do
+          :ok -> :ok
+          {:error, reason} -> {:error, Error.io("failed to clear storage", %{reason: reason, root: root})}
+        end
 
       {:error, reason, _} ->
-        {:error, Error.internal("failed to clear storage", %{reason: reason, root: root})}
+        {:error, Error.io("failed to clear storage", %{reason: reason, root: root})}
     end
   end
 end

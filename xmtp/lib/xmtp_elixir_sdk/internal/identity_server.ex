@@ -67,7 +67,8 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     GenServer.call(Names.identity_server(runtime), {:can_message, identifiers})
   end
 
-  @spec inbox_state(XmtpElixirSdk.Client.t(), boolean()) :: {:ok, InboxState.t()} | {:error, Error.t()}
+  @spec inbox_state(XmtpElixirSdk.Client.t(), boolean()) ::
+          {:ok, InboxState.t()} | {:error, Error.t()}
   def inbox_state(client, refresh \\ false) do
     GenServer.call(Names.identity_server(client), {:inbox_state, client.id, refresh})
   end
@@ -87,7 +88,8 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     GenServer.call(Names.identity_server(runtime), {:fetch_inbox_states, inbox_ids, refresh})
   end
 
-  @spec apply_consent_records(XmtpElixirSdk.Client.t(), [map()]) :: {:ok, :ok}
+  @spec apply_consent_records(XmtpElixirSdk.Client.t(), [Types.consent_record()]) ::
+          {:ok, :ok} | {:error, Error.t()}
   def apply_consent_records(client, records) do
     GenServer.call(Names.identity_server(client), {:apply_consent_records, client.id, records})
   end
@@ -100,7 +102,10 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
   @spec create_signature_request(XmtpElixirSdk.Client.t(), atom(), map()) ::
           {:ok, map()} | {:error, Error.t()}
   def create_signature_request(client, action, data) do
-    GenServer.call(Names.identity_server(client), {:create_signature_request, client.id, action, data})
+    GenServer.call(
+      Names.identity_server(client),
+      {:create_signature_request, client.id, action, data}
+    )
   end
 
   @spec apply_signature_request(XmtpElixirSdk.Client.t(), String.t(), map()) ::
@@ -140,7 +145,10 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
 
   def handle_call({:create_client, identifier, opts, register?}, _from, state) do
     client_id = "client-" <> Integer.to_string(state.next_client_id)
-    inbox_id = generate_inbox_id(identifier, Keyword.get(opts, :kind, 0), Keyword.get(opts, :nonce, 1))
+
+    inbox_id =
+      generate_inbox_id(identifier, Keyword.get(opts, :kind, 0), Keyword.get(opts, :nonce, 1))
+
     installation_id = "installation-#{state.next_client_id}"
 
     client = %{
@@ -161,7 +169,8 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     next_state = %{
       state
       | clients: Map.put(state.clients, client_id, client),
-        clients_by_identifier: Map.put(state.clients_by_identifier, identifier_key(identifier), inbox_id),
+        clients_by_identifier:
+          Map.put(state.clients_by_identifier, identifier_key(identifier), inbox_id),
         next_client_id: state.next_client_id + 1
     }
 
@@ -216,22 +225,29 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
 
   def handle_call({:client_state, client_id}, _from, state) do
     case Map.fetch(state.clients, client_id) do
-      {:ok, client} -> {:reply, {:ok, client}, state}
-      :error -> {:reply, {:error, Error.not_found("client not found", %{client_id: client_id})}, state}
+      {:ok, client} ->
+        {:reply, {:ok, client}, state}
+
+      :error ->
+        {:reply, {:error, Error.not_found("client not found", %{client_id: client_id})}, state}
     end
   end
 
   def handle_call({:fetch_client, client_id}, _from, state) do
     case Map.fetch(state.clients, client_id) do
-      {:ok, client} -> {:reply, {:ok, client}, state}
-      :error -> {:reply, {:error, Error.not_found("client not found", %{client_id: client_id})}, state}
+      {:ok, client} ->
+        {:reply, {:ok, client}, state}
+
+      :error ->
+        {:reply, {:error, Error.not_found("client not found", %{client_id: client_id})}, state}
     end
   end
 
   def handle_call({:get_inbox_id_for_identifier, identifier}, _from, state) do
     case Map.get(state.clients_by_identifier, identifier_key(identifier)) do
       nil ->
-        {:reply, {:error, Error.not_found("identifier not registered", %{identifier: identifier})}, state}
+        {:reply,
+         {:error, Error.not_found("identifier not registered", %{identifier: identifier})}, state}
 
       inbox_id ->
         {:reply, {:ok, inbox_id}, state}
@@ -242,7 +258,8 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     result =
       identifiers
       |> Enum.map(fn identifier ->
-        {identifier_key(identifier), Map.has_key?(state.clients_by_identifier, identifier_key(identifier))}
+        {identifier_key(identifier),
+         Map.has_key?(state.clients_by_identifier, identifier_key(identifier))}
       end)
       |> Map.new()
 
@@ -276,24 +293,33 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
   end
 
   def handle_call({:apply_consent_records, client_id, records}, _from, state) do
-    next_state =
-      Enum.reduce(records, state, fn record, acc ->
-        case Map.get(record, :inbox_id) do
-          nil -> acc
-          inbox_id -> put_in(acc.inbox_consent[inbox_id], Map.get(record, :state, :unknown))
-        end
-      end)
+    with {:ok, normalized_records} <- normalize_consent_records(records) do
+      next_state =
+        Enum.reduce(normalized_records, state, fn record, acc ->
+          case Map.get(record, :entity) do
+            nil -> acc
+            inbox_id -> put_in(acc.inbox_consent[inbox_id], Map.get(record, :state, :unknown))
+          end
+        end)
 
-    StatsServer.bump_identity(state.runtime, :publish_identity_update)
-    Events.emit(state.runtime, {:consent, client_id}, %Events.ConsentUpdated{records: records})
+      StatsServer.bump_identity(state.runtime, :publish_identity_update)
 
-    Events.emit(
-      state.runtime,
-      {:preferences, client_id},
-      %Events.PreferenceUpdated{updates: [%{type: :consent_update, consent: records}]}
-    )
+      Events.emit(state.runtime, {:consent, client_id}, %Events.ConsentUpdated{
+        records: normalized_records
+      })
 
-    {:reply, {:ok, :ok}, next_state}
+      Events.emit(
+        state.runtime,
+        {:preferences, client_id},
+        %Events.PreferenceUpdated{
+          updates: Enum.map(normalized_records, &preference_update_from_consent_record/1)
+        }
+      )
+
+      {:reply, {:ok, :ok}, next_state}
+    else
+      {:error, error} -> {:reply, {:error, error}, state}
+    end
   end
 
   def handle_call({:consent_for_inbox, inbox_id}, _from, state) do
@@ -328,18 +354,36 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     end
   end
 
-  def handle_call({:apply_signature_request, client_id, signature_request_id, signer}, _from, state) do
+  def handle_call(
+        {:apply_signature_request, client_id, signature_request_id, signer},
+        _from,
+        state
+      ) do
     case Map.fetch(state.signature_requests, signature_request_id) do
       :error ->
-        {:reply, {:error, Error.not_found("signature request not found", %{signature_request_id: signature_request_id})}, state}
+        {:reply,
+         {:error,
+          Error.not_found("signature request not found", %{
+            signature_request_id: signature_request_id
+          })}, state}
 
       {:ok, request} ->
         if request.client_id != client_id do
-          {:reply, {:error, Error.conflict("signature request belongs to another client", %{signature_request_id: signature_request_id})}, state}
+          {:reply,
+           {:error,
+            Error.conflict("signature request belongs to another client", %{
+              signature_request_id: signature_request_id
+            })}, state}
         else
           next_state = apply_signature_request_action(state, request, signer)
           request = %{request | applied?: true}
-          {:reply, :ok, %{next_state | signature_requests: Map.put(next_state.signature_requests, signature_request_id, request)}}
+
+          {:reply, :ok,
+           %{
+             next_state
+             | signature_requests:
+                 Map.put(next_state.signature_requests, signature_request_id, request)
+           }}
         end
     end
   end
@@ -351,9 +395,70 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     end
   end
 
-  defp identifier_key(%Identifier{identifier: identifier, identifier_kind: kind}), do: "#{kind}:#{identifier}"
-  defp identifier_key(%{identifier: identifier, identifier_kind: kind}), do: "#{kind}:#{identifier}"
+  defp identifier_key(%Identifier{identifier: identifier, identifier_kind: kind}),
+    do: "#{kind}:#{identifier}"
+
+  defp identifier_key(%{identifier: identifier, identifier_kind: kind}),
+    do: "#{kind}:#{identifier}"
+
   defp identifier_key(other), do: inspect(other)
+
+  defp preference_update_from_consent_record(record) do
+    %Types.PreferenceUpdate{
+      kind: :consent,
+      consent: %Types.ConsentUpdate{
+        entity_type: consent_entity_type(record),
+        state: Map.get(record, :state, :unknown),
+        entity: consent_entity(record)
+      }
+    }
+  end
+
+  defp consent_entity_type(%{group_id: group_id}) when is_binary(group_id), do: :group_id
+  defp consent_entity_type(_record), do: :inbox_id
+
+  defp consent_entity(%{group_id: group_id}) when is_binary(group_id), do: group_id
+  defp consent_entity(%{entity: entity}) when is_binary(entity), do: entity
+  defp consent_entity(_record), do: raise(ArgumentError, "invalid consent record")
+
+  defp normalize_consent_records(records) when is_list(records) do
+    Enum.reduce_while(records, {:ok, []}, fn record, {:ok, acc} ->
+      case normalize_consent_record(record) do
+        {:ok, normalized} -> {:cont, {:ok, [normalized | acc]}}
+        {:error, error} -> {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      {:ok, normalized} -> {:ok, Enum.reverse(normalized)}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp normalize_consent_records(_records) do
+    {:error, Error.invalid_argument("invalid consent records", %{})}
+  end
+
+  defp normalize_consent_record(%{group_id: group_id, state: state} = record)
+       when is_binary(group_id) and state in [:unknown, :allowed, :denied] do
+    if map_size(Map.take(record, [:group_id, :state])) == map_size(record) do
+      {:ok, %{group_id: group_id, state: state}}
+    else
+      {:error, Error.invalid_argument("invalid consent record", %{record: record})}
+    end
+  end
+
+  defp normalize_consent_record(%{entity: entity, state: state} = record)
+       when is_binary(entity) and state in [:unknown, :allowed, :denied] do
+    if map_size(Map.take(record, [:entity, :state])) == map_size(record) do
+      {:ok, %{entity: entity, state: state}}
+    else
+      {:error, Error.invalid_argument("invalid consent record", %{record: record})}
+    end
+  end
+
+  defp normalize_consent_record(record) do
+    {:error, Error.invalid_argument("invalid consent record", %{record: record})}
+  end
 
   defp generate_inbox_id(identifier, kind, nonce) do
     data = "#{identifier_key(identifier)}|#{kind}|#{nonce}"
@@ -373,7 +478,8 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     end
   end
 
-  defp build_inbox_state(client, state), do: build_inbox_state_from_clients(client, inbox_clients(state, client.inbox_id))
+  defp build_inbox_state(client, state),
+    do: build_inbox_state_from_clients(client, inbox_clients(state, client.inbox_id))
 
   defp build_inbox_state_from_clients(client, clients) do
     identifiers =
@@ -403,19 +509,31 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
 
   defp apply_signature_request_action(state, %{action: :register, client_id: client_id}, _signer) do
     case Map.fetch(state.clients, client_id) do
-      {:ok, client} -> %{state | clients: Map.put(state.clients, client_id, %{client | registered?: true})}
-      :error -> state
+      {:ok, client} ->
+        %{state | clients: Map.put(state.clients, client_id, %{client | registered?: true})}
+
+      :error ->
+        state
     end
   end
 
-  defp apply_signature_request_action(state, %{action: :add_account, client_id: client_id, data: %{identifier: identifier}}, _signer) do
+  defp apply_signature_request_action(
+         state,
+         %{action: :add_account, client_id: client_id, data: %{identifier: identifier}},
+         _signer
+       ) do
     case Map.fetch(state.clients, client_id) do
       {:ok, client} ->
-        updated = %{client | account_identifiers: Enum.uniq([identifier | client.account_identifiers])}
+        updated = %{
+          client
+          | account_identifiers: Enum.uniq([identifier | client.account_identifiers])
+        }
+
         %{
           state
           | clients: Map.put(state.clients, client_id, updated),
-            clients_by_identifier: Map.put(state.clients_by_identifier, identifier_key(identifier), client.inbox_id)
+            clients_by_identifier:
+              Map.put(state.clients_by_identifier, identifier_key(identifier), client.inbox_id)
         }
 
       :error ->
@@ -423,14 +541,23 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     end
   end
 
-  defp apply_signature_request_action(state, %{action: :remove_account, client_id: client_id, data: %{identifier: identifier}}, _signer) do
+  defp apply_signature_request_action(
+         state,
+         %{action: :remove_account, client_id: client_id, data: %{identifier: identifier}},
+         _signer
+       ) do
     case Map.fetch(state.clients, client_id) do
       {:ok, client} ->
-        updated = %{client | account_identifiers: Enum.reject(client.account_identifiers, &(&1 == identifier))}
+        updated = %{
+          client
+          | account_identifiers: Enum.reject(client.account_identifiers, &(&1 == identifier))
+        }
+
         %{
           state
           | clients: Map.put(state.clients, client_id, updated),
-            clients_by_identifier: Map.delete(state.clients_by_identifier, identifier_key(identifier))
+            clients_by_identifier:
+              Map.delete(state.clients_by_identifier, identifier_key(identifier))
         }
 
       :error ->
@@ -438,11 +565,17 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     end
   end
 
-  defp apply_signature_request_action(state, %{action: :revoke_all_other_installations, client_id: client_id}, _signer) do
+  defp apply_signature_request_action(
+         state,
+         %{action: :revoke_all_other_installations, client_id: client_id},
+         _signer
+       ) do
     with {:ok, client} <- fetch_client_from_state(state, client_id) do
       remaining_clients =
         state.clients
-        |> Enum.reject(fn {id, other} -> id != client_id and other.inbox_id == client.inbox_id end)
+        |> Enum.reject(fn {id, other} ->
+          id != client_id and other.inbox_id == client.inbox_id
+        end)
         |> Map.new()
 
       remaining_identifiers =
@@ -453,14 +586,21 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
       %{
         state
         | clients: Map.put(remaining_clients, client_id, client),
-          clients_by_identifier: Map.merge(remaining_identifiers, %{identifier_key(client.identifier) => client.inbox_id})
+          clients_by_identifier:
+            Map.merge(remaining_identifiers, %{
+              identifier_key(client.identifier) => client.inbox_id
+            })
       }
     else
       {:error, _} -> state
     end
   end
 
-  defp apply_signature_request_action(state, %{action: :revoke_installations, data: %{installation_ids: installation_ids}}, _signer) do
+  defp apply_signature_request_action(
+         state,
+         %{action: :revoke_installations, data: %{installation_ids: installation_ids}},
+         _signer
+       ) do
     clients =
       state.clients
       |> Enum.reject(fn {_id, client} -> client.installation_id in installation_ids end)
@@ -469,7 +609,15 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     %{state | clients: clients}
   end
 
-  defp apply_signature_request_action(state, %{action: :change_recovery_identifier, client_id: client_id, data: %{identifier: identifier}}, _signer) do
+  defp apply_signature_request_action(
+         state,
+         %{
+           action: :change_recovery_identifier,
+           client_id: client_id,
+           data: %{identifier: identifier}
+         },
+         _signer
+       ) do
     case Map.fetch(state.clients, client_id) do
       {:ok, client} ->
         previous_identifier = identifier_key(client.recovery_identifier)
@@ -480,7 +628,11 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
           |> Map.delete(previous_identifier)
           |> Map.put(identifier_key(identifier), client.inbox_id)
 
-        %{state | clients: Map.put(state.clients, client_id, updated), clients_by_identifier: clients_by_identifier}
+        %{
+          state
+          | clients: Map.put(state.clients, client_id, updated),
+            clients_by_identifier: clients_by_identifier
+        }
 
       :error ->
         state

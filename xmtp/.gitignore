@@ -13,6 +13,14 @@
 # Temporary files, for example, from tests.
 /tmp/
 
+# Local planning notes and agent workspace files should stay out of the repo.
+.codex/
+.claude/
+*.plan.md
+*.notes.md
+*.scratch.md
+*.local.md
+
 # If the VM crashes, it generates a dump, let's ignore it too.
 erl_crash.dump
 
@@ -21,4 +29,3 @@ erl_crash.dump
 
 # Ignore package tarball (built via "mix hex.build").
 xmtp_elixir_sdk-*.tar
-

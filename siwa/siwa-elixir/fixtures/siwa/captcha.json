@@ -1,0 +1,48 @@
+{
+  "source": "@buildersgarden/siwa@0.0.24",
+  "capturedAt": "2026-04-17",
+  "case": {
+    "challenge": {
+      "topic": "autonomous agents",
+      "format": "quatrain",
+      "lineCount": 4,
+      "asciiTarget": 332,
+      "timeLimitSeconds": 20,
+      "difficulty": "medium",
+      "createdAt": 1776465945649,
+      "wordCount": 14
+    },
+    "challengeToken": "eyJ0b3BpYyI6ImF1dG9ub21vdXMgYWdlbnRzIiwiZm9ybWF0IjoicXVhdHJhaW4iLCJsaW5lQ291bnQiOjQsImFzY2lpVGFyZ2V0IjozMzIsInRpbWVMaW1pdFNlY29uZHMiOjIwLCJkaWZmaWN1bHR5IjoibWVkaXVtIiwiY3JlYXRlZEF0IjoxNzc2NDY1OTQ1NjQ5LCJ3b3JkQ291bnQiOjE0fQ.vRRQK2CVSuw1J9WJV6z1pe2gyRRZaQe_m8GeSHhuhUs",
+    "packedResponse": "eyJjaGFsbGVuZ2VUb2tlbiI6ImV5SjBiM0JwWXlJNkltRjFkRzl1YjIxdmRYTWdZV2RsYm5Seklpd2labTl5YldGMElqb2ljWFZoZEhKaGFXNGlMQ0pzYVc1bFEyOTFiblFpT2pRc0ltRnpZMmxwVkdGeVoyVjBJam96TXpJc0luUnBiV1ZNYVcxcGRGTmxZMjl1WkhNaU9qSXdMQ0prYVdabWFXTjFiSFI1SWpvaWJXVmthWFZ0SWl3aVkzSmxZWFJsWkVGMElqb3hOemMyTkRZMU9UUTFOalE1TENKM2IzSmtRMjkxYm5RaU9qRTBmUS52UlJRSzJDVlN1dzFKOVdKVjZ6MXBlMmd5UlJaYVFlX204R2VTSGh1aFVzIiwic29sdXRpb24iOnsidGV4dCI6ImJhZCBhbnN3ZXIiLCJzb2x2ZWRBdCI6MTc3NjQ2NTk0NTY0OX19",
+    "unpacked": {
+      "challengeToken": "eyJ0b3BpYyI6ImF1dG9ub21vdXMgYWdlbnRzIiwiZm9ybWF0IjoicXVhdHJhaW4iLCJsaW5lQ291bnQiOjQsImFzY2lpVGFyZ2V0IjozMzIsInRpbWVMaW1pdFNlY29uZHMiOjIwLCJkaWZmaWN1bHR5IjoibWVkaXVtIiwiY3JlYXRlZEF0IjoxNzc2NDY1OTQ1NjQ5LCJ3b3JkQ291bnQiOjE0fQ.vRRQK2CVSuw1J9WJV6z1pe2gyRRZaQe_m8GeSHhuhUs",
+      "solution": {
+        "text": "bad answer",
+        "solvedAt": 1776465945649
+      }
+    },
+    "verified": {
+      "asciiSum": {
+        "pass": false,
+        "actual": 98,
+        "target": 332
+      },
+      "timing": {
+        "pass": true,
+        "elapsedSeconds": 0
+      },
+      "overallPass": false,
+      "verdict": "CHALLENGE_FAILED",
+      "lineCount": {
+        "pass": false,
+        "actual": 1,
+        "target": 4
+      },
+      "wordCount": {
+        "pass": false,
+        "actual": 2,
+        "target": 14
+      }
+    }
+  }
+}

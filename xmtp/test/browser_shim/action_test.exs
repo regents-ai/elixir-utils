@@ -22,13 +22,13 @@ defmodule XmtpElixirSdk.BrowserShim.ActionTest do
 
     assert %Action.StreamEvent{
              action: "stream.value",
-             stream_id: "stream-1",
+             streamId: "stream-1",
              result: [1, 2, 3]
            } = stream_event
 
     assert %Action.StreamError{
              action: "stream.value",
-             stream_id: "stream-1",
+             streamId: "stream-1",
              error: :boom
            } = stream_error
   end

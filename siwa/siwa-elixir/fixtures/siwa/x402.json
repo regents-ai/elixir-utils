@@ -1,0 +1,50 @@
+{
+  "source": "@buildersgarden/siwa@0.0.24",
+  "capturedAt": "2026-04-17",
+  "case": {
+    "paymentRequired": {
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:84532",
+          "amount": "1000",
+          "asset": "USDC",
+          "payTo": "0xabc",
+          "maxTimeoutSeconds": 60
+        }
+      ],
+      "resource": {
+        "url": "https://api.example.com/weather",
+        "description": "Weather report"
+      }
+    },
+    "encoded": "eyJhY2NlcHRzIjpbeyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6ODQ1MzIiLCJhbW91bnQiOiIxMDAwIiwiYXNzZXQiOiJVU0RDIiwicGF5VG8iOiIweGFiYyIsIm1heFRpbWVvdXRTZWNvbmRzIjo2MH1dLCJyZXNvdXJjZSI6eyJ1cmwiOiJodHRwczovL2FwaS5leGFtcGxlLmNvbS93ZWF0aGVyIiwiZGVzY3JpcHRpb24iOiJXZWF0aGVyIHJlcG9ydCJ9fQ==",
+    "decoded": {
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:84532",
+          "amount": "1000",
+          "asset": "USDC",
+          "payTo": "0xabc",
+          "maxTimeoutSeconds": 60
+        }
+      ],
+      "resource": {
+        "url": "https://api.example.com/weather",
+        "description": "Weather report"
+      }
+    },
+    "processedPayment": {
+      "valid": true,
+      "payment": {
+        "scheme": "exact",
+        "network": "eip155:84532",
+        "amount": "1000",
+        "asset": "USDC",
+        "payTo": "0xabc",
+        "txHash": "0xtxhash"
+      }
+    }
+  }
+}

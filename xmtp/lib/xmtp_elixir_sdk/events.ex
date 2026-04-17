@@ -35,13 +35,29 @@ defmodule XmtpElixirSdk.Events do
   end
 
   defmodule ConsentUpdated do
-    @moduledoc false
+    @moduledoc """
+    Consent records emitted after `Preferences.set_consent_states/2`.
+
+    Canonical shapes:
+
+    - inbox consent: `%{entity: "inbox-id", state: :allowed | :denied | :unknown}`
+    - group consent: `%{group_id: "group-id", state: :allowed | :denied | :unknown}`
+    """
     defstruct [:records]
+    @type t :: %__MODULE__{records: [XmtpElixirSdk.Types.consent_record()]}
   end
 
   defmodule PreferenceUpdated do
-    @moduledoc false
+    @moduledoc """
+    Preference updates emitted by `Preferences.sync/1` and consent changes.
+
+    `updates` always contains `XmtpElixirSdk.Types.PreferenceUpdate` values:
+
+    - `%PreferenceUpdate{kind: :hmac_key, consent: nil}`
+    - `%PreferenceUpdate{kind: :consent, consent: %ConsentUpdate{...}}`
+    """
     defstruct [:updates]
+    @type t :: %__MODULE__{updates: [XmtpElixirSdk.Types.PreferenceUpdate.t()]}
   end
 
   defmodule SignatureRequestCreated do

@@ -1,6 +1,19 @@
 defmodule XmtpElixirSdk.Conversations do
   @moduledoc """
-  Conversation collection operations.
+  Find, create, and list conversations.
+
+  This module is the usual starting point after you have a client.
+
+  Common tasks:
+
+  - fetch a conversation by id
+  - list direct messages or groups
+  - create a new DM
+  - create a new group
+  - create conversations from identifiers instead of raw inbox ids
+
+  Returned conversation structs are intended to be passed into
+  `XmtpElixirSdk.Messages`, `XmtpElixirSdk.Groups`, and related modules.
   """
 
   alias XmtpElixirSdk.Client

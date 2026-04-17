@@ -1,0 +1,31 @@
+{
+  "source": "@buildersgarden/siwa@0.0.24",
+  "capturedAt": "2026-04-17",
+  "case": {
+    "fixedNowMs": 1776465945649,
+    "request": {
+      "url": "https://api.example.com/protected?mode=test",
+      "method": "POST",
+      "body": "{\"hello\":\"world\"}",
+      "headers": {
+        "content-type": "application/json"
+      }
+    },
+    "signedHeaders": {
+      "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
+      "content-type": "application/json",
+      "signature": "eth=:7bg1aa9IW6Uj8us2ztBz95LXSHmltgrI6uwoMcO+qX1BRSMBcFlOY2A1dRs5oogyJrPY2ZTKp7+k3+iPhgV3qRs=:",
+      "signature-input": "eth=(\"@authority\" \"@method\" \"@path\" \"@query\" \"content-digest\" \"X-SIWA-Receipt\");created=1776465945;expires=1776466005;nonce=\"BwcHBwcHBwcHBwcHBwcHBw\";keyid=\"erc8128:84532:0x19e7e376e7c213b7e7e7e46cc70a5dd086daff2a\"",
+      "x-siwa-receipt": "eyJhZGRyZXNzIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwiYWdlbnRJZCI6NDIsImFnZW50UmVnaXN0cnkiOiJlaXAxNTU6ODQ1MzI6MHg4MDA0QTgxOEJGQjkxMjIzM2M0OTE4NzFiM2Q4NGM4OUE0OTRCRDllIiwiY2hhaW5JZCI6ODQ1MzIsInZlcmlmaWVkIjoib25jaGFpbiIsImlhdCI6MTc3NjQ2NTk0NTY0OSwiZXhwIjoxNzc2NDY3NzQ1NjQ5fQ.Ljvg9AH1v2EM8FNPqlUhIfYx0LfNpz54dqf_vcu0Hlg"
+    },
+    "verified": {
+      "valid": true,
+      "agent": {
+        "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+        "agentId": 42,
+        "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+        "chainId": 84532
+      }
+    }
+  }
+}

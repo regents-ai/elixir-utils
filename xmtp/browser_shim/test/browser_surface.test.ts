@@ -422,18 +422,18 @@ describe("browser surface", () => {
     const preferenceStreamId = (
       preferenceStreamRequest?.data as { streamId?: string } | undefined
     )?.streamId;
-    bridge.emit(preferenceStreamId as string, [{ id: "update-1" }]);
+    bridge.emit(preferenceStreamId as string, [{ kind: "hmac_key", consent: null }]);
     await expect(preferenceNext).resolves.toEqual({
       done: false,
-      value: [{ id: "update-1" }],
+      value: [{ kind: "hmac_key", consent: null }],
     });
     await preferenceStream.end();
 
     await preferences.sync();
     await preferences.inboxState(true);
     await preferences.getInboxStates(["inbox-1"], true);
-    await preferences.setConsentStates([{ id: "consent-1" }]);
-    await preferences.getConsentState("entity", "value");
+    await preferences.setConsentStates([{ entity: "inbox-1", state: "allowed" }]);
+    await preferences.getConsentState("inbox_id", "value");
 
     await debug.apiStatistics();
     await debug.apiIdentityStatistics();

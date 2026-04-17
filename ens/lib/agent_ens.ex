@@ -1,26 +1,41 @@
 defmodule AgentEns do
   @moduledoc """
-  Elixir implementation of ENSIP-25.
+  Main entry point for the package.
 
-  The package ports the core surface of [`qntx/ensip25`](https://github.com/qntx/ensip25):
+  If you are new to `ens_elixir`, start here instead of jumping straight into the
+  lower-level modules.
 
-  - `AgentEns.ERC7930` for interoperable address encoding and decoding
-  - `AgentEns.RecordKey` for ENSIP-25 text record key construction
-  - `AgentEns.Verify` for RPC-backed ENS text-record verification
-  - `AgentEns.Error` for typed error values
-  - `AgentEns.Plan` for read-only link planning
-  - `AgentEns.Tx` for unsigned transaction builders
-  - `AgentEns.Link` for high-level orchestration
+  The package is built around a simple progression:
+
+  - verify an existing ENSIP-25 proof
+  - read the current state of a name
+  - plan what still needs to change
+  - prepare the next unsigned request
+
+  The most useful functions are:
+
+  - `verify/6` for a yes-or-no check
+  - `verify_agent/5` when you want to use a built-in ERC-8004 network
+  - `read_name/1` for a fuller view of a name or subname
+  - `plan_link/1` for a read-only snapshot of what is done, missing, ready, or blocked
+  - `prepare_ensip25_update/1` for the ENS proof record
+  - `prepare_erc8004_update/1` for the agent registration update
+  - `prepare_bidirectional_link/1` for the common "do both sides" flow
+
+  When you need a more focused one-off ENS change, use `AgentEns.Tx`.
+
+  All public functions return either `{:ok, value}` or `{:error, %AgentEns.Error{}}`.
   """
 
   alias AgentEns.ERC7930
   alias AgentEns.Link
   alias AgentEns.Plan
+  alias AgentEns.Read
   alias AgentEns.RecordKey
   alias AgentEns.Verify
 
   @doc """
-  Convenience wrapper for `AgentEns.RecordKey.evm_record_key/3`.
+  Builds the ENSIP-25 text record key for an EVM registry entry.
   """
   @spec evm_record_key(non_neg_integer(), String.t(), non_neg_integer()) ::
           {:ok, String.t()} | {:error, AgentEns.Error.t()}
@@ -29,7 +44,7 @@ defmodule AgentEns do
   end
 
   @doc """
-  Convenience wrapper for `AgentEns.ERC7930.evm/2`.
+  Builds an interoperable ERC-7930 address from a chain ID and EVM address.
   """
   @spec interoperable_address(non_neg_integer(), String.t()) ::
           {:ok, ERC7930.t()} | {:error, AgentEns.Error.t()}
@@ -38,13 +53,25 @@ defmodule AgentEns do
   end
 
   @doc """
-  Convenience wrapper for `AgentEns.Plan.plan_link/1`.
+  Reads the current state of an ENS name or subname.
+
+  Use this when you want to show who controls the name, which resolver it uses,
+  and which records are already present.
+  """
+  @spec read_name(map()) :: {:ok, Read.NameDetails.t()} | {:error, AgentEns.Error.t()}
+  def read_name(input), do: Read.read_name(input)
+
+  @doc """
+  Builds a read-only link plan for ENS and ERC-8004.
+
+  This is the best starting point when you want to know what is already done,
+  what is missing, and whether the current signer can make the next change.
   """
   @spec plan_link(map()) :: {:ok, Plan.LinkPlan.t()} | {:error, AgentEns.Error.t()}
   def plan_link(input), do: Plan.plan_link(input)
 
   @doc """
-  Convenience wrapper for `AgentEns.Verify.verify/6`.
+  Checks whether an ENS name already contains the expected ENSIP-25 proof.
   """
   @spec verify(
           String.t(),
@@ -60,7 +87,7 @@ defmodule AgentEns do
   end
 
   @doc """
-  Convenience wrapper for `AgentEns.Verify.verify_agent/5`.
+  Checks whether an ENS name proves a built-in ERC-8004 network mapping.
   """
   @spec verify_agent(String.t(), atom(), non_neg_integer(), String.t(), keyword()) ::
           {:ok, Verify.verification_status()} | {:error, AgentEns.Error.t()}
@@ -69,7 +96,7 @@ defmodule AgentEns do
   end
 
   @doc """
-  Convenience wrapper for `AgentEns.Link.prepare_ensip25_update/1`.
+  Prepares the unsigned request that writes the ENSIP-25 proof record.
   """
   @spec prepare_ensip25_update(map()) ::
           {:ok, %{plan: Plan.LinkPlan.t(), tx: AgentEns.TxRequest.t()}}
@@ -77,7 +104,7 @@ defmodule AgentEns do
   def prepare_ensip25_update(input), do: Link.prepare_ensip25_update(input)
 
   @doc """
-  Convenience wrapper for `AgentEns.Link.prepare_erc8004_update/1`.
+  Prepares the unsigned request that updates the ERC-8004 registration.
   """
   @spec prepare_erc8004_update(map()) ::
           {:ok, %{plan: Plan.LinkPlan.t(), new_registration: map(), tx: AgentEns.TxRequest.t()}}
@@ -85,7 +112,7 @@ defmodule AgentEns do
   def prepare_erc8004_update(input), do: Link.prepare_erc8004_update(input)
 
   @doc """
-  Convenience wrapper for `AgentEns.Link.prepare_bidirectional_link/1`.
+  Plans the link and prepares the next unsigned requests for both sides.
   """
   @spec prepare_bidirectional_link(map()) ::
           {:ok, map()} | {:error, AgentEns.Error.t()}

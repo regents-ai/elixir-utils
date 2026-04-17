@@ -44,6 +44,7 @@ defmodule AgentEns.MixProject do
         "LICENSE-APACHE",
         "LICENSE-MIT",
         "README.md",
+        "USAGE.md",
         "lib",
         "mix.exs"
       ],
@@ -58,7 +59,14 @@ defmodule AgentEns.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: ["README.md", "USAGE.md", "CHANGELOG.md"],
+      groups_for_modules: [
+        "Start Here": [AgentEns, AgentEns.Error, AgentEns.TxRequest],
+        "Verification and Keys": [AgentEns.ERC7930, AgentEns.RecordKey, AgentEns.Verify],
+        "Reading and Planning": [AgentEns.Read, AgentEns.Plan, AgentEns.Link],
+        "Preparing Updates": [AgentEns.Tx, AgentEns.ERC8004.Registration],
+        Support: [AgentEns.Networks, AgentEns.Normalize]
+      ]
     ]
   end
 end

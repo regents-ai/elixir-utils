@@ -21,7 +21,7 @@ defmodule AgentEns.PlanTest do
         {@resolver, "0x59d1d43c" <> _rest} ->
           {:ok, encode_string("")}
 
-        {@resolver, "0x01ffc9a7" <> "4920eeb0" <> _padding} ->
+        {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
 
         {@registry, "0x6352211e" <> _rest} ->
@@ -84,7 +84,7 @@ defmodule AgentEns.PlanTest do
         {@resolver, "0x59d1d43c" <> _rest} ->
           {:ok, encode_string("verified")}
 
-        {@resolver, "0x01ffc9a7" <> "4920eeb0" <> _padding} ->
+        {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
 
         {@registry, "0x6352211e" <> _rest} ->
@@ -146,7 +146,7 @@ defmodule AgentEns.PlanTest do
         {@ens_registry, "0x02571be3" <> _node} ->
           {:ok, address_word(@signer)}
 
-        {@resolver, "0x01ffc9a7" <> "4920eeb0" <> _padding} ->
+        {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(false)}
 
         {@resolver, "0x01ffc9a7" <> "9061b923" <> _padding} ->
@@ -205,7 +205,7 @@ defmodule AgentEns.PlanTest do
         {@resolver, "0x59d1d43c" <> _rest} ->
           {:ok, encode_string("")}
 
-        {@resolver, "0x01ffc9a7" <> "4920eeb0" <> _padding} ->
+        {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
 
         {@registry, "0x6352211e" <> _rest} ->
@@ -265,7 +265,7 @@ defmodule AgentEns.PlanTest do
         {@resolver, "0x59d1d43c" <> _rest} ->
           {:ok, encode_string("verified")}
 
-        {@resolver, "0x01ffc9a7" <> "4920eeb0" <> _padding} ->
+        {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
 
         {@registry, "0x6352211e" <> _rest} ->
@@ -295,6 +295,51 @@ defmodule AgentEns.PlanTest do
     end
 
     defp bool_word(true), do: "0x" <> String.pad_leading("1", 64, "0")
+    defp bool_word(false), do: "0x" <> String.duplicate("0", 64)
+
+    defp address_word(address) do
+      "0x" <>
+        String.pad_leading(String.replace_prefix(String.downcase(address), "0x", ""), 64, "0")
+    end
+
+    defp encode_string(value) do
+      hex = Base.encode16(value, case: :lower)
+      padding = rem(64 - rem(byte_size(hex), 64), 64)
+
+      "0x" <>
+        String.pad_leading("20", 64, "0") <>
+        String.pad_leading(Integer.to_string(byte_size(value), 16), 64, "0") <>
+        hex <> String.duplicate("0", padding)
+    end
+  end
+
+  defmodule RpcSubnameNoResolver do
+    @ens_registry "0x00000000000c2e074ec69a0dfb2997ba6c7d2e1e"
+    @registry "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
+    @signer "0x1111111111111111111111111111111111111111"
+
+    def eth_call(_rpc_url, to, data) do
+      case {String.downcase(to), data} do
+        {@ens_registry, "0x0178b8bf" <> _node} ->
+          {:ok, "0x" <> String.duplicate("0", 64)}
+
+        {@ens_registry, "0x02571be3" <> _node} ->
+          {:ok, address_word(@signer)}
+
+        {@registry, "0x6352211e" <> _rest} ->
+          {:ok, address_word(@signer)}
+
+        {@registry, "0x081812fc" <> _rest} ->
+          {:ok, address_word("0x0000000000000000000000000000000000000000")}
+
+        {@registry, "0xc87b56dd" <> _rest} ->
+          {:ok, encode_string("")}
+
+        {@registry, "0xe985e9c5" <> _rest} ->
+          {:ok, bool_word(false)}
+      end
+    end
+
     defp bool_word(false), do: "0x" <> String.duplicate("0", 64)
 
     defp address_word(address) do
@@ -471,5 +516,50 @@ defmodule AgentEns.PlanTest do
 
     assert prepared.plan.erc8004_status == :ens_service_present
     assert prepared.erc8004 == :noop
+  end
+
+  test "accepts string agent ids for ENS planning and blocks token write checks cleanly" do
+    assert {:ok, plan} =
+             Plan.plan_link(%{
+               ens_name: "vitalik.eth",
+               chain_id: 1,
+               registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+               agent_id: "agent-42",
+               rpc_url: "https://example.invalid",
+               rpc_module: RpcReady,
+               signer_address: "0x1111111111111111111111111111111111111111",
+               current_agent_uri:
+                 "data:application/json," <>
+                   URI.encode_www_form(
+                     Jason.encode!(%{
+                       "type" => "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+                       "name" => "Demo Agent",
+                       "services" => [
+                         %{"name" => "ENS", "endpoint" => "vitalik.eth", "version" => "v1"}
+                       ]
+                     })
+                   )
+             })
+
+    assert plan.ensip25_key =~ "agent-42"
+    assert plan.erc8004_status == :ens_service_present
+    assert plan.erc8004_write_status == :registration_unavailable
+
+    assert "String agent IDs are accepted for ENS planning, but ERC-8004 token ownership and approval checks require a numeric token ID." in plan.warnings
+  end
+
+  test "warns when a subname plan only checked the exact name resolver" do
+    assert {:ok, plan} =
+             Plan.plan_link(%{
+               ens_name: "app.demo.eth",
+               chain_id: 1,
+               registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+               agent_id: 42,
+               rpc_url: "https://example.invalid",
+               rpc_module: RpcSubnameNoResolver,
+               signer_address: "0x1111111111111111111111111111111111111111"
+             })
+
+    assert "Only the exact name was checked. Wildcard or offchain subname resolution is not included in this plan." in plan.warnings
   end
 end

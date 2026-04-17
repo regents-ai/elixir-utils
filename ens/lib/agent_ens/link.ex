@@ -1,6 +1,18 @@
 defmodule AgentEns.Link do
   @moduledoc """
-  High-level orchestration for planning and preparing ENS <-> ERC-8004 linking.
+  High-level helpers for planning and preparing ENS and ERC-8004 updates.
+
+  This module is the easiest way to go from "tell me what is missing" to
+  "give me the next unsigned request."
+
+  In practice:
+
+  - `prepare_ensip25_update/1` handles only the ENS proof record
+  - `prepare_erc8004_update/1` handles only the agent registration update
+  - `prepare_bidirectional_link/1` gives you the common all-in-one flow
+
+  These functions do not send anything. They stop after producing the next
+  request for your wallet or signer.
   """
 
   alias AgentEns.Error

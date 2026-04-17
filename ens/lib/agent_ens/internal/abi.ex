@@ -50,14 +50,7 @@ defmodule AgentEns.Internal.ABI do
 
   @spec decode_string(String.t()) :: {:ok, String.t()} | {:error, Error.t()}
   def decode_string("0x" <> payload) when rem(byte_size(payload), 64) == 0 do
-    with {:ok, offset} <- read_word(payload, 0),
-         :ok <- ensure_offset(payload, offset),
-         {:ok, length} <- read_word(payload, offset),
-         data_start = offset + 32,
-         data_hex_length = length * 2,
-         :ok <- ensure_bounds(payload, data_start, data_hex_length),
-         binary_hex <- binary_part(payload, data_start * 2, data_hex_length),
-         {:ok, data} <- Base.decode16(binary_hex, case: :mixed) do
+    with {:ok, data} <- decode_dynamic_binary(payload) do
       {:ok, data}
     else
       {:error, %Error{} = error} -> {:error, error}
@@ -66,6 +59,13 @@ defmodule AgentEns.Internal.ABI do
   end
 
   def decode_string(result), do: {:error, Error.new({:invalid_rpc_result, result})}
+
+  @spec decode_bytes(String.t()) :: {:ok, binary()} | {:error, Error.t()}
+  def decode_bytes("0x" <> payload) when rem(byte_size(payload), 64) == 0 do
+    decode_dynamic_binary(payload)
+  end
+
+  def decode_bytes(result), do: {:error, Error.new({:invalid_rpc_result, result})}
 
   @spec uint256_word(non_neg_integer()) :: String.t()
   def uint256_word(value) when is_integer(value) and value >= 0 do
@@ -95,10 +95,14 @@ defmodule AgentEns.Internal.ABI do
 
   @spec string_tail(String.t()) :: String.t()
   def string_tail(value) when is_binary(value) do
-    bytes = :erlang.iolist_to_binary(value)
-    hex = Base.encode16(bytes, case: :lower)
+    bytes_tail(:erlang.iolist_to_binary(value))
+  end
 
-    uint256_word(byte_size(bytes)) <>
+  @spec bytes_tail(binary()) :: String.t()
+  def bytes_tail(value) when is_binary(value) do
+    hex = Base.encode16(value, case: :lower)
+
+    uint256_word(byte_size(value)) <>
       hex <>
       String.duplicate("0", rem(64 - rem(byte_size(hex), 64), 64))
   end
@@ -133,6 +137,12 @@ defmodule AgentEns.Internal.ABI do
           new_words = dynamic_words + div(byte_size(encoded_tail), 64)
           {head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words}
 
+        {:bytes, value}, {head, tail, dynamic_words} when is_binary(value) ->
+          encoded_tail = bytes_tail(value)
+          offset_bytes = dynamic_words * 32
+          new_words = dynamic_words + div(byte_size(encoded_tail), 64)
+          {head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words}
+
         invalid, _acc ->
           throw({:error, Error.new({:abi_error, {:unsupported_arg, invalid}})})
       end)
@@ -163,4 +173,20 @@ defmodule AgentEns.Internal.ABI do
 
   defp ensure_bounds(payload, _data_start, _data_hex_length),
     do: {:error, Error.new({:invalid_rpc_result, payload})}
+
+  defp decode_dynamic_binary(payload) do
+    with {:ok, offset} <- read_word(payload, 0),
+         :ok <- ensure_offset(payload, offset),
+         {:ok, length} <- read_word(payload, offset),
+         data_start = offset + 32,
+         data_hex_length = length * 2,
+         :ok <- ensure_bounds(payload, data_start, data_hex_length),
+         binary_hex <- binary_part(payload, data_start * 2, data_hex_length),
+         {:ok, data} <- Base.decode16(binary_hex, case: :mixed) do
+      {:ok, data}
+    else
+      {:error, %Error{} = error} -> {:error, error}
+      _ -> {:error, Error.new({:invalid_rpc_result, payload})}
+    end
+  end
 end

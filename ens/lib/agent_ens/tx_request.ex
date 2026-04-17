@@ -1,6 +1,9 @@
 defmodule AgentEns.TxRequest do
   @moduledoc """
-  Unsigned transaction payload that can be handed to a wallet or signer.
+  Unsigned request that can be handed to a wallet or signer.
+
+  This struct is the handoff point between `ens_elixir` and the part of your
+  app that actually asks for approval and sends the request.
   """
 
   @enforce_keys [:to, :data, :value, :chain_id, :description]

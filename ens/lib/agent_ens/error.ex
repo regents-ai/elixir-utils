@@ -1,6 +1,10 @@
 defmodule AgentEns.Error do
   @moduledoc """
-  Structured package error used throughout `AgentEns`.
+  Structured error used throughout the package.
+
+  Public functions in `ens_elixir` return `{:error, %AgentEns.Error{}}` instead
+  of raising. The `kind` tells you the broad category and `message` is safe to
+  surface in logs, CLI output, or review flows.
   """
 
   @enforce_keys [:kind, :message]

@@ -4,7 +4,9 @@ defmodule AgentEns.Internal.Contract do
   alias AgentEns.Error
   alias AgentEns.Internal.ABI
 
-  @text_interface_id "0x4920eeb0"
+  @addr_interface_id "0x3b3b57de"
+  @text_interface_id "0x59d1d43c"
+  @contenthash_interface_id "0xbc1c58d1"
   @extended_resolver_interface_id "0x9061b923"
 
   @spec fetch_resolver(module(), String.t(), String.t(), binary()) ::
@@ -45,6 +47,54 @@ defmodule AgentEns.Internal.Contract do
     end
   end
 
+  @spec fetch_addr_record(module(), String.t(), String.t() | nil, binary()) ::
+          {:ok, String.t() | nil} | {:error, Error.t()}
+  def fetch_addr_record(_rpc, _rpc_url, nil, _node), do: {:ok, nil}
+
+  def fetch_addr_record(rpc, rpc_url, resolver, node) do
+    with {:ok, data} <- ABI.encode_call("addr(bytes32)", [{:bytes32, node}]),
+         {:ok, result} <- rpc.eth_call(rpc_url, resolver, data),
+         {:ok, value} <- ABI.decode_address(result) do
+      case value do
+        "0x0000000000000000000000000000000000000000" -> {:ok, nil}
+        _ -> {:ok, String.downcase(value)}
+      end
+    else
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      {:error, {:rpc_error, _} = reason} ->
+        {:error, Error.new({:resolver_call_failed, reason})}
+
+      {:error, reason} ->
+        {:error, Error.new({:rpc_error, reason})}
+    end
+  end
+
+  @spec fetch_contenthash(module(), String.t(), String.t() | nil, binary()) ::
+          {:ok, String.t() | nil} | {:error, Error.t()}
+  def fetch_contenthash(_rpc, _rpc_url, nil, _node), do: {:ok, nil}
+
+  def fetch_contenthash(rpc, rpc_url, resolver, node) do
+    with {:ok, data} <- ABI.encode_call("contenthash(bytes32)", [{:bytes32, node}]),
+         {:ok, result} <- rpc.eth_call(rpc_url, resolver, data),
+         {:ok, value} <- ABI.decode_bytes(result) do
+      case value do
+        <<>> -> {:ok, nil}
+        binary -> {:ok, "0x" <> Base.encode16(binary, case: :lower)}
+      end
+    else
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      {:error, {:rpc_error, _} = reason} ->
+        {:error, Error.new({:resolver_call_failed, reason})}
+
+      {:error, reason} ->
+        {:error, Error.new({:rpc_error, reason})}
+    end
+  end
+
   @spec fetch_registry_owner(module(), String.t(), String.t(), binary()) ::
           {:ok, String.t()} | {:error, Error.t()}
   def fetch_registry_owner(rpc, rpc_url, ens_registry, node) do
@@ -73,10 +123,47 @@ defmodule AgentEns.Internal.Contract do
     end
   end
 
-  @spec supports_text_write?(module(), String.t(), String.t()) ::
+  @spec fetch_ttl(module(), String.t(), String.t(), binary()) ::
+          {:ok, non_neg_integer()} | {:error, Error.t()}
+  def fetch_ttl(rpc, rpc_url, ens_registry, node) do
+    with {:ok, data} <- ABI.encode_call("ttl(bytes32)", [{:bytes32, node}]),
+         {:ok, result} <- rpc.eth_call(rpc_url, ens_registry, data),
+         {:ok, ttl} <- ABI.decode_uint256(result) do
+      {:ok, ttl}
+    else
+      {:error, %Error{} = error} -> {:error, error}
+      {:error, reason} -> {:error, Error.new({:rpc_error, reason})}
+    end
+  end
+
+  @spec record_exists?(module(), String.t(), String.t(), binary()) ::
           {:ok, boolean()} | {:error, Error.t()}
-  def supports_text_write?(rpc, rpc_url, resolver) do
+  def record_exists?(rpc, rpc_url, ens_registry, node) do
+    with {:ok, data} <- ABI.encode_call("recordExists(bytes32)", [{:bytes32, node}]),
+         {:ok, result} <- rpc.eth_call(rpc_url, ens_registry, data),
+         {:ok, exists?} <- ABI.decode_bool(result) do
+      {:ok, exists?}
+    else
+      {:error, %Error{} = error} -> {:error, error}
+      {:error, reason} -> {:error, Error.new({:rpc_error, reason})}
+    end
+  end
+
+  @spec supports_addr?(module(), String.t(), String.t()) :: {:ok, boolean()} | {:error, Error.t()}
+  def supports_addr?(rpc, rpc_url, resolver) do
+    supports_interface?(rpc, rpc_url, resolver, @addr_interface_id)
+  end
+
+  @spec supports_text?(module(), String.t(), String.t()) ::
+          {:ok, boolean()} | {:error, Error.t()}
+  def supports_text?(rpc, rpc_url, resolver) do
     supports_interface?(rpc, rpc_url, resolver, @text_interface_id)
+  end
+
+  @spec supports_contenthash?(module(), String.t(), String.t()) ::
+          {:ok, boolean()} | {:error, Error.t()}
+  def supports_contenthash?(rpc, rpc_url, resolver) do
+    supports_interface?(rpc, rpc_url, resolver, @contenthash_interface_id)
   end
 
   @spec supports_extended_resolver?(module(), String.t(), String.t()) ::

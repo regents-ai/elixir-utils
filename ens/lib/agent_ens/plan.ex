@@ -1,6 +1,19 @@
 defmodule AgentEns.Plan do
   @moduledoc """
-  Read-only planning layer for ENS <-> ERC-8004 bidirectional links.
+  Read-only planning for ENS and ERC-8004 links.
+
+  This module answers the question "what is true right now, and what can happen
+  next?" without preparing or sending anything.
+
+  Use it when you want to:
+
+  - check whether the ENS proof already exists
+  - check whether the agent registration already points back to the ENS name
+  - see whether the current signer can make the needed changes
+  - decide whether a reverse name can also be updated
+
+  The returned `LinkPlan` is a snapshot you can use to build a review screen,
+  power a CLI explanation, or decide which request to prepare next.
   """
 
   alias AgentEns.Error
@@ -56,7 +69,7 @@ defmodule AgentEns.Plan do
 
   defmodule Action do
     @moduledoc """
-    One recommended action in a link plan.
+    One recommended next step in a link plan.
     """
 
     @enforce_keys [:kind, :status, :description]
@@ -73,6 +86,13 @@ defmodule AgentEns.Plan do
   defmodule LinkPlan do
     @moduledoc """
     Read-only snapshot of the current ENS and ERC-8004 link state.
+
+    The most important fields for app code are usually:
+
+    - `verify_status` for the ENS proof
+    - `erc8004_status` for the agent registration side
+    - `actions` for the human-friendly next steps
+    - `warnings` for anything worth calling out before approval
     """
 
     @enforce_keys [
@@ -142,6 +162,14 @@ defmodule AgentEns.Plan do
 
   @type plan_input :: Input.t() | map()
   @type link_plan :: LinkPlan.t()
+  @type agent_contract_state :: %{
+          token_owner: String.t() | nil,
+          token_approval: String.t() | nil,
+          approved_for_all: boolean(),
+          token_uri: String.t() | nil,
+          registration: map() | nil,
+          token_reads_supported?: boolean()
+        }
 
   @spec plan_link(plan_input()) :: {:ok, link_plan()} | {:error, Error.t()}
   def plan_link(%Input{} = input), do: do_plan(input)
@@ -170,53 +198,26 @@ defmodule AgentEns.Plan do
          {:ok, ens_owner} <- Contract.fetch_registry_owner(rpc, input.rpc_url, ens_registry, node),
          {:ok, {ens_manager, ens_manager_source}} <-
            resolve_manager(rpc, input.rpc_url, ens_owner, name_wrapper, node),
-         {:ok, token_owner} <-
-           Contract.fetch_token_owner(
+         {:ok, agent_contract_state} <-
+           fetch_agent_contract_state(
              rpc,
              input.rpc_url,
              input.registry_address,
-             integer_agent_id(input.agent_id)
-           ),
-         {:ok, token_approval} <-
-           Contract.fetch_token_approval(
-             rpc,
-             input.rpc_url,
-             input.registry_address,
-             integer_agent_id(input.agent_id)
-           ),
-         {:ok, approved_for_all} <-
-           maybe_fetch_approval_for_all(
-             rpc,
-             input.rpc_url,
-             input.registry_address,
-             token_owner,
-             signer_address
-           ),
-         {:ok, token_uri} <-
-           fetch_token_uri(
-             rpc,
-             input.rpc_url,
-             input.registry_address,
-             integer_agent_id(input.agent_id),
-             input.current_agent_uri
-           ),
-         {:ok, registration} <-
-           maybe_parse_registration(
-             token_uri,
+             input.agent_id,
+             signer_address,
+             input.current_agent_uri,
              input.erc8004_fetcher,
              input.erc8004_fetch_opts || []
            ),
          verify_status <- verify_status(text_value),
-         erc8004_status <- erc8004_status(registration, normalized_name),
+         erc8004_status <- erc8004_status(agent_contract_state.registration, normalized_name),
          ens_write_status <-
            ens_write_status(resolver, resolver_support, ens_manager, signer_address),
          erc8004_write_status <-
            erc8004_write_status(
-             token_owner,
-             token_approval,
-             approved_for_all,
+             agent_contract_state,
              signer_address,
-             registration
+             input.agent_id
            ),
          reverse_status <-
            reverse_status(input.include_reverse?, reverse_registrar, signer_address),
@@ -228,7 +229,14 @@ defmodule AgentEns.Plan do
              erc8004_write_status,
              reverse_status
            ),
-         warnings <- build_warnings(token_uri, registration, ens_manager_source, resolver_support) do
+         warnings <-
+           build_warnings(
+             normalized_name,
+             resolver,
+             agent_contract_state,
+             ens_manager_source,
+             resolver_support
+           ) do
       {:ok,
        %LinkPlan{
          normalized_ens_name: normalized_name,
@@ -243,12 +251,12 @@ defmodule AgentEns.Plan do
          ens_manager: ens_manager,
          ens_manager_source: ens_manager_source,
          signer_address: signer_address,
-         erc8004_owner: token_owner,
-         erc8004_token_uri: token_uri,
-         erc8004_registration: registration,
+         erc8004_owner: agent_contract_state.token_owner,
+         erc8004_token_uri: agent_contract_state.token_uri,
+         erc8004_registration: agent_contract_state.registration,
          ens_text_value: text_value,
-         token_approval: token_approval,
-         approved_for_all: approved_for_all,
+         token_approval: agent_contract_state.token_approval,
+         approved_for_all: agent_contract_state.approved_for_all,
          actions: actions,
          warnings: warnings
        }}
@@ -316,7 +324,7 @@ defmodule AgentEns.Plan do
   defp classify_resolver_support(_rpc, _rpc_url, nil), do: {:ok, :no_resolver}
 
   defp classify_resolver_support(rpc, rpc_url, resolver) do
-    with {:ok, supports_text?} <- Contract.supports_text_write?(rpc, rpc_url, resolver) do
+    with {:ok, supports_text?} <- Contract.supports_text?(rpc, rpc_url, resolver) do
       cond do
         supports_text? ->
           {:ok, :text_write_supported}
@@ -350,6 +358,78 @@ defmodule AgentEns.Plan do
 
   defp maybe_fetch_approval_for_all(rpc, rpc_url, registry_address, owner, signer) do
     Contract.approved_for_all?(rpc, rpc_url, registry_address, owner, signer)
+  end
+
+  @spec fetch_agent_contract_state(
+          module(),
+          String.t(),
+          String.t(),
+          non_neg_integer() | String.t(),
+          String.t() | nil,
+          String.t() | nil,
+          module() | nil,
+          keyword()
+        ) :: {:ok, agent_contract_state()} | {:error, Error.t()}
+  defp fetch_agent_contract_state(
+         rpc,
+         rpc_url,
+         registry_address,
+         agent_id,
+         signer_address,
+         current_agent_uri,
+         fetcher,
+         opts
+       )
+       when is_integer(agent_id) do
+    with {:ok, token_owner} <-
+           Contract.fetch_token_owner(rpc, rpc_url, registry_address, agent_id),
+         {:ok, token_approval} <-
+           Contract.fetch_token_approval(rpc, rpc_url, registry_address, agent_id),
+         {:ok, approved_for_all} <-
+           maybe_fetch_approval_for_all(
+             rpc,
+             rpc_url,
+             registry_address,
+             token_owner,
+             signer_address
+           ),
+         {:ok, token_uri} <-
+           fetch_token_uri(rpc, rpc_url, registry_address, agent_id, current_agent_uri),
+         {:ok, registration} <- maybe_parse_registration(token_uri, fetcher, opts) do
+      {:ok,
+       %{
+         token_owner: token_owner,
+         token_approval: token_approval,
+         approved_for_all: approved_for_all,
+         token_uri: token_uri,
+         registration: registration,
+         token_reads_supported?: true
+       }}
+    end
+  end
+
+  defp fetch_agent_contract_state(
+         _rpc,
+         _rpc_url,
+         _registry_address,
+         agent_id,
+         _signer_address,
+         current_agent_uri,
+         fetcher,
+         opts
+       )
+       when is_binary(agent_id) do
+    with {:ok, registration} <- maybe_parse_registration(current_agent_uri, fetcher, opts) do
+      {:ok,
+       %{
+         token_owner: nil,
+         token_approval: nil,
+         approved_for_all: false,
+         token_uri: current_agent_uri,
+         registration: registration,
+         token_reads_supported?: false
+       }}
+    end
   end
 
   defp fetch_token_uri(_rpc, _rpc_url, _registry_address, _agent_id, value)
@@ -405,21 +485,36 @@ defmodule AgentEns.Plan do
   defp ens_write_status(_resolver, _resolver_support, _manager, _signer),
     do: :resolver_unsupported
 
-  defp erc8004_write_status(_owner, _approval, _approved_for_all, nil, _registration),
+  defp erc8004_write_status(_agent_contract_state, nil, _agent_id),
     do: :signer_required
 
-  defp erc8004_write_status(owner, _approval, _approved_for_all, signer, registration)
+  defp erc8004_write_status(%{token_reads_supported?: false}, _signer, _agent_id),
+    do: :registration_unavailable
+
+  defp erc8004_write_status(
+         %{token_owner: owner, registration: registration},
+         signer,
+         _agent_id
+       )
        when owner == signer,
        do: maybe_require_registration(registration)
 
-  defp erc8004_write_status(_owner, approval, _approved_for_all, signer, registration)
+  defp erc8004_write_status(
+         %{token_approval: approval, registration: registration},
+         signer,
+         _agent_id
+       )
        when approval == signer and is_binary(signer),
        do: maybe_require_registration(registration)
 
-  defp erc8004_write_status(_owner, _approval, true, _signer, registration),
-    do: maybe_require_registration(registration)
+  defp erc8004_write_status(
+         %{approved_for_all: true, registration: registration},
+         _signer,
+         _agent_id
+       ),
+       do: maybe_require_registration(registration)
 
-  defp erc8004_write_status(_owner, _approval, _approved_for_all, _signer, _registration),
+  defp erc8004_write_status(_agent_contract_state, _signer, _agent_id),
     do: :forbidden
 
   defp reverse_status(false, _reverse_registrar, _signer), do: :not_requested
@@ -470,14 +565,21 @@ defmodule AgentEns.Plan do
   defp action_reason(false, :ready), do: nil
   defp action_reason(false, status), do: status
 
-  defp build_warnings(token_uri, registration, manager_source, resolver_support) do
+  defp build_warnings(
+         normalized_name,
+         resolver,
+         agent_contract_state,
+         manager_source,
+         resolver_support
+       ) do
     []
     |> maybe_add_warning(
       manager_source == :name_wrapper_owner,
       "ENS name is wrapped, so manager checks use the Name Wrapper owner."
     )
     |> maybe_add_warning(
-      is_binary(token_uri) and String.starts_with?(token_uri, "data:"),
+      is_binary(agent_contract_state.token_uri) and
+        String.starts_with?(agent_contract_state.token_uri, "data:"),
       "The ERC-8004 registration currently lives in a data URI. Updating it may increase onchain URI size."
     )
     |> maybe_add_warning(
@@ -485,8 +587,16 @@ defmodule AgentEns.Plan do
       "The ENS resolver appears to be offchain-only. This planner will not build write transactions for it."
     )
     |> maybe_add_warning(
-      is_nil(registration),
+      resolver == nil and likely_subname?(normalized_name),
+      "Only the exact name was checked. Wildcard or offchain subname resolution is not included in this plan."
+    )
+    |> maybe_add_warning(
+      is_nil(agent_contract_state.registration),
       "The current ERC-8004 registration could not be loaded as a JSON registration file."
+    )
+    |> maybe_add_warning(
+      not agent_contract_state.token_reads_supported?,
+      "String agent IDs are accepted for ENS planning, but ERC-8004 token ownership and approval checks require a numeric token ID."
     )
   end
 
@@ -546,21 +656,23 @@ defmodule AgentEns.Plan do
         {:ok, value}
 
       value when is_binary(value) and value != "" ->
-        case Integer.parse(value) do
-          {parsed, ""} when parsed >= 0 -> {:ok, parsed}
-          _ -> {:error, Error.new({:invalid_agent_id_type, value})}
-        end
+        {:ok, value}
 
       value ->
         {:error, Error.new({:invalid_agent_id_type, value})}
     end
   end
 
-  defp integer_agent_id(value) when is_integer(value), do: value
-
   defp normalize_address(nil), do: nil
   defp normalize_address(value) when is_binary(value), do: String.downcase(String.trim(value))
   defp normalize_address(_), do: nil
 
   defp truthy?(value), do: value in [true, "true", "1", 1]
+
+  defp likely_subname?(name) when is_binary(name) do
+    name
+    |> String.split(".", trim: true)
+    |> length()
+    |> Kernel.>(2)
+  end
 end

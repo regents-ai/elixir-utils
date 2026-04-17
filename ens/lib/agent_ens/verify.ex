@@ -1,6 +1,11 @@
 defmodule AgentEns.Verify do
   @moduledoc """
-  RPC-backed ENSIP-25 verification.
+  Simple ENSIP-25 verification helpers.
+
+  Use this module when you only need to answer a narrow question:
+  does this ENS name already contain the expected proof record?
+
+  For richer inspection or planning, use `AgentEns.Read` or `AgentEns.Plan`.
   """
 
   alias AgentEns.Error

@@ -39,7 +39,7 @@ defmodule SiwaKeyring.RouterUsageTest do
     %{"address" => address} = Jason.decode!(address_response.resp_body)
     assert is_binary(address)
 
-    message_body = Jason.encode!(%{message: "hello from keyring"})
+    message_body = "{\n  \"message\": \"hello from keyring\"\n}"
 
     sign_conn = signed_conn("POST", "/sign-message", message_body, "router-secret")
     sign_response = call_router(sign_conn)

@@ -2,7 +2,11 @@ defmodule SiwaKeyring.Router do
   use Plug.Router
 
   plug Plug.Logger
-  plug Plug.Parsers, parsers: [:json], pass: ["application/json"], json_decoder: Jason
+  plug Plug.Parsers,
+    parsers: [:json],
+    pass: ["application/json"],
+    json_decoder: Jason,
+    body_reader: {__MODULE__, :read_body, []}
   plug :match
   plug :authorize
   plug :dispatch
@@ -66,7 +70,7 @@ defmodule SiwaKeyring.Router do
 
   defp authorize(conn, _opts) do
     secret = Application.fetch_env!(:siwa_keyring, :secret)
-    body = conn.assigns[:raw_body] || Jason.encode!(conn.body_params || %{})
+    body = conn.private[:raw_body] || Jason.encode!(conn.body_params || %{})
 
     case SiwaKeyring.Auth.verify_hmac(
            secret,
@@ -82,6 +86,16 @@ defmodule SiwaKeyring.Router do
   end
 
   defp header(conn, key), do: Plug.Conn.get_req_header(conn, key) |> List.first() |> to_string()
+
+  def read_body(conn, opts) do
+    case Plug.Conn.read_body(conn, opts) do
+      {:ok, body, conn} ->
+        {:ok, body, Plug.Conn.put_private(conn, :raw_body, body)}
+
+      {:more, body, conn} ->
+        {:more, body, Plug.Conn.put_private(conn, :raw_body, body)}
+    end
+  end
 
   defp send_json(conn, status, payload) do
     conn

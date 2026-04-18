@@ -37,6 +37,7 @@ defmodule Siwa.Nonce do
                     "nonce" => nonce,
                     "address" => params.address,
                     "agentId" => params.agent_id,
+                    "agentRegistry" => params.agent_registry,
                     "iat" => DateTime.to_unix(issued_at, :millisecond),
                     "exp" => DateTime.to_unix(expiration_time, :millisecond)
                   }, secret: secret)
@@ -268,6 +269,7 @@ defmodule Siwa.Nonce do
     cond do
       String.downcase(entry["address"]) != String.downcase(params.address) -> {:error, :nonce_address_mismatch}
       entry["agentId"] != params.agent_id -> {:error, :nonce_agent_id_mismatch}
+      entry["agentRegistry"] != params.agent_registry -> {:error, :nonce_registry_mismatch}
       entry["nonce"] != params.nonce -> {:error, :nonce_mismatch}
       true -> :ok
     end

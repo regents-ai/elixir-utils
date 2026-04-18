@@ -5,7 +5,13 @@ defmodule Siwa.FixtureReceiptTest do
     fixture = Siwa.TestFixtures.load("receipt")
     data = fixture["case"]
 
-    assert {:ok, payload} = Siwa.Receipt.verify(data["receipt"], secret: data["secret"])
+    assert {:ok, payload} =
+             Siwa.Receipt.verify(
+               data["receipt"],
+               secret: data["secret"],
+               now: DateTime.from_unix!(data["fixedNowMs"], :millisecond)
+             )
+
     assert payload["address"] == data["verified"]["address"]
     assert payload["agentId"] == data["verified"]["agentId"]
     assert payload["agentRegistry"] == data["verified"]["agentRegistry"]

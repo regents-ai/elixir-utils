@@ -90,23 +90,9 @@ defmodule Siwa.Verify do
   defp validate_time_window(fields, opts) do
     now = Keyword.get(opts, :now, DateTime.utc_now())
 
-    cond do
-      fields[:expiration_time] ->
-        with {:ok, expiration_time, _offset} <- DateTime.from_iso8601(fields.expiration_time) do
-          if DateTime.compare(now, expiration_time) == :gt, do: {:error, :message_expired}, else: :ok
-        else
-          _ -> {:error, :invalid_message_time}
-        end
-
-      fields[:not_before] ->
-        with {:ok, not_before, _offset} <- DateTime.from_iso8601(fields.not_before) do
-          if DateTime.compare(now, not_before) == :lt, do: {:error, :message_not_yet_valid}, else: :ok
-        else
-          _ -> {:error, :invalid_message_time}
-        end
-
-      true ->
-        :ok
+    with :ok <- validate_expiration_time(fields, now),
+         :ok <- validate_not_before(fields, now) do
+      :ok
     end
   end
 
@@ -117,6 +103,34 @@ defmodule Siwa.Verify do
       agent_registry: fields.agent_registry,
       nonce: fields.nonce
     }, opts)
+  end
+
+  defp validate_expiration_time(fields, now) do
+    case fields[:expiration_time] do
+      nil ->
+        :ok
+
+      expiration_time ->
+        with {:ok, parsed, _offset} <- DateTime.from_iso8601(expiration_time) do
+          if DateTime.compare(now, parsed) == :gt, do: {:error, :message_expired}, else: :ok
+        else
+          _ -> {:error, :invalid_message_time}
+        end
+    end
+  end
+
+  defp validate_not_before(fields, now) do
+    case fields[:not_before] do
+      nil ->
+        :ok
+
+      not_before ->
+        with {:ok, parsed, _offset} <- DateTime.from_iso8601(not_before) do
+          if DateTime.compare(now, parsed) == :lt, do: {:error, :message_not_yet_valid}, else: :ok
+        else
+          _ -> {:error, :invalid_message_time}
+        end
+    end
   end
 
   defp validate_signature(signature, message, fields, opts) do

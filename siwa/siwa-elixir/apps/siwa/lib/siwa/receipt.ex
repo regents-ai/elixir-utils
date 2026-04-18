@@ -39,7 +39,8 @@ defmodule Siwa.Receipt do
          true <- secure_compare(mac, sign(encoded_body, secret)),
          {:ok, json} <- Base.url_decode64(encoded_body, padding: false),
          {:ok, payload} <- Jason.decode(json),
-         true <- payload["exp"] >= now_ms do
+         true <- payload["exp"] >= now_ms,
+         :ok <- ensure_audience(payload, opts) do
       {:ok, payload}
     else
       _ -> {:error, :invalid_receipt}
@@ -58,4 +59,16 @@ defmodule Siwa.Receipt do
   end
 
   defp secure_compare(_, _), do: false
+
+  defp ensure_audience(payload, opts) do
+    case Keyword.get(opts, :audience) || Keyword.get(opts, :expected_audience) do
+      nil ->
+        :ok
+
+      expected ->
+        audience = payload["aud"] || payload["audience"]
+
+        if audience == expected, do: :ok, else: {:error, :invalid_receipt}
+    end
+  end
 end

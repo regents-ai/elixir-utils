@@ -38,12 +38,13 @@ defmodule Siwa.RequestAuth do
     replay_ttl_ms = Keyword.get(opts, :replay_ttl_ms, 5 * 60 * 1_000)
 
     with {:ok, receipt} <- fetch_header(request, @receipt_header),
-         {:ok, _receipt_payload} <- Receipt.verify(receipt, opts),
+         {:ok, receipt_payload} <- Receipt.verify(receipt, opts),
          {:ok, auth_json, auth_payload} <- fetch_and_decode_with_json(request, @auth_header),
          {:ok, _signature_json, signature} <- fetch_and_decode_with_json(request, @signature_header),
          :ok <- ensure_request_matches(request, auth_payload),
          :ok <- Siwa.RequestAuth.ReplayStore.consume(replay_key(auth_payload, signature), replay_ttl_ms),
-         {:ok, verified_signature} <- verify_signature(signature, auth_json, opts) do
+         {:ok, verified_signature} <- verify_signature(signature, auth_json, opts),
+         :ok <- ensure_receipt_matches(receipt_payload, verified_signature) do
       {:ok, %{address: verified_signature.address, auth: auth_payload, signature: verified_signature}}
     end
   end
@@ -96,6 +97,24 @@ defmodule Siwa.RequestAuth do
       module -> module.verify(signature, payload, opts)
     end
   end
+
+  defp ensure_receipt_matches(receipt_payload, verified_signature) do
+    receipt_address =
+      receipt_payload["address"] ||
+        receipt_payload["walletAddress"] ||
+        receipt_payload["wallet_address"]
+
+    signature_address = verified_signature.address || verified_signature[:address]
+
+    if comparable_address(receipt_address) == comparable_address(signature_address) do
+      :ok
+    else
+      {:error, :receipt_signer_mismatch}
+    end
+  end
+
+  defp comparable_address(value) when is_binary(value), do: String.downcase(value)
+  defp comparable_address(_value), do: nil
 
   defp replay_key(auth_payload, signature) do
     Enum.join([

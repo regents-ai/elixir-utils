@@ -162,4 +162,50 @@ defmodule Siwa.UsageFlowTest do
     assert is_map(challenge_result.challenge)
     assert is_binary(challenge_result.challenge_token)
   end
+
+  test "messages with both not_before and expiration_time still reject early use" do
+    {:ok, signer} = Siwa.LocalSigner.new()
+    :persistent_term.put({MockChainClient, :owner}, signer.address)
+
+    {:ok, nonce} =
+      Siwa.create_nonce(
+        %{
+          address: signer.address,
+          agent_id: 10,
+          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+        },
+        nonce_secret: "nonce-secret"
+      )
+
+    {:ok, signed} =
+      Siwa.sign_message(
+        %{
+          domain: "api.example.com",
+          uri: "https://api.example.com/siwa",
+          agent_id: 10,
+          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          chain_id: 84532,
+          nonce: nonce.nonce,
+          issued_at: "2026-04-17T00:00:00Z",
+          not_before: "2026-04-17T01:00:00Z",
+          expiration_time: "2026-04-17T02:00:00Z"
+        },
+        signer
+      )
+
+    assert {:ok, rejected} =
+             Siwa.verify(
+               signed.message,
+               signed.signature,
+               domain: "api.example.com",
+               nonce_token: nonce.nonce_token,
+               nonce_secret: "nonce-secret",
+               receipt_secret: "receipt-secret",
+               chain_client: MockChainClient,
+               now: ~U[2026-04-17 00:30:00Z]
+             )
+
+    assert rejected.status == "rejected"
+    assert rejected.reason =~ "message_not_yet_valid"
+  end
 end

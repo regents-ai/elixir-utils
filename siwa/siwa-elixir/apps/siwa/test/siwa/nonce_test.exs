@@ -17,4 +17,33 @@ defmodule Siwa.NonceTest do
                nonce: issued.nonce
              })
   end
+
+  test "stateless nonce tokens stay bound to the agent registry" do
+    assert {:ok, issued} =
+             Siwa.Nonce.issue(
+               %{
+                 address: "0x123",
+                 agent_id: 9,
+                 agent_registry: "eip155:84532:0xregistry"
+               },
+               nonce_secret: "nonce-secret"
+             )
+
+    assert {:ok, payload} =
+             Siwa.Nonce.verify_nonce_token(issued.nonce_token, nonce_secret: "nonce-secret")
+
+    assert payload["agentRegistry"] == "eip155:84532:0xregistry"
+
+    assert {:error, :nonce_registry_mismatch} =
+             Siwa.Nonce.consume(
+               %{
+                 address: "0x123",
+                 agent_id: 9,
+                 agent_registry: "eip155:84532:0xother",
+                 nonce: issued.nonce
+               },
+               nonce_token: issued.nonce_token,
+               nonce_secret: "nonce-secret"
+             )
+  end
 end

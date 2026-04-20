@@ -1,1 +1,7 @@
 /siwa/siwa-js/
+.codex/
+.claude/
+*.plan.md
+*.notes.md
+*.scratch.md
+*.local.md

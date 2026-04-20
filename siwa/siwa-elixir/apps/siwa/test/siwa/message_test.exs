@@ -19,4 +19,11 @@ defmodule Siwa.MessageTest do
     assert parsed.agent_id == 7
     assert parsed.statement == fields.statement
   end
+
+  test "unknown string keys stay as strings during normalization" do
+    normalized = Siwa.Message.normalize_fields(%{"customField" => "value"})
+
+    assert normalized["customField"] == "value"
+    refute Map.has_key?(normalized, :customField)
+  end
 end

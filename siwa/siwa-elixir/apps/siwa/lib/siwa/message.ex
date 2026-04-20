@@ -25,23 +25,23 @@ defmodule Siwa.Message do
         statement -> [statement, ""]
       end
 
-    [
-      "#{normalized[:domain]} wants you to sign in with your Agent account:",
-      normalized[:address],
-      ""
-    ] ++
-      statement_lines ++
-      [
-        "URI: #{normalized[:uri]}",
-        "Version: #{normalized[:version] || "1"}",
-        "Agent ID: #{normalized[:agent_id]}",
-        "Agent Registry: #{normalized[:agent_registry]}",
-        "Chain ID: #{normalized[:chain_id]}",
-        "Nonce: #{normalized[:nonce]}",
-        "Issued At: #{normalized[:issued_at]}"
-      ] ++
-      optional_lines(normalized)
-      |> Enum.join("\n")
+    ([
+       "#{normalized[:domain]} wants you to sign in with your Agent account:",
+       normalized[:address],
+       ""
+     ] ++
+       statement_lines ++
+       [
+         "URI: #{normalized[:uri]}",
+         "Version: #{normalized[:version] || "1"}",
+         "Agent ID: #{normalized[:agent_id]}",
+         "Agent Registry: #{normalized[:agent_registry]}",
+         "Chain ID: #{normalized[:chain_id]}",
+         "Nonce: #{normalized[:nonce]}",
+         "Issued At: #{normalized[:issued_at]}"
+       ] ++
+       optional_lines(normalized))
+    |> Enum.join("\n")
   end
 
   def parse(message) when is_binary(message) do
@@ -62,7 +62,9 @@ defmodule Siwa.Message do
   end
 
   def normalize_fields(fields) when is_map(fields), do: Enum.into(fields, %{}, &normalize_pair/1)
-  def normalize_fields(fields) when is_list(fields), do: fields |> Enum.into(%{}) |> normalize_fields()
+
+  def normalize_fields(fields) when is_list(fields),
+    do: fields |> Enum.into(%{}) |> normalize_fields()
 
   defp normalize_pair({key, value}) when is_binary(key), do: {normalize_key(key), value}
   defp normalize_pair({key, value}), do: {key, value}
@@ -74,7 +76,7 @@ defmodule Siwa.Message do
   defp normalize_key("expirationTime"), do: :expiration_time
   defp normalize_key("notBefore"), do: :not_before
   defp normalize_key("requestId"), do: :request_id
-  defp normalize_key(other), do: String.to_atom(other)
+  defp normalize_key(other), do: other
 
   defp ensure_present!(fields, key) do
     case Map.get(fields, key) do

@@ -7,7 +7,10 @@ defmodule Siwa.RequestAuth do
 
   def sign_authenticated_request(request, receipt, signer, opts \\ []) do
     request = normalize_request(request)
-    created_at = Keyword.get(opts, :created_at, DateTime.utc_now()) |> DateTime.to_unix(:millisecond)
+
+    created_at =
+      Keyword.get(opts, :created_at, DateTime.utc_now()) |> DateTime.to_unix(:millisecond)
+
     nonce = Keyword.get(opts, :nonce, Siwa.Nonce.generate_nonce(12))
 
     auth = %{
@@ -40,12 +43,18 @@ defmodule Siwa.RequestAuth do
     with {:ok, receipt} <- fetch_header(request, @receipt_header),
          {:ok, receipt_payload} <- Receipt.verify(receipt, opts),
          {:ok, auth_json, auth_payload} <- fetch_and_decode_with_json(request, @auth_header),
-         {:ok, _signature_json, signature} <- fetch_and_decode_with_json(request, @signature_header),
+         {:ok, _signature_json, signature} <-
+           fetch_and_decode_with_json(request, @signature_header),
          :ok <- ensure_request_matches(request, auth_payload),
-         :ok <- Siwa.RequestAuth.ReplayStore.consume(replay_key(auth_payload, signature), replay_ttl_ms),
          {:ok, verified_signature} <- verify_signature(signature, auth_json, opts),
-         :ok <- ensure_receipt_matches(receipt_payload, verified_signature) do
-      {:ok, %{address: verified_signature.address, auth: auth_payload, signature: verified_signature}}
+         :ok <- ensure_receipt_matches(receipt_payload, verified_signature),
+         :ok <-
+           Siwa.RequestAuth.ReplayStore.consume(
+             replay_key(auth_payload, verified_signature),
+             replay_ttl_ms
+           ) do
+      {:ok,
+       %{address: verified_signature.address, auth: auth_payload, signature: verified_signature}}
     end
   end
 
@@ -60,7 +69,8 @@ defmodule Siwa.RequestAuth do
     }
   end
 
-  defp lowercase_headers(headers), do: Map.new(headers, fn {k, v} -> {String.downcase(to_string(k)), v} end)
+  defp lowercase_headers(headers),
+    do: Map.new(headers, fn {k, v} -> {String.downcase(to_string(k)), v} end)
 
   defp fetch_header(request, key) do
     case Map.fetch(request.headers, key) do
@@ -117,13 +127,16 @@ defmodule Siwa.RequestAuth do
   defp comparable_address(_value), do: nil
 
   defp replay_key(auth_payload, signature) do
-    Enum.join([
-      auth_payload["method"],
-      auth_payload["path"],
-      to_string(auth_payload["created_at"]),
-      auth_payload["nonce"],
-      signature["address"] || signature[:address]
-    ], ":")
+    Enum.join(
+      [
+        auth_payload["method"],
+        auth_payload["path"],
+        to_string(auth_payload["created_at"]),
+        auth_payload["nonce"],
+        signature["address"] || signature[:address]
+      ],
+      ":"
+    )
   end
 
   defp body_hash(body) do

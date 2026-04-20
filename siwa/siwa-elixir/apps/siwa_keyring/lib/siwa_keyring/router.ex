@@ -1,15 +1,18 @@
 defmodule SiwaKeyring.Router do
   use Plug.Router
 
-  plug Plug.Logger
-  plug Plug.Parsers,
+  plug(Plug.Logger)
+
+  plug(Plug.Parsers,
     parsers: [:json],
     pass: ["application/json"],
     json_decoder: Jason,
     body_reader: {__MODULE__, :read_body, []}
-  plug :match
-  plug :authorize
-  plug :dispatch
+  )
+
+  plug(:match)
+  plug(:authorize)
+  plug(:dispatch)
 
   get "/health" do
     send_json(conn, 200, %{status: "ok"})
@@ -88,12 +91,16 @@ defmodule SiwaKeyring.Router do
   defp header(conn, key), do: Plug.Conn.get_req_header(conn, key) |> List.first() |> to_string()
 
   def read_body(conn, opts) do
+    previous = conn.private[:raw_body] || ""
+
     case Plug.Conn.read_body(conn, opts) do
       {:ok, body, conn} ->
-        {:ok, body, Plug.Conn.put_private(conn, :raw_body, body)}
+        full_body = previous <> body
+        {:ok, body, Plug.Conn.put_private(conn, :raw_body, full_body)}
 
       {:more, body, conn} ->
-        {:more, body, Plug.Conn.put_private(conn, :raw_body, body)}
+        full_body = previous <> body
+        {:more, body, Plug.Conn.put_private(conn, :raw_body, full_body)}
     end
   end
 

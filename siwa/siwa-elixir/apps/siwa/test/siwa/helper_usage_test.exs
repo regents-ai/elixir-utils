@@ -23,6 +23,42 @@ defmodule Siwa.HelperUsageTest do
     assert identity.endpoint == "https://api.example.com"
   end
 
+  test "identity parsing keeps unknown labels as strings" do
+    parsed =
+      Siwa.Identity.parse("""
+      # SIWA Identity
+
+      - Address: 0x123
+      - Custom Label: hello
+      """)
+
+    assert parsed.address == "0x123"
+    assert parsed["Custom Label"] == "hello"
+    refute Map.has_key?(parsed, :"Custom Label")
+  end
+
+  test "nonce input keeps unknown keys out of the atom table" do
+    capture = self()
+
+    assert {:ok, _nonce} =
+             Siwa.create_nonce(
+               %{
+                 "customField" => "hello",
+                 address: "0x123",
+                 agent_id: 1,
+                 agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+               },
+               store: fn _key, _nonce, _metadata, params ->
+                 send(capture, {:nonce_params, params})
+                 :ok
+               end
+             )
+
+    assert_receive {:nonce_params, params}
+    assert params["customField"] == "hello"
+    refute Map.has_key?(params, :customField)
+  end
+
   test "client resolver returns usable local signers" do
     assert {:ok, signer} = Siwa.ClientResolver.resolve_signer(%{provider: :local})
     assert {:ok, signed} = Siwa.LocalSigner.sign_message(signer, "hello")

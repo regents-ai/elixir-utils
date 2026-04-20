@@ -15,47 +15,52 @@ defmodule Siwa.Nonce do
          :ok <- maybe_validate_registration(params, opts) do
       case maybe_handle_captcha(params, opts, now) do
         :ok ->
-      nonce = generate_nonce(16)
-      metadata = %{
-        address: params.address,
-        agent_id: params.agent_id,
-        agent_registry: params.agent_registry,
-        issued_at: issued_at,
-        expiration_time: expiration_time
-      }
+          nonce = generate_nonce(16)
 
-      case store_nonce(store, params, nonce, metadata) do
-        :ok ->
-          nonce_token =
-            case Keyword.get_lazy(opts, :nonce_secret, fn -> Keyword.get(opts, :secret) end) do
-              nil ->
-                nil
+          metadata = %{
+            address: params.address,
+            agent_id: params.agent_id,
+            agent_registry: params.agent_registry,
+            issued_at: issued_at,
+            expiration_time: expiration_time
+          }
 
-              secret ->
-                {:ok, token} =
-                  create_nonce_token(%{
-                    "nonce" => nonce,
-                    "address" => params.address,
-                    "agentId" => params.agent_id,
-                    "agentRegistry" => params.agent_registry,
-                    "iat" => DateTime.to_unix(issued_at, :millisecond),
-                    "exp" => DateTime.to_unix(expiration_time, :millisecond)
-                  }, secret: secret)
+          case store_nonce(store, params, nonce, metadata) do
+            :ok ->
+              nonce_token =
+                case Keyword.get_lazy(opts, :nonce_secret, fn -> Keyword.get(opts, :secret) end) do
+                  nil ->
+                    nil
 
-                token
-            end
+                  secret ->
+                    {:ok, token} =
+                      create_nonce_token(
+                        %{
+                          "nonce" => nonce,
+                          "address" => params.address,
+                          "agentId" => params.agent_id,
+                          "agentRegistry" => params.agent_registry,
+                          "iat" => DateTime.to_unix(issued_at, :millisecond),
+                          "exp" => DateTime.to_unix(expiration_time, :millisecond)
+                        },
+                        secret: secret
+                      )
 
-          {:ok,
-           %{
-             nonce: nonce,
-             nonce_token: nonce_token,
-             issued_at: DateTime.to_iso8601(issued_at),
-             expiration_time: DateTime.to_iso8601(expiration_time),
-             status: "nonce_issued"
-           }}
+                    token
+                end
 
-        {:error, reason} -> {:error, reason}
-      end
+              {:ok,
+               %{
+                 nonce: nonce,
+                 nonce_token: nonce_token,
+                 issued_at: DateTime.to_iso8601(issued_at),
+                 expiration_time: DateTime.to_iso8601(expiration_time),
+                 status: "nonce_issued"
+               }}
+
+            {:error, reason} ->
+              {:error, reason}
+          end
 
         {:captcha_required, payload} ->
           {:ok, payload}
@@ -115,10 +120,14 @@ defmodule Siwa.Nonce do
         Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :nonce_secret))
       end)
 
-    now_ms = opts |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end) |> DateTime.to_unix(:millisecond)
+    now_ms =
+      opts
+      |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
+      |> DateTime.to_unix(:millisecond)
 
     with [encoded_body, mac] <- String.split(token, ".", parts: 2),
-         expected <- :crypto.mac(:hmac, :sha256, secret, encoded_body) |> Base.url_encode64(padding: false),
+         expected <-
+           :crypto.mac(:hmac, :sha256, secret, encoded_body) |> Base.url_encode64(padding: false),
          true <- Plug.Crypto.secure_compare(expected, mac),
          {:ok, body} <- Base.url_decode64(encoded_body, padding: false),
          {:ok, payload} <- Jason.decode(body),
@@ -156,7 +165,10 @@ defmodule Siwa.Nonce do
           packed ->
             with {:ok, unpacked} <- Captcha.unpack_response(packed),
                  true <- unpacked.challenge_token == token,
-                 {:ok, verified} <- Captcha.verify_challenge(token, unpacked.solution, secret, timing_tolerance_seconds: 2),
+                 {:ok, verified} <-
+                   Captcha.verify_challenge(token, unpacked.solution, secret,
+                     timing_tolerance_seconds: 2
+                   ),
                  true <- verified.overallPass do
               :ok
             else
@@ -169,7 +181,9 @@ defmodule Siwa.Nonce do
 
   defp resolve_captcha_requirement(params, opts, now) do
     created_at = DateTime.to_unix(now, :millisecond)
-    captcha_secret = Keyword.get(opts, :captcha_secret, Application.fetch_env!(:siwa, :nonce_secret))
+
+    captcha_secret =
+      Keyword.get(opts, :captcha_secret, Application.fetch_env!(:siwa, :nonce_secret))
 
     case Keyword.get(opts, :captcha_policy) do
       nil ->
@@ -195,7 +209,11 @@ defmodule Siwa.Nonce do
         end
 
       policy when is_function(policy, 1) ->
-        case policy.(%{address: params.address, agentId: params.agent_id, agentRegistry: params.agent_registry}) do
+        case policy.(%{
+               address: params.address,
+               agentId: params.agent_id,
+               agentRegistry: params.agent_registry
+             }) do
           nil ->
             nil
 
@@ -212,7 +230,14 @@ defmodule Siwa.Nonce do
         end
 
       module when is_atom(module) ->
-        case module.challenge(%{address: params.address, agentId: params.agent_id, agentRegistry: params.agent_registry}, opts) do
+        case module.challenge(
+               %{
+                 address: params.address,
+                 agentId: params.agent_id,
+                 agentRegistry: params.agent_registry
+               },
+               opts
+             ) do
           {:ok, challenge} ->
             token =
               case Captcha.create_challenge(Map.get(challenge, "difficulty", "medium"),
@@ -244,7 +269,8 @@ defmodule Siwa.Nonce do
     store.put(key(params), nonce, metadata)
   end
 
-  defp store_nonce(fun, params, nonce, metadata) when is_function(fun, 4), do: fun.(key(params), nonce, metadata, params)
+  defp store_nonce(fun, params, nonce, metadata) when is_function(fun, 4),
+    do: fun.(key(params), nonce, metadata, params)
 
   defp consume_nonce(store, params) when is_atom(store) do
     store.consume(key(params), params.nonce)
@@ -257,32 +283,61 @@ defmodule Siwa.Nonce do
     exp_ms = entry.expiration_time |> DateTime.to_unix(:millisecond)
 
     cond do
-      String.downcase(entry.address) != String.downcase(params.address) -> {:error, :nonce_address_mismatch}
-      entry.agent_id != params.agent_id -> {:error, :nonce_agent_id_mismatch}
-      entry.agent_registry != params.agent_registry -> {:error, :nonce_registry_mismatch}
-      now_ms > exp_ms -> {:error, :nonce_expired}
-      true -> :ok
+      String.downcase(entry.address) != String.downcase(params.address) ->
+        {:error, :nonce_address_mismatch}
+
+      entry.agent_id != params.agent_id ->
+        {:error, :nonce_agent_id_mismatch}
+
+      entry.agent_registry != params.agent_registry ->
+        {:error, :nonce_registry_mismatch}
+
+      now_ms > exp_ms ->
+        {:error, :nonce_expired}
+
+      true ->
+        :ok
     end
   end
 
   defp validate_token_entry(entry, params) do
     cond do
-      String.downcase(entry["address"]) != String.downcase(params.address) -> {:error, :nonce_address_mismatch}
-      entry["agentId"] != params.agent_id -> {:error, :nonce_agent_id_mismatch}
-      entry["agentRegistry"] != params.agent_registry -> {:error, :nonce_registry_mismatch}
-      entry["nonce"] != params.nonce -> {:error, :nonce_mismatch}
-      true -> :ok
+      String.downcase(entry["address"]) != String.downcase(params.address) ->
+        {:error, :nonce_address_mismatch}
+
+      entry["agentId"] != params.agent_id ->
+        {:error, :nonce_agent_id_mismatch}
+
+      entry["agentRegistry"] != params.agent_registry ->
+        {:error, :nonce_registry_mismatch}
+
+      entry["nonce"] != params.nonce ->
+        {:error, :nonce_mismatch}
+
+      true ->
+        :ok
     end
   end
 
-  defp key(params), do: Enum.join([String.downcase(params.address), params.agent_id, String.downcase(params.agent_registry)], ":")
+  defp key(params),
+    do:
+      Enum.join(
+        [
+          String.downcase(params.address),
+          params.agent_id,
+          String.downcase(params.agent_registry)
+        ],
+        ":"
+      )
 
-  defp normalize(params) when is_map(params), do: Map.new(params, fn {k, v} -> {normalize_key(k), v} end)
+  defp normalize(params) when is_map(params),
+    do: Map.new(params, fn {k, v} -> {normalize_key(k), v} end)
+
   defp normalize(params) when is_list(params), do: params |> Enum.into(%{}) |> normalize()
 
   defp normalize_key("agentId"), do: :agent_id
   defp normalize_key("agentRegistry"), do: :agent_registry
   defp normalize_key("challengeResponse"), do: :challenge_response
-  defp normalize_key(key) when is_binary(key), do: String.to_atom(key)
+  defp normalize_key(key) when is_binary(key), do: key
   defp normalize_key(key), do: key
 end

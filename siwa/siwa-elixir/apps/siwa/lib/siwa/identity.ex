@@ -44,5 +44,5 @@ defmodule Siwa.Identity do
   defp normalize_key("Agent Registry"), do: :agent_registry
   defp normalize_key("Chain ID"), do: :chain_id
   defp normalize_key("Endpoint"), do: :endpoint
-  defp normalize_key(other), do: String.to_atom(other)
+  defp normalize_key(other), do: other
 end

@@ -60,4 +60,21 @@ defmodule SiwaKeyring.RouterUsageTest do
     response = call_router(conn)
     assert response.status == 401
   end
+
+  test "body reader preserves the full raw body across multiple reads" do
+    raw_body = String.duplicate("a", 20)
+    conn = conn("POST", "/sign-message", raw_body)
+
+    assert {:more, "aaaaa", conn} = SiwaKeyring.Router.read_body(conn, length: 5)
+    assert conn.private[:raw_body] == "aaaaa"
+
+    assert {:more, "aaaaa", conn} = SiwaKeyring.Router.read_body(conn, length: 5)
+    assert conn.private[:raw_body] == "aaaaaaaaaa"
+
+    assert {:more, "aaaaa", conn} = SiwaKeyring.Router.read_body(conn, length: 5)
+    assert conn.private[:raw_body] == "aaaaaaaaaaaaaaa"
+
+    assert {:ok, "aaaaa", conn} = SiwaKeyring.Router.read_body(conn, length: 5)
+    assert conn.private[:raw_body] == raw_body
+  end
 end

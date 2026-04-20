@@ -47,7 +47,7 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   @spec list_available_archives(XmtpElixirSdk.Client.t(), non_neg_integer()) ::
           {:ok, [Types.AvailableArchiveInfo.t()]}
   def list_available_archives(client, days_cutoff) do
-    GenServer.call(Names.sync_server(client), {:list_available_archives, days_cutoff})
+    GenServer.call(Names.sync_server(client), {:list_available_archives, client, days_cutoff})
   end
 
   @spec create_archive(XmtpElixirSdk.Client.t(), binary(), Types.ArchiveOptions.t(), list()) ::
@@ -108,7 +108,7 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   end
 
   def handle_call({:process_sync_archive, client, archive_pin}, _from, state) do
-    case find_archive(state, archive_pin) do
+    case find_archive(state, client, archive_pin) do
       nil ->
         {:reply, {:error, Error.not_found("archive not found", %{archive_pin: archive_pin})},
          state}
@@ -123,14 +123,14 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     end
   end
 
-  def handle_call({:list_available_archives, days_cutoff}, _from, state) do
+  def handle_call({:list_available_archives, client, days_cutoff}, _from, state) do
     now = System.system_time(:nanosecond)
     cutoff_ns = now - System.convert_time_unit(days_cutoff * 24 * 60 * 60, :second, :nanosecond)
 
     archives =
       state.archives
       |> Map.values()
-      |> Enum.filter(&(&1.created_at_ns >= cutoff_ns))
+      |> Enum.filter(&(&1.created_at_ns >= cutoff_ns and &1.inbox_id == client.inbox_id))
       |> Enum.map(fn archive ->
         %Types.AvailableArchiveInfo{
           pin: archive.pin,
@@ -143,7 +143,7 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     {:reply, {:ok, archives}, state}
   end
 
-  def handle_call({:create_archive, client, _key, opts, conversations}, _from, state) do
+  def handle_call({:create_archive, client, key, opts, conversations}, _from, state) do
     archive =
       build_archive_payload(
         client,
@@ -153,12 +153,12 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
         conversations
       )
 
-    {:reply, {:ok, :erlang.term_to_binary(archive)}, state}
+    {:reply, encode_archive(archive, key), state}
   end
 
-  def handle_call({:import_archive, client, data, _key}, _from, state) do
-    case decode_archive(data) do
-      {:ok, archive} ->
+  def handle_call({:import_archive, client, data, key}, _from, state) do
+    case decode_archive(data, key) do
+      {:ok, archive} when archive.inbox_id == client.inbox_id ->
         Events.emit(state.runtime, {:conversations, client.id}, %Events.SyncApplied{
           archive_pin: archive.pin,
           conversation_count: length(archive.conversations)
@@ -166,14 +166,17 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
 
         {:reply, {:ok, archive.conversations}, state}
 
+      {:ok, _archive} ->
+        {:reply, {:error, Error.not_found("archive not found", %{})}, state}
+
       {:error, error} ->
         {:reply, {:error, error}, state}
     end
   end
 
-  def handle_call({:archive_metadata, _client, data, _key}, _from, state) do
-    case decode_archive(data) do
-      {:ok, archive} ->
+  def handle_call({:archive_metadata, client, data, key}, _from, state) do
+    case decode_archive(data, key) do
+      {:ok, archive} when archive.inbox_id == client.inbox_id ->
         {:reply,
          {:ok,
           %Types.ArchiveMetadata{
@@ -183,6 +186,9 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
             item_count: archive.item_count,
             options: archive.options
           }}, state}
+
+      {:ok, _archive} ->
+        {:reply, {:error, Error.not_found("archive not found", %{})}, state}
 
       {:error, error} ->
         {:reply, {:error, error}, state}
@@ -226,14 +232,26 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     {:reply, {:ok, summary, imported}, next_state}
   end
 
-  defp find_archive(state, nil) do
+  defp find_archive(state, client, nil) do
     state.archives
     |> Map.values()
+    |> Enum.filter(fn archive ->
+      archive.inbox_id == client.inbox_id and
+        archive.creator_installation_id != client.installation_id
+    end)
     |> Enum.max_by(& &1.created_at_ns, fn -> nil end)
   end
 
-  defp find_archive(state, archive_pin) when is_binary(archive_pin),
-    do: Map.get(state.archives, archive_pin)
+  defp find_archive(state, client, archive_pin) when is_binary(archive_pin) do
+    case Map.get(state.archives, archive_pin) do
+      %{inbox_id: inbox_id, creator_installation_id: creator_installation_id} = archive
+      when inbox_id == client.inbox_id and creator_installation_id != client.installation_id ->
+        archive
+
+      _ ->
+        nil
+    end
+  end
 
   defp build_archive_payload(client, pin, options, server_url, conversations) do
     %{
@@ -248,10 +266,33 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     }
   end
 
-  defp decode_archive(data) when is_binary(data) do
+  defp encode_archive(archive, key) when is_binary(key) do
+    nonce = :crypto.strong_rand_bytes(12)
+    plaintext = :erlang.term_to_binary(archive)
+    secret = archive_secret(key)
+
+    {ciphertext, tag} =
+      :crypto.crypto_one_time_aead(:aes_256_gcm, secret, nonce, plaintext, "", 16, true)
+
+    {:ok, :erlang.term_to_binary(%{v: 1, nonce: nonce, ciphertext: ciphertext, tag: tag})}
+  end
+
+  defp decode_archive(data, key) when is_binary(data) and is_binary(key) do
+    with {:ok, envelope} <- decode_archive_envelope(data),
+         {:ok, plaintext} <- decrypt_archive(envelope, key),
+         {:ok, archive} <- decode_archive_term(plaintext) do
+      validate_archive(archive)
+    end
+  end
+
+  defp decode_archive(_data, _key),
+    do: {:error, Error.invalid_argument("invalid archive data", %{})}
+
+  defp decode_archive_envelope(data) do
     case :erlang.binary_to_term(data, [:safe]) do
-      archive when is_map(archive) ->
-        validate_archive(archive)
+      %{v: 1, nonce: nonce, ciphertext: ciphertext, tag: tag} = envelope
+      when is_binary(nonce) and is_binary(ciphertext) and is_binary(tag) ->
+        {:ok, envelope}
 
       _ ->
         {:error, Error.invalid_argument("invalid archive data", %{})}
@@ -259,6 +300,34 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   rescue
     _ -> {:error, Error.invalid_argument("invalid archive data", %{})}
   end
+
+  defp decrypt_archive(%{nonce: nonce, ciphertext: ciphertext, tag: tag}, key) do
+    case :crypto.crypto_one_time_aead(
+           :aes_256_gcm,
+           archive_secret(key),
+           nonce,
+           ciphertext,
+           "",
+           tag,
+           false
+         ) do
+      plaintext when is_binary(plaintext) -> {:ok, plaintext}
+      :error -> {:error, Error.invalid_argument("invalid archive data", %{})}
+    end
+  rescue
+    _ -> {:error, Error.invalid_argument("invalid archive data", %{})}
+  end
+
+  defp decode_archive_term(plaintext) do
+    case :erlang.binary_to_term(plaintext, [:safe]) do
+      archive when is_map(archive) -> {:ok, archive}
+      _ -> {:error, Error.invalid_argument("invalid archive data", %{})}
+    end
+  rescue
+    _ -> {:error, Error.invalid_argument("invalid archive data", %{})}
+  end
+
+  defp archive_secret(key), do: :crypto.hash(:sha256, key)
 
   defp validate_archive(
          %{

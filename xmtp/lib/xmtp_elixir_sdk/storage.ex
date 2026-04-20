@@ -43,46 +43,48 @@ defmodule XmtpElixirSdk.Storage do
 
   @spec file_exists(t(), Path.t()) :: {:ok, boolean()} | {:error, Error.t()}
   def file_exists(%__MODULE__{root: root}, path) do
-    {:ok, File.exists?(Path.join(root, path))}
+    with {:ok, full} <- resolve_path(root, path) do
+      {:ok, File.exists?(full)}
+    end
   end
 
   @spec delete_file(t(), Path.t()) :: {:ok, boolean()} | {:error, Error.t()}
   def delete_file(%__MODULE__{root: root}, path) do
-    full = Path.join(root, path)
+    with {:ok, full} <- resolve_path(root, path) do
+      case File.rm(full) do
+        :ok ->
+          {:ok, true}
 
-    case File.rm(full) do
-      :ok ->
-        {:ok, true}
-
-      {:error, reason} ->
-        {:error, Error.io("failed to delete file", %{reason: reason, path: full})}
+        {:error, reason} ->
+          {:error, Error.io("failed to delete file", %{reason: reason, path: full})}
+      end
     end
   end
 
   @spec export_db(t(), Path.t()) :: {:ok, binary()} | {:error, Error.t()}
   def export_db(%__MODULE__{root: root}, path) do
-    full = Path.join(root, path)
+    with {:ok, full} <- resolve_path(root, path) do
+      case File.read(full) do
+        {:ok, data} ->
+          {:ok, data}
 
-    case File.read(full) do
-      {:ok, data} ->
-        {:ok, data}
-
-      {:error, reason} ->
-        {:error, Error.io("failed to export database", %{reason: reason, path: full})}
+        {:error, reason} ->
+          {:error, Error.io("failed to export database", %{reason: reason, path: full})}
+      end
     end
   end
 
   @spec import_db(t(), Path.t(), binary()) :: :ok | {:error, Error.t()}
   def import_db(%__MODULE__{root: root}, path, data) when is_binary(data) do
-    full = Path.join(root, path)
+    with {:ok, full} <- resolve_path(root, path) do
+      File.write(full, data)
+      |> case do
+        :ok ->
+          :ok
 
-    File.write(full, data)
-    |> case do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        {:error, Error.io("failed to import database", %{reason: reason, path: full})}
+        {:error, reason} ->
+          {:error, Error.io("failed to import database", %{reason: reason, path: full})}
+      end
     end
   end
 
@@ -91,12 +93,39 @@ defmodule XmtpElixirSdk.Storage do
     case File.rm_rf(root) do
       {:ok, _} ->
         case File.mkdir_p(root) do
-          :ok -> :ok
-          {:error, reason} -> {:error, Error.io("failed to clear storage", %{reason: reason, root: root})}
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            {:error, Error.io("failed to clear storage", %{reason: reason, root: root})}
         end
 
       {:error, reason, _} ->
         {:error, Error.io("failed to clear storage", %{reason: reason, root: root})}
     end
+  end
+
+  defp resolve_path(root, path) when is_binary(path) do
+    expanded_root = Path.expand(root)
+    expanded_path = Path.expand(path, expanded_root)
+
+    cond do
+      path == "" ->
+        {:error, Error.invalid_argument("invalid storage path", %{path: path})}
+
+      not path_within_root?(expanded_root, expanded_path) ->
+        {:error, Error.invalid_argument("invalid storage path", %{path: path})}
+
+      true ->
+        {:ok, expanded_path}
+    end
+  end
+
+  defp resolve_path(_root, path) do
+    {:error, Error.invalid_argument("invalid storage path", %{path: path})}
+  end
+
+  defp path_within_root?(root, path) do
+    path == root or String.starts_with?(path, root <> "/")
   end
 end

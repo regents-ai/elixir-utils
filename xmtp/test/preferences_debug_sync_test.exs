@@ -141,19 +141,28 @@ defmodule XmtpElixirSdk.PreferencesDebugSyncTest do
     assert error.message == "invalid archive data"
   end
 
+  test "archives require the correct key for metadata and import" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, archive} = Sync.create_archive(alice, <<1, 2, 3>>)
+
+    assert {:error, metadata_error} = Sync.archive_metadata(alice, archive, <<9, 9, 9>>)
+    assert metadata_error.kind == :invalid_argument
+    assert metadata_error.message == "invalid archive data"
+
+    assert {:error, import_error} = Sync.import_archive(alice, archive, <<9, 9, 9>>)
+    assert import_error.kind == :invalid_argument
+    assert import_error.message == "invalid archive data"
+  end
+
   test "archives with wrong field types are rejected cleanly" do
     assert {:ok, alice} = create_client("alice")
 
     malformed_archive =
       :erlang.term_to_binary(%{
-        pin: "archive-1",
-        inbox_id: alice.inbox_id,
-        creator_installation_id: alice.installation_id,
-        server_url: "https://archive.example",
-        created_at_ns: System.system_time(:nanosecond),
-        item_count: 1,
-        options: %Types.ArchiveOptions{},
-        conversations: :oops
+        v: 1,
+        nonce: <<0::96>>,
+        ciphertext: <<1, 2, 3>>,
+        tag: <<0::128>>
       })
 
     assert {:error, metadata_error} = Sync.archive_metadata(alice, malformed_archive, <<1, 2, 3>>)
@@ -218,5 +227,25 @@ defmodule XmtpElixirSdk.PreferencesDebugSyncTest do
 
     assert {:ok, archives} = Sync.list_available_archives(alice, 1)
     assert Enum.map(archives, & &1.pin) == ["recent"]
+  end
+
+  test "archive listing and processing stay scoped to the caller inbox" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, bob} = create_client("bob")
+
+    assert {:ok, :ok} = Sync.send_sync_archive(alice, "alice-pin")
+
+    assert {:ok, bob_archives} = Sync.list_available_archives(bob, 1)
+    assert bob_archives == []
+
+    assert {:error, process_error} = Sync.process_sync_archive(bob, "alice-pin")
+    assert process_error.kind == :not_found
+
+    assert {:ok, archive} = Sync.create_archive(alice, <<1, 2, 3>>)
+    assert {:error, metadata_error} = Sync.archive_metadata(bob, archive, <<1, 2, 3>>)
+    assert metadata_error.kind == :not_found
+
+    assert {:error, import_error} = Sync.import_archive(bob, archive, <<1, 2, 3>>)
+    assert import_error.kind == :not_found
   end
 end

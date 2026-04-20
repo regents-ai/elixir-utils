@@ -64,6 +64,33 @@ defmodule XmtpElixirSdk.StorageTest do
              |> Storage.delete_file("missing.sqlite")
   end
 
+  test "storage paths cannot escape the configured root" do
+    root = unique_path("escape-root")
+    outside = unique_path("outside-file")
+    File.mkdir_p!(root)
+
+    on_exit(fn ->
+      File.rm_rf(root)
+      File.rm_rf(outside)
+    end)
+
+    storage = Storage.new(root)
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.import_db(storage, "../" <> Path.basename(outside), <<1, 2, 3>>)
+
+    refute File.exists?(outside)
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.export_db(storage, "../" <> Path.basename(outside))
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.delete_file(storage, "../" <> Path.basename(outside))
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.file_exists(storage, "../" <> Path.basename(outside))
+  end
+
   test "clear_all returns io when the root cannot be cleared" do
     parent = unique_path("clear-parent")
     File.write!(parent, "not-a-directory")
@@ -75,6 +102,9 @@ defmodule XmtpElixirSdk.StorageTest do
   end
 
   defp unique_path(suffix) do
-    Path.join(System.tmp_dir!(), "xmtp-elixir-sdk-storage-#{suffix}-#{System.unique_integer([:positive])}")
+    Path.join(
+      System.tmp_dir!(),
+      "xmtp-elixir-sdk-storage-#{suffix}-#{System.unique_integer([:positive])}"
+    )
   end
 end

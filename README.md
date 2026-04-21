@@ -6,7 +6,7 @@ Each utility below lives in its own folder here:
 
 - `xmtp/` → publishes as `xmtp_elixir_sdk`
 - `ens/` → publishes as `ens_elixir`
-- `siwa/siwa-elixir/` → umbrella app for the SIWA packages
+- `siwa/siwa-elixir/` → umbrella app for the shared SIWA packages used across Regent products
 
 How to work with it:
 

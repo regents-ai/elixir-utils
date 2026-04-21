@@ -157,4 +157,45 @@ defmodule Siwa.RequestAuthTest do
     assert result.halted == false
     assert result.assigns.siwa_agent.address == signer.address
   end
+
+  test "rejects a signed request that is older than the freshness window" do
+    {:ok, signer} = Siwa.LocalSigner.new()
+
+    {:ok, receipt} =
+      Siwa.Receipt.create(
+        %{
+          "address" => signer.address,
+          "agentId" => 1,
+          "agentRegistry" => "eip155:84532:0xregistry",
+          "chainId" => 84532
+        },
+        secret: "secret"
+      )
+
+    request = %{
+      method: "POST",
+      path: "/protected",
+      host: "api.example.com",
+      query: "",
+      body: "{}",
+      headers: %{}
+    }
+
+    created_at = ~U[2026-04-20 00:00:00Z]
+
+    assert {:ok, signed_request} =
+             Siwa.RequestAuth.sign_authenticated_request(
+               request,
+               receipt.token,
+               signer,
+               created_at: created_at
+             )
+
+    assert {:error, :request_too_old} =
+             Siwa.RequestAuth.verify_authenticated_request(
+               signed_request,
+               secret: "secret",
+               now: ~U[2026-04-20 00:03:00Z]
+             )
+  end
 end

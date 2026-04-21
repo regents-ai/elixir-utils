@@ -1,6 +1,8 @@
 defmodule Siwa.RequestAuth do
   alias Siwa.{Crypto, Receipt}
 
+  @default_request_max_age_ms 2 * 60 * 1_000
+  @default_clock_skew_ms 30 * 1_000
   @receipt_header "x-siwa-receipt"
   @auth_header "x-siwa-auth"
   @signature_header "x-siwa-signature"
@@ -40,12 +42,18 @@ defmodule Siwa.RequestAuth do
     request = normalize_request(request)
     replay_ttl_ms = Keyword.get(opts, :replay_ttl_ms, 5 * 60 * 1_000)
 
+    now_ms =
+      opts
+      |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
+      |> DateTime.to_unix(:millisecond)
+
     with {:ok, receipt} <- fetch_header(request, @receipt_header),
          {:ok, receipt_payload} <- Receipt.verify(receipt, opts),
          {:ok, auth_json, auth_payload} <- fetch_and_decode_with_json(request, @auth_header),
          {:ok, _signature_json, signature} <-
            fetch_and_decode_with_json(request, @signature_header),
          :ok <- ensure_request_matches(request, auth_payload),
+         :ok <- ensure_request_freshness(auth_payload, now_ms, opts),
          {:ok, verified_signature} <- verify_signature(signature, auth_json, opts),
          :ok <- ensure_receipt_matches(receipt_payload, verified_signature),
          :ok <-
@@ -99,6 +107,30 @@ defmodule Siwa.RequestAuth do
       true -> :ok
     end
   end
+
+  defp ensure_request_freshness(auth_payload, now_ms, opts) do
+    max_age_ms = Keyword.get(opts, :request_max_age_ms, @default_request_max_age_ms)
+    clock_skew_ms = Keyword.get(opts, :clock_skew_ms, @default_clock_skew_ms)
+
+    with {:ok, created_at_ms} <- fetch_created_at_ms(auth_payload) do
+      cond do
+        created_at_ms > now_ms + clock_skew_ms ->
+          {:error, :request_not_yet_valid}
+
+        now_ms - created_at_ms > max_age_ms ->
+          {:error, :request_too_old}
+
+        true ->
+          :ok
+      end
+    end
+  end
+
+  defp fetch_created_at_ms(%{"created_at" => created_at})
+       when is_integer(created_at) and created_at >= 0,
+       do: {:ok, created_at}
+
+  defp fetch_created_at_ms(_auth_payload), do: {:error, :request_missing_timestamp}
 
   defp verify_signature(signature, payload, opts) do
     case Keyword.get(opts, :signature_validator) do

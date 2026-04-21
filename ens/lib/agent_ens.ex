@@ -32,6 +32,7 @@ defmodule AgentEns do
   alias AgentEns.Plan
   alias AgentEns.Read
   alias AgentEns.RecordKey
+  alias AgentEns.Tx
   alias AgentEns.Verify
 
   @doc """
@@ -117,4 +118,18 @@ defmodule AgentEns do
   @spec prepare_bidirectional_link(map()) ::
           {:ok, map()} | {:error, AgentEns.Error.t()}
   def prepare_bidirectional_link(input), do: Link.prepare_bidirectional_link(input)
+
+  @doc """
+  Prepares the unsigned request that upgrades a reserved Regent ENS name on Ethereum mainnet.
+  """
+  @spec prepare_regent_subname_upgrade(map()) ::
+          {:ok, AgentEns.TxRequest.t()} | {:error, AgentEns.Error.t()}
+  def prepare_regent_subname_upgrade(input), do: Tx.build_regent_subname_upgrade_tx(input)
+
+  @doc """
+  Prepares the unsigned request that writes the ENSIP-25 proof through the Regent registrar.
+  """
+  @spec prepare_regent_ensip25_update(map()) ::
+          {:ok, AgentEns.TxRequest.t()} | {:error, AgentEns.Error.t()}
+  def prepare_regent_ensip25_update(input), do: Tx.build_regent_ensip25_link_tx(input)
 end

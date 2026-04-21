@@ -35,9 +35,10 @@ defmodule AgentEns.Tx do
   @spec build_set_text_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_text_tx(params) when is_map(params) do
     with {:ok, chain_id} <- required_integer(params, :chain_id),
+         {:ok, record_chain_id} <- optional_integer(params, :record_chain_id, chain_id),
          {:ok, registry_address} <- required_address(params, :registry_address),
          {:ok, agent_id} <- required_agent_id(params),
-         {:ok, key} <- build_record_key(chain_id, registry_address, agent_id) do
+         {:ok, key} <- build_record_key(record_chain_id, registry_address, agent_id) do
       build_set_text_record_tx(%{
         ens_name: Map.get(params, :ens_name) || Map.get(params, "ens_name"),
         chain_id: chain_id,
@@ -46,6 +47,55 @@ defmodule AgentEns.Tx do
         key: key,
         value: Map.get(params, :value) || Map.get(params, "value") || "1"
       })
+    end
+  end
+
+  @spec build_regent_subname_upgrade_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
+  def build_regent_subname_upgrade_tx(params) when is_map(params) do
+    with {:ok, chain_id} <- required_integer(params, :chain_id),
+         {:ok, registrar_address} <- required_address(params, :registrar_address),
+         {:ok, label} <- required_label(params),
+         {:ok, owner_address} <- required_address(params, :owner_address),
+         {:ok, resolver_address} <- required_address(params, :resolver_address),
+         {:ok, data} <-
+           ABI.encode_call("upgradeClaim(string,address,address)", [
+             {:string, label},
+             {:address, owner_address},
+             {:address, resolver_address}
+           ]) do
+      {:ok,
+       tx_request(
+         registrar_address,
+         chain_id,
+         data,
+         "Upgrade #{label}.regent.eth to an onchain Regent ENS name"
+       )}
+    end
+  end
+
+  @spec build_regent_ensip25_link_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
+  def build_regent_ensip25_link_tx(params) when is_map(params) do
+    with {:ok, chain_id} <- required_integer(params, :chain_id),
+         {:ok, registrar_address} <- required_address(params, :registrar_address),
+         {:ok, label} <- required_label(params),
+         {:ok, registry_chain_id} <- required_integer(params, :registry_chain_id),
+         {:ok, registry_address} <- required_address(params, :registry_address),
+         {:ok, agent_id} <- required_agent_id(params),
+         {:ok, key} <- build_record_key(registry_chain_id, registry_address, agent_id),
+         {:ok, value} <- required(params, :value),
+         {:ok, data} <-
+           ABI.encode_call("setAgentRegistrationText(string,string,string)", [
+             {:string, label},
+             {:string, key},
+             {:string, value}
+           ]) do
+      {:ok,
+       tx_request(
+         registrar_address,
+         chain_id,
+         data,
+         "Write ENSIP-25 proof for #{label}.regent.eth through the Regent registrar"
+       )}
     end
   end
 
@@ -371,6 +421,16 @@ defmodule AgentEns.Tx do
 
   defp build_record_key(_chain_id, _registry_address, agent_id) do
     {:error, Error.new({:invalid_agent_id_type, agent_id})}
+  end
+
+  defp optional_integer(params, key, default) do
+    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
+      nil ->
+        {:ok, default}
+
+      value ->
+        required_integer(%{key => value}, key)
+    end
   end
 
   defp tx_request(to, chain_id, data, description) do

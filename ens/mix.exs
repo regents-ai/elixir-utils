@@ -27,7 +27,7 @@ defmodule AgentEns.MixProject do
   defp deps do
     [
       {:req, "~> 0.5"},
-      {:idna, "~> 7.1"},
+      {:idna, "~> 6.1"},
       {:jason, "~> 1.4"},
       {:keccak_ex, "~> 0.4.2"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}

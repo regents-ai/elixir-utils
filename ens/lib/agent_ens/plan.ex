@@ -31,13 +31,23 @@ defmodule AgentEns.Plan do
     Input values used to build a read-only link plan.
     """
 
-    @enforce_keys [:ens_name, :chain_id, :registry_address, :agent_id, :rpc_url]
+    @enforce_keys [
+      :ens_name,
+      :ens_chain_id,
+      :ens_rpc_url,
+      :registry_chain_id,
+      :registry_rpc_url,
+      :registry_address,
+      :agent_id
+    ]
     defstruct [
       :ens_name,
-      :chain_id,
+      :ens_chain_id,
+      :ens_rpc_url,
+      :registry_chain_id,
+      :registry_rpc_url,
       :registry_address,
       :agent_id,
-      :rpc_url,
       :rpc_module,
       :signer_address,
       :include_reverse?,
@@ -51,10 +61,12 @@ defmodule AgentEns.Plan do
 
     @type t :: %__MODULE__{
             ens_name: String.t(),
-            chain_id: non_neg_integer(),
+            ens_chain_id: non_neg_integer(),
+            ens_rpc_url: String.t(),
+            registry_chain_id: non_neg_integer(),
+            registry_rpc_url: String.t(),
             registry_address: String.t(),
             agent_id: non_neg_integer() | String.t(),
-            rpc_url: String.t(),
             rpc_module: module() | nil,
             signer_address: String.t() | nil,
             include_reverse?: boolean() | nil,
@@ -182,7 +194,7 @@ defmodule AgentEns.Plan do
 
   defp do_plan(%Input{} = input) do
     rpc = input.rpc_module || RPC
-    network = Networks.get(input.chain_id) || %{}
+    network = Networks.get(input.ens_chain_id) || %{}
     ens_registry = input.ens_registry || Map.get(network, :ens_registry)
     name_wrapper = input.name_wrapper || Map.get(network, :name_wrapper)
     reverse_registrar = input.reverse_registrar || Map.get(network, :reverse_registrar)
@@ -190,18 +202,20 @@ defmodule AgentEns.Plan do
 
     with {:ok, normalized_name} <- Normalize.normalize(input.ens_name),
          {:ok, node} <- Verify.namehash(normalized_name),
-         {:ok, key} <- record_key(input.chain_id, input.registry_address, input.agent_id),
-         {:ok, resolver} <- Contract.fetch_resolver(rpc, input.rpc_url, ens_registry, node),
-         {:ok, resolver_support} <- classify_resolver_support(rpc, input.rpc_url, resolver),
+         {:ok, key} <-
+           record_key(input.registry_chain_id, input.registry_address, input.agent_id),
+         {:ok, resolver} <- Contract.fetch_resolver(rpc, input.ens_rpc_url, ens_registry, node),
+         {:ok, resolver_support} <- classify_resolver_support(rpc, input.ens_rpc_url, resolver),
          {:ok, text_value} <-
-           fetch_text_value(rpc, input.rpc_url, resolver, resolver_support, node, key),
-         {:ok, ens_owner} <- Contract.fetch_registry_owner(rpc, input.rpc_url, ens_registry, node),
+           fetch_text_value(rpc, input.ens_rpc_url, resolver, resolver_support, node, key),
+         {:ok, ens_owner} <-
+           Contract.fetch_registry_owner(rpc, input.ens_rpc_url, ens_registry, node),
          {:ok, {ens_manager, ens_manager_source}} <-
-           resolve_manager(rpc, input.rpc_url, ens_owner, name_wrapper, node),
+           resolve_manager(rpc, input.ens_rpc_url, ens_owner, name_wrapper, node),
          {:ok, agent_contract_state} <-
            fetch_agent_contract_state(
              rpc,
-             input.rpc_url,
+             input.registry_rpc_url,
              input.registry_address,
              input.agent_id,
              signer_address,
@@ -268,17 +282,21 @@ defmodule AgentEns.Plan do
 
   defp build_input(params) do
     with {:ok, ens_name} <- required_binary(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+         {:ok, ens_chain_id} <- required_integer(params, :ens_chain_id),
+         {:ok, ens_rpc_url} <- required_binary(params, :ens_rpc_url),
+         {:ok, registry_chain_id} <- required_integer(params, :registry_chain_id),
+         {:ok, registry_rpc_url} <- required_binary(params, :registry_rpc_url),
          {:ok, registry_address} <- required_binary(params, :registry_address),
-         {:ok, agent_id} <- required_agent_id(params),
-         {:ok, rpc_url} <- required_binary(params, :rpc_url) do
+         {:ok, agent_id} <- required_agent_id(params) do
       {:ok,
        %Input{
          ens_name: ens_name,
-         chain_id: chain_id,
+         ens_chain_id: ens_chain_id,
+         ens_rpc_url: ens_rpc_url,
+         registry_chain_id: registry_chain_id,
+         registry_rpc_url: registry_rpc_url,
          registry_address: String.downcase(registry_address),
          agent_id: agent_id,
-         rpc_url: rpc_url,
          rpc_module: Map.get(params, :rpc_module) || Map.get(params, "rpc_module"),
          signer_address: Map.get(params, :signer_address) || Map.get(params, "signer_address"),
          include_reverse?:

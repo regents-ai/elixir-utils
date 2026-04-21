@@ -43,7 +43,7 @@ defmodule AgentEns.Link do
            }),
          {:ok, tx} <-
            Tx.build_set_agent_uri_tx(%{
-             chain_id: Map.get(input, :chain_id) || Map.get(input, "chain_id"),
+             chain_id: Map.get(input, :registry_chain_id) || Map.get(input, "registry_chain_id"),
              registry_address:
                Map.get(input, :registry_address) || Map.get(input, "registry_address"),
              agent_id: Map.get(input, :agent_id) || Map.get(input, "agent_id"),
@@ -61,7 +61,9 @@ defmodule AgentEns.Link do
          {:ok, tx} <-
            Tx.build_set_text_tx(%{
              ens_name: plan.normalized_ens_name,
-             chain_id: Map.get(input, :chain_id) || Map.get(input, "chain_id"),
+             chain_id: Map.get(input, :ens_chain_id) || Map.get(input, "ens_chain_id"),
+             record_chain_id:
+               Map.get(input, :registry_chain_id) || Map.get(input, "registry_chain_id"),
              registry_address:
                Map.get(input, :registry_address) || Map.get(input, "registry_address"),
              agent_id: Map.get(input, :agent_id) || Map.get(input, "agent_id"),
@@ -118,7 +120,7 @@ defmodule AgentEns.Link do
 
   defp maybe_prepare_reverse(plan, input) do
     case Tx.build_reverse_set_name_tx(%{
-           chain_id: Map.get(input, :chain_id) || Map.get(input, "chain_id"),
+           chain_id: Map.get(input, :ens_chain_id) || Map.get(input, "ens_chain_id"),
            ens_name: plan.normalized_ens_name,
            reverse_registrar:
              Map.get(input, :reverse_registrar) || Map.get(input, "reverse_registrar")

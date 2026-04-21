@@ -2,6 +2,7 @@ defmodule Siwa.Nonce do
   alias Siwa.{Captcha, Registry}
 
   @default_ttl_ms 5 * 60 * 1_000
+  @token_table :siwa_consumed_nonce_tokens
 
   def issue(params, opts \\ []) do
     params = normalize(params)
@@ -91,7 +92,8 @@ defmodule Siwa.Nonce do
           end)
 
         with {:ok, stored} <- verify_nonce_token(token, nonce_secret: nonce_secret, now: now),
-             :ok <- validate_token_entry(stored, params) do
+             :ok <- validate_token_entry(stored, params),
+             :ok <- consume_nonce_token_once(token, stored, now) do
           {:ok, stored}
         end
     end
@@ -330,6 +332,34 @@ defmodule Siwa.Nonce do
         ":"
       )
 
+  defp consume_nonce_token_once(token, stored, now) do
+    ensure_token_table!()
+    token_key = :crypto.hash(:sha256, token)
+    now_ms = DateTime.to_unix(now, :millisecond)
+    exp_ms = stored["exp"]
+
+    case :ets.insert_new(@token_table, {token_key, exp_ms}) do
+      true ->
+        :ok
+
+      false ->
+        case :ets.lookup(@token_table, token_key) do
+          [{^token_key, used_until_ms}] when used_until_ms > now_ms ->
+            {:error, :nonce_already_used}
+
+          _ ->
+            :ets.delete(@token_table, token_key)
+            consume_nonce_token_once(token, stored, now)
+        end
+    end
+  end
+
+  defp ensure_token_table! do
+    if :ets.whereis(@token_table) == :undefined do
+      :ets.new(@token_table, [:named_table, :public, :set])
+    end
+  end
+
   defp normalize(params) when is_map(params),
     do: Map.new(params, fn {k, v} -> {normalize_key(k), v} end)
 
@@ -338,6 +368,8 @@ defmodule Siwa.Nonce do
   defp normalize_key("agentId"), do: :agent_id
   defp normalize_key("agentRegistry"), do: :agent_registry
   defp normalize_key("challengeResponse"), do: :challenge_response
+  defp normalize_key("address"), do: :address
+  defp normalize_key("nonce"), do: :nonce
   defp normalize_key(key) when is_binary(key), do: key
   defp normalize_key(key), do: key
 end

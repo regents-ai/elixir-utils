@@ -143,6 +143,11 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
     {:reply, {:ok, archives}, state}
   end
 
+  def handle_call({:create_archive, _client, key, _opts, _conversations}, _from, state)
+      when not is_binary(key) do
+    {:reply, {:error, Error.invalid_argument("invalid archive key", %{})}, state}
+  end
+
   def handle_call({:create_archive, client, key, opts, conversations}, _from, state) do
     archive =
       build_archive_payload(
@@ -276,6 +281,9 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
 
     {:ok, :erlang.term_to_binary(%{v: 1, nonce: nonce, ciphertext: ciphertext, tag: tag})}
   end
+
+  defp encode_archive(_archive, _key),
+    do: {:error, Error.invalid_argument("invalid archive key", %{})}
 
   defp decode_archive(data, key) when is_binary(data) and is_binary(key) do
     with {:ok, envelope} <- decode_archive_envelope(data),

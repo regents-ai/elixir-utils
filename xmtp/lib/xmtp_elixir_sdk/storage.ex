@@ -109,15 +109,10 @@ defmodule XmtpElixirSdk.Storage do
     expanded_root = Path.expand(root)
     expanded_path = Path.expand(path, expanded_root)
 
-    cond do
-      path == "" ->
-        {:error, Error.invalid_argument("invalid storage path", %{path: path})}
-
-      not path_within_root?(expanded_root, expanded_path) ->
-        {:error, Error.invalid_argument("invalid storage path", %{path: path})}
-
-      true ->
-        {:ok, expanded_path}
+    with :ok <- validate_path(path),
+         :ok <- ensure_path_within_root(expanded_root, expanded_path, path),
+         :ok <- ensure_symlink_free_path(expanded_root, expanded_path, path) do
+      {:ok, expanded_path}
     end
   end
 
@@ -125,7 +120,50 @@ defmodule XmtpElixirSdk.Storage do
     {:error, Error.invalid_argument("invalid storage path", %{path: path})}
   end
 
+  defp validate_path(""),
+    do: {:error, Error.invalid_argument("invalid storage path", %{path: ""})}
+
+  defp validate_path(_path), do: :ok
+
+  defp ensure_path_within_root(root, path, original_path) do
+    if path_within_root?(root, path) do
+      :ok
+    else
+      {:error, Error.invalid_argument("invalid storage path", %{path: original_path})}
+    end
+  end
+
+  defp ensure_symlink_free_path(root, path, original_path) do
+    segments =
+      case Path.relative_to(path, root) do
+        "." -> []
+        relative -> Path.split(relative)
+      end
+
+    walk_path_segments(root, segments, original_path)
+  end
+
   defp path_within_root?(root, path) do
     path == root or String.starts_with?(path, root <> "/")
+  end
+
+  defp walk_path_segments(_current, [], _original_path), do: :ok
+
+  defp walk_path_segments(current, [segment | rest], original_path) do
+    next = Path.join(current, segment)
+
+    case File.lstat(next) do
+      {:ok, %File.Stat{type: :symlink}} ->
+        {:error, Error.invalid_argument("invalid storage path", %{path: original_path})}
+
+      {:ok, _stat} ->
+        walk_path_segments(next, rest, original_path)
+
+      {:error, :enoent} ->
+        :ok
+
+      {:error, _reason} ->
+        :ok
+    end
   end
 end

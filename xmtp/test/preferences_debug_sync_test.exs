@@ -154,6 +154,17 @@ defmodule XmtpElixirSdk.PreferencesDebugSyncTest do
     assert import_error.message == "invalid archive data"
   end
 
+  test "archives reject invalid archive keys without crashing the sync server" do
+    assert {:ok, alice} = create_client("alice")
+
+    assert {:error, error} = Sync.create_archive(alice, :bad_key)
+    assert error.kind == :invalid_argument
+    assert error.message == "invalid archive key"
+
+    assert {:ok, archive} = Sync.create_archive(alice, <<1, 2, 3>>)
+    assert is_binary(archive)
+  end
+
   test "archives with wrong field types are rejected cleanly" do
     assert {:ok, alice} = create_client("alice")
 

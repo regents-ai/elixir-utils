@@ -91,6 +91,34 @@ defmodule XmtpElixirSdk.StorageTest do
              Storage.file_exists(storage, "../" <> Path.basename(outside))
   end
 
+  test "storage paths cannot escape the configured root through symlinks" do
+    root = unique_path("symlink-root")
+    outside_dir = unique_path("outside-dir")
+    File.mkdir_p!(root)
+    File.mkdir_p!(outside_dir)
+    File.write!(Path.join(outside_dir, "secret.sqlite"), "secret")
+    File.ln_s!(outside_dir, Path.join(root, "linked"))
+
+    on_exit(fn ->
+      File.rm_rf(root)
+      File.rm_rf(outside_dir)
+    end)
+
+    storage = Storage.new(root)
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.export_db(storage, "linked/secret.sqlite")
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.delete_file(storage, "linked/secret.sqlite")
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.file_exists(storage, "linked/secret.sqlite")
+
+    assert {:error, %Error{kind: :invalid_argument, message: "invalid storage path"}} =
+             Storage.import_db(storage, "linked/secret.sqlite", <<1, 2, 3>>)
+  end
+
   test "clear_all returns io when the root cannot be cleared" do
     parent = unique_path("clear-parent")
     File.write!(parent, "not-a-directory")

@@ -14,6 +14,28 @@ defmodule Siwa.Message do
     {"Not Before", :not_before},
     {"Request ID", :request_id}
   ]
+  @normalized_string_keys %{
+    "domain" => :domain,
+    "address" => :address,
+    "statement" => :statement,
+    "uri" => :uri,
+    "version" => :version,
+    "agent_id" => :agent_id,
+    "agentId" => :agent_id,
+    "agent_registry" => :agent_registry,
+    "agentRegistry" => :agent_registry,
+    "chain_id" => :chain_id,
+    "chainId" => :chain_id,
+    "nonce" => :nonce,
+    "issued_at" => :issued_at,
+    "issuedAt" => :issued_at,
+    "expiration_time" => :expiration_time,
+    "expirationTime" => :expiration_time,
+    "not_before" => :not_before,
+    "notBefore" => :not_before,
+    "request_id" => :request_id,
+    "requestId" => :request_id
+  }
 
   def build(fields) do
     normalized = normalize_fields(fields)
@@ -69,14 +91,7 @@ defmodule Siwa.Message do
   defp normalize_pair({key, value}) when is_binary(key), do: {normalize_key(key), value}
   defp normalize_pair({key, value}), do: {key, value}
 
-  defp normalize_key("agentId"), do: :agent_id
-  defp normalize_key("agentRegistry"), do: :agent_registry
-  defp normalize_key("chainId"), do: :chain_id
-  defp normalize_key("issuedAt"), do: :issued_at
-  defp normalize_key("expirationTime"), do: :expiration_time
-  defp normalize_key("notBefore"), do: :not_before
-  defp normalize_key("requestId"), do: :request_id
-  defp normalize_key(other), do: other
+  defp normalize_key(other), do: Map.get(@normalized_string_keys, other, other)
 
   defp ensure_present!(fields, key) do
     case Map.get(fields, key) do

@@ -96,4 +96,47 @@ defmodule Siwa.NonceTest do
                nonce_secret: "nonce-secret"
              )
   end
+
+  test "stateless nonce tokens stay one-time use under concurrent first access" do
+    assert {:ok, issued} =
+             Siwa.Nonce.issue(
+               %{
+                 address: "0x456",
+                 agent_id: 10,
+                 agent_registry: "eip155:84532:0xregistry"
+               },
+               nonce_secret: "nonce-secret"
+             )
+
+    params = %{
+      address: "0x456",
+      agent_id: 10,
+      agent_registry: "eip155:84532:0xregistry",
+      nonce: issued.nonce
+    }
+
+    results =
+      1..20
+      |> Task.async_stream(
+        fn _ ->
+          Siwa.Nonce.consume(
+            params,
+            nonce_token: issued.nonce_token,
+            nonce_secret: "nonce-secret"
+          )
+        end,
+        max_concurrency: 20,
+        timeout: 5_000
+      )
+      |> Enum.map(fn {:ok, result} -> result end)
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+
+    assert Enum.all?(
+             results,
+             &(match?({:ok, _}, &1) or match?({:error, :nonce_already_used}, &1))
+           )
+
+    assert Enum.count(results, &match?({:error, :nonce_already_used}, &1)) == 19
+  end
 end

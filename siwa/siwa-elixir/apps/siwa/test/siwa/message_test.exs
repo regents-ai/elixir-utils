@@ -20,6 +20,24 @@ defmodule Siwa.MessageTest do
     assert parsed.statement == fields.statement
   end
 
+  test "build accepts canonical string-key fields" do
+    message =
+      Siwa.Message.build(%{
+        "domain" => "api.example.com",
+        "address" => "0x123",
+        "statement" => "Authenticate as a registered agent.",
+        "uri" => "https://api.example.com/siwa",
+        "agentId" => 7,
+        "agentRegistry" => "eip155:84532:0xregistry",
+        "chainId" => 84532,
+        "nonce" => "abc12345",
+        "issuedAt" => "2026-04-17T00:00:00Z"
+      })
+
+    assert message =~ "api.example.com wants you to sign in"
+    assert message =~ "Agent ID: 7"
+  end
+
   test "unknown string keys stay as strings during normalization" do
     normalized = Siwa.Message.normalize_fields(%{"customField" => "value"})
 

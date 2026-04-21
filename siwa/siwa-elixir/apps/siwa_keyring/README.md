@@ -1,6 +1,8 @@
 # SiwaKeyring
 
-**TODO: Add description**
+Isolated signing service and Elixir client for shared Regent SIWA flows.
+
+Use this package when Regent needs key isolation for SIWA signing instead of in-process signing.
 
 ## Installation
 
@@ -18,4 +20,3 @@ end
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/siwa_keyring>.
-

@@ -36,7 +36,8 @@ defmodule XmtpElixirSdk do
 
   @spec create_client(Runtime.t() | atom(), Types.Identifier.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Error.t()}
-  def create_client(runtime, identifier, opts \\ []), do: Clients.create(runtime, identifier, opts)
+  def create_client(runtime, identifier, opts \\ []),
+    do: Clients.create(runtime, identifier, opts)
 
   @spec build_client(Runtime.t() | atom(), Types.Identifier.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Error.t()}
@@ -60,21 +61,21 @@ defmodule XmtpElixirSdk do
   def can_message(runtime, identifiers), do: Clients.can_message(runtime, identifiers)
 
   @spec metadata_field_name(Types.metadata_field()) :: String.t()
-  def metadata_field_name(field), do: Constants.metadata_field_name(field)
+  defdelegate metadata_field_name(field), to: Constants
 
   @spec metadata_field_from_name(String.t()) ::
           {:ok, Types.metadata_field()} | {:error, Error.t()}
-  def metadata_field_from_name(name), do: Constants.metadata_field_from_name(name)
+  defdelegate metadata_field_from_name(name), to: Constants
 
   @spec api_urls() :: %{optional(Types.env()) => String.t()}
-  def api_urls, do: Constants.api_urls()
+  defdelegate api_urls, to: Constants
 
   @spec history_sync_urls() :: %{optional(Types.env()) => String.t()}
-  def history_sync_urls, do: Constants.history_sync_urls()
+  defdelegate history_sync_urls, to: Constants
 
   @spec to_safe_conversation(Types.Conversation.t()) :: Conversions.SafeConversation.t()
-  def to_safe_conversation(conversation), do: Conversions.to_safe_conversation(conversation)
+  defdelegate to_safe_conversation(conversation), to: Conversions
 
   @spec ns_to_datetime(non_neg_integer()) :: DateTime.t()
-  def ns_to_datetime(ns), do: Date.ns_to_datetime(ns)
+  defdelegate ns_to_datetime(ns), to: Date
 end

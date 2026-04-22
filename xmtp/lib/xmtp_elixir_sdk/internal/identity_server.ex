@@ -275,21 +275,11 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
   end
 
   def handle_call({:inbox_state_from_inbox_ids, _client_id, inbox_ids, _refresh}, _from, state) do
-    states =
-      inbox_ids
-      |> Enum.map(&fetch_inbox_state_by_inbox_id(state, &1))
-      |> Enum.filter(&(&1 != nil))
-
-    {:reply, {:ok, states}, state}
+    {:reply, {:ok, fetch_inbox_states_by_ids(state, inbox_ids)}, state}
   end
 
   def handle_call({:fetch_inbox_states, inbox_ids, _refresh}, _from, state) do
-    states =
-      inbox_ids
-      |> Enum.map(&fetch_inbox_state_by_inbox_id(state, &1))
-      |> Enum.filter(&(&1 != nil))
-
-    {:reply, {:ok, states}, state}
+    {:reply, {:ok, fetch_inbox_states_by_ids(state, inbox_ids)}, state}
   end
 
   def handle_call({:apply_consent_records, client_id, records}, _from, state) do
@@ -471,10 +461,16 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
     |> Enum.filter(&(&1.inbox_id == inbox_id))
   end
 
+  defp fetch_inbox_states_by_ids(state, inbox_ids) do
+    inbox_ids
+    |> Enum.map(&fetch_inbox_state_by_inbox_id(state, &1))
+    |> Enum.filter(&(&1 != nil))
+  end
+
   defp fetch_inbox_state_by_inbox_id(state, inbox_id) do
     case inbox_clients(state, inbox_id) do
       [] -> nil
-      [client | _] -> build_inbox_state_from_clients(client, inbox_clients(state, inbox_id))
+      [client | _] = clients -> build_inbox_state_from_clients(client, clients)
     end
   end
 

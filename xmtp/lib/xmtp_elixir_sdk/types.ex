@@ -5,6 +5,16 @@ defmodule XmtpElixirSdk.Types do
 
   alias XmtpElixirSdk.Error
 
+  @metadata_field_names %{
+    group_name: "group_name",
+    description: "description",
+    image_url: "group_image_url_square",
+    pinned_frame_url: "group_pinned_frame_url",
+    app_data: "app_data",
+    message_disappearing: "message_disappearing"
+  }
+  @metadata_fields_by_name Map.new(@metadata_field_names, fn {field, name} -> {name, field} end)
+
   @type env :: :local | :dev | :production | :testnet_staging | :testnet_dev | :testnet | :mainnet
   @type identifier_kind :: :ethereum | :passkey
   @type conversation_type :: :dm | :group | :sync | :oneshot
@@ -636,23 +646,16 @@ defmodule XmtpElixirSdk.Types do
   end
 
   @spec metadata_field_name(metadata_field()) :: String.t()
-  def metadata_field_name(:group_name), do: "group_name"
-  def metadata_field_name(:description), do: "description"
-  def metadata_field_name(:image_url), do: "group_image_url_square"
-  def metadata_field_name(:pinned_frame_url), do: "group_pinned_frame_url"
-  def metadata_field_name(:app_data), do: "app_data"
-  def metadata_field_name(:message_disappearing), do: "message_disappearing"
+  def metadata_field_name(field), do: Map.fetch!(@metadata_field_names, field)
 
   @spec metadata_field_from_name(String.t()) :: {:ok, metadata_field()} | {:error, Error.t()}
   def metadata_field_from_name(name) do
-    case name do
-      "group_name" -> {:ok, :group_name}
-      "description" -> {:ok, :description}
-      "group_image_url_square" -> {:ok, :image_url}
-      "group_pinned_frame_url" -> {:ok, :pinned_frame_url}
-      "app_data" -> {:ok, :app_data}
-      "message_disappearing" -> {:ok, :message_disappearing}
-      other -> {:error, Error.invalid_argument("unknown metadata field", %{field: other})}
+    case Map.fetch(@metadata_fields_by_name, name) do
+      {:ok, field} ->
+        {:ok, field}
+
+      :error ->
+        {:error, Error.invalid_argument("unknown metadata field", %{field: name})}
     end
   end
 end

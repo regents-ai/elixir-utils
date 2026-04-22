@@ -10,7 +10,7 @@ defmodule XmtpElixirSdk.MixProject do
       version: @version,
       elixir: "~> 1.19.5",
       start_permanent: Mix.env() == :prod,
-      compilers: [:elixir, :app],
+      compilers: Mix.compilers() ++ [:xmtp_compat],
       deps: deps(),
       description: @description,
       package: package(),
@@ -26,6 +26,10 @@ defmodule XmtpElixirSdk.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ecto, "~> 3.13"},
+      {:phoenix_pubsub, "~> 2.2"},
+      {:keccak_ex, "~> 0.4.2"},
+      {:ex_secp256k1, "~> 0.8.0"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end
@@ -39,6 +43,7 @@ defmodule XmtpElixirSdk.MixProject do
         "CHANGELOG.md",
         "LICENSE",
         "README.md",
+        "compat_ebin",
         "lib",
         "readme-assets",
         "mix.exs"

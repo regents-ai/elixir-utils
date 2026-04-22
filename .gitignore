@@ -1,4 +1,7 @@
 /siwa/siwa-js/
+/world/**/_build/
+/world/**/deps/
+/world/**/doc/
 .codex/
 .claude/
 *.plan.md

@@ -66,14 +66,17 @@ defmodule AgentWorld.Agentkit do
   end
 
   defp verify_evm_payload(payload, opts) do
-    with {:ok, message} <- format_siwe_message(payload),
+    with {:ok, address} <- required_payload_field(payload, :address),
+         {:ok, signature} <- required_payload_field(payload, :signature),
+         {:ok, message} <- format_siwe_message(payload),
          {:ok, rpc_url} <- optional_rpc_url(opts),
-         :ok <- verify_evm_signature(message, payload.address, payload.signature, rpc_url) do
-      {:ok, %{valid: true, address: String.downcase(payload.address)}}
+         rpc <- rpc_module(opts),
+         :ok <- verify_evm_signature(message, address, signature, rpc, rpc_url) do
+      {:ok, %{valid: true, address: String.downcase(address)}}
     end
   end
 
-  defp verify_evm_signature(message, address, signature, rpc_url) do
+  defp verify_evm_signature(message, address, signature, rpc, rpc_url) do
     digest = personal_hash(message)
     normalized_address = String.downcase(address)
 
@@ -82,22 +85,22 @@ defmodule AgentWorld.Agentkit do
         :ok
 
       _ ->
-        maybe_verify_erc1271(digest, address, signature, rpc_url)
+        maybe_verify_erc1271(digest, address, signature, rpc, rpc_url)
     end
   end
 
-  defp maybe_verify_erc1271(_digest, _address, _signature, nil) do
+  defp maybe_verify_erc1271(_digest, _address, _signature, _rpc, nil) do
     {:error, Error.new({:invalid_signature, "Signature verification failed"})}
   end
 
-  defp maybe_verify_erc1271(digest, address, signature, rpc_url) do
+  defp maybe_verify_erc1271(digest, address, signature, rpc, rpc_url) do
     with {:ok, signature_bytes} <- signature_bytes(signature),
          {:ok, data} <-
            ABI.encode_call("isValidSignature(bytes32,bytes)", [
              {:bytes32, digest},
              {:bytes, signature_bytes}
            ]),
-         {:ok, result} <- RPC.eth_call(rpc_url, address, data),
+         {:ok, result} <- rpc.eth_call(rpc_url, address, data),
          true <- String.starts_with?(String.downcase(result), @erc1271_magic) do
       :ok
     else
@@ -162,16 +165,29 @@ defmodule AgentWorld.Agentkit do
   end
 
   defp format_siwe_message(payload) do
-    with {:ok, numeric_chain_id} <- extract_evm_chain_id(payload.chainId) do
+    with {:ok, address} <- required_payload_field(payload, :address),
+         {:ok, chain_id} <- required_payload_field(payload, :chainId),
+         {:ok, domain} <- required_payload_field(payload, :domain),
+         {:ok, issued_at} <- required_payload_field(payload, :issuedAt),
+         {:ok, nonce} <- required_payload_field(payload, :nonce),
+         {:ok, uri} <- required_payload_field(payload, :uri),
+         {:ok, version} <- required_payload_field(payload, :version),
+         {:ok, numeric_chain_id} <- extract_evm_chain_id(chain_id) do
+      statement = Map.get(payload, :statement)
+      expiration_time = Map.get(payload, :expirationTime)
+      not_before = Map.get(payload, :notBefore)
+      request_id = Map.get(payload, :requestId)
+      resources = Map.get(payload, :resources)
+
       lines = [
-        "#{payload.domain} wants you to sign in with your Ethereum account:",
-        payload.address,
+        "#{domain} wants you to sign in with your Ethereum account:",
+        address,
         ""
       ]
 
       lines =
-        if is_binary(payload.statement) and payload.statement != "" do
-          lines ++ [payload.statement, ""]
+        if is_binary(statement) and statement != "" do
+          lines ++ [statement, ""]
         else
           lines
         end
@@ -179,20 +195,30 @@ defmodule AgentWorld.Agentkit do
       lines =
         lines ++
           [
-            "URI: #{payload.uri}",
-            "Version: #{payload.version}",
+            "URI: #{uri}",
+            "Version: #{version}",
             "Chain ID: #{numeric_chain_id}",
-            "Nonce: #{payload.nonce}",
-            "Issued At: #{payload.issuedAt}"
+            "Nonce: #{nonce}",
+            "Issued At: #{issued_at}"
           ]
 
       lines =
-        maybe_append(lines, payload.expirationTime, "Expiration Time")
-        |> maybe_append(payload.notBefore, "Not Before")
-        |> maybe_append(payload.requestId, "Request ID")
-        |> maybe_append_resources(payload.resources)
+        maybe_append(lines, expiration_time, "Expiration Time")
+        |> maybe_append(not_before, "Not Before")
+        |> maybe_append(request_id, "Request ID")
+        |> maybe_append_resources(resources)
 
       {:ok, Enum.join(lines, "\n")}
+    end
+  end
+
+  defp required_payload_field(payload, key) do
+    case Map.get(payload, key) do
+      value when is_binary(value) and value != "" ->
+        {:ok, value}
+
+      _ ->
+        {:error, Error.new({:invalid_signature, "Missing AgentKit field: #{key}"})}
     end
   end
 
@@ -226,12 +252,19 @@ defmodule AgentWorld.Agentkit do
 
   defp optional_rpc_url(opts) when is_map(opts) do
     opts
-    |> Map.get(:rpc_url) ||
-      Map.get(opts, "rpc_url")
-      |> normalize_rpc_url()
+    |> Map.get(:rpc_url)
+    |> Kernel.||(Map.get(opts, "rpc_url"))
+    |> normalize_rpc_url()
   end
 
   defp optional_rpc_url(_opts), do: {:ok, nil}
+
+  defp rpc_module(opts) when is_list(opts), do: Keyword.get(opts, :rpc_module, RPC)
+
+  defp rpc_module(opts) when is_map(opts),
+    do: Map.get(opts, :rpc_module) || Map.get(opts, "rpc_module") || RPC
+
+  defp rpc_module(_opts), do: RPC
 
   defp normalize_rpc_url(nil), do: {:ok, nil}
 

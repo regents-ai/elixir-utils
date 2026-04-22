@@ -128,20 +128,17 @@ defmodule AgentEns.ERC8004.Registration do
           {:ok, %{new_uri: String.t(), new_registration: map(), changed?: boolean()}}
           | {:error, Error.t()}
   def prepare_updated_registration(params) when is_map(params) do
-    agent_uri = Map.get(params, :current_agent_uri) || Map.get(params, "current_agent_uri")
-    ens_name = Map.get(params, :ens_name) || Map.get(params, "ens_name")
-    fetcher = Map.get(params, :fetcher) || Map.get(params, "fetcher") || DefaultFetcher
-    publisher = Map.get(params, :publisher) || Map.get(params, "publisher") || DataUriPublisher
-    opts = Map.get(params, :opts) || Map.get(params, "opts") || []
+    params = normalize_prepare_params(params)
 
-    with value when is_binary(value) and value != "" <- agent_uri || :missing_agent_uri,
-         ens when is_binary(ens) and ens != "" <- ens_name || :missing_ens_name,
-         {:ok, payload} <- fetch(value, fetcher, opts),
+    with value when is_binary(value) and value != "" <-
+           params.current_agent_uri || :missing_agent_uri,
+         ens when is_binary(ens) and ens != "" <- params.ens_name || :missing_ens_name,
+         {:ok, payload} <- fetch(value, params.fetcher, params.opts),
          {:ok, registration} <- parse_registration(payload),
          updated = upsert_ens_service(registration, ens),
          changed? <- updated != registration,
          {:ok, serialized} <- serialize_registration(updated),
-         {:ok, uri} <- publish(publisher, serialized, opts) do
+         {:ok, uri} <- publish(params.publisher, serialized, params.opts) do
       {:ok, %{new_uri: uri, new_registration: updated, changed?: changed?}}
     else
       :missing_agent_uri ->
@@ -162,18 +159,16 @@ defmodule AgentEns.ERC8004.Registration do
           {:ok, %{new_uri: String.t(), new_registration: map(), changed?: boolean()}}
           | {:error, Error.t()}
   def prepare_cleared_registration(params) when is_map(params) do
-    agent_uri = Map.get(params, :current_agent_uri) || Map.get(params, "current_agent_uri")
-    fetcher = Map.get(params, :fetcher) || Map.get(params, "fetcher") || DefaultFetcher
-    publisher = Map.get(params, :publisher) || Map.get(params, "publisher") || DataUriPublisher
-    opts = Map.get(params, :opts) || Map.get(params, "opts") || []
+    params = normalize_prepare_params(params)
 
-    with value when is_binary(value) and value != "" <- agent_uri || :missing_agent_uri,
-         {:ok, payload} <- fetch(value, fetcher, opts),
+    with value when is_binary(value) and value != "" <-
+           params.current_agent_uri || :missing_agent_uri,
+         {:ok, payload} <- fetch(value, params.fetcher, params.opts),
          {:ok, registration} <- parse_registration(payload),
          updated = remove_ens_service(registration),
          changed? <- updated != registration,
          {:ok, serialized} <- serialize_registration(updated),
-         {:ok, uri} <- publish(publisher, serialized, opts) do
+         {:ok, uri} <- publish(params.publisher, serialized, params.opts) do
       {:ok, %{new_uri: uri, new_registration: updated, changed?: changed?}}
     else
       :missing_agent_uri ->
@@ -210,6 +205,16 @@ defmodule AgentEns.ERC8004.Registration do
   end
 
   def decode_data_uri(value), do: {:error, {:invalid_data_uri, value}}
+
+  defp normalize_prepare_params(params) do
+    %{
+      current_agent_uri: Map.get(params, :current_agent_uri),
+      ens_name: Map.get(params, :ens_name),
+      fetcher: Map.get(params, :fetcher) || DefaultFetcher,
+      publisher: Map.get(params, :publisher) || DataUriPublisher,
+      opts: Map.get(params, :opts) || []
+    }
+  end
 
   defp publish(publisher, serialized, opts) do
     case publisher.publish(serialized, opts) do

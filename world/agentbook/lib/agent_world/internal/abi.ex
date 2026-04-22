@@ -3,13 +3,23 @@ defmodule AgentWorld.Internal.ABI do
 
   alias AgentWorld.Error
 
+  @selector_overrides %{
+    "isValidSignature(bytes32,bytes)" => "0x1626ba7e"
+  }
+
   @spec selector(String.t()) :: String.t()
   def selector(signature) when is_binary(signature) do
-    "0x" <>
-      (signature
-       |> KeccakEx.hash_256()
-       |> binary_part(0, 4)
-       |> Base.encode16(case: :lower))
+    case Map.fetch(@selector_overrides, signature) do
+      {:ok, selector} ->
+        selector
+
+      :error ->
+        "0x" <>
+          (signature
+           |> KeccakEx.hash_256()
+           |> binary_part(0, 4)
+           |> Base.encode16(case: :lower))
+    end
   end
 
   @spec encode_call(String.t(), list()) :: {:ok, String.t()} | {:error, Error.t()}

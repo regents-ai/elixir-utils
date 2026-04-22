@@ -265,22 +265,29 @@ defmodule AgentWorld.Registration do
   end
 
   defp normalize_proof_payload(payload) do
-    with {:ok, merkle_root} <-
-           canonical_uint256(
-             payload["merkle_root"] || payload[:merkle_root] || payload["root"] || payload[:root]
-           ),
-         {:ok, nullifier_hash} <-
-           canonical_uint256(
-             payload["nullifier_hash"] || payload[:nullifier_hash] || payload["nullifierHash"] ||
-               payload[:nullifierHash]
-           ),
-         {:ok, proof} <- canonical_proof(payload["proof"] || payload[:proof]) do
+    with {:ok, merkle_root} <- required_proof_field(payload, "merkle_root"),
+         {:ok, nullifier_hash} <- required_proof_field(payload, "nullifier_hash"),
+         {:ok, proof} <- required_proof_list(payload) do
       {:ok,
        %{
          "merkle_root" => merkle_root,
          "nullifier_hash" => nullifier_hash,
          "proof" => proof
        }}
+    end
+  end
+
+  defp required_proof_field(payload, key) do
+    case Map.fetch(payload, key) do
+      {:ok, value} -> canonical_uint256(value)
+      :error -> {:error, Error.new({:invalid_argument, key, "#{key} is required"})}
+    end
+  end
+
+  defp required_proof_list(payload) do
+    case Map.fetch(payload, "proof") do
+      {:ok, value} -> canonical_proof(value)
+      :error -> {:error, Error.new({:invalid_argument, "proof", "proof is required"})}
     end
   end
 
@@ -293,41 +300,8 @@ defmodule AgentWorld.Registration do
     end)
   end
 
-  defp canonical_proof(raw) when is_binary(raw) do
-    trimmed = String.trim(raw)
-
-    cond do
-      String.starts_with?(trimmed, "[") ->
-        case Jason.decode(trimmed) do
-          {:ok, list} -> canonical_proof(list)
-          _ -> {:error, Error.new({:invalid_argument, "proof", "could not decode proof array"})}
-        end
-
-      String.starts_with?(trimmed, "0x") ->
-        decode_static_proof_hex(trimmed)
-
-      true ->
-        {:error, Error.new({:invalid_argument, "proof", "unsupported proof format"})}
-    end
-  end
-
   defp canonical_proof(_value),
-    do: {:error, Error.new({:invalid_argument, "proof", "proof is required"})}
-
-  defp decode_static_proof_hex("0x" <> hex) when byte_size(hex) == 64 * 8 do
-    chunks =
-      hex
-      |> String.downcase()
-      |> String.codepoints()
-      |> Enum.chunk_every(64)
-      |> Enum.map(&Enum.join/1)
-      |> Enum.map(&("0x" <> &1))
-
-    canonical_proof(chunks)
-  end
-
-  defp decode_static_proof_hex(_value),
-    do: {:error, Error.new({:invalid_argument, "proof", "proof must contain exactly 8 values"})}
+    do: {:error, Error.new({:invalid_argument, "proof", "expected 8 proof values"})}
 
   defp canonical_uint256(value) do
     with {:ok, integer} <- uint256(value) do

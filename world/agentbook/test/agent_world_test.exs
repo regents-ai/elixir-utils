@@ -1,6 +1,7 @@
 defmodule AgentWorldTest do
   use ExUnit.Case, async: true
 
+  alias AgentWorld
   alias AgentWorld.AgentBook
   alias AgentWorld.Internal.ABI
   alias AgentWorld.Registration
@@ -11,6 +12,7 @@ defmodule AgentWorldTest do
 
   defmodule RpcStub do
     @contract "0xA23aB2712eA7BBa896930544C7d6636a96b944dA"
+    @erc1271_selector "0x1626ba7e"
 
     def eth_call(_rpc_url, contract, data) do
       lookup_selector = ABI.selector("lookupHuman(address)")
@@ -22,6 +24,9 @@ defmodule AgentWorldTest do
 
         contract == @contract and String.starts_with?(data, nonce_selector) ->
           {:ok, "0x" <> String.pad_leading("7", 64, "0")}
+
+        contract == @contract and String.starts_with?(data, @erc1271_selector) ->
+          {:ok, "0x1626ba7e" <> String.duplicate("0", 64)}
 
         true ->
           {:error, {:unexpected_call, contract, data}}
@@ -128,5 +133,27 @@ defmodule AgentWorldTest do
 
     assert {:ok, %{status: :registered, tx_hash: ^confirmed_hash}} =
              Registration.register_transaction(confirmed_hash, session)
+  end
+
+  test "verify_agentkit_signature accepts rpc_url from map options for contract wallets" do
+    payload = %{
+      address: @contract,
+      chainId: "eip155:480",
+      domain: "world.example",
+      issuedAt: "2026-04-22T00:00:00Z",
+      nonce: "abc12345",
+      signature: "0x" <> String.duplicate("0", 130),
+      type: "eip1271",
+      uri: "https://world.example/agentbook",
+      version: "1"
+    }
+
+    assert {:ok, %{valid: true, address: address}} =
+             AgentWorld.verify_agentkit_signature(payload, %{
+               rpc_module: RpcStub,
+               rpc_url: "https://world.example"
+             })
+
+    assert address == String.downcase(@contract)
   end
 end

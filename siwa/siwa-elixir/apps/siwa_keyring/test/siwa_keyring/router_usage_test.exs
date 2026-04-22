@@ -59,6 +59,26 @@ defmodule SiwaKeyring.RouterUsageTest do
 
     response = call_router(conn)
     assert response.status == 401
+    assert Jason.decode!(response.resp_body) == %{"error" => "stale_or_invalid_timestamp"}
+  end
+
+  test "router returns stable error codes when a wallet is missing" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
+    end)
+
+    response = signed_conn("POST", "/get-address", "{}", "router-secret") |> call_router()
+
+    assert response.status == 404
+    assert Jason.decode!(response.resp_body) == %{"error" => "wallet_missing"}
   end
 
   test "body reader preserves the full raw body across multiple reads" do

@@ -7,12 +7,12 @@ defmodule Siwa.UsageFlowTest do
 
     def token_uri(_registry_address, _agent_id, _opts) do
       metadata = %{
-        name: "Usage Agent",
-        description: "Fixture for end-to-end usage",
-        image: "ipfs://usage-agent",
-        services: [%{name: "web", endpoint: "https://api.example.com"}],
-        active: true,
-        supportedTrust: ["reputation"]
+        "name" => "Usage Agent",
+        "description" => "Fixture for end-to-end usage",
+        "image" => "ipfs://usage-agent",
+        "services" => [%{"name" => "web", "endpoint" => "https://api.example.com"}],
+        "active" => true,
+        "supportedTrust" => ["reputation"]
       }
 
       {:ok, "data:application/json;base64," <> Base.encode64(Jason.encode!(metadata))}
@@ -139,7 +139,7 @@ defmodule Siwa.UsageFlowTest do
              )
 
     assert rejected.status == "rejected"
-    assert rejected.reason =~ "domain_mismatch"
+    assert rejected.reason == "domain_mismatch"
   end
 
   test "nonce issuance can require a challenge before continuing" do
@@ -206,6 +206,6 @@ defmodule Siwa.UsageFlowTest do
              )
 
     assert rejected.status == "rejected"
-    assert rejected.reason =~ "message_not_yet_valid"
+    assert rejected.reason == "message_not_yet_valid"
   end
 end

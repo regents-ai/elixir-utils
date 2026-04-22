@@ -63,7 +63,7 @@ defmodule Siwa.Verify do
         {:ok,
          %{
            status: "rejected",
-           reason: inspect(reason)
+           reason: rejection_reason(reason)
          }}
     end
   end
@@ -97,12 +97,15 @@ defmodule Siwa.Verify do
   end
 
   defp validate_nonce(fields, opts) do
-    Nonce.consume(%{
-      address: fields.address,
-      agent_id: fields.agent_id,
-      agent_registry: fields.agent_registry,
-      nonce: fields.nonce
-    }, opts)
+    Nonce.consume(
+      %{
+        address: fields.address,
+        agent_id: fields.agent_id,
+        agent_registry: fields.agent_registry,
+        nonce: fields.nonce
+      },
+      opts
+    )
   end
 
   defp validate_expiration_time(fields, now) do
@@ -162,7 +165,12 @@ defmodule Siwa.Verify do
   defp default_profile_resolution(fields, verified_signature, opts) do
     with {:ok, registry} <- Registry.parse_agent_registry(fields.agent_registry),
          client when not is_nil(client) <- Keyword.get(opts, :chain_client),
-         {:ok, profile} <- Registry.get_agent(fields.agent_id, client: client, registry_address: registry.address, fetch_metadata: true),
+         {:ok, profile} <-
+           Registry.get_agent(fields.agent_id,
+             client: client,
+             registry_address: registry.address,
+             fetch_metadata: true
+           ),
          :ok <- ensure_profile_owner(profile, verified_signature.address),
          :ok <- ensure_profile_matches(profile, opts) do
       {:ok, profile}
@@ -174,31 +182,44 @@ defmodule Siwa.Verify do
   end
 
   defp ensure_profile_owner(profile, address) do
-    if String.downcase(profile.owner) == String.downcase(address), do: :ok, else: {:error, :owner_mismatch}
+    if String.downcase(profile.owner) == String.downcase(address),
+      do: :ok,
+      else: {:error, :owner_mismatch}
   end
 
   defp ensure_profile_matches(profile, opts) do
     metadata = profile.metadata || %{}
-    services = Map.get(metadata, "services") || Map.get(metadata, :services) || []
-    active = Map.get(metadata, "active", Map.get(metadata, :active, true))
-    trust = Map.get(metadata, "supportedTrust") || Map.get(metadata, :supported_trust) || []
+    services = Map.get(metadata, "services", [])
+    active = Map.get(metadata, "active", true)
+    trust = Map.get(metadata, "supportedTrust", [])
 
     cond do
-      Keyword.get(opts, :require_active, false) and active != true -> {:error, :inactive_agent}
-      missing_services?(Keyword.get(opts, :required_services, []), services) -> {:error, :missing_required_services}
-      missing_trust?(Keyword.get(opts, :required_trust_models, []), trust) -> {:error, :missing_required_trust_model}
-      true -> :ok
+      Keyword.get(opts, :require_active, false) and active != true ->
+        {:error, :inactive_agent}
+
+      missing_services?(Keyword.get(opts, :required_services, []), services) ->
+        {:error, :missing_required_services}
+
+      missing_trust?(Keyword.get(opts, :required_trust_models, []), trust) ->
+        {:error, :missing_required_trust_model}
+
+      true ->
+        :ok
     end
   end
 
   defp missing_services?([], _services), do: false
+
   defp missing_services?(required, services) do
-    names = Enum.map(services, fn service -> service["name"] || service[:name] end)
+    names = Enum.map(services, &Map.get(&1, "name"))
     Enum.any?(required, &(&1 not in names))
   end
 
   defp missing_trust?([], _trust), do: false
   defp missing_trust?(required, trust), do: Enum.any?(required, &(&1 not in trust))
+
+  defp rejection_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp rejection_reason(_reason), do: "invalid_request"
 
   defp signer_module(%module{}), do: module
 end

@@ -141,11 +141,7 @@ defmodule Siwa.RequestAuth do
   end
 
   defp ensure_receipt_matches(receipt_payload, verified_signature) do
-    receipt_address =
-      receipt_payload["address"] ||
-        receipt_payload["walletAddress"] ||
-        receipt_payload["wallet_address"]
-
+    receipt_address = receipt_payload["address"]
     signature_address = verified_signature.address || verified_signature[:address]
 
     if comparable_address(receipt_address) == comparable_address(signature_address) do

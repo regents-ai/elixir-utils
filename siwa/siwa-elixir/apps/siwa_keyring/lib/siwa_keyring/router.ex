@@ -21,7 +21,7 @@ defmodule SiwaKeyring.Router do
   post "/create-wallet" do
     case SiwaKeyring.create_wallet() do
       {:ok, wallet} -> send_json(conn, 200, wallet)
-      {:error, reason} -> send_json(conn, 422, %{error: inspect(reason)})
+      {:error, reason} -> send_error(conn, 422, reason)
     end
   end
 
@@ -33,35 +33,35 @@ defmodule SiwaKeyring.Router do
   post "/get-address" do
     case SiwaKeyring.get_address() do
       {:ok, address} -> send_json(conn, 200, %{address: address})
-      {:error, reason} -> send_json(conn, 404, %{error: inspect(reason)})
+      {:error, reason} -> send_error(conn, 404, reason)
     end
   end
 
   post "/sign-message" do
     case SiwaKeyring.sign_message(conn.body_params["message"] || "") do
       {:ok, signature} -> send_json(conn, 200, %{signature: signature})
-      {:error, reason} -> send_json(conn, 422, %{error: inspect(reason)})
+      {:error, reason} -> send_error(conn, 422, reason)
     end
   end
 
   post "/sign-raw-message" do
     case SiwaKeyring.sign_raw_message(conn.body_params["payload"] || "") do
       {:ok, signature} -> send_json(conn, 200, %{signature: signature})
-      {:error, reason} -> send_json(conn, 422, %{error: inspect(reason)})
+      {:error, reason} -> send_error(conn, 422, reason)
     end
   end
 
   post "/sign-transaction" do
     case SiwaKeyring.sign_transaction(conn.body_params["transaction"] || %{}) do
       {:ok, signed} -> send_json(conn, 200, signed)
-      {:error, reason} -> send_json(conn, 422, %{error: inspect(reason)})
+      {:error, reason} -> send_error(conn, 422, reason)
     end
   end
 
   post "/sign-authorization" do
     case SiwaKeyring.sign_authorization(conn.body_params["authorization"] || %{}) do
       {:ok, signed} -> send_json(conn, 200, signed)
-      {:error, reason} -> send_json(conn, 422, %{error: inspect(reason)})
+      {:error, reason} -> send_error(conn, 422, reason)
     end
   end
 
@@ -84,7 +84,7 @@ defmodule SiwaKeyring.Router do
            header(conn, "x-keyring-signature")
          ) do
       :ok -> conn
-      {:error, reason} -> conn |> send_json(401, %{error: inspect(reason)}) |> halt()
+      {:error, reason} -> conn |> send_error(401, reason) |> halt()
     end
   end
 
@@ -109,4 +109,11 @@ defmodule SiwaKeyring.Router do
     |> Plug.Conn.put_resp_content_type("application/json")
     |> Plug.Conn.send_resp(status, Jason.encode!(payload))
   end
+
+  defp send_error(conn, status, reason) do
+    send_json(conn, status, %{error: error_code(reason)})
+  end
+
+  defp error_code(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp error_code(_reason), do: "internal_error"
 end

@@ -2,6 +2,7 @@
 /world/**/_build/
 /world/**/deps/
 /world/**/doc/
+/output/
 .codex/
 .claude/
 *.plan.md

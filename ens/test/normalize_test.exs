@@ -6,4 +6,8 @@ defmodule AgentEns.NormalizeTest do
   test "normalizes names with uts46 compatibility processing" do
     assert {:ok, "hello.eth"} = Normalize.normalize("  ℌello.eth. ")
   end
+
+  test "normalizes mixed case and trims surrounding whitespace" do
+    assert {:ok, "regent.eth"} = Normalize.normalize("  ReGeNt.ETH ")
+  end
 end

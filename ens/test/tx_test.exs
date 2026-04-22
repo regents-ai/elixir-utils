@@ -47,6 +47,19 @@ defmodule AgentEns.TxTest do
     assert String.starts_with?(tx.data, ABI.selector("setAddr(bytes32,address)"))
   end
 
+  test "builds a Regent-managed ETH address transaction request" do
+    assert {:ok, tx} =
+             Tx.build_regent_addr_tx(%{
+               chain_id: 1,
+               registrar_address: "0x3333333333333333333333333333333333333333",
+               label: "vitalik",
+               address: "0x1234567890abcdef1234567890ABCDEF12345678"
+             })
+
+    assert tx.to == "0x3333333333333333333333333333333333333333"
+    assert String.starts_with?(tx.data, ABI.selector("setAddr(string,address)"))
+  end
+
   test "builds a content hash transaction request" do
     assert {:ok, tx} =
              Tx.build_set_contenthash_tx(%{
@@ -123,6 +136,18 @@ defmodule AgentEns.TxTest do
 
     assert tx.to == "0xa58e81fe9b61b5c3fe2afd33cf304c454abfc7cb"
     assert tx.chain_id == 1
+    assert String.starts_with?(tx.data, ABI.selector("setName(string)"))
+  end
+
+  test "builds a reverse-name clear transaction request" do
+    assert {:ok, tx} =
+             Tx.build_reverse_set_name_tx(%{
+               chain_id: 1,
+               ens_name: "",
+               reverse_registrar: "0xa58E81fe9b61B5c3fE2AFD33CF304c454AbFc7Cb"
+             })
+
+    assert tx.to == "0xa58e81fe9b61b5c3fe2afd33cf304c454abfc7cb"
     assert String.starts_with?(tx.data, ABI.selector("setName(string)"))
   end
 

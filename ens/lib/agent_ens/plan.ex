@@ -88,7 +88,8 @@ defmodule AgentEns.Plan do
     defstruct [:kind, :status, :description, :reason]
 
     @type t :: %__MODULE__{
-            kind: :set_ens_text | :update_erc8004_registration | :set_reverse_name,
+            kind:
+              :set_ens_text | :set_ens_address | :update_erc8004_registration | :set_reverse_name,
             status: :noop | :ready | :blocked | :skipped,
             description: String.t(),
             reason: atom() | nil
@@ -115,6 +116,10 @@ defmodule AgentEns.Plan do
       :erc8004_status,
       :ens_write_status,
       :reverse_status,
+      :forward_resolution_verified,
+      :reverse_resolution_verified,
+      :primary_name_verified,
+      :fully_synced,
       :actions,
       :warnings
     ]
@@ -135,6 +140,12 @@ defmodule AgentEns.Plan do
       :erc8004_token_uri,
       :erc8004_registration,
       :ens_text_value,
+      :forward_address,
+      :reverse_name,
+      :forward_resolution_verified,
+      :reverse_resolution_verified,
+      :primary_name_verified,
+      :fully_synced,
       :token_approval,
       :approved_for_all,
       :actions,
@@ -165,6 +176,12 @@ defmodule AgentEns.Plan do
             erc8004_token_uri: String.t() | nil,
             erc8004_registration: map() | nil,
             ens_text_value: String.t() | nil,
+            forward_address: String.t() | nil,
+            reverse_name: String.t() | nil,
+            forward_resolution_verified: boolean(),
+            reverse_resolution_verified: boolean(),
+            primary_name_verified: boolean(),
+            fully_synced: boolean(),
             token_approval: String.t() | nil,
             approved_for_all: boolean() | nil,
             actions: [Action.t()],
@@ -208,10 +225,14 @@ defmodule AgentEns.Plan do
          {:ok, resolver_support} <- classify_resolver_support(rpc, input.ens_rpc_url, resolver),
          {:ok, text_value} <-
            fetch_text_value(rpc, input.ens_rpc_url, resolver, resolver_support, node, key),
+         {:ok, forward_address} <-
+           fetch_forward_address(rpc, input.ens_rpc_url, resolver, node),
          {:ok, ens_owner} <-
            Contract.fetch_registry_owner(rpc, input.ens_rpc_url, ens_registry, node),
          {:ok, {ens_manager, ens_manager_source}} <-
            resolve_manager(rpc, input.ens_rpc_url, ens_owner, name_wrapper, node),
+         {:ok, reverse_name} <-
+           fetch_reverse_name(rpc, input.ens_rpc_url, ens_registry, signer_address),
          {:ok, agent_contract_state} <-
            fetch_agent_contract_state(
              rpc,
@@ -225,6 +246,13 @@ defmodule AgentEns.Plan do
            ),
          verify_status <- verify_status(text_value),
          erc8004_status <- erc8004_status(agent_contract_state.registration, normalized_name),
+         forward_resolution_verified <-
+           forward_resolution_verified(forward_address, signer_address),
+         reverse_resolution_verified <- reverse_resolution_verified(reverse_name, normalized_name),
+         primary_name_verified <-
+           primary_name_verified(forward_resolution_verified, reverse_resolution_verified),
+         fully_synced <-
+           fully_synced?(verify_status, erc8004_status, primary_name_verified),
          ens_write_status <-
            ens_write_status(resolver, resolver_support, ens_manager, signer_address),
          erc8004_write_status <-
@@ -239,9 +267,11 @@ defmodule AgentEns.Plan do
            build_actions(
              verify_status,
              erc8004_status,
+             forward_resolution_verified,
              ens_write_status,
              erc8004_write_status,
-             reverse_status
+             reverse_status,
+             reverse_resolution_verified
            ),
          warnings <-
            build_warnings(
@@ -269,6 +299,12 @@ defmodule AgentEns.Plan do
          erc8004_token_uri: agent_contract_state.token_uri,
          erc8004_registration: agent_contract_state.registration,
          ens_text_value: text_value,
+         forward_address: forward_address,
+         reverse_name: reverse_name,
+         forward_resolution_verified: forward_resolution_verified,
+         reverse_resolution_verified: reverse_resolution_verified,
+         primary_name_verified: primary_name_verified,
+         fully_synced: fully_synced,
          token_approval: agent_contract_state.token_approval,
          approved_for_all: agent_contract_state.approved_for_all,
          actions: actions,
@@ -367,6 +403,34 @@ defmodule AgentEns.Plan do
 
   defp fetch_text_value(_rpc, _rpc_url, _resolver, :resolver_unsupported, _node, _key),
     do: {:ok, ""}
+
+  defp fetch_forward_address(_rpc, _rpc_url, nil, _node), do: {:ok, nil}
+
+  defp fetch_forward_address(rpc, rpc_url, resolver, node) do
+    with {:ok, supports_addr?} <- Contract.supports_addr?(rpc, rpc_url, resolver),
+         {:ok, value} <-
+           if(supports_addr?,
+             do: Contract.fetch_addr_record(rpc, rpc_url, resolver, node),
+             else: {:ok, nil}
+           ) do
+      {:ok, value}
+    end
+  end
+
+  defp fetch_reverse_name(_rpc, _rpc_url, _ens_registry, nil), do: {:ok, ""}
+
+  defp fetch_reverse_name(rpc, rpc_url, ens_registry, signer_address) do
+    reverse_name = reverse_lookup_name(signer_address)
+
+    with {:ok, reverse_node} <- Verify.namehash(reverse_name),
+         {:ok, resolver} <- Contract.fetch_resolver(rpc, rpc_url, ens_registry, reverse_node),
+         {:ok, value} <- Contract.fetch_name_record(rpc, rpc_url, resolver, reverse_node) do
+      {:ok, value}
+    else
+      {:error, %Error{} = error} ->
+        {:error, error}
+    end
+  end
 
   defp maybe_fetch_approval_for_all(_rpc, _rpc_url, _registry_address, _owner, nil),
     do: {:ok, false}
@@ -475,6 +539,24 @@ defmodule AgentEns.Plan do
   defp verify_status(value) when is_binary(value) and value != "", do: :verified
   defp verify_status(_), do: :ens_record_missing
 
+  defp forward_resolution_verified(forward_address, signer_address)
+       when is_binary(forward_address) and is_binary(signer_address),
+       do: forward_address == signer_address
+
+  defp forward_resolution_verified(_forward_address, _signer_address), do: false
+
+  defp reverse_resolution_verified(reverse_name, normalized_name)
+       when is_binary(reverse_name) and is_binary(normalized_name),
+       do: reverse_name == normalized_name
+
+  defp reverse_resolution_verified(_reverse_name, _normalized_name), do: false
+
+  defp primary_name_verified(true, true), do: true
+  defp primary_name_verified(_forward_verified, _reverse_verified), do: false
+
+  defp fully_synced?(:verified, :ens_service_present, true), do: true
+  defp fully_synced?(_verify_status, _erc8004_status, _primary_name_verified), do: false
+
   defp erc8004_status(nil, _ens_name), do: :ens_service_missing
 
   defp erc8004_status(registration, ens_name) do
@@ -543,9 +625,11 @@ defmodule AgentEns.Plan do
   defp build_actions(
          verify_status,
          erc8004_status,
+         forward_resolution_verified,
          ens_write_status,
          erc8004_write_status,
-         reverse_status
+         reverse_status,
+         reverse_resolution_verified
        ) do
     [
       %Action{
@@ -553,6 +637,12 @@ defmodule AgentEns.Plan do
         status: action_status(verify_status == :verified, ens_write_status == :ready),
         description: "Set the ENSIP-25 text record on the ENS name",
         reason: action_reason(verify_status == :verified, ens_write_status)
+      },
+      %Action{
+        kind: :set_ens_address,
+        status: action_status(forward_resolution_verified, ens_write_status == :ready),
+        description: "Set the ENS name's ETH address to the agent wallet",
+        reason: action_reason(forward_resolution_verified, ens_write_status)
       },
       %Action{
         kind: :update_erc8004_registration,
@@ -566,11 +656,15 @@ defmodule AgentEns.Plan do
         status:
           case reverse_status do
             :not_requested -> :skipped
-            :ready -> :ready
+            :ready -> if(reverse_resolution_verified, do: :noop, else: :ready)
             _ -> :blocked
           end,
         description: "Set the reverse ENS primary name",
-        reason: if(reverse_status in [:not_requested, :ready], do: nil, else: reverse_status)
+        reason:
+          if(reverse_status in [:not_requested, :ready] or reverse_resolution_verified,
+            do: nil,
+            else: reverse_status
+          )
       }
     ]
   end
@@ -684,6 +778,8 @@ defmodule AgentEns.Plan do
   defp normalize_address(nil), do: nil
   defp normalize_address(value) when is_binary(value), do: String.downcase(String.trim(value))
   defp normalize_address(_), do: nil
+
+  defp reverse_lookup_name("0x" <> address), do: "#{String.downcase(address)}.addr.reverse"
 
   defp truthy?(value), do: value in [true, "true", "1", 1]
 

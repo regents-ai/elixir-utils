@@ -113,6 +113,14 @@ defmodule AgentEns do
   def prepare_erc8004_update(input), do: Link.prepare_erc8004_update(input)
 
   @doc """
+  Prepares the unsigned request that clears the ENS service entry from the ERC-8004 registration.
+  """
+  @spec prepare_erc8004_clear(map()) ::
+          {:ok, %{plan: Plan.LinkPlan.t(), new_registration: map(), tx: AgentEns.TxRequest.t()}}
+          | {:error, AgentEns.Error.t()}
+  def prepare_erc8004_clear(input), do: Link.prepare_erc8004_clear(input)
+
+  @doc """
   Plans the link and prepares the next unsigned requests for both sides.
   """
   @spec prepare_bidirectional_link(map()) ::
@@ -132,4 +140,11 @@ defmodule AgentEns do
   @spec prepare_regent_ensip25_update(map()) ::
           {:ok, AgentEns.TxRequest.t()} | {:error, AgentEns.Error.t()}
   def prepare_regent_ensip25_update(input), do: Tx.build_regent_ensip25_link_tx(input)
+
+  @doc """
+  Prepares the unsigned request that writes the Regent ENS name's ETH address through the Regent registrar.
+  """
+  @spec prepare_regent_addr_update(map()) ::
+          {:ok, AgentEns.TxRequest.t()} | {:error, AgentEns.Error.t()}
+  def prepare_regent_addr_update(input), do: Tx.build_regent_addr_tx(input)
 end

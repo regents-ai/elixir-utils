@@ -47,6 +47,27 @@ defmodule AgentEns.Internal.Contract do
     end
   end
 
+  @spec fetch_name_record(module(), String.t(), String.t() | nil, binary()) ::
+          {:ok, String.t()} | {:error, Error.t()}
+  def fetch_name_record(_rpc, _rpc_url, nil, _node), do: {:ok, ""}
+
+  def fetch_name_record(rpc, rpc_url, resolver, node) do
+    with {:ok, data} <- ABI.encode_call("name(bytes32)", [{:bytes32, node}]),
+         {:ok, result} <- rpc.eth_call(rpc_url, resolver, data),
+         {:ok, value} <- ABI.decode_string(result) do
+      {:ok, value}
+    else
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      {:error, {:rpc_error, _} = reason} ->
+        {:error, Error.new({:resolver_call_failed, reason})}
+
+      {:error, reason} ->
+        {:error, Error.new({:rpc_error, reason})}
+    end
+  end
+
   @spec fetch_addr_record(module(), String.t(), String.t() | nil, binary()) ::
           {:ok, String.t() | nil} | {:error, Error.t()}
   def fetch_addr_record(_rpc, _rpc_url, nil, _node), do: {:ok, nil}

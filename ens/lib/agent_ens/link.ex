@@ -53,6 +53,35 @@ defmodule AgentEns.Link do
     end
   end
 
+  @spec prepare_erc8004_clear(map()) ::
+          {:ok, %{plan: Plan.LinkPlan.t(), new_registration: map(), tx: AgentEns.TxRequest.t()}}
+          | {:error, Error.t()}
+  def prepare_erc8004_clear(input) when is_map(input) do
+    with {:ok, plan} <- Plan.plan_link(input),
+         :ok <- ensure_erc8004_clear_ready(plan),
+         {:ok, prepared} <-
+           Registration.prepare_cleared_registration(%{
+             current_agent_uri: plan.erc8004_token_uri,
+             fetcher: Map.get(input, :erc8004_fetcher) || Map.get(input, "erc8004_fetcher"),
+             publisher:
+               Map.get(input, :publisher) ||
+                 Map.get(input, "publisher") ||
+                 Registration.DataUriPublisher,
+             opts:
+               Map.get(input, :erc8004_fetch_opts) || Map.get(input, "erc8004_fetch_opts") || []
+           }),
+         {:ok, tx} <-
+           Tx.build_set_agent_uri_tx(%{
+             chain_id: Map.get(input, :registry_chain_id) || Map.get(input, "registry_chain_id"),
+             registry_address:
+               Map.get(input, :registry_address) || Map.get(input, "registry_address"),
+             agent_id: Map.get(input, :agent_id) || Map.get(input, "agent_id"),
+             new_uri: prepared.new_uri
+           }) do
+      {:ok, %{plan: plan, new_registration: prepared.new_registration, tx: tx}}
+    end
+  end
+
   @spec prepare_ensip25_update(map()) ::
           {:ok, %{plan: Plan.LinkPlan.t(), tx: AgentEns.TxRequest.t()}} | {:error, Error.t()}
   def prepare_ensip25_update(input) when is_map(input) do
@@ -78,9 +107,11 @@ defmodule AgentEns.Link do
           {:ok,
            %{
              plan: Plan.LinkPlan.t(),
+             forward: map() | :noop | :blocked,
              erc8004: map() | :noop | :blocked,
              ensip25: map() | :noop | :blocked,
-             reverse: map() | :noop | :skipped
+             reverse: map() | :noop | :skipped,
+             cleanup: map()
            }}
           | {:error, Error.t()}
   def prepare_bidirectional_link(input) when is_map(input) do
@@ -88,10 +119,32 @@ defmodule AgentEns.Link do
       {:ok,
        %{
          plan: plan,
+         forward: maybe_prepare_forward(plan, input),
          erc8004: maybe_prepare_erc8004(plan, input),
          ensip25: maybe_prepare_ensip25(plan, input),
-         reverse: maybe_prepare_reverse(plan, input)
+         reverse: maybe_prepare_reverse(plan, input),
+         cleanup: %{forward: :noop, ensip25: :noop, erc8004: :noop, reverse: :skipped}
        }}
+    end
+  end
+
+  defp maybe_prepare_forward(plan, _input) when plan.forward_resolution_verified, do: :noop
+
+  defp maybe_prepare_forward(plan, input) do
+    case Enum.find(plan.actions, &(&1.kind == :set_ens_address)) do
+      %{status: :ready} ->
+        case Tx.build_set_addr_tx(%{
+               ens_name: plan.normalized_ens_name,
+               chain_id: Map.get(input, :ens_chain_id) || Map.get(input, "ens_chain_id"),
+               resolver_address: plan.resolver_address,
+               address: Map.get(input, :signer_address) || Map.get(input, "signer_address")
+             }) do
+          {:ok, tx} -> %{tx: tx}
+          {:error, _} -> :blocked
+        end
+
+      _ ->
+        :blocked
     end
   end
 
@@ -117,6 +170,7 @@ defmodule AgentEns.Link do
   defp maybe_prepare_reverse(%{reverse_status: :not_requested}, _input), do: :skipped
   defp maybe_prepare_reverse(%{reverse_status: :unsupported_network}, _input), do: :blocked
   defp maybe_prepare_reverse(%{reverse_status: :signer_required}, _input), do: :blocked
+  defp maybe_prepare_reverse(%{reverse_resolution_verified: true}, _input), do: :noop
 
   defp maybe_prepare_reverse(plan, input) do
     case Tx.build_reverse_set_name_tx(%{
@@ -144,5 +198,11 @@ defmodule AgentEns.Link do
       nil ->
         {:error, Error.new({:not_found, kind})}
     end
+  end
+
+  defp ensure_erc8004_clear_ready(%{erc8004_write_status: :ready}), do: :ok
+
+  defp ensure_erc8004_clear_ready(%{erc8004_write_status: status}) do
+    {:error, Error.new({:unexpected_state, {:update_erc8004_registration, status}})}
   end
 end

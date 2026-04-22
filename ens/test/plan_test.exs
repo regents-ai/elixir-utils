@@ -24,6 +24,15 @@ defmodule AgentEns.PlanTest do
         {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
 
+        {@resolver, "0x01ffc9a7" <> "3b3b57de" <> _padding} ->
+          {:ok, bool_word(true)}
+
+        {@resolver, "0x3b3b57de" <> _rest} ->
+          {:ok, address_word("0x0000000000000000000000000000000000000000")}
+
+        {@resolver, "0x691f3431" <> _rest} ->
+          {:ok, encode_string("")}
+
         {@registry, "0x6352211e" <> _rest} ->
           {:ok, address_word(@signer)}
 
@@ -86,6 +95,15 @@ defmodule AgentEns.PlanTest do
 
         {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
+
+        {@resolver, "0x01ffc9a7" <> "3b3b57de" <> _padding} ->
+          {:ok, bool_word(true)}
+
+        {@resolver, "0x3b3b57de" <> _rest} ->
+          {:ok, address_word(@signer)}
+
+        {@resolver, "0x691f3431" <> _rest} ->
+          {:ok, encode_string("vitalik.eth")}
 
         {@registry, "0x6352211e" <> _rest} ->
           {:ok, address_word(@signer)}
@@ -152,8 +170,14 @@ defmodule AgentEns.PlanTest do
         {@resolver, "0x01ffc9a7" <> "9061b923" <> _padding} ->
           {:ok, bool_word(true)}
 
+        {@resolver, "0x01ffc9a7" <> "3b3b57de" <> _padding} ->
+          {:ok, bool_word(false)}
+
         {@resolver, "0x59d1d43c" <> _rest} ->
           {:error, {:rpc_error, :offchain_only}}
+
+        {@resolver, "0x691f3431" <> _rest} ->
+          {:ok, encode_string("")}
 
         {@registry, "0x6352211e" <> _rest} ->
           {:ok, address_word(@signer)}
@@ -207,6 +231,15 @@ defmodule AgentEns.PlanTest do
 
         {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
+
+        {@resolver, "0x01ffc9a7" <> "3b3b57de" <> _padding} ->
+          {:ok, bool_word(true)}
+
+        {@resolver, "0x3b3b57de" <> _rest} ->
+          {:ok, address_word("0x0000000000000000000000000000000000000000")}
+
+        {@resolver, "0x691f3431" <> _rest} ->
+          {:ok, encode_string("")}
 
         {@registry, "0x6352211e" <> _rest} ->
           {:ok, address_word(@signer)}
@@ -267,6 +300,15 @@ defmodule AgentEns.PlanTest do
 
         {@resolver, "0x01ffc9a7" <> "59d1d43c" <> _padding} ->
           {:ok, bool_word(true)}
+
+        {@resolver, "0x01ffc9a7" <> "3b3b57de" <> _padding} ->
+          {:ok, bool_word(true)}
+
+        {@resolver, "0x3b3b57de" <> _rest} ->
+          {:ok, address_word(@signer)}
+
+        {@resolver, "0x691f3431" <> _rest} ->
+          {:ok, encode_string("vitalik.eth")}
 
         {@registry, "0x6352211e" <> _rest} ->
           {:ok, address_word(@signer)}

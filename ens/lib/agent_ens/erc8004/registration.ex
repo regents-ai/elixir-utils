@@ -112,6 +112,18 @@ defmodule AgentEns.ERC8004.Registration do
     |> Map.put("services", services)
   end
 
+  @spec remove_ens_service(map()) :: map()
+  def remove_ens_service(%{} = registration) do
+    services =
+      registration
+      |> existing_services()
+      |> Enum.reject(&(service_name(&1) == "ens"))
+
+    registration
+    |> Map.put("type", Map.get(registration, "type", @canonical_type))
+    |> Map.put("services", services)
+  end
+
   @spec prepare_updated_registration(map()) ::
           {:ok, %{new_uri: String.t(), new_registration: map(), changed?: boolean()}}
           | {:error, Error.t()}
@@ -137,6 +149,35 @@ defmodule AgentEns.ERC8004.Registration do
 
       :missing_ens_name ->
         {:error, Error.new({:missing_required_input, "ens_name"})}
+
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      other ->
+        {:error, Error.new({:unexpected_state, other})}
+    end
+  end
+
+  @spec prepare_cleared_registration(map()) ::
+          {:ok, %{new_uri: String.t(), new_registration: map(), changed?: boolean()}}
+          | {:error, Error.t()}
+  def prepare_cleared_registration(params) when is_map(params) do
+    agent_uri = Map.get(params, :current_agent_uri) || Map.get(params, "current_agent_uri")
+    fetcher = Map.get(params, :fetcher) || Map.get(params, "fetcher") || DefaultFetcher
+    publisher = Map.get(params, :publisher) || Map.get(params, "publisher") || DataUriPublisher
+    opts = Map.get(params, :opts) || Map.get(params, "opts") || []
+
+    with value when is_binary(value) and value != "" <- agent_uri || :missing_agent_uri,
+         {:ok, payload} <- fetch(value, fetcher, opts),
+         {:ok, registration} <- parse_registration(payload),
+         updated = remove_ens_service(registration),
+         changed? <- updated != registration,
+         {:ok, serialized} <- serialize_registration(updated),
+         {:ok, uri} <- publish(publisher, serialized, opts) do
+      {:ok, %{new_uri: uri, new_registration: updated, changed?: changed?}}
+    else
+      :missing_agent_uri ->
+        {:error, Error.new({:missing_required_input, "current_agent_uri"})}
 
       {:error, %Error{} = error} ->
         {:error, error}

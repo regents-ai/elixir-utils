@@ -82,7 +82,7 @@ defmodule AgentEns.Tx do
          {:ok, registry_address} <- required_address(params, :registry_address),
          {:ok, agent_id} <- required_agent_id(params),
          {:ok, key} <- build_record_key(registry_chain_id, registry_address, agent_id),
-         {:ok, value} <- required(params, :value),
+         {:ok, value} <- required_or_empty(params, :value),
          {:ok, data} <-
            ABI.encode_call("setAgentRegistrationText(string,string,string)", [
              {:string, label},
@@ -99,13 +99,34 @@ defmodule AgentEns.Tx do
     end
   end
 
+  @spec build_regent_addr_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
+  def build_regent_addr_tx(params) when is_map(params) do
+    with {:ok, chain_id} <- required_integer(params, :chain_id),
+         {:ok, registrar_address} <- required_address(params, :registrar_address),
+         {:ok, label} <- required_label(params),
+         {:ok, target_address} <- required_address(params, :address),
+         {:ok, data} <-
+           ABI.encode_call("setAddr(string,address)", [
+             {:string, label},
+             {:address, target_address}
+           ]) do
+      {:ok,
+       tx_request(
+         registrar_address,
+         chain_id,
+         data,
+         "Set the ETH address for #{label}.regent.eth through the Regent registrar"
+       )}
+    end
+  end
+
   @spec build_set_text_record_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_text_record_tx(params) when is_map(params) do
     with {:ok, ens_name} <- required(params, :ens_name),
          {:ok, chain_id} <- required_integer(params, :chain_id),
          {:ok, resolver_address} <- required_address(params, :resolver_address),
          {:ok, key} <- required(params, :key),
-         {:ok, value} <- required(params, :value),
+         {:ok, value} <- required_or_empty(params, :value),
          {:ok, normalized_name} <- Normalize.normalize(ens_name),
          {:ok, node} <- Verify.namehash(normalized_name),
          {:ok, data} <-
@@ -329,8 +350,8 @@ defmodule AgentEns.Tx do
   @spec build_reverse_set_name_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_reverse_set_name_tx(params) when is_map(params) do
     with {:ok, chain_id} <- required_integer(params, :chain_id),
-         {:ok, ens_name} <- required(params, :ens_name),
-         {:ok, normalized_name} <- Normalize.normalize(ens_name),
+         {:ok, ens_name} <- required_or_empty(params, :ens_name),
+         {:ok, normalized_name} <- normalize_or_empty_name(ens_name),
          {:ok, reverse_registrar} <- reverse_registrar(params, chain_id),
          {:ok, data} <- ABI.encode_call("setName(string)", [{:string, normalized_name}]) do
       {:ok,
@@ -338,7 +359,7 @@ defmodule AgentEns.Tx do
          reverse_registrar,
          chain_id,
          data,
-         "Set reverse ENS primary name to #{normalized_name}"
+         reverse_name_description(normalized_name)
        )}
     end
   end
@@ -515,6 +536,19 @@ defmodule AgentEns.Tx do
     end
   end
 
+  defp required_or_empty(params, key) do
+    value =
+      case Map.fetch(params, key) do
+        {:ok, direct} -> direct
+        :error -> Map.get(params, Atom.to_string(key))
+      end
+
+    case value do
+      value when is_binary(value) -> {:ok, value}
+      value -> {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
+    end
+  end
+
   defp required_address(params, key) do
     case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
       value when is_binary(value) and value != "" -> normalize_address(value)
@@ -618,4 +652,16 @@ defmodule AgentEns.Tx do
       {:error, Error.new({:invalid_address, value})}
     end
   end
+
+  defp normalize_or_empty_name(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> {:ok, ""}
+      trimmed -> Normalize.normalize(trimmed)
+    end
+  end
+
+  defp reverse_name_description(""), do: "Clear the reverse ENS primary name"
+
+  defp reverse_name_description(normalized_name),
+    do: "Set reverse ENS primary name to #{normalized_name}"
 end

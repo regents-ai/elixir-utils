@@ -8,6 +8,7 @@ config :siwa,
 config :siwa_keyring,
   secret: System.get_env("KEYRING_PROXY_SECRET", "siwa-dev-keyring-secret"),
   port: String.to_integer(System.get_env("KEYRING_PROXY_PORT", "3100")),
+  start_server: config_env() != :test,
   backend: System.get_env("KEYSTORE_BACKEND", "encrypted_file"),
   password: System.get_env("KEYSTORE_PASSWORD", "change-me"),
   path:

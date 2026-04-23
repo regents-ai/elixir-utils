@@ -1,67 +1,101 @@
 defmodule SiwaKeyring.Router do
   use Plug.Router
+  require Logger
+
+  @max_body_bytes 65_536
+  @read_length 8_192
+  @read_timeout 5_000
+  @parser_options Plug.Parsers.init(
+                    parsers: [:json],
+                    pass: ["application/json"],
+                    json_decoder: Jason,
+                    body_reader: {__MODULE__, :read_body, []},
+                    length: @max_body_bytes,
+                    read_length: @read_length,
+                    read_timeout: @read_timeout
+                  )
 
   plug(Plug.Logger)
-
-  plug(Plug.Parsers,
-    parsers: [:json],
-    pass: ["application/json"],
-    json_decoder: Jason,
-    body_reader: {__MODULE__, :read_body, []}
-  )
-
+  plug(:parse_body)
   plug(:match)
   plug(:authorize)
   plug(:dispatch)
+
+  def max_body_bytes, do: @max_body_bytes
 
   get "/health" do
     send_json(conn, 200, %{status: "ok"})
   end
 
   post "/create-wallet" do
-    case SiwaKeyring.create_wallet() do
+    case run_keyring_request(:create_wallet, fn -> SiwaKeyring.create_wallet() end) do
       {:ok, wallet} -> send_json(conn, 200, wallet)
-      {:error, reason} -> send_error(conn, 422, reason)
+      {:error, _reason} -> send_error(conn, 422, "wallet_create_failed")
     end
   end
 
   post "/has-wallet" do
-    {:ok, result} = SiwaKeyring.has_wallet?()
-    send_json(conn, 200, result)
+    case run_keyring_request(:has_wallet, fn -> SiwaKeyring.has_wallet?() end) do
+      {:ok, result} -> send_json(conn, 200, result)
+      {:error, _reason} -> send_error(conn, 422, "wallet_check_failed")
+    end
   end
 
   post "/get-address" do
-    case SiwaKeyring.get_address() do
+    case run_keyring_request(:get_address, fn -> SiwaKeyring.get_address() end) do
       {:ok, address} -> send_json(conn, 200, %{address: address})
-      {:error, reason} -> send_error(conn, 404, reason)
+      {:error, :wallet_missing} -> send_error(conn, 404, "wallet_not_found")
+      {:error, _reason} -> send_error(conn, 422, "wallet_lookup_failed")
     end
   end
 
   post "/sign-message" do
-    case SiwaKeyring.sign_message(conn.body_params["message"] || "") do
-      {:ok, signature} -> send_json(conn, 200, %{signature: signature})
-      {:error, reason} -> send_error(conn, 422, reason)
+    with {:ok, message} <- required_text(conn.body_params, "message", :message_required),
+         {:ok, signature} <-
+           run_keyring_request(:sign_message, fn -> SiwaKeyring.sign_message(message) end) do
+      send_json(conn, 200, %{signature: signature})
+    else
+      {:error, :message_required} -> send_error(conn, 400, "message_required")
+      {:error, _reason} -> send_error(conn, 422, "message_sign_failed")
     end
   end
 
   post "/sign-raw-message" do
-    case SiwaKeyring.sign_raw_message(conn.body_params["payload"] || "") do
-      {:ok, signature} -> send_json(conn, 200, %{signature: signature})
-      {:error, reason} -> send_error(conn, 422, reason)
+    with {:ok, payload} <- required_text(conn.body_params, "payload", :payload_required),
+         {:ok, signature} <-
+           run_keyring_request(:sign_raw_message, fn -> SiwaKeyring.sign_raw_message(payload) end) do
+      send_json(conn, 200, %{signature: signature})
+    else
+      {:error, :payload_required} -> send_error(conn, 400, "payload_required")
+      {:error, _reason} -> send_error(conn, 422, "raw_message_sign_failed")
     end
   end
 
   post "/sign-transaction" do
-    case SiwaKeyring.sign_transaction(conn.body_params["transaction"] || %{}) do
-      {:ok, signed} -> send_json(conn, 200, signed)
-      {:error, reason} -> send_error(conn, 422, reason)
+    with {:ok, transaction} <-
+           required_object(conn.body_params, "transaction", :transaction_required),
+         {:ok, signed} <-
+           run_keyring_request(:sign_transaction, fn ->
+             SiwaKeyring.sign_transaction(transaction)
+           end) do
+      send_json(conn, 200, signed)
+    else
+      {:error, :transaction_required} -> send_error(conn, 400, "transaction_required")
+      {:error, _reason} -> send_error(conn, 422, "transaction_sign_failed")
     end
   end
 
   post "/sign-authorization" do
-    case SiwaKeyring.sign_authorization(conn.body_params["authorization"] || %{}) do
-      {:ok, signed} -> send_json(conn, 200, signed)
-      {:error, reason} -> send_error(conn, 422, reason)
+    with {:ok, authorization} <-
+           required_object(conn.body_params, "authorization", :authorization_required),
+         {:ok, signed} <-
+           run_keyring_request(:sign_authorization, fn ->
+             SiwaKeyring.sign_authorization(authorization)
+           end) do
+      send_json(conn, 200, signed)
+    else
+      {:error, :authorization_required} -> send_error(conn, 400, "authorization_required")
+      {:error, _reason} -> send_error(conn, 422, "authorization_sign_failed")
     end
   end
 
@@ -70,10 +104,11 @@ defmodule SiwaKeyring.Router do
   end
 
   defp authorize(%Plug.Conn{request_path: "/health"} = conn, _opts), do: conn
+  defp authorize(%Plug.Conn{request_path: "/internal/keyring/health"} = conn, _opts), do: conn
 
   defp authorize(conn, _opts) do
     secret = Application.fetch_env!(:siwa_keyring, :secret)
-    body = conn.private[:raw_body] || Jason.encode!(conn.body_params || %{})
+    body = request_body(conn)
 
     case SiwaKeyring.Auth.verify_hmac(
            secret,
@@ -83,26 +118,95 @@ defmodule SiwaKeyring.Router do
            header(conn, "x-keyring-timestamp"),
            header(conn, "x-keyring-signature")
          ) do
-      :ok -> conn
-      {:error, reason} -> conn |> send_error(401, reason) |> halt()
+      :ok ->
+        conn
+
+      {:error, reason} ->
+        Logger.warning("keyring request authorization failed: #{inspect(reason)}")
+        conn |> send_error(401, "unauthorized") |> halt()
+    end
+  end
+
+  defp request_body(conn) do
+    case conn.private[:raw_body] do
+      body when is_binary(body) and body != "" ->
+        body
+
+      _ ->
+        encoded_body_params(conn)
+    end
+  end
+
+  defp encoded_body_params(conn) do
+    content_type = Plug.Conn.get_req_header(conn, "content-type")
+
+    case {content_type, conn.body_params} do
+      {[], _params} -> ""
+      {_content_type, %Plug.Conn.Unfetched{}} -> ""
+      {_content_type, params} when is_map(params) -> Jason.encode!(params)
+      {_content_type, _params} -> ""
     end
   end
 
   defp header(conn, key), do: Plug.Conn.get_req_header(conn, key) |> List.first() |> to_string()
 
+  defp parse_body(conn, _opts) do
+    Plug.Parsers.call(conn, @parser_options)
+  rescue
+    exception in Plug.Parsers.RequestTooLargeError ->
+      Logger.warning("keyring request body too large: #{Exception.message(exception)}")
+      conn |> send_error(413, "request_body_too_large") |> halt()
+
+    exception in Plug.Parsers.ParseError ->
+      Logger.warning("keyring request body malformed: #{Exception.message(exception)}")
+      conn |> send_error(400, "malformed_json") |> halt()
+
+    exception in Plug.Parsers.BadEncodingError ->
+      Logger.warning("keyring request body encoding invalid: #{Exception.message(exception)}")
+      conn |> send_error(400, "malformed_json") |> halt()
+
+    exception in Plug.Parsers.UnsupportedMediaTypeError ->
+      Logger.warning("keyring request content type unsupported: #{Exception.message(exception)}")
+      conn |> send_error(415, "unsupported_media_type") |> halt()
+
+    exception in Plug.BadRequestError ->
+      Logger.warning("keyring request body invalid: #{Exception.message(exception)}")
+      conn |> send_error(400, "bad_request") |> halt()
+  end
+
   def read_body(conn, opts) do
+    opts = bounded_read_opts(opts)
     previous = conn.private[:raw_body] || ""
 
     case Plug.Conn.read_body(conn, opts) do
       {:ok, body, conn} ->
         full_body = previous <> body
-        {:ok, body, Plug.Conn.put_private(conn, :raw_body, full_body)}
+        conn = Plug.Conn.put_private(conn, :raw_body, full_body)
+
+        if byte_size(full_body) > @max_body_bytes do
+          {:more, body, conn}
+        else
+          {:ok, body, conn}
+        end
 
       {:more, body, conn} ->
         full_body = previous <> body
         {:more, body, Plug.Conn.put_private(conn, :raw_body, full_body)}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
+
+  defp bounded_read_opts(opts) do
+    opts
+    |> Keyword.put(:length, bounded_integer(opts[:length], @max_body_bytes))
+    |> Keyword.put(:read_length, bounded_integer(opts[:read_length], @read_length))
+    |> Keyword.put_new(:read_timeout, @read_timeout)
+  end
+
+  defp bounded_integer(value, max) when is_integer(value) and value > 0, do: min(value, max)
+  defp bounded_integer(_value, max), do: max
 
   defp send_json(conn, status, payload) do
     conn
@@ -110,10 +214,53 @@ defmodule SiwaKeyring.Router do
     |> Plug.Conn.send_resp(status, Jason.encode!(payload))
   end
 
-  defp send_error(conn, status, reason) do
-    send_json(conn, status, %{error: error_code(reason)})
+  defp required_text(params, key, error_code) do
+    case Map.get(params, key) do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> {:error, error_code}
+          _trimmed -> {:ok, value}
+        end
+
+      _value ->
+        {:error, error_code}
+    end
   end
 
-  defp error_code(reason) when is_atom(reason), do: Atom.to_string(reason)
-  defp error_code(_reason), do: "internal_error"
+  defp required_object(params, key, error_code) do
+    case Map.get(params, key) do
+      value when is_map(value) and map_size(value) > 0 -> {:ok, value}
+      _value -> {:error, error_code}
+    end
+  end
+
+  defp run_keyring_request(action, fun) do
+    fun.()
+  rescue
+    error ->
+      Logger.error(
+        "keyring #{action} crashed: #{Exception.format(:error, error, __STACKTRACE__)}"
+      )
+
+      {:error, :internal_failure}
+  catch
+    kind, reason ->
+      Logger.error("keyring #{action} exited: #{inspect({kind, reason})}")
+      {:error, :internal_failure}
+  else
+    {:ok, result} ->
+      {:ok, result}
+
+    {:error, reason} = error ->
+      Logger.warning("keyring #{action} failed: #{inspect(reason)}")
+      error
+
+    other ->
+      Logger.error("keyring #{action} returned an unexpected response: #{inspect(other)}")
+      {:error, :internal_failure}
+  end
+
+  defp send_error(conn, status, error) do
+    send_json(conn, status, %{error: error})
+  end
 end

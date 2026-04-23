@@ -2,7 +2,8 @@ defmodule SiwaKeyring.Keystore do
   alias Siwa.LocalSigner
 
   def create_wallet(config) do
-    with {:ok, signer} <- LocalSigner.new() do
+    with {:ok, _path} <- wallet_path(config),
+         {:ok, signer} <- LocalSigner.new() do
       payload = %{
         private_key: signer.private_key,
         public_key: signer.public_key,
@@ -10,16 +11,23 @@ defmodule SiwaKeyring.Keystore do
         signer_type: signer.signer_type
       }
 
-      :ok = persist_wallet(config, payload)
-      {:ok, payload}
+      with :ok <- persist_wallet(config, payload) do
+        {:ok, payload}
+      end
     end
   end
 
-  def has_wallet?(config), do: File.exists?(config.path)
+  def has_wallet?(config) do
+    case wallet_path(config) do
+      {:ok, path} -> File.exists?(path)
+      {:error, :wallet_missing} -> false
+    end
+  end
 
   def get_wallet(config) do
-    with true <- has_wallet?(config),
-         {:ok, encrypted} <- File.read(config.path),
+    with {:ok, path} <- wallet_path(config),
+         true <- File.exists?(path),
+         {:ok, encrypted} <- File.read(path),
          {:ok, wallet} <- decrypt_wallet(encrypted, config.password) do
       {:ok, wallet}
     else
@@ -35,9 +43,11 @@ defmodule SiwaKeyring.Keystore do
   end
 
   def persist_wallet(config, wallet) do
-    File.mkdir_p!(Path.dirname(config.path))
-    encrypted = encrypt_wallet(wallet, config.password)
-    File.write(config.path, encrypted)
+    with {:ok, path} <- wallet_path(config),
+         :ok <- File.mkdir_p(Path.dirname(path)) do
+      encrypted = encrypt_wallet(wallet, config.password)
+      File.write(path, encrypted)
+    end
   end
 
   def encrypt_wallet(wallet, password) do
@@ -81,4 +91,7 @@ defmodule SiwaKeyring.Keystore do
       _ -> {:error, :keystore_decrypt_failed}
     end
   end
+
+  defp wallet_path(%{path: path}) when is_binary(path) and path != "", do: {:ok, path}
+  defp wallet_path(_config), do: {:error, :wallet_missing}
 end

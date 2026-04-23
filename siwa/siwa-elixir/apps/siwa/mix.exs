@@ -32,7 +32,9 @@ defmodule Siwa.MixProject do
     [
       {:jason, "~> 1.4"},
       {:plug, "~> 1.16"},
+      {:req, "~> 0.5"},
       {:keccak_ex, "~> 0.4.2"},
+      {:ex_secp256k1, "~> 0.8.0"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end

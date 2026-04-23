@@ -6,7 +6,28 @@ defmodule SiwaElixir.MixProject do
       apps_path: "apps",
       version: "0.1.0",
       start_permanent: Mix.env() == :prod,
-      deps: []
+      deps: [],
+      aliases: aliases()
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [check: :test, precommit: :test]
+    ]
+  end
+
+  defp aliases do
+    [
+      check: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format --check-formatted",
+        "contract.check",
+        "test"
+      ],
+      precommit: ["check"],
+      "contract.check": ["run --no-start scripts/check_shared_services_contract.exs"]
     ]
   end
 end

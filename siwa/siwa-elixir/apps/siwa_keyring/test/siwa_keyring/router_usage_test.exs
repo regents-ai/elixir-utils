@@ -7,13 +7,29 @@ defmodule SiwaKeyring.RouterUsageTest do
     SiwaKeyring.Router.call(conn, SiwaKeyring.Router.init([]))
   end
 
-  defp signed_conn(method, path, body, secret) do
-    headers = SiwaKeyring.Auth.compute_hmac(secret, method, path, body)
+  defp signed_conn(method, path, body, secret, timestamp \\ nil) do
+    headers = SiwaKeyring.Auth.compute_hmac(secret, method, path, body, timestamp)
 
     conn(method, path, body)
     |> put_req_header("content-type", "application/json")
     |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
     |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
+  end
+
+  defp with_keyring_env(fun) do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    try do
+      fun.(path)
+    after
+      File.rm(path)
+      Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
+    end
   end
 
   test "router supports the normal wallet lifecycle" do
@@ -59,7 +75,91 @@ defmodule SiwaKeyring.RouterUsageTest do
 
     response = call_router(conn)
     assert response.status == 401
-    assert Jason.decode!(response.resp_body) == %{"error" => "stale_or_invalid_timestamp"}
+    assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+  end
+
+  test "router rejects requests with a stale timestamp" do
+    timestamp = System.system_time(:millisecond) - 60_000
+
+    response =
+      signed_conn("POST", "/has-wallet", "{}", "router-secret", Integer.to_string(timestamp))
+      |> call_router()
+
+    assert response.status == 401
+    assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+  end
+
+  test "router returns json for malformed request bodies" do
+    response =
+      signed_conn("POST", "/sign-message", ~s({"message":), "router-secret")
+      |> call_router()
+
+    assert response.status == 400
+    assert Jason.decode!(response.resp_body) == %{"error" => "malformed_json"}
+  end
+
+  test "router returns json for oversized request bodies" do
+    body = Jason.encode!(%{message: String.duplicate("a", SiwaKeyring.Router.max_body_bytes())})
+
+    response =
+      signed_conn("POST", "/sign-message", body, "router-secret")
+      |> call_router()
+
+    assert response.status == 413
+    assert Jason.decode!(response.resp_body) == %{"error" => "request_body_too_large"}
+  end
+
+  test "router accepts signed requests with no body" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
+    end)
+
+    headers = SiwaKeyring.Auth.compute_hmac("router-secret", "POST", "/has-wallet", "")
+
+    response =
+      conn("POST", "/has-wallet")
+      |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+      |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
+      |> call_router()
+
+    assert response.status == 200
+    assert Jason.decode!(response.resp_body) == %{"has_wallet" => false}
+  end
+
+  test "router rejects empty signing inputs" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
+    end)
+
+    message_response =
+      signed_conn("POST", "/sign-message", "{}", "router-secret")
+      |> call_router()
+
+    assert message_response.status == 400
+    assert Jason.decode!(message_response.resp_body) == %{"error" => "message_required"}
+
+    transaction_response =
+      signed_conn("POST", "/sign-transaction", ~s({"transaction":{}}), "router-secret")
+      |> call_router()
+
+    assert transaction_response.status == 400
+    assert Jason.decode!(transaction_response.resp_body) == %{"error" => "transaction_required"}
   end
 
   test "router returns stable error codes when a wallet is missing" do
@@ -78,7 +178,49 @@ defmodule SiwaKeyring.RouterUsageTest do
     response = signed_conn("POST", "/get-address", "{}", "router-secret") |> call_router()
 
     assert response.status == 404
-    assert Jason.decode!(response.resp_body) == %{"error" => "wallet_missing"}
+    assert Jason.decode!(response.resp_body) == %{"error" => "wallet_not_found"}
+  end
+
+  test "router supports concurrent create read and sign requests after the wallet exists" do
+    with_keyring_env(fn _path ->
+      create_response =
+        signed_conn("POST", "/create-wallet", "{}", "router-secret")
+        |> call_router()
+
+      assert create_response.status == 200
+      %{"address" => address} = Jason.decode!(create_response.resp_body)
+
+      results =
+        1..20
+        |> Enum.map(fn index ->
+          Task.async(fn ->
+            if rem(index, 2) == 0 do
+              signed_conn("POST", "/get-address", "{}", "router-secret")
+              |> call_router()
+            else
+              body = Jason.encode!(%{message: "hello #{index}"})
+
+              signed_conn("POST", "/sign-message", body, "router-secret")
+              |> call_router()
+            end
+          end)
+        end)
+        |> Task.await_many(10_000)
+
+      assert Enum.all?(results, &(&1.status == 200))
+
+      for response <- results do
+        payload = Jason.decode!(response.resp_body)
+
+        case payload do
+          %{"address" => ^address} ->
+            :ok
+
+          %{"signature" => %{"address" => ^address, "purpose" => "personal_sign"}} ->
+            :ok
+        end
+      end
+    end)
   end
 
   test "body reader preserves the full raw body across multiple reads" do

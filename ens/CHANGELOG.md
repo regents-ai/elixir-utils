@@ -4,6 +4,8 @@ All notable changes to `ens_elixir` should be recorded here.
 
 ## Unreleased
 
+## 0.1.0 - 2026-04-22
+
 ### Added
 
 - Standalone Hex package layout for `ens_elixir`, shaped for publishing and documentation.

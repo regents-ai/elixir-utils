@@ -2,6 +2,9 @@
 /world/**/_build/
 /world/**/deps/
 /world/**/doc/
+/cache/_build/
+/cache/deps/
+/cache/doc/
 /output/
 .codex/
 .claude/

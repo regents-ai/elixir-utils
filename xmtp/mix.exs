@@ -14,6 +14,7 @@ defmodule XmtpElixirSdk.MixProject do
       deps: deps(),
       description: @description,
       package: package(),
+      aliases: aliases(),
       docs: docs()
     ]
   end
@@ -21,6 +22,12 @@ defmodule XmtpElixirSdk.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [extra_applications: [:logger]]
+  end
+
+  def cli do
+    [
+      preferred_envs: [check: :test, precommit: :test]
+    ]
   end
 
   # Run "mix help deps" to learn about dependencies.
@@ -31,6 +38,18 @@ defmodule XmtpElixirSdk.MixProject do
       {:keccak_ex, "~> 0.4.2"},
       {:ex_secp256k1, "~> 0.8.0"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      check: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format --check-formatted",
+        "test"
+      ],
+      precommit: ["check"]
     ]
   end
 

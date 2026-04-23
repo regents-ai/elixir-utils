@@ -6,9 +6,11 @@ defmodule AgentWorldTest do
   alias AgentWorld.Internal.ABI
   alias AgentWorld.Registration
   alias AgentWorld.TxRequest
+  alias Siwa.EvmPersonalSign
 
   @agent "0x1111111111111111111111111111111111111111"
   @contract "0xA23aB2712eA7BBa896930544C7d6636a96b944dA"
+  @private_key Base.decode16!("59C6995E998F97A5A0044966F094538C5F6C75A5D9E7F0B6E6A0F9F5D4D17CE4")
 
   defmodule RpcStub do
     @contract "0xA23aB2712eA7BBa896930544C7d6636a96b944dA"
@@ -155,5 +157,50 @@ defmodule AgentWorldTest do
              })
 
     assert address == String.downcase(@contract)
+  end
+
+  test "verify_agentkit_signature accepts EOA personal-sign signatures" do
+    address = eoa_address()
+
+    payload = %{
+      address: address,
+      chainId: "eip155:480",
+      domain: "world.example",
+      issuedAt: "2026-04-22T00:00:00Z",
+      nonce: "abc12345",
+      signature: sign_agentkit_payload(address),
+      type: "eip191",
+      uri: "https://world.example/agentbook",
+      version: "1"
+    }
+
+    assert {:ok, %{valid: true, address: verified_address}} =
+             AgentWorld.verify_agentkit_signature(payload)
+
+    assert verified_address == address
+  end
+
+  defp eoa_address do
+    {:ok, public_key} = ExSecp256k1.create_public_key(@private_key)
+    EvmPersonalSign.public_key_to_address(public_key)
+  end
+
+  defp sign_agentkit_payload(address) do
+    message =
+      [
+        "world.example wants you to sign in with your Ethereum account:",
+        address,
+        "",
+        "URI: https://world.example/agentbook",
+        "Version: 1",
+        "Chain ID: 480",
+        "Nonce: abc12345",
+        "Issued At: 2026-04-22T00:00:00Z"
+      ]
+      |> Enum.join("\n")
+
+    digest = EvmPersonalSign.personal_hash(message)
+    {:ok, {signature, recovery_id}} = ExSecp256k1.sign_compact(digest, @private_key)
+    "0x" <> Base.encode16(signature <> <<recovery_id + 27>>, case: :lower)
   end
 end

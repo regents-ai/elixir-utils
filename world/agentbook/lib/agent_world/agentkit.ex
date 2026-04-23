@@ -7,7 +7,6 @@ defmodule AgentWorld.Agentkit do
 
   @default_max_age_ms 300_000
   @erc1271_magic "0x1626ba7e"
-  @eth_prefix "\x19Ethereum Signed Message:\n"
 
   @required_keys ~w(domain address uri version chainId type nonce issuedAt signature)a
   @optional_keys ~w(statement expirationTime notBefore requestId resources signatureScheme)a
@@ -77,10 +76,10 @@ defmodule AgentWorld.Agentkit do
   end
 
   defp verify_evm_signature(message, address, signature, rpc, rpc_url) do
-    digest = personal_hash(message)
+    digest = Siwa.EvmPersonalSign.personal_hash(message)
     normalized_address = String.downcase(address)
 
-    case recover_address(digest, signature) do
+    case Siwa.EvmPersonalSign.recover_address(digest, signature) do
       {:ok, recovered} when recovered == normalized_address ->
         :ok
 
@@ -94,7 +93,7 @@ defmodule AgentWorld.Agentkit do
   end
 
   defp maybe_verify_erc1271(digest, address, signature, rpc, rpc_url) do
-    with {:ok, signature_bytes} <- signature_bytes(signature),
+    with {:ok, signature_bytes} <- evm_signature_bytes(signature),
          {:ok, data} <-
            ABI.encode_call("isValidSignature(bytes32,bytes)", [
              {:bytes32, digest},
@@ -118,49 +117,16 @@ defmodule AgentWorld.Agentkit do
     end
   end
 
-  defp recover_address(digest, signature) do
-    with {:ok, {compact, recovery_id}} <- compact_signature(signature),
-         {:ok, public_key} <- ExSecp256k1.recover_compact(digest, compact, recovery_id),
-         {:ok, uncompressed} <- uncompressed_public_key(public_key) do
-      <<4, raw::binary-size(64)>> = uncompressed
-      hash = KeccakEx.hash_256(raw)
-      {:ok, "0x" <> Base.encode16(binary_part(hash, byte_size(hash) - 20, 20), case: :lower)}
-    else
-      _ -> {:error, Error.new({:invalid_signature, "Signature verification failed"})}
-    end
-  end
+  defp evm_signature_bytes(signature) do
+    case Siwa.EvmPersonalSign.signature_bytes(signature) do
+      {:ok, bytes} ->
+        {:ok, bytes}
 
-  defp compact_signature(signature) do
-    with {:ok, bytes} <- signature_bytes(signature),
-         <<compact::binary-size(64), v>> <- bytes,
-         {:ok, recovery_id} <- recovery_id(v) do
-      {:ok, {compact, recovery_id}}
-    else
-      _ -> {:error, Error.new({:invalid_signature, "Invalid EVM signature"})}
-    end
-  end
+      {:error, :invalid_signature_encoding} ->
+        {:error, Error.new({:invalid_signature, "Invalid signature encoding"})}
 
-  defp signature_bytes("0x" <> hex) when byte_size(hex) == 130 do
-    case Base.decode16(hex, case: :mixed) do
-      {:ok, <<_::binary-size(65)>> = bytes} -> {:ok, bytes}
-      _ -> {:error, Error.new({:invalid_signature, "Invalid signature encoding"})}
-    end
-  end
-
-  defp signature_bytes(value),
-    do: {:error, Error.new({:invalid_signature, "Invalid signature encoding: #{inspect(value)}"})}
-
-  defp recovery_id(v) when v in [0, 1], do: {:ok, v}
-  defp recovery_id(v) when v in [27, 28], do: {:ok, v - 27}
-  defp recovery_id(v) when v >= 35, do: {:ok, rem(v - 35, 2)}
-  defp recovery_id(_value), do: {:error, Error.new({:invalid_signature, "Invalid recovery id"})}
-
-  defp uncompressed_public_key(<<4, _::binary-size(64)>> = key), do: {:ok, key}
-
-  defp uncompressed_public_key(key) do
-    case ExSecp256k1.public_key_decompress(key) do
-      {:ok, <<4, _::binary-size(64)>> = decompressed} -> {:ok, decompressed}
-      _ -> {:error, Error.new({:invalid_signature, "Invalid public key"})}
+      {:error, _reason} ->
+        {:error, Error.new({:invalid_signature, "Invalid EVM signature"})}
     end
   end
 
@@ -274,11 +240,6 @@ defmodule AgentWorld.Agentkit do
   end
 
   defp normalize_rpc_url(_value), do: {:ok, nil}
-
-  defp personal_hash(message) do
-    ("#{@eth_prefix}#{byte_size(message)}" <> message)
-    |> KeccakEx.hash_256()
-  end
 
   defp validate_domain(payload, expected_uri) do
     expected_domain = expected_uri.host

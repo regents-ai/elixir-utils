@@ -14,6 +14,7 @@ defmodule AgentEns.MixProject do
       description: @description,
       package: package(),
       deps: deps(),
+      aliases: aliases(),
       docs: docs()
     ]
   end
@@ -24,6 +25,12 @@ defmodule AgentEns.MixProject do
     ]
   end
 
+  def cli do
+    [
+      preferred_envs: [check: :test, precommit: :test]
+    ]
+  end
+
   defp deps do
     [
       {:req, "~> 0.5"},
@@ -31,6 +38,18 @@ defmodule AgentEns.MixProject do
       {:jason, "~> 1.4"},
       {:keccak_ex, "~> 0.4.2"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      check: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format --check-formatted",
+        "test"
+      ],
+      precommit: ["check"]
     ]
   end
 

@@ -1,17 +1,23 @@
 defmodule Siwa.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @description "Shared Elixir library for SIWA nonce, message, receipt, and request verification flows."
+
   def project do
     [
       app: :siwa,
-      version: "0.1.0",
+      version: @version,
       build_path: "../../_build",
       config_path: "../../config/config.exs",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      description: @description,
+      deps: deps(),
+      package: package(),
+      docs: docs()
     ]
   end
 
@@ -26,7 +32,35 @@ defmodule Siwa.MixProject do
     [
       {:jason, "~> 1.4"},
       {:plug, "~> 1.16"},
-      {:keccak_ex, "~> 0.4.2"}
+      {:keccak_ex, "~> 0.4.2"},
+      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
+    ]
+  end
+
+  defp package do
+    [
+      files: [
+        ".formatter.exs",
+        "CHANGELOG.md",
+        "LICENSE",
+        "README.md",
+        "lib",
+        "mix.exs"
+      ],
+      licenses: ["MIT"],
+      links: %{
+        "Shared SIWA Contract" =>
+          "https://github.com/regents-ai/regent/blob/main/regents-cli/docs/regent-services-contract.openapiv3.yaml",
+        "Source" =>
+          "https://github.com/regents-ai/regent/tree/main/elixir-utils/siwa/siwa-elixir/apps/siwa"
+      }
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md", "CHANGELOG.md"]
     ]
   end
 end

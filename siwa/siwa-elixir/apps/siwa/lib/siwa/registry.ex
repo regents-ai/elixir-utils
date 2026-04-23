@@ -5,7 +5,7 @@ defmodule Siwa.Registry do
     1 => "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
     8453 => "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
     84532 => "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-    11155111 => "0x8004a6090Cd10A7288092483047B097295Fb8847",
+    11_155_111 => "0x8004a6090Cd10A7288092483047B097295Fb8847",
     59141 => "0x8004aa7C931bCE1233973a0C6A667f73F66282e7",
     80002 => "0x8004ad19E14B9e0654f73353e8a0B600D46C2898"
   }
@@ -18,7 +18,7 @@ defmodule Siwa.Registry do
     1 => "https://cloudflare-eth.com",
     8453 => "https://mainnet.base.org",
     84532 => "https://sepolia.base.org",
-    11155111 => "https://rpc.sepolia.org",
+    11_155_111 => "https://rpc.sepolia.org",
     59141 => "https://rpc.sepolia.linea.build",
     80002 => "https://rpc-amoy.polygon.technology"
   }
@@ -41,8 +41,11 @@ defmodule Siwa.Registry do
 
   def parse_agent_registry("eip155:" <> rest) do
     case String.split(rest, ":", parts: 2) do
-      [chain_id, address] -> {:ok, %{namespace: "eip155", chain_id: String.to_integer(chain_id), address: address}}
-      _ -> {:error, :invalid_agent_registry}
+      [chain_id, address] ->
+        {:ok, %{namespace: "eip155", chain_id: String.to_integer(chain_id), address: address}}
+
+      _ ->
+        {:error, :invalid_agent_registry}
     end
   rescue
     _ -> {:error, :invalid_agent_registry}
@@ -91,7 +94,9 @@ defmodule Siwa.Registry do
   def register_agent(opts) do
     with {:ok, tx} <- encode_register_agent(opts) do
       case {Keyword.get(opts, :tx_signer), Keyword.get(opts, :client)} do
-        {nil, _} -> {:ok, %{encoded: tx}}
+        {nil, _} ->
+          {:ok, %{encoded: tx}}
+
         {signer, client} ->
           with {:ok, signed} <- signer_module(signer).sign_transaction(signer, tx),
                {:ok, result} <- client.submit_registration(signed, opts) do
@@ -109,8 +114,11 @@ defmodule Siwa.Registry do
     end
   end
 
-  defp fetch_metadata("ipfs://" <> cid), do: fetch_metadata("https://gateway.pinata.cloud/ipfs/" <> cid)
-  defp fetch_metadata("data:application/json;base64," <> encoded), do: encoded |> Base.decode64!() |> Jason.decode()
+  defp fetch_metadata("ipfs://" <> cid),
+    do: fetch_metadata("https://gateway.pinata.cloud/ipfs/" <> cid)
+
+  defp fetch_metadata("data:application/json;base64," <> encoded),
+    do: encoded |> Base.decode64!() |> Jason.decode()
 
   defp fetch_metadata("http://" <> _ = uri), do: fetch_http(uri)
   defp fetch_metadata("https://" <> _ = uri), do: fetch_http(uri)
@@ -139,6 +147,8 @@ defmodule Siwa.Registry do
   defp abi_encode_string(value) do
     data = value
     padding = rem(32 - rem(byte_size(data), 32), 32)
-    <<32::unsigned-big-integer-size(256), byte_size(data)::unsigned-big-integer-size(256), data::binary, 0::size(padding * 8)>>
+
+    <<32::unsigned-big-integer-size(256), byte_size(data)::unsigned-big-integer-size(256),
+      data::binary, 0::size(padding * 8)>>
   end
 end

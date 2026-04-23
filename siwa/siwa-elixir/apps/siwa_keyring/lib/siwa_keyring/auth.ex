@@ -18,7 +18,8 @@ defmodule SiwaKeyring.Auth do
   def verify_hmac(secret, method, path, body, timestamp, signature) do
     with {ts, ""} <- Integer.parse(to_string(timestamp)),
          true <- abs(System.system_time(:millisecond) - ts) <= @drift_ms do
-      expected = compute_hmac(secret, method, path, body, to_string(timestamp))["x-keyring-signature"]
+      expected =
+        compute_hmac(secret, method, path, body, to_string(timestamp))["x-keyring-signature"]
 
       if Plug.Crypto.secure_compare(expected, to_string(signature)) do
         :ok

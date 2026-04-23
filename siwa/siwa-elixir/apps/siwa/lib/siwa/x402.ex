@@ -33,11 +33,16 @@ defmodule Siwa.X402 do
           [{{^address, ^resource}, value, expires_at}] ->
             if expires_at > System.system_time(:millisecond), do: {:ok, value}, else: {:ok, nil}
 
-          _ -> {:ok, nil}
+          _ ->
+            {:ok, nil}
         end
       end,
       set: fn address, resource, value, ttl_ms ->
-        :ets.insert(table, {{address, resource}, value, System.system_time(:millisecond) + ttl_ms})
+        :ets.insert(
+          table,
+          {{address, resource}, value, System.system_time(:millisecond) + ttl_ms}
+        )
+
         :ok
       end
     }

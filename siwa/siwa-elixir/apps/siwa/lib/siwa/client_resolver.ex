@@ -18,7 +18,8 @@ defmodule Siwa.ClientResolver do
      )}
   end
 
-  def resolve_signer(%{provider: provider} = config) when provider in [:circle, :openfort, :privy, :bankr] do
+  def resolve_signer(%{provider: provider} = config)
+      when provider in [:circle, :openfort, :privy, :bankr] do
     resolve_signer(%{config | provider: :remote})
   end
 

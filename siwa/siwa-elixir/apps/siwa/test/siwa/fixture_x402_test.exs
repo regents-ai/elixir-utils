@@ -29,7 +29,9 @@ defmodule Siwa.FixtureX402Test do
       settle: fn _payload, _accepts -> %{success: true, txHash: "0xtxhash"} end
     }
 
-    assert {:ok, processed} = Siwa.X402.process_payment(payload, data["decoded"]["accepts"], facilitator)
+    assert {:ok, processed} =
+             Siwa.X402.process_payment(payload, data["decoded"]["accepts"], facilitator)
+
     assert processed.valid == data["processedPayment"]["valid"]
     assert processed.payment.scheme == data["processedPayment"]["payment"]["scheme"]
     assert processed.payment.network == data["processedPayment"]["payment"]["network"]

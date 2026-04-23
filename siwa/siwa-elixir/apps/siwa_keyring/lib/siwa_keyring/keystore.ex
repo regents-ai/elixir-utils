@@ -45,7 +45,9 @@ defmodule SiwaKeyring.Keystore do
     salt = :crypto.strong_rand_bytes(16)
     key = :crypto.pbkdf2_hmac(:sha256, password, salt, 100_000, 32)
     plaintext = Jason.encode!(wallet)
-    {ciphertext, tag} = :crypto.crypto_one_time_aead(:aes_256_gcm, key, iv, plaintext, "siwa-keyring", true)
+
+    {ciphertext, tag} =
+      :crypto.crypto_one_time_aead(:aes_256_gcm, key, iv, plaintext, "siwa-keyring", true)
 
     Jason.encode!(%{
       cipher: "aes-256-gcm",
@@ -63,7 +65,16 @@ defmodule SiwaKeyring.Keystore do
          ciphertext <- Base.decode64!(payload["ciphertext"]),
          tag <- Base.decode64!(payload["tag"]),
          key <- :crypto.pbkdf2_hmac(:sha256, password, salt, 100_000, 32),
-         plaintext <- :crypto.crypto_one_time_aead(:aes_256_gcm, key, iv, ciphertext, "siwa-keyring", tag, false),
+         plaintext <-
+           :crypto.crypto_one_time_aead(
+             :aes_256_gcm,
+             key,
+             iv,
+             ciphertext,
+             "siwa-keyring",
+             tag,
+             false
+           ),
          {:ok, wallet} <- Jason.decode(plaintext) do
       {:ok, wallet}
     else

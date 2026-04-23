@@ -99,7 +99,10 @@ defmodule Siwa.Crypto do
   defp verify_digest(%{"signature" => _, "public_key" => _} = sig, digest_hex),
     do: verify_digest(atomize_signature(sig), digest_hex)
 
-  defp verify_digest(%{signature: sig_hex, public_key: pub_hex, address: address} = signature, digest_hex) do
+  defp verify_digest(
+         %{signature: sig_hex, public_key: pub_hex, address: address} = signature,
+         digest_hex
+       ) do
     digest = decode_hex!(digest_hex)
     sig = decode_hex!(sig_hex)
     pub = decode_hex!(pub_hex)

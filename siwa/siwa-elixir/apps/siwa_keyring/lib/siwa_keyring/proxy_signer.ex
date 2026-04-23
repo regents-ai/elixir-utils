@@ -22,13 +22,15 @@ defmodule SiwaKeyring.ProxySigner do
 
   @impl true
   def sign_raw_message(%__MODULE__{client: client}, payload) do
-    with {:ok, %{"signature" => signature}} <- SiwaKeyring.Client.sign_raw_message(client, payload) do
+    with {:ok, %{"signature" => signature}} <-
+           SiwaKeyring.Client.sign_raw_message(client, payload) do
       {:ok, signature}
     end
   end
 
   @impl true
-  def sign_transaction(%__MODULE__{client: client}, tx), do: SiwaKeyring.Client.sign_transaction(client, tx)
+  def sign_transaction(%__MODULE__{client: client}, tx),
+    do: SiwaKeyring.Client.sign_transaction(client, tx)
 
   @impl true
   def sign_authorization(%__MODULE__{client: client}, authorization),

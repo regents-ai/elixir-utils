@@ -27,16 +27,17 @@ defmodule Siwa.Captcha do
     created_at = Keyword.get(opts, :created_at, System.system_time(:millisecond))
     secret = Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :nonce_secret))
 
-    challenge = %{
-      "topic" => Keyword.get(opts, :topic, "AI agents and trust"),
-      "format" => Keyword.get(opts, :format, "quatrain"),
-      "lineCount" => Keyword.get(opts, :line_count, config.line_count),
-      "asciiTarget" => Keyword.get(opts, :ascii_target, config.ascii_target),
-      "timeLimitSeconds" => Keyword.get(opts, :time_limit_seconds, config.time_limit_seconds),
-      "difficulty" => to_string(difficulty),
-      "createdAt" => created_at
-    }
-    |> maybe_put("wordCount", config[:word_count])
+    challenge =
+      %{
+        "topic" => Keyword.get(opts, :topic, "AI agents and trust"),
+        "format" => Keyword.get(opts, :format, "quatrain"),
+        "lineCount" => Keyword.get(opts, :line_count, config.line_count),
+        "asciiTarget" => Keyword.get(opts, :ascii_target, config.ascii_target),
+        "timeLimitSeconds" => Keyword.get(opts, :time_limit_seconds, config.time_limit_seconds),
+        "difficulty" => to_string(difficulty),
+        "createdAt" => created_at
+      }
+      |> maybe_put("wordCount", config[:word_count])
 
     token = sign_challenge(challenge, secret)
     {:ok, %{challenge: challenge, challenge_token: token}}
@@ -95,7 +96,8 @@ defmodule Siwa.Captcha do
 
   defp verify_challenge_token(token, secret) do
     with [encoded, mac] <- String.split(token, ".", parts: 2),
-         expected <- :crypto.mac(:hmac, :sha256, secret, encoded) |> Base.url_encode64(padding: false),
+         expected <-
+           :crypto.mac(:hmac, :sha256, secret, encoded) |> Base.url_encode64(padding: false),
          true <- Plug.Crypto.secure_compare(expected, mac),
          {:ok, json} <- Base.url_decode64(encoded, padding: false),
          {:ok, challenge} <- Jason.decode(json) do
@@ -107,14 +109,21 @@ defmodule Siwa.Captcha do
 
   defp maybe_consume(challenge_token, opts) do
     case Keyword.get(opts, :consume_challenge) do
-      nil -> :ok
-      fun when is_function(fun, 1) -> if fun.(challenge_token), do: :ok, else: {:error, :replayed_challenge}
+      nil ->
+        :ok
+
+      fun when is_function(fun, 1) ->
+        if fun.(challenge_token), do: :ok, else: {:error, :replayed_challenge}
     end
   end
 
   defp evaluate_solution(challenge, solution, opts) do
     text = solution["text"] || solution[:text] || ""
-    solved_at = solution["solvedAt"] || solution[:solved_at] || solution[:solvedAt] || System.system_time(:millisecond)
+
+    solved_at =
+      solution["solvedAt"] || solution[:solved_at] || solution[:solvedAt] ||
+        System.system_time(:millisecond)
+
     lines = String.split(text, "\n", trim: true)
     ascii_target = challenge["asciiTarget"]
     ascii_actual = Enum.reduce(lines, 0, fn line, sum -> sum + first_char_ascii(line) end)
@@ -127,6 +136,7 @@ defmodule Siwa.Captcha do
 
     ascii_pass = ascii_actual == ascii_target
     line_pass = line_actual == line_target
+
     word_result =
       if is_nil(word_target) do
         nil
@@ -141,7 +151,10 @@ defmodule Siwa.Captcha do
 
     %{
       asciiSum: %{pass: ascii_pass, actual: ascii_actual, target: ascii_target},
-      timing: %{pass: elapsed <= challenge["timeLimitSeconds"] + timing_tolerance, elapsedSeconds: elapsed},
+      timing: %{
+        pass: elapsed <= challenge["timeLimitSeconds"] + timing_tolerance,
+        elapsedSeconds: elapsed
+      },
       overallPass: overall,
       verdict: if(overall, do: "VERIFIED_AI_AGENT", else: "CHALLENGE_FAILED"),
       lineCount: %{pass: line_pass, actual: line_actual, target: line_target}

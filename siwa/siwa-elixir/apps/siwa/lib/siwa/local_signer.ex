@@ -22,7 +22,10 @@ defmodule Siwa.LocalSigner do
     %__MODULE__{
       private_key: private_key,
       public_key: public_key,
-      address: Keyword.get_lazy(opts, :address, fn -> Crypto.address_from_public_key(Crypto.decode_hex!(public_key)) end),
+      address:
+        Keyword.get_lazy(opts, :address, fn ->
+          Crypto.address_from_public_key(Crypto.decode_hex!(public_key))
+        end),
       signer_type: Keyword.get(opts, :signer_type, "eoa")
     }
   end

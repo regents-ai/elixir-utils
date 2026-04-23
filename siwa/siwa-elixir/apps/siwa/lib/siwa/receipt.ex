@@ -33,7 +33,10 @@ defmodule Siwa.Receipt do
         Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :receipt_secret))
       end)
 
-    now_ms = opts |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end) |> DateTime.to_unix(:millisecond)
+    now_ms =
+      opts
+      |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
+      |> DateTime.to_unix(:millisecond)
 
     with [encoded_body, mac] <- String.split(token, ".", parts: 2),
          true <- secure_compare(mac, sign(encoded_body, secret)),
@@ -55,7 +58,8 @@ defmodule Siwa.Receipt do
   end
 
   defp secure_compare(left, right) when byte_size(left) == byte_size(right) do
-    :crypto.hash(:sha256, left) == :crypto.hash(:sha256, right) and Plug.Crypto.secure_compare(left, right)
+    :crypto.hash(:sha256, left) == :crypto.hash(:sha256, right) and
+      Plug.Crypto.secure_compare(left, right)
   end
 
   defp secure_compare(_, _), do: false

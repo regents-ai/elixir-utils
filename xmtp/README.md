@@ -1,7 +1,7 @@
 # XmtpElixirSdk
 
-[Hex package](https://hex.pm/packages/xmtp_elixir_sdk/0.1.0)
-[Docs](https://hexdocs.pm/xmtp_elixir_sdk/0.1.0)
+[Hex package](https://hex.pm/packages/xmtp_elixir_sdk)
+[Docs](https://hexdocs.pm/xmtp_elixir_sdk)
 [Changelog](CHANGELOG.md)
 
 `xmtp_elixir_sdk` is an Elixir-first XMTP SDK for apps that want to work with
@@ -45,7 +45,7 @@ Add the dependency to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:xmtp_elixir_sdk, "~> 0.1.0"}
+    {:xmtp_elixir_sdk, "~> 0.1.1"}
   ]
 end
 ```

@@ -54,7 +54,10 @@ defmodule XmtpElixirSdk.Conversations do
   @spec get_dm_by_inbox_id(Client.t(), String.t()) ::
           {:ok, Conversation.t() | nil} | {:error, Error.t()}
   def get_dm_by_inbox_id(%Client{} = client, inbox_id) do
-    with {:ok, conversations} <- ConversationServer.list_conversations(client, %Types.ListConversationsOptions{conversation_type: :dm}) do
+    with {:ok, conversations} <-
+           ConversationServer.list_conversations(client, %Types.ListConversationsOptions{
+             conversation_type: :dm
+           }) do
       conversation =
         Enum.find(conversations, fn conversation ->
           Enum.any?(conversation.members, &(&1.inbox_id == inbox_id))
@@ -102,9 +105,17 @@ defmodule XmtpElixirSdk.Conversations do
     end
   end
 
-  @spec create_group_with_identifiers(Client.t(), [Types.Identifier.t()], Types.CreateGroupOptions.t() | nil) ::
+  @spec create_group_with_identifiers(
+          Client.t(),
+          [Types.Identifier.t()],
+          Types.CreateGroupOptions.t() | nil
+        ) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def create_group_with_identifiers(%Client{} = client, identifiers, opts \\ %Types.CreateGroupOptions{}) do
+  def create_group_with_identifiers(
+        %Client{} = client,
+        identifiers,
+        opts \\ %Types.CreateGroupOptions{}
+      ) do
     with {:ok, inbox_ids} <- resolve_inbox_ids(client, identifiers) do
       create_group(client, inbox_ids, opts)
     end
@@ -124,7 +135,11 @@ defmodule XmtpElixirSdk.Conversations do
     end
   end
 
-  @spec create_dm_with_identifier(Client.t(), Types.Identifier.t(), Types.CreateDmOptions.t() | nil) ::
+  @spec create_dm_with_identifier(
+          Client.t(),
+          Types.Identifier.t(),
+          Types.CreateDmOptions.t() | nil
+        ) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
   def create_dm_with_identifier(%Client{} = client, identifier, opts \\ %Types.CreateDmOptions{}) do
     with {:ok, inbox_id} <- resolve_inbox_id(client, identifier) do

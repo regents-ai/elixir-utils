@@ -22,13 +22,23 @@ defmodule XmtpElixirSdk.Sync do
   @spec send_sync_request(Client.t(), Types.ArchiveOptions.t(), String.t()) ::
           {:ok, :ok} | {:error, Error.t()}
   def send_sync_request(%Client{} = client, options \\ %Types.ArchiveOptions{}, server_url \\ nil) do
-    SyncServer.send_sync_request(client, options, server_url || Types.history_sync_url(client.env || :dev))
+    SyncServer.send_sync_request(
+      client,
+      options,
+      server_url || Types.history_sync_url(client.env || :dev)
+    )
+
     {:ok, :ok}
   end
 
   @spec send_sync_archive(Client.t(), String.t(), Types.ArchiveOptions.t(), String.t()) ::
           {:ok, :ok} | {:error, Error.t()}
-  def send_sync_archive(%Client{} = client, pin, options \\ %Types.ArchiveOptions{}, server_url \\ nil) do
+  def send_sync_archive(
+        %Client{} = client,
+        pin,
+        options \\ %Types.ArchiveOptions{},
+        server_url \\ nil
+      ) do
     with {:ok, conversations} <- ConversationServer.member_conversations(client) do
       :ok =
         SyncServer.send_sync_archive(

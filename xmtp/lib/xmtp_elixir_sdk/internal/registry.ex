@@ -13,7 +13,8 @@ defmodule XmtpElixirSdk.Internal.Registry do
   def reset!(name), do: GenServer.call(name, :reset)
 
   @spec subscribe(atom(), term(), pid()) :: :ok
-  def subscribe(name, topic, subscriber), do: GenServer.call(name, {:subscribe, topic, subscriber})
+  def subscribe(name, topic, subscriber),
+    do: GenServer.call(name, {:subscribe, topic, subscriber})
 
   @spec unsubscribe(atom(), term(), pid()) :: :ok
   def unsubscribe(name, topic, subscriber),
@@ -41,7 +42,12 @@ defmodule XmtpElixirSdk.Internal.Registry do
 
   def handle_call({:unsubscribe, topic, subscriber}, _from, state) do
     subscribers = Map.get(state.topics, topic, MapSet.new()) |> MapSet.delete(subscriber)
-    topics = if MapSet.size(subscribers) == 0, do: Map.delete(state.topics, topic), else: Map.put(state.topics, topic, subscribers)
+
+    topics =
+      if MapSet.size(subscribers) == 0,
+        do: Map.delete(state.topics, topic),
+        else: Map.put(state.topics, topic, subscribers)
+
     state = maybe_drop_monitor(%{state | topics: topics}, subscriber)
     {:reply, :ok, state}
   end
@@ -72,14 +78,19 @@ defmodule XmtpElixirSdk.Internal.Registry do
 
   defp ensure_monitor(state, subscriber) do
     case Map.fetch(state.monitors, subscriber) do
-      {:ok, _ref} -> state
-      :error -> %{state | monitors: Map.put(state.monitors, subscriber, Process.monitor(subscriber))}
+      {:ok, _ref} ->
+        state
+
+      :error ->
+        %{state | monitors: Map.put(state.monitors, subscriber, Process.monitor(subscriber))}
     end
   end
 
   defp maybe_drop_monitor(state, subscriber) do
     still_subscribed? =
-      Enum.any?(state.topics, fn {_topic, subscribers} -> MapSet.member?(subscribers, subscriber) end)
+      Enum.any?(state.topics, fn {_topic, subscribers} ->
+        MapSet.member?(subscribers, subscriber)
+      end)
 
     if still_subscribed? do
       state

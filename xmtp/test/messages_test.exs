@@ -8,6 +8,7 @@ defmodule XmtpElixirSdk.MessagesTest do
   alias XmtpElixirSdk.DecodedMessage
   alias XmtpElixirSdk.Events
   alias XmtpElixirSdk.Messages
+
   defmodule DemoCodec do
     alias XmtpElixirSdk.Types.ContentTypeId
 
@@ -43,7 +44,10 @@ defmodule XmtpElixirSdk.MessagesTest do
     assert Enum.any?(messages, &DecodedMessage.text?/1)
 
     assert :ok = Messages.publish(dm)
-    assert_receive {:xmtp, ^topic, %Events.MessagePublished{conversation_id: conversation_id}}, 500
+
+    assert_receive {:xmtp, ^topic, %Events.MessagePublished{conversation_id: conversation_id}},
+                   500
+
     assert conversation_id == dm.id
   end
 

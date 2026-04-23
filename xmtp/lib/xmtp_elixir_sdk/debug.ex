@@ -16,7 +16,8 @@ defmodule XmtpElixirSdk.Debug do
   def api_identity_statistics(%Client{} = client), do: StatsServer.api_identity_statistics(client)
 
   @spec api_aggregate_statistics(Client.t()) :: {:ok, String.t()} | {:error, Error.t()}
-  def api_aggregate_statistics(%Client{} = client), do: StatsServer.api_aggregate_statistics(client)
+  def api_aggregate_statistics(%Client{} = client),
+    do: StatsServer.api_aggregate_statistics(client)
 
   @spec clear_all_statistics(Client.t()) :: :ok | {:error, Error.t()}
   def clear_all_statistics(%Client{} = client), do: StatsServer.clear_all_statistics(client)

@@ -83,7 +83,11 @@ defmodule XmtpElixirSdk.Messages do
   def send_remote_attachment(conversation, attachment, is_optimistic \\ false),
     do: send(conversation, attachment, is_optimistic: is_optimistic)
 
-  @spec send_multi_remote_attachment(Conversation.t(), Content.MultiRemoteAttachment.t(), boolean()) ::
+  @spec send_multi_remote_attachment(
+          Conversation.t(),
+          Content.MultiRemoteAttachment.t(),
+          boolean()
+        ) ::
           {:ok, String.t()} | {:error, Error.t()}
   def send_multi_remote_attachment(conversation, attachment, is_optimistic \\ false),
     do: send(conversation, attachment, is_optimistic: is_optimistic)
@@ -114,11 +118,16 @@ defmodule XmtpElixirSdk.Messages do
     do: send_reply(conversation, Content.encode_text_reply(reference_id, text), is_optimistic)
 
   @spec publish(Conversation.t()) :: :ok | {:error, Error.t()}
-  def publish(%Conversation{client: client, id: id}), do: ConversationServer.publish_messages(client, id)
+  def publish(%Conversation{client: client, id: id}),
+    do: ConversationServer.publish_messages(client, id)
 
   @spec list(Conversation.t(), Types.ListMessagesOptions.t() | nil, CodecRegistry.t()) ::
           {:ok, [DecodedMessage.t()]} | {:error, Error.t()}
-  def list(%Conversation{client: client, id: id}, opts \\ %Types.ListMessagesOptions{}, registry \\ CodecRegistry.new()) do
+  def list(
+        %Conversation{client: client, id: id},
+        opts \\ %Types.ListMessagesOptions{},
+        registry \\ CodecRegistry.new()
+      ) do
     with {:ok, messages} <- ConversationServer.list_messages(client, id, opts) do
       {:ok, Enum.map(messages, &DecodedMessage.from_message(&1, registry))}
     end

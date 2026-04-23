@@ -53,27 +53,38 @@ defmodule XmtpElixirSdk.Groups do
   end
 
   @spec permissions(Conversation.t()) :: {:ok, Types.Permissions.t()} | {:error, Error.t()}
-  def permissions(%Conversation{permissions: permissions}), do: {:ok, permissions || Types.default_permissions()}
+  def permissions(%Conversation{permissions: permissions}),
+    do: {:ok, permissions || Types.default_permissions()}
 
   @spec update_permission(Conversation.t(), atom(), atom(), Types.metadata_field() | nil) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
-  def update_permission(%Conversation{client: client, id: id}, update_type, policy, metadata_field \\ nil) do
-    with {:ok, updated} <- ConversationServer.update_permission(client, id, update_type, policy, metadata_field) do
+  def update_permission(
+        %Conversation{client: client, id: id},
+        update_type,
+        policy,
+        metadata_field \\ nil
+      ) do
+    with {:ok, updated} <-
+           ConversationServer.update_permission(client, id, update_type, policy, metadata_field) do
       {:ok, Conversation.from_record(client, updated)}
     end
   end
 
   @spec list_admins(Conversation.t()) :: {:ok, [String.t()]} | {:error, Error.t()}
-  def list_admins(%Conversation{client: client, id: id}), do: ConversationServer.list_admins(client, id)
+  def list_admins(%Conversation{client: client, id: id}),
+    do: ConversationServer.list_admins(client, id)
 
   @spec list_super_admins(Conversation.t()) :: {:ok, [String.t()]} | {:error, Error.t()}
-  def list_super_admins(%Conversation{client: client, id: id}), do: ConversationServer.list_super_admins(client, id)
+  def list_super_admins(%Conversation{client: client, id: id}),
+    do: ConversationServer.list_super_admins(client, id)
 
   @spec is_admin(Conversation.t(), String.t()) :: {:ok, boolean()} | {:error, Error.t()}
-  def is_admin(%Conversation{client: client, id: id}, inbox_id), do: ConversationServer.is_admin(client, id, inbox_id)
+  def is_admin(%Conversation{client: client, id: id}, inbox_id),
+    do: ConversationServer.is_admin(client, id, inbox_id)
 
   @spec is_super_admin(Conversation.t(), String.t()) :: {:ok, boolean()} | {:error, Error.t()}
-  def is_super_admin(%Conversation{client: client, id: id}, inbox_id), do: ConversationServer.is_super_admin(client, id, inbox_id)
+  def is_super_admin(%Conversation{client: client, id: id}, inbox_id),
+    do: ConversationServer.is_super_admin(client, id, inbox_id)
 
   @spec add_members_by_identifiers(Conversation.t(), [Types.Identifier.t()]) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
@@ -83,7 +94,8 @@ defmodule XmtpElixirSdk.Groups do
     end
   end
 
-  @spec add_members(Conversation.t(), [String.t()]) :: {:ok, Conversation.t()} | {:error, Error.t()}
+  @spec add_members(Conversation.t(), [String.t()]) ::
+          {:ok, Conversation.t()} | {:error, Error.t()}
   def add_members(%Conversation{client: client, id: id}, inbox_ids) do
     with {:ok, updated} <- ConversationServer.add_members(client, id, inbox_ids) do
       {:ok, Conversation.from_record(client, updated)}
@@ -145,7 +157,8 @@ defmodule XmtpElixirSdk.Groups do
   end
 
   @spec is_pending_removal(Conversation.t()) :: {:ok, boolean()} | {:error, Error.t()}
-  def is_pending_removal(%Conversation{client: client, id: id}), do: ConversationServer.is_pending_removal(client, id)
+  def is_pending_removal(%Conversation{client: client, id: id}),
+    do: ConversationServer.is_pending_removal(client, id)
 
   @spec message_disappearing_settings(Conversation.t()) ::
           {:ok, Types.DisappearingSettings.t() | nil} | {:error, Error.t()}
@@ -153,10 +166,19 @@ defmodule XmtpElixirSdk.Groups do
     ConversationServer.conversation_disappearing_settings(client, id)
   end
 
-  @spec update_message_disappearing_settings(Conversation.t(), non_neg_integer(), non_neg_integer()) ::
+  @spec update_message_disappearing_settings(
+          Conversation.t(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) ::
           {:ok, Conversation.t()} | {:error, Error.t()}
   def update_message_disappearing_settings(%Conversation{client: client, id: id}, from_ns, in_ns) do
-    with {:ok, updated} <- ConversationServer.update_disappearing_settings(client, id, %Types.DisappearingSettings{from_ns: from_ns, in_ns: in_ns}) do
+    with {:ok, updated} <-
+           ConversationServer.update_disappearing_settings(
+             client,
+             id,
+             %Types.DisappearingSettings{from_ns: from_ns, in_ns: in_ns}
+           ) do
       {:ok, Conversation.from_record(client, updated)}
     end
   end
@@ -176,16 +198,21 @@ defmodule XmtpElixirSdk.Groups do
   end
 
   @spec paused_for_version(Conversation.t()) :: {:ok, String.t() | nil} | {:error, Error.t()}
-  def paused_for_version(%Conversation{client: client, id: id}), do: ConversationServer.paused_for_version(client, id)
+  def paused_for_version(%Conversation{client: client, id: id}),
+    do: ConversationServer.paused_for_version(client, id)
 
   @spec hmac_keys(Conversation.t()) :: {:ok, [Types.HmacKeyEntry.t()]} | {:error, Error.t()}
-  def hmac_keys(%Conversation{client: client, id: id}), do: ConversationServer.hmac_keys(client, id)
+  def hmac_keys(%Conversation{client: client, id: id}),
+    do: ConversationServer.hmac_keys(client, id)
 
-  @spec debug_info(Conversation.t()) :: {:ok, Types.ConversationDebugInfo.t()} | {:error, Error.t()}
-  def debug_info(%Conversation{client: client, id: id}), do: ConversationServer.conversation_debug_info(client, id)
+  @spec debug_info(Conversation.t()) ::
+          {:ok, Types.ConversationDebugInfo.t()} | {:error, Error.t()}
+  def debug_info(%Conversation{client: client, id: id}),
+    do: ConversationServer.conversation_debug_info(client, id)
 
   @spec last_read_times(Conversation.t()) :: {:ok, [Types.LastReadTime.t()]} | {:error, Error.t()}
-  def last_read_times(%Conversation{client: client, id: id}), do: ConversationServer.last_read_times(client, id)
+  def last_read_times(%Conversation{client: client, id: id}),
+    do: ConversationServer.last_read_times(client, id)
 
   defp update(client, id, field, value) do
     with {:ok, updated} <- ConversationServer.update_conversation_field(client, id, field, value) do

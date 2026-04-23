@@ -4,6 +4,8 @@ All notable changes to `xmtp_elixir_sdk` should be recorded here.
 
 ## Unreleased
 
+## 0.1.1 - 2026-04-22
+
 ### Changed
 
 - Storage operations now classify filesystem failures as I/O errors.

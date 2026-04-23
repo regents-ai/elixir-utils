@@ -18,7 +18,8 @@ defmodule XmtpElixirSdk.Internal.StatsServer do
   @spec bump_api(XmtpElixirSdk.Runtime.t() | XmtpElixirSdk.Client.t() | atom(), atom()) :: :ok
   def bump_api(runtime, key), do: GenServer.cast(Names.stats_server(runtime), {:bump_api, key})
 
-  @spec bump_identity(XmtpElixirSdk.Runtime.t() | XmtpElixirSdk.Client.t() | atom(), atom()) :: :ok
+  @spec bump_identity(XmtpElixirSdk.Runtime.t() | XmtpElixirSdk.Client.t() | atom(), atom()) ::
+          :ok
   def bump_identity(runtime, key),
     do: GenServer.cast(Names.stats_server(runtime), {:bump_identity, key})
 
@@ -51,8 +52,12 @@ defmodule XmtpElixirSdk.Internal.StatsServer do
   end
 
   def handle_call(:api_statistics, _from, state), do: {:reply, {:ok, state.api}, state}
-  def handle_call(:api_identity_statistics, _from, state), do: {:reply, {:ok, state.identity}, state}
-  def handle_call(:api_aggregate_statistics, _from, state), do: {:reply, {:ok, inspect(state)}, state}
+
+  def handle_call(:api_identity_statistics, _from, state),
+    do: {:reply, {:ok, state.identity}, state}
+
+  def handle_call(:api_aggregate_statistics, _from, state),
+    do: {:reply, {:ok, inspect(state)}, state}
 
   def handle_call(:clear_all_statistics, _from, _state) do
     {:reply, :ok, %{api: %Types.ApiStats{}, identity: %Types.IdentityStats{}}}

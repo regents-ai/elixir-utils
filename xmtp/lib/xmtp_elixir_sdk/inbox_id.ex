@@ -21,7 +21,8 @@ defmodule XmtpElixirSdk.InboxId do
     Clients.fetch_inbox_id_by_identifier(runtime, identifier)
   end
 
-  @spec known?(Runtime.t() | atom(), Types.Identifier.t()) :: {:ok, boolean()} | {:error, Error.t()}
+  @spec known?(Runtime.t() | atom(), Types.Identifier.t()) ::
+          {:ok, boolean()} | {:error, Error.t()}
   def known?(runtime, %Types.Identifier{} = identifier) do
     with {:ok, inbox_id} <- fetch(runtime, identifier) do
       {:ok, not is_nil(inbox_id)}

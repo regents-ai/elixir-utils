@@ -87,7 +87,9 @@ defmodule XmtpElixirSdk.Conversation do
 
   @spec created_at(t()) :: DateTime.t() | nil
   def created_at(%__MODULE__{created_at_ns: nil}), do: nil
-  def created_at(%__MODULE__{created_at_ns: created_at_ns}), do: XmtpDate.ns_to_datetime(created_at_ns)
+
+  def created_at(%__MODULE__{created_at_ns: created_at_ns}),
+    do: XmtpDate.ns_to_datetime(created_at_ns)
 
   @spec topic(t()) :: String.t()
   def topic(%__MODULE__{id: id}), do: "/xmtp/mls/1/g-#{id}/proto"

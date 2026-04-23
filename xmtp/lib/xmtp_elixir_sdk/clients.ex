@@ -83,13 +83,17 @@ defmodule XmtpElixirSdk.Clients do
   @spec unsafe_revoke_installations_signature_text(Client.t(), [String.t()]) ::
           {:ok, map()} | {:error, Error.t()}
   def unsafe_revoke_installations_signature_text(%Client{} = client, installation_ids) do
-    IdentityServer.create_signature_request(client, :revoke_installations, %{installation_ids: installation_ids})
+    IdentityServer.create_signature_request(client, :revoke_installations, %{
+      installation_ids: installation_ids
+    })
   end
 
   @spec unsafe_change_recovery_identifier_signature_text(Client.t(), Types.Identifier.t()) ::
           {:ok, map()} | {:error, Error.t()}
   def unsafe_change_recovery_identifier_signature_text(%Client{} = client, identifier) do
-    IdentityServer.create_signature_request(client, :change_recovery_identifier, %{identifier: identifier})
+    IdentityServer.create_signature_request(client, :change_recovery_identifier, %{
+      identifier: identifier
+    })
   end
 
   @spec unsafe_apply_signature_request(Client.t(), String.t(), map()) :: :ok | {:error, Error.t()}
@@ -99,35 +103,41 @@ defmodule XmtpElixirSdk.Clients do
 
   @spec unsafe_add_account(Client.t(), Types.Identifier.t(), map()) :: :ok | {:error, Error.t()}
   def unsafe_add_account(%Client{} = client, identifier, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <- unsafe_add_account_signature_text(client, identifier) do
+    with {:ok, %{signature_request_id: signature_request_id}} <-
+           unsafe_add_account_signature_text(client, identifier) do
       unsafe_apply_signature_request(client, signature_request_id, signer)
     end
   end
 
   @spec remove_account(Client.t(), Types.Identifier.t(), map()) :: :ok | {:error, Error.t()}
   def remove_account(%Client{} = client, identifier, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <- unsafe_remove_account_signature_text(client, identifier) do
+    with {:ok, %{signature_request_id: signature_request_id}} <-
+           unsafe_remove_account_signature_text(client, identifier) do
       unsafe_apply_signature_request(client, signature_request_id, signer)
     end
   end
 
   @spec revoke_all_other_installations(Client.t(), map()) :: :ok | {:error, Error.t()}
   def revoke_all_other_installations(%Client{} = client, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <- unsafe_revoke_all_other_installations_signature_text(client) do
+    with {:ok, %{signature_request_id: signature_request_id}} <-
+           unsafe_revoke_all_other_installations_signature_text(client) do
       unsafe_apply_signature_request(client, signature_request_id, signer)
     end
   end
 
   @spec revoke_installations(Client.t(), [String.t()], map()) :: :ok | {:error, Error.t()}
   def revoke_installations(%Client{} = client, installation_ids, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <- unsafe_revoke_installations_signature_text(client, installation_ids) do
+    with {:ok, %{signature_request_id: signature_request_id}} <-
+           unsafe_revoke_installations_signature_text(client, installation_ids) do
       unsafe_apply_signature_request(client, signature_request_id, signer)
     end
   end
 
-  @spec change_recovery_identifier(Client.t(), Types.Identifier.t(), map()) :: :ok | {:error, Error.t()}
+  @spec change_recovery_identifier(Client.t(), Types.Identifier.t(), map()) ::
+          :ok | {:error, Error.t()}
   def change_recovery_identifier(%Client{} = client, identifier, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <- unsafe_change_recovery_identifier_signature_text(client, identifier) do
+    with {:ok, %{signature_request_id: signature_request_id}} <-
+           unsafe_change_recovery_identifier_signature_text(client, identifier) do
       unsafe_apply_signature_request(client, signature_request_id, signer)
     end
   end
@@ -141,12 +151,18 @@ defmodule XmtpElixirSdk.Clients do
 
   @spec can_message(Client.t() | XmtpElixirSdk.Runtime.t() | atom(), [Types.Identifier.t()]) ::
           {:ok, map()} | {:error, Error.t()}
-  def can_message(%Client{runtime: runtime}, identifiers), do: IdentityServer.can_message(runtime, identifiers)
+  def can_message(%Client{runtime: runtime}, identifiers),
+    do: IdentityServer.can_message(runtime, identifiers)
+
   def can_message(runtime, identifiers), do: IdentityServer.can_message(runtime, identifiers)
 
-  @spec fetch_inbox_id_by_identifier(Client.t() | XmtpElixirSdk.Runtime.t() | atom(), Types.Identifier.t()) ::
+  @spec fetch_inbox_id_by_identifier(
+          Client.t() | XmtpElixirSdk.Runtime.t() | atom(),
+          Types.Identifier.t()
+        ) ::
           {:ok, String.t() | nil} | {:error, Error.t()}
-  def fetch_inbox_id_by_identifier(%Client{runtime: runtime}, identifier), do: fetch_inbox_id_by_identifier(runtime, identifier)
+  def fetch_inbox_id_by_identifier(%Client{runtime: runtime}, identifier),
+    do: fetch_inbox_id_by_identifier(runtime, identifier)
 
   def fetch_inbox_id_by_identifier(runtime, identifier) do
     case IdentityServer.get_inbox_id_for_identifier(runtime, identifier) do
@@ -182,19 +198,25 @@ defmodule XmtpElixirSdk.Clients do
   @spec verify_signed_with_public_key(Client.t(), String.t(), binary(), binary()) ::
           {:ok, boolean()} | {:error, Error.t()}
   def verify_signed_with_public_key(%Client{}, signature_text, signature_bytes, public_key) do
-    expected = :crypto.hash(:sha256, "#{Base.encode16(public_key, case: :lower)}:#{signature_text}")
+    expected =
+      :crypto.hash(:sha256, "#{Base.encode16(public_key, case: :lower)}:#{signature_text}")
+
     {:ok, expected == signature_bytes}
   end
 
   @spec api_statistics(Client.t()) :: {:ok, Types.ApiStats.t()} | {:error, Error.t()}
   def api_statistics(%Client{} = client), do: XmtpElixirSdk.Debug.api_statistics(client)
 
-  @spec api_identity_statistics(Client.t()) :: {:ok, Types.IdentityStats.t()} | {:error, Error.t()}
-  def api_identity_statistics(%Client{} = client), do: XmtpElixirSdk.Debug.api_identity_statistics(client)
+  @spec api_identity_statistics(Client.t()) ::
+          {:ok, Types.IdentityStats.t()} | {:error, Error.t()}
+  def api_identity_statistics(%Client{} = client),
+    do: XmtpElixirSdk.Debug.api_identity_statistics(client)
 
   @spec api_aggregate_statistics(Client.t()) :: {:ok, String.t()} | {:error, Error.t()}
-  def api_aggregate_statistics(%Client{} = client), do: XmtpElixirSdk.Debug.api_aggregate_statistics(client)
+  def api_aggregate_statistics(%Client{} = client),
+    do: XmtpElixirSdk.Debug.api_aggregate_statistics(client)
 
   @spec clear_all_statistics(Client.t()) :: :ok | {:error, Error.t()}
-  def clear_all_statistics(%Client{} = client), do: XmtpElixirSdk.Debug.clear_all_statistics(client)
+  def clear_all_statistics(%Client{} = client),
+    do: XmtpElixirSdk.Debug.clear_all_statistics(client)
 end

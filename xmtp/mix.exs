@@ -2,7 +2,7 @@ defmodule XmtpElixirSdk.MixProject do
   use Mix.Project
 
   @version "0.1.1"
-  @description "An Elixir-first XMTP SDK with a minimal browser shim for browser-only runtime concerns."
+  @description "An Elixir-first XMTP SDK backed by the official Rust XMTP SDK."
 
   def project do
     [
@@ -10,7 +10,7 @@ defmodule XmtpElixirSdk.MixProject do
       version: @version,
       elixir: "~> 1.19.5",
       start_permanent: Mix.env() == :prod,
-      compilers: Mix.compilers() ++ [:xmtp_compat],
+      compilers: Mix.compilers() ++ [:xmtp_native],
       deps: deps(),
       description: @description,
       package: package(),
@@ -33,6 +33,7 @@ defmodule XmtpElixirSdk.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:jason, "~> 1.4"},
       {:ecto, "~> 3.13"},
       {:phoenix_pubsub, "~> 2.2"},
       {:keccak_ex, "~> 0.4.2"},
@@ -44,11 +45,13 @@ defmodule XmtpElixirSdk.MixProject do
   defp aliases do
     [
       check: [
+        "cmd cargo build --manifest-path native/xmtp_native/Cargo.toml",
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format --check-formatted",
         "test"
       ],
+      "native.build": ["cmd cargo build --release --manifest-path native/xmtp_native/Cargo.toml"],
       precommit: ["check"]
     ]
   end
@@ -62,8 +65,12 @@ defmodule XmtpElixirSdk.MixProject do
         "CHANGELOG.md",
         "LICENSE",
         "README.md",
-        "compat_ebin",
+        "docs",
         "lib",
+        "native/xmtp_native/Cargo.toml",
+        "native/xmtp_native/Cargo.lock",
+        "native/xmtp_native/build.rs",
+        "native/xmtp_native/src",
         "readme-assets",
         "mix.exs"
       ],
@@ -77,7 +84,7 @@ defmodule XmtpElixirSdk.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: ["README.md", "CHANGELOG.md", "docs/phoenix-frontend-agent-guide.md"]
     ]
   end
 end

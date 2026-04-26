@@ -5,12 +5,13 @@
 [Changelog](CHANGELOG.md)
 
 `xmtp_elixir_sdk` is an Elixir-first XMTP SDK for apps that want to work with
-clients, conversations, groups, messages, consent state, and sync flows without
-having to build that surface from scratch.
+clients, conversations, groups, messages, consent state, and sync flows from
+Phoenix or general Elixir applications.
 
-This package ports the public XMTP SDK ideas into an Elixir-friendly shape. It
-aims to feel natural in Phoenix and general Elixir applications while keeping
-the core XMTP concepts recognizable.
+The production path is backed by the official Rust XMTP SDK through a supervised
+native bridge. The Elixir modules give Phoenix code a normal supervised runtime,
+plain structs, and explicit room/conversation functions while the protocol work
+stays in the upstream SDK.
 
 ![Rust source explainer](readme-assets/rust-port-explainer.png)
 
@@ -18,19 +19,19 @@ the core XMTP concepts recognizable.
 
 With this SDK you can:
 
-- create and register XMTP clients
+- create and register XMTP clients for server-owned wallets
+- reopen existing XMTP clients by address
 - open direct messages and groups
-- send and read text and structured messages
-- manage group members, admins, and permissions
-- inspect inbox state and consent state
-- export and import sync archives
-- integrate browser-only storage or worker flows through the browser shim
+- send, count, sync, and read text messages
+- inspect conversations, group members, and inbox reachability
+- keep Phoenix room behavior behind a small app wrapper
 
 ## How The SDK Is Organized
 
 The main modules are:
 
 - `XmtpElixirSdk`: top-level entrypoint and convenience helpers
+- `XmtpElixirSdk.Native`: native-backed client, conversation, and message operations
 - `XmtpElixirSdk.Clients`: client creation, registration, accounts, recovery, installations
 - `XmtpElixirSdk.Conversations`: create and find DMs and groups
 - `XmtpElixirSdk.Messages`: send, list, count, publish, and decode messages
@@ -56,136 +57,125 @@ Then fetch dependencies:
 mix deps.get
 ```
 
+The package builds its native bridge during `mix compile`. You can also build
+the release bridge directly:
+
+```bash
+mix native.build
+```
+
 ## Quick Start
 
 The smallest useful flow is:
 
 1. start a runtime
-2. create two clients
+2. create a server-owned client
 3. create a direct message
 4. send a message
 5. list messages
 
 ```elixir
-alias XmtpElixirSdk.Conversations
-alias XmtpElixirSdk.Messages
+alias XmtpElixirSdk.Native
 alias XmtpElixirSdk.Runtime
-alias XmtpElixirSdk.Types
 
 {:ok, _pid} = XmtpElixirSdk.start_runtime(name: :demo_xmtp)
 runtime = Runtime.new(:demo_xmtp)
 
-alice_identifier = %Types.Identifier{
-  identifier: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  identifier_kind: :ethereum
-}
+{:ok, client} =
+  Native.create_client(runtime,
+    private_key: System.fetch_env!("XMTP_AGENT_PRIVATE_KEY"),
+    env: :dev,
+    db_path: "priv/xmtp/demo.sqlite3",
+    app_version: "my_app/0.1.0"
+  )
 
-bob_identifier = %Types.Identifier{
-  identifier: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-  identifier_kind: :ethereum
-}
-
-{:ok, alice} = XmtpElixirSdk.create_client(runtime, alice_identifier, env: :dev)
-{:ok, _bob} = XmtpElixirSdk.create_client(runtime, bob_identifier, env: :dev)
-
-{:ok, dm} = Conversations.create_dm_with_identifier(alice, bob_identifier)
-{:ok, _message_id} = Messages.send_text(dm, "hello from elixir")
-{:ok, messages} = Messages.list(dm)
+{:ok, dm} = Native.create_dm(client, "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+{:ok, _message_id} = Native.send_text(dm, "hello from elixir")
+{:ok, messages} = Native.list_messages(dm, limit: 25, direction: :descending)
 ```
 
 ## Common Flows
 
-### Create a client
+### Create a native client
 
-Use `create_client/3` when you want a registered client immediately:
+Use `XmtpElixirSdk.Native.create_client/2` when the server owns the wallet key
+for a room, agent, relay, or moderation worker:
 
 ```elixir
-{:ok, client} = XmtpElixirSdk.create_client(runtime, identifier, env: :dev)
+{:ok, client} =
+  XmtpElixirSdk.Native.create_client(runtime,
+    private_key: private_key,
+    env: :dev,
+    db_path: db_path,
+    app_version: "my_app/0.1.0"
+  )
 ```
 
-Use `build_client/3` when you want to create the client first and register it
-later:
+Use `build_existing_client/3` when the identity is already registered and the
+server only needs to reopen it:
 
 ```elixir
-{:ok, built} = XmtpElixirSdk.build_client(runtime, identifier, env: :dev)
-{:ok, client} = XmtpElixirSdk.Clients.register(built)
+{:ok, client} =
+  XmtpElixirSdk.Native.build_existing_client(runtime, address,
+    env: :dev,
+    db_path: db_path
+  )
 ```
 
 ### Open a direct message
 
 ```elixir
-{:ok, dm} = Conversations.create_dm_with_identifier(client, peer_identifier)
+{:ok, dm} = XmtpElixirSdk.Native.create_dm(client, peer_address)
 ```
 
 ### Create a group
 
 ```elixir
 {:ok, group} =
-  Conversations.create_group_with_identifiers(client, [bob_identifier, carol_identifier])
+  XmtpElixirSdk.Native.create_group(client, [bob_address, carol_address],
+    name: "Product Team",
+    description: "Product room"
+  )
 ```
 
-You can pass group options if you want to set a name, description, image, app
-data, or custom permissions at creation time.
+You can pass group options if you want to set a name, description, image, or app
+data at creation time.
 
 ### Send and read messages
 
 ```elixir
-{:ok, _message_id} = Messages.send_text(group, "hello group")
-{:ok, listed} = Messages.list(group)
-{:ok, count} = Messages.count(group)
+{:ok, _message_id} = XmtpElixirSdk.Native.send_text(group, "hello group")
+{:ok, listed} = XmtpElixirSdk.Native.list_messages(group, limit: 50)
+{:ok, count} = XmtpElixirSdk.Native.count_messages(group)
 ```
 
-The messages module also supports markdown, replies, reactions, read receipts,
-attachments, actions, intents, transaction references, and wallet-send calls.
-
-### Manage a group
+### Inspect a group
 
 ```elixir
-alias XmtpElixirSdk.Groups
-
-{:ok, renamed} = Groups.update_name(group, "Product Team")
-{:ok, updated} = Groups.add_members(group, ["some-inbox-id"])
-{:ok, admins} = Groups.list_admins(group)
+{:ok, members} = XmtpElixirSdk.Native.members(group)
+{:ok, synced} = XmtpElixirSdk.Native.sync_conversation(group)
 ```
 
-### Read inbox state and consent
+### Check reachability
 
 ```elixir
-alias XmtpElixirSdk.Preferences
-
-{:ok, inbox_state} = Preferences.inbox_state(client)
-{:ok, :ok} = Preferences.set_consent_states(client, [%{entity: client.inbox_id, state: :allowed}])
-{:ok, state} = Preferences.get_consent_state(client, :inbox_id, client.inbox_id)
+{:ok, result} = XmtpElixirSdk.Native.can_message(client, [peer_address])
+{:ok, inbox_id} = XmtpElixirSdk.Native.inbox_id_for(client, peer_address)
 ```
 
-Inbox consent uses `%{entity: "...", state: ...}`. Group consent uses
-`%{group_id: "...", state: ...}`.
-
-### Work with archives and device sync
+### List and sync conversations
 
 ```elixir
-alias XmtpElixirSdk.Sync
-
-key = <<1, 2, 3>>
-{:ok, archive} = Sync.create_archive(client, key)
-{:ok, metadata} = Sync.archive_metadata(client, archive, key)
-{:ok, :ok} = Sync.import_archive(client, archive, key)
+{:ok, _result} = XmtpElixirSdk.Native.sync_all(client)
+{:ok, conversations} = XmtpElixirSdk.Native.list_conversations(client, conversation_type: :group)
 ```
 
 ## Browser Wallet Signing
 
-Browser wallet integration belongs at the app layer.
-
-The SDK stays neutral about which wallet you use. The usual pattern is:
-
-1. create or build the client you want to act as
-2. ask the SDK for the signature request text
-3. have the wallet sign that exact text
-4. send the signature result back to your app
-5. apply the signature request through the SDK
-
-That lets Phoenix and other Elixir apps use browser wallets without pushing
-wallet-specific code into the core package.
+Browser wallet integration belongs at the app layer. For user-owned wallets,
+keep the wallet approval in the browser and call your Phoenix wrapper after the
+person approves the action. For server-owned wallets, use `XmtpElixirSdk.Native`
+from supervised server code.
 
 ## Browser Shim
 
@@ -194,6 +184,13 @@ actions and browser-managed storage requests. It is not bundled into the Hex
 package as a runtime dependency.
 
 If your app runs fully on the server, you can usually ignore it.
+
+## Phoenix Rooms
+
+Phoenix apps should keep room mechanics behind an app wrapper and render from
+the room panel the wrapper returns. See
+[`docs/phoenix-frontend-agent-guide.md`](docs/phoenix-frontend-agent-guide.md)
+for the frontend agent rules.
 
 ## Environment Helpers
 

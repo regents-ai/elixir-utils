@@ -7,7 +7,14 @@ defmodule XmtpElixirSdk.Runtime do
 
   alias XmtpElixirSdk.Internal.Names
   alias XmtpElixirSdk.Internal.Registry
-  alias XmtpElixirSdk.Internal.{ConversationServer, IdentityServer, StatsServer, SyncServer}
+
+  alias XmtpElixirSdk.Internal.{
+    ConversationServer,
+    IdentityServer,
+    NativePort,
+    StatsServer,
+    SyncServer
+  }
 
   defstruct [:name]
 
@@ -54,6 +61,7 @@ defmodule XmtpElixirSdk.Runtime do
       {IdentityServer, name: Names.identity_server(name), runtime: name},
       {ConversationServer, name: Names.conversation_server(name), runtime: name},
       {SyncServer, name: Names.sync_server(name), runtime: name},
+      {NativePort, name: Names.native_port(name)},
       {StatsServer, name: Names.stats_server(name)}
     ]
 

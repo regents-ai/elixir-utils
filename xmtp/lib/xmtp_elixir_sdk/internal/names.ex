@@ -23,6 +23,9 @@ defmodule XmtpElixirSdk.Internal.Names do
   @spec stats_server(Runtime.t() | Client.t() | Conversation.t() | atom()) :: atom()
   def stats_server(runtime), do: Module.concat(runtime_name(runtime), StatsServer)
 
+  @spec native_port(Runtime.t() | Client.t() | Conversation.t() | atom()) :: atom()
+  def native_port(runtime), do: Module.concat(runtime_name(runtime), NativePort)
+
   @spec registry(Runtime.t() | Client.t() | Conversation.t() | atom()) :: atom()
   def registry(runtime), do: Module.concat(runtime_name(runtime), Registry)
 end

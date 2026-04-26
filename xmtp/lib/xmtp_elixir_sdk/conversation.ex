@@ -85,6 +85,26 @@ defmodule XmtpElixirSdk.Conversation do
     }
   end
 
+  @spec from_native_record(Client.t(), map()) :: t()
+  def from_native_record(%Client{} = client, record) do
+    %__MODULE__{
+      runtime: client.runtime,
+      client: client,
+      id: Map.fetch!(record, "id"),
+      created_at_ns: Map.get(record, "created_at_ns"),
+      metadata: native_metadata(record),
+      added_by_inbox_id: Map.get(record, "added_by_inbox_id"),
+      conversation_type: native_conversation_type(Map.get(record, "conversation_type")),
+      name: Map.get(record, "name"),
+      description: Map.get(record, "description"),
+      image_url: Map.get(record, "image_url"),
+      app_data: Map.get(record, "app_data"),
+      members: [],
+      admins: Map.get(record, "admins", []),
+      super_admins: Map.get(record, "super_admins", [])
+    }
+  end
+
   @spec created_at(t()) :: DateTime.t() | nil
   def created_at(%__MODULE__{created_at_ns: nil}), do: nil
 
@@ -93,4 +113,20 @@ defmodule XmtpElixirSdk.Conversation do
 
   @spec topic(t()) :: String.t()
   def topic(%__MODULE__{id: id}), do: "/xmtp/mls/1/g-#{id}/proto"
+
+  defp native_metadata(%{"creator_inbox_id" => creator, "conversation_type" => type})
+       when is_binary(creator) do
+    %Types.ConversationMetadata{
+      creator_inbox_id: creator,
+      conversation_type: native_conversation_type(type)
+    }
+  end
+
+  defp native_metadata(_record), do: nil
+
+  defp native_conversation_type("Dm"), do: :dm
+  defp native_conversation_type("Group"), do: :group
+  defp native_conversation_type("Sync"), do: :sync
+  defp native_conversation_type("Oneshot"), do: :oneshot
+  defp native_conversation_type(_type), do: nil
 end

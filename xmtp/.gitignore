@@ -13,6 +13,9 @@
 # Temporary files, for example, from tests.
 /tmp/
 
+# Native Rust build output.
+/native/xmtp_native/target/
+
 # Local planning notes and agent workspace files should stay out of the repo.
 .codex/
 .claude/

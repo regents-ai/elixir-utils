@@ -5,27 +5,37 @@ defmodule Siwa.ReceiptTest do
     {:ok, receipt} =
       Siwa.Receipt.create(
         %{
-          "address" => "0x123",
-          "agentId" => 9,
-          "agentRegistry" => "eip155:84532:0xregistry",
-          "chainId" => 84532
+          "typ" => "siwa_receipt",
+          "jti" => "receipt-test",
+          "sub" => "0x123",
+          "aud" => "techtree",
+          "chain_id" => 84532,
+          "nonce" => "nonce-test",
+          "key_id" => "0x123",
+          "registry_address" => "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+          "token_id" => "9"
         },
         secret: "secret"
       )
 
     assert {:ok, payload} = Siwa.Receipt.verify(receipt.token, secret: "secret")
-    assert payload["agentId"] == 9
+    assert payload["sub"] == "0x123"
+    assert payload["token_id"] == "9"
   end
 
   test "rejects a receipt for the wrong audience" do
     {:ok, receipt} =
       Siwa.Receipt.create(
         %{
-          "address" => "0x123",
-          "agentId" => 9,
-          "agentRegistry" => "eip155:84532:0xregistry",
-          "chainId" => 84532,
-          "aud" => "techtree"
+          "typ" => "siwa_receipt",
+          "jti" => "receipt-test",
+          "sub" => "0x123",
+          "aud" => "techtree",
+          "chain_id" => 84532,
+          "nonce" => "nonce-test",
+          "key_id" => "0x123",
+          "registry_address" => "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+          "token_id" => "9"
         },
         secret: "secret"
       )

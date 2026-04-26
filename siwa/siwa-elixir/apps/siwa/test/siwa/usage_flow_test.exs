@@ -31,7 +31,8 @@ defmodule Siwa.UsageFlowTest do
         %{
           address: signer.address,
           agent_id: 7,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          audience: "techtree"
         },
         nonce_secret: "nonce-secret"
       )
@@ -76,27 +77,46 @@ defmodule Siwa.UsageFlowTest do
     assert {:ok, receipt_payload} =
              Siwa.verify_receipt(verified.receipt, receipt_secret: "receipt-secret")
 
-    assert receipt_payload["address"] == signer.address
-    assert receipt_payload["agentId"] == 7
+    assert receipt_payload["sub"] == signer.address
+    assert receipt_payload["aud"] == "techtree"
+    assert receipt_payload["registry_address"] == "0x8004a818bfb912233c491871b3d84c89a494bd9e"
+    assert receipt_payload["token_id"] == "7"
 
     request = %{
       method: "POST",
-      path: "/protected",
+      path: "/protected?mode=test",
       host: "api.example.com",
-      query: "mode=test",
       body: ~s({"hello":"world"}),
       headers: %{"content-type" => "application/json"}
     }
 
     assert {:ok, signed_request} =
-             Siwa.sign_authenticated_request(request, verified.receipt, signer)
+             Siwa.sign_authenticated_request(request, verified.receipt, signer,
+               receipt_secret: "receipt-secret",
+               audience: "techtree"
+             )
 
     assert {:ok, follow_up} =
-             Siwa.verify_authenticated_request(signed_request, receipt_secret: "receipt-secret")
+             Siwa.verify_authenticated_request(signed_request,
+               receipt_secret: "receipt-secret",
+               audience: "techtree"
+             )
 
     assert follow_up.address == signer.address
-    assert follow_up.auth["path"] == "/protected"
-    assert follow_up.auth["query"] == "mode=test"
+    assert follow_up.claims["registry_address"] == "0x8004a818bfb912233c491871b3d84c89a494bd9e"
+
+    assert follow_up.covered_components == [
+             "@method",
+             "@path",
+             "x-siwa-receipt",
+             "x-key-id",
+             "x-timestamp",
+             "x-agent-wallet-address",
+             "x-agent-chain-id",
+             "content-digest",
+             "x-agent-registry-address",
+             "x-agent-token-id"
+           ]
   end
 
   test "wrong domain is rejected cleanly" do
@@ -108,7 +128,8 @@ defmodule Siwa.UsageFlowTest do
         %{
           address: signer.address,
           agent_id: 8,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          audience: "techtree"
         },
         nonce_secret: "nonce-secret"
       )
@@ -150,7 +171,8 @@ defmodule Siwa.UsageFlowTest do
                %{
                  address: signer.address,
                  agent_id: 9,
-                 agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+                 agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+                 audience: "techtree"
                },
                captcha_policy: fn _ -> "medium" end,
                captcha_secret: "captcha-secret",
@@ -172,7 +194,8 @@ defmodule Siwa.UsageFlowTest do
         %{
           address: signer.address,
           agent_id: 10,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          audience: "techtree"
         },
         nonce_secret: "nonce-secret"
       )

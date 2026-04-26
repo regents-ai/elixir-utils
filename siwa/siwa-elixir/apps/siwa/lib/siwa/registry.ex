@@ -42,7 +42,12 @@ defmodule Siwa.Registry do
   def parse_agent_registry("eip155:" <> rest) do
     case String.split(rest, ":", parts: 2) do
       [chain_id, address] ->
-        {:ok, %{namespace: "eip155", chain_id: String.to_integer(chain_id), address: address}}
+        {:ok,
+         %{
+           namespace: "eip155",
+           chain_id: String.to_integer(chain_id),
+           address: String.downcase(address)
+         }}
 
       _ ->
         {:error, :invalid_agent_registry}

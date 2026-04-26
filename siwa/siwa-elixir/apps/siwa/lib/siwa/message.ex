@@ -132,8 +132,18 @@ defmodule Siwa.Message do
       case String.split(line, ": ", parts: 2) do
         [label, value] ->
           case Enum.find(@line_labels, fn {known, _} -> known == label end) do
-            nil -> {:halt, {:error, :invalid_attribute}}
-            {_, key} -> {:cont, {:ok, Map.put(acc, key, cast_value(key, value))}}
+            nil ->
+              {:halt, {:error, :invalid_attribute}}
+
+            {_, key} ->
+              if Map.has_key?(acc, key) do
+                {:halt, {:error, :invalid_attribute}}
+              else
+                case cast_value(key, value) do
+                  {:ok, casted} -> {:cont, {:ok, Map.put(acc, key, casted)}}
+                  {:error, _reason} -> {:halt, {:error, :invalid_attribute}}
+                end
+              end
           end
 
         _ ->
@@ -142,9 +152,16 @@ defmodule Siwa.Message do
     end)
   end
 
-  defp cast_value(:agent_id, value), do: String.to_integer(value)
-  defp cast_value(:chain_id, value), do: String.to_integer(value)
-  defp cast_value(_key, value), do: value
+  defp cast_value(:agent_id, value), do: parse_positive_integer(value)
+  defp cast_value(:chain_id, value), do: parse_positive_integer(value)
+  defp cast_value(_key, value), do: {:ok, value}
+
+  defp parse_positive_integer(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> {:error, :invalid_integer}
+    end
+  end
 
   defp maybe_put_statement(map, nil), do: map
   defp maybe_put_statement(map, statement), do: Map.put(map, :statement, statement)

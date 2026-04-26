@@ -21,3 +21,9 @@ Use it as the shared implementation behind the shared SIWA contract in [`/Users/
 3. Verify the signed message and issue a receipt.
 4. Use the receipt on later authenticated requests.
 5. Keep private keys isolated behind the keyring service when needed.
+
+The current Agent account shape is mandatory: wallet, chain, registry address,
+token ID, audience, nonce, and the request body when a protected request has one.
+When a request has a query string, the signed path includes that query string.
+Receipt verification for protected requests must be called with the app audience
+that owns the request.

@@ -7,7 +7,7 @@ defmodule Siwa.Ethereum do
 
   @address_regex ~r/^0x[a-fA-F0-9]{40}$/
   @tx_hash_regex ~r/^0x[a-fA-F0-9]{64}$/
-  @positive_int_string_regex ~r/^[1-9][0-9]*$/
+  @non_negative_int_string_regex ~r/^(0|[1-9][0-9]*)$/
   @owner_of_selector "6352211e"
   @default_rpc_timeout_ms 5_000
 
@@ -142,7 +142,7 @@ defmodule Siwa.Ethereum do
   def normalize_token_id(value) when is_binary(value) do
     value = String.trim(value)
 
-    if Regex.match?(@positive_int_string_regex, value) do
+    if Regex.match?(@non_negative_int_string_regex, value) do
       {:ok, value}
     else
       {:error, :invalid_token_id}

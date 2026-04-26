@@ -1,30 +1,50 @@
 {
-  "source": "@buildersgarden/siwa@0.0.24",
+  "source": "regent-siwa-current",
   "capturedAt": "2026-04-17",
   "case": {
     "fixedNowMs": 1776465945649,
     "request": {
-      "url": "https://api.example.com/protected?mode=test",
+      "url": "https://api.example.com/protected",
       "method": "POST",
       "body": "{\"hello\":\"world\"}",
       "headers": {
         "content-type": "application/json"
       }
     },
+    "receiptPayload": {
+      "typ": "siwa_receipt",
+      "jti": "fixture-request-auth-receipt",
+      "sub": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "aud": "techtree",
+      "chain_id": 84532,
+      "nonce": "fixture-request-auth-nonce",
+      "key_id": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "registry_address": "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+      "token_id": "42",
+      "verified": "onchain",
+      "iat": 1776465945649,
+      "exp": 1776467745649
+    },
     "signedHeaders": {
       "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
       "content-type": "application/json",
-      "signature": "eth=:7bg1aa9IW6Uj8us2ztBz95LXSHmltgrI6uwoMcO+qX1BRSMBcFlOY2A1dRs5oogyJrPY2ZTKp7+k3+iPhgV3qRs=:",
-      "signature-input": "eth=(\"@authority\" \"@method\" \"@path\" \"@query\" \"content-digest\" \"X-SIWA-Receipt\");created=1776465945;expires=1776466005;nonce=\"BwcHBwcHBwcHBwcHBwcHBw\";keyid=\"erc8128:84532:0x19e7e376e7c213b7e7e7e46cc70a5dd086daff2a\"",
-      "x-siwa-receipt": "eyJhZGRyZXNzIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwiYWdlbnRJZCI6NDIsImFnZW50UmVnaXN0cnkiOiJlaXAxNTU6ODQ1MzI6MHg4MDA0QTgxOEJGQjkxMjIzM2M0OTE4NzFiM2Q4NGM4OUE0OTRCRDllIiwiY2hhaW5JZCI6ODQ1MzIsInZlcmlmaWVkIjoib25jaGFpbiIsImlhdCI6MTc3NjQ2NTk0NTY0OSwiZXhwIjoxNzc2NDY3NzQ1NjQ5fQ.Ljvg9AH1v2EM8FNPqlUhIfYx0LfNpz54dqf_vcu0Hlg"
+      "signature": "sig1=:9U9aT8M88Ic0qu4Ox+0RdqaT5usl2ekjq6a96Y8bI/wYr8/sq2aJR4KO93O+E4+VioB/Y1M0cBFAcOtq+oEzVRs=:",
+      "signature-input": "sig1=(\"@method\" \"@path\" \"x-siwa-receipt\" \"x-key-id\" \"x-timestamp\" \"x-agent-wallet-address\" \"x-agent-chain-id\" \"content-digest\" \"x-agent-registry-address\" \"x-agent-token-id\");created=1776465945;expires=1776466065;nonce=\"sig-nonce-fixture\";keyid=\"0x70997970C51812dc3A010C7d01b50e0d17dc79C8\"",
+      "x-siwa-receipt": "eyJ0eXAiOiJzaXdhX3JlY2VpcHQiLCJqdGkiOiJmaXh0dXJlLXJlcXVlc3QtYXV0aC1yZWNlaXB0Iiwic3ViIjoiMHg3MDk5Nzk3MEM1MTgxMmRjM0EwMTBDN2QwMWI1MGUwZDE3ZGM3OUM4IiwiYXVkIjoidGVjaHRyZWUiLCJjaGFpbl9pZCI6ODQ1MzIsIm5vbmNlIjoiZml4dHVyZS1yZXF1ZXN0LWF1dGgtbm9uY2UiLCJrZXlfaWQiOiIweDcwOTk3OTcwQzUxODEyZGMzQTAxMEM3ZDAxYjUwZTBkMTdkYzc5QzgiLCJyZWdpc3RyeV9hZGRyZXNzIjoiMHg4MDA0YTgxOGJmYjkxMjIzM2M0OTE4NzFiM2Q4NGM4OWE0OTRiZDllIiwidG9rZW5faWQiOiI0MiIsInZlcmlmaWVkIjoib25jaGFpbiIsImlhdCI6MTc3NjQ2NTk0NTY0OSwiZXhwIjoxNzc2NDY3NzQ1NjQ5fQ.M4XWw5XLs7zkrCvtQZEQdEDFJjGGFBT8Q_0QEhP0G5o",
+      "x-key-id": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "x-timestamp": "1776465945",
+      "x-agent-wallet-address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "x-agent-chain-id": "84532",
+      "x-agent-registry-address": "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+      "x-agent-token-id": "42"
     },
     "verified": {
       "valid": true,
       "agent": {
-        "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
-        "agentId": 42,
-        "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-        "chainId": 84532
+        "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "chain_id": 84532,
+        "registry_address": "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+        "token_id": "42"
       }
     }
   }

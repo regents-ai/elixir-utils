@@ -129,7 +129,7 @@ defmodule SiwaKeyring.Router do
 
   defp request_body(conn) do
     case conn.private[:raw_body] do
-      body when is_binary(body) and body != "" ->
+      body when is_binary(body) ->
         body
 
       _ ->

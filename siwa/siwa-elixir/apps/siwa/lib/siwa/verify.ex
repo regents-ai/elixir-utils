@@ -23,18 +23,24 @@ defmodule Siwa.Verify do
          :ok <- validate_time_window(fields, opts),
          {:ok, nonce_entry} <- validate_nonce(fields, opts),
          {:ok, verified_signature} <- validate_signature(signature, message, fields, opts),
-         {:ok, profile} <- validate_registration(fields, verified_signature, opts) do
+         {:ok, profile} <- validate_registration(fields, verified_signature, opts),
+         {:ok, registry} <- Registry.parse_agent_registry(fields.agent_registry),
+         {:ok, audience} <- nonce_audience(nonce_entry) do
+      nonce_value = nonce_entry[:nonce] || nonce_entry["nonce"]
+
       receipt_payload = %{
-        "address" => verified_signature.address,
-        "agentId" => fields.agent_id,
-        "agentRegistry" => fields.agent_registry,
-        "chainId" => fields.chain_id,
-        "verified" => "onchain"
+        "typ" => "siwa_receipt",
+        "jti" => Siwa.Nonce.generate_nonce(16),
+        "sub" => verified_signature.address,
+        "aud" => audience,
+        "chain_id" => fields.chain_id,
+        "nonce" => nonce_value,
+        "key_id" => verified_signature.address,
+        "registry_address" => registry.address,
+        "token_id" => Integer.to_string(fields.agent_id)
       }
 
       with {:ok, receipt} <- Receipt.create(receipt_payload, opts) do
-        nonce_value = nonce_entry[:nonce] || nonce_entry["nonce"]
-
         {:ok,
          %{
            status: "authenticated",
@@ -107,6 +113,10 @@ defmodule Siwa.Verify do
       opts
     )
   end
+
+  defp nonce_audience(%{audience: audience}) when is_binary(audience), do: {:ok, audience}
+  defp nonce_audience(%{"audience" => audience}) when is_binary(audience), do: {:ok, audience}
+  defp nonce_audience(_entry), do: {:error, :nonce_audience_missing}
 
   defp validate_expiration_time(fields, now) do
     case fields[:expiration_time] do

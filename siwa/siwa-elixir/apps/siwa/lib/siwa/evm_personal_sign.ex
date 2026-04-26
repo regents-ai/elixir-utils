@@ -23,6 +23,19 @@ defmodule Siwa.EvmPersonalSign do
   @spec personal_hash(term()) :: {:error, :invalid_message}
   def personal_hash(_message), do: {:error, :invalid_message}
 
+  @spec sign_personal_signature(binary(), binary()) :: {:ok, binary()} | {:error, error()}
+  def sign_personal_signature(private_key, message) when is_binary(message) do
+    with {:ok, private_key_bytes} <- private_key_bytes(private_key),
+         {:ok, {signature, recovery_id}} <-
+           ExSecp256k1.sign_compact(personal_hash(message), private_key_bytes) do
+      {:ok, "0x" <> Base.encode16(signature <> <<recovery_id + 27>>, case: :lower)}
+    else
+      _ -> {:error, :invalid_signature}
+    end
+  end
+
+  def sign_personal_signature(_private_key, _message), do: {:error, :invalid_message}
+
   @spec recover_personal_address(binary(), binary()) :: {:ok, address()} | {:error, error()}
   def recover_personal_address(message, signature) when is_binary(message) do
     message
@@ -95,6 +108,19 @@ defmodule Siwa.EvmPersonalSign do
   defp recovery_id(v) when v in [27, 28], do: {:ok, v - 27}
   defp recovery_id(v) when v >= 35, do: {:ok, rem(v - 35, 2)}
   defp recovery_id(_value), do: {:error, :invalid_recovery_id}
+
+  defp private_key_bytes("0x" <> hex) when byte_size(hex) == 64 do
+    case Base.decode16(hex, case: :mixed) do
+      {:ok, <<_::binary-size(32)>> = bytes} -> {:ok, bytes}
+      _ -> {:error, :invalid_signature}
+    end
+  end
+
+  defp private_key_bytes(hex) when is_binary(hex) and byte_size(hex) == 64 do
+    private_key_bytes("0x" <> hex)
+  end
+
+  defp private_key_bytes(_value), do: {:error, :invalid_signature}
 
   defp uncompressed_public_key(<<4, _::binary-size(64)>> = key), do: {:ok, key}
 

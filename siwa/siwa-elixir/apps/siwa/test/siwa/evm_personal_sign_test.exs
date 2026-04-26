@@ -4,7 +4,7 @@ defmodule Siwa.EvmPersonalSignTest do
   alias Siwa.EvmPersonalSign
 
   @private_key Base.decode16!("59C6995E998F97A5A0044966F094538C5F6C75A5D9E7F0B6E6A0F9F5D4D17CE4")
-  @message "world.example wants you to sign in with your Ethereum account:\n0xabc"
+  @message "world.example wants you to sign in with your Agent account:\n0xabc"
 
   test "recovers the signer address from a personal-sign signature" do
     %{address: address, signature: signature} = signed_message(@message)

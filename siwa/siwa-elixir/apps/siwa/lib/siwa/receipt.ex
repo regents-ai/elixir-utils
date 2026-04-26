@@ -65,14 +65,12 @@ defmodule Siwa.Receipt do
   defp secure_compare(_, _), do: false
 
   defp ensure_audience(payload, opts) do
-    case Keyword.get(opts, :audience) || Keyword.get(opts, :expected_audience) do
+    case Keyword.get(opts, :audience) do
       nil ->
         :ok
 
       expected ->
-        audience = payload["aud"] || payload["audience"]
-
-        if audience == expected, do: :ok, else: {:error, :invalid_receipt}
+        if payload["aud"] == expected, do: :ok, else: {:error, :invalid_receipt}
     end
   end
 end

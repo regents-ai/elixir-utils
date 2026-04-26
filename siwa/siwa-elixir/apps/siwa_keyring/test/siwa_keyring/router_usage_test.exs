@@ -62,8 +62,9 @@ defmodule SiwaKeyring.RouterUsageTest do
     assert sign_response.status == 200
 
     %{"signature" => signature} = Jason.decode!(sign_response.resp_body)
-    assert signature["address"] == address
-    assert signature["purpose"] == "personal_sign"
+    assert is_binary(signature)
+    assert String.starts_with?(signature, "0x")
+    assert byte_size(signature) == 132
   end
 
   test "router rejects requests with a bad signature" do
@@ -126,6 +127,32 @@ defmodule SiwaKeyring.RouterUsageTest do
 
     response =
       conn("POST", "/has-wallet")
+      |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+      |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
+      |> call_router()
+
+    assert response.status == 200
+    assert Jason.decode!(response.resp_body) == %{"has_wallet" => false}
+  end
+
+  test "router accepts signed requests with an empty json body" do
+    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
+    old_env = Application.get_all_env(:siwa_keyring)
+
+    Application.put_env(:siwa_keyring, :path, path)
+    Application.put_env(:siwa_keyring, :password, "router-password")
+    Application.put_env(:siwa_keyring, :secret, "router-secret")
+
+    on_exit(fn ->
+      File.rm(path)
+      Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
+    end)
+
+    headers = SiwaKeyring.Auth.compute_hmac("router-secret", "POST", "/has-wallet", "")
+
+    response =
+      conn("POST", "/has-wallet", "")
+      |> put_req_header("content-type", "application/json")
       |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
       |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
       |> call_router()
@@ -216,7 +243,9 @@ defmodule SiwaKeyring.RouterUsageTest do
           %{"address" => ^address} ->
             :ok
 
-          %{"signature" => %{"address" => ^address, "purpose" => "personal_sign"}} ->
+          %{"signature" => signature} when is_binary(signature) ->
+            assert String.starts_with?(signature, "0x")
+            assert byte_size(signature) == 132
             :ok
         end
       end

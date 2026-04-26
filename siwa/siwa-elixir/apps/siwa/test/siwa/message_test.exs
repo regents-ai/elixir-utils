@@ -44,4 +44,43 @@ defmodule Siwa.MessageTest do
     assert normalized["customField"] == "value"
     refute Map.has_key?(normalized, :customField)
   end
+
+  test "rejects duplicate message fields" do
+    message =
+      [
+        "api.example.com wants you to sign in with your Agent account:",
+        "0x123",
+        "",
+        "URI: https://api.example.com/siwa",
+        "Version: 1",
+        "Agent ID: 7",
+        "Agent Registry: eip155:84532:0xregistry",
+        "Chain ID: 84532",
+        "Nonce: abc12345",
+        "Nonce: duplicate",
+        "Issued At: 2026-04-17T00:00:00Z"
+      ]
+      |> Enum.join("\n")
+
+    assert {:error, :invalid_message} = Siwa.Message.parse(message)
+  end
+
+  test "rejects invalid numeric fields" do
+    message =
+      [
+        "api.example.com wants you to sign in with your Agent account:",
+        "0x123",
+        "",
+        "URI: https://api.example.com/siwa",
+        "Version: 1",
+        "Agent ID: abc",
+        "Agent Registry: eip155:84532:0xregistry",
+        "Chain ID: 84532",
+        "Nonce: abc12345",
+        "Issued At: 2026-04-17T00:00:00Z"
+      ]
+      |> Enum.join("\n")
+
+    assert {:error, :invalid_message} = Siwa.Message.parse(message)
+  end
 end

@@ -32,6 +32,9 @@ defmodule Siwa.EthereumTest do
   end
 
   test "builds and decodes ownerOf calls" do
+    assert {:ok, "0x6352211e0000000000000000000000000000000000000000000000000000000000000000"} =
+             Ethereum.owner_of_call_data("0")
+
     assert {:ok, "0x6352211e000000000000000000000000000000000000000000000000000000000000004d"} =
              Ethereum.owner_of_call_data("77")
 

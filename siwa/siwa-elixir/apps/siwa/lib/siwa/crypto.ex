@@ -22,13 +22,14 @@ defmodule Siwa.Crypto do
     error -> {:error, error}
   end
 
-  def sign_personal_message(private_key_hex, message, opts \\ []) do
-    signer_type = Keyword.get(opts, :signer_type, "eoa")
-    public_key_hex = Keyword.fetch!(opts, :public_key)
-    public_key = decode_hex!(public_key_hex)
-    private_key = decode_hex!(private_key_hex)
-    digest = personal_hash(message)
-    sign_digest(private_key, public_key, digest, signer_type, :personal_sign)
+  def sign_personal_message(private_key_hex, message, _opts \\ []) do
+    Siwa.EvmPersonalSign.sign_personal_signature(private_key_hex, message)
+  end
+
+  def verify_personal_message("0x" <> _ = signature, message) do
+    with {:ok, address} <- Siwa.EvmPersonalSign.recover_personal_address(message, signature) do
+      {:ok, %{address: address, signer_type: "eoa", signature: signature}}
+    end
   end
 
   def verify_personal_message(signature, message) do

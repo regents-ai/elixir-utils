@@ -11,7 +11,8 @@ defmodule Siwa.Nonce do
     issued_at = DateTime.truncate(now, :second)
     expiration_time = DateTime.add(issued_at, div(ttl_ms, 1_000), :second)
 
-    with :ok <- ensure_registry(params.agent_registry),
+    with :ok <- ensure_audience(params.audience),
+         :ok <- ensure_registry(params.agent_registry),
          :ok <- maybe_validate_registration(params, opts) do
       case maybe_handle_captcha(params, opts, now) do
         :ok ->
@@ -21,6 +22,7 @@ defmodule Siwa.Nonce do
             address: params.address,
             agent_id: params.agent_id,
             agent_registry: params.agent_registry,
+            audience: params.audience,
             issued_at: issued_at,
             expiration_time: expiration_time
           }
@@ -40,6 +42,7 @@ defmodule Siwa.Nonce do
                           "address" => params.address,
                           "agentId" => params.agent_id,
                           "agentRegistry" => params.agent_registry,
+                          "audience" => params.audience,
                           "iat" => DateTime.to_unix(issued_at, :millisecond),
                           "exp" => DateTime.to_unix(expiration_time, :millisecond)
                         },
@@ -145,6 +148,12 @@ defmodule Siwa.Nonce do
       error -> error
     end
   end
+
+  defp ensure_audience(audience) when is_binary(audience) do
+    if String.trim(audience) == "", do: {:error, :audience_required}, else: :ok
+  end
+
+  defp ensure_audience(_audience), do: {:error, :audience_required}
 
   defp maybe_handle_captcha(params, opts, now) do
     response = Map.get(params, :challenge_response) || Map.get(params, "challenge_response")
@@ -343,6 +352,7 @@ defmodule Siwa.Nonce do
 
   defp normalize_key("agentId"), do: :agent_id
   defp normalize_key("agentRegistry"), do: :agent_registry
+  defp normalize_key("audience"), do: :audience
   defp normalize_key("challengeResponse"), do: :challenge_response
   defp normalize_key("address"), do: :address
   defp normalize_key("nonce"), do: :nonce

@@ -7,9 +7,8 @@ defmodule Siwa.Plug do
   def call(conn, opts) do
     request = %{
       method: conn.method,
-      path: conn.request_path,
+      path: signed_path(conn),
       host: conn.host,
-      query: conn.query_string,
       body: conn.private[:raw_body] || conn.assigns[:raw_body] || "",
       headers: Map.new(conn.req_headers)
     }
@@ -24,4 +23,7 @@ defmodule Siwa.Plug do
         |> halt()
     end
   end
+
+  defp signed_path(%{request_path: path, query_string: ""}), do: path
+  defp signed_path(%{request_path: path, query_string: query}), do: path <> "?" <> query
 end

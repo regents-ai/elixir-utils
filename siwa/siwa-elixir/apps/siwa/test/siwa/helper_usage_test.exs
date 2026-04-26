@@ -46,7 +46,8 @@ defmodule Siwa.HelperUsageTest do
                  "customField" => "hello",
                  address: "0x123",
                  agent_id: 1,
-                 agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+                 agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+                 audience: "techtree"
                },
                store: fn _key, _nonce, _metadata, params ->
                  send(capture, {:nonce_params, params})
@@ -62,7 +63,8 @@ defmodule Siwa.HelperUsageTest do
   test "client resolver returns usable local signers" do
     assert {:ok, signer} = Siwa.ClientResolver.resolve_signer(%{provider: :local})
     assert {:ok, signed} = Siwa.LocalSigner.sign_message(signer, "hello")
-    assert signed.address == signer.address
+    assert is_binary(signed)
+    assert String.starts_with?(signed, "0x")
   end
 
   test "token-bound helper and registry helper cover the common lookups" do

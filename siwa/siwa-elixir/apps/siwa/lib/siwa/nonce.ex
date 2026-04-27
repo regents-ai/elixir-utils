@@ -75,14 +75,19 @@ defmodule Siwa.Nonce do
   end
 
   def consume(params, opts \\ []) do
-    params = normalize(params)
+    params =
+      params
+      |> normalize()
+      |> put_audience_from_opts(opts)
+
     now = Keyword.get(opts, :now, DateTime.utc_now())
 
     case Keyword.get(opts, :nonce_token) do
       nil ->
         store = Keyword.get(opts, :store, Application.fetch_env!(:siwa, :nonce_store))
 
-        with {:ok, stored} <- consume_nonce(store, params),
+        with :ok <- ensure_audience(params.audience),
+             {:ok, stored} <- consume_nonce(store, params),
              :ok <- validate_entry(stored, params, now) do
           {:ok, stored}
         end
@@ -93,7 +98,8 @@ defmodule Siwa.Nonce do
             Keyword.fetch!(opts, :secret)
           end)
 
-        with {:ok, stored} <- verify_nonce_token(token, nonce_secret: nonce_secret, now: now),
+        with :ok <- ensure_audience(params.audience),
+             {:ok, stored} <- verify_nonce_token(token, nonce_secret: nonce_secret, now: now),
              :ok <- validate_token_entry(stored, params),
              :ok <- consume_nonce_token_once(token, stored) do
           {:ok, stored}
@@ -302,6 +308,9 @@ defmodule Siwa.Nonce do
       entry.agent_registry != params.agent_registry ->
         {:error, :nonce_registry_mismatch}
 
+      entry.audience != params.audience ->
+        {:error, :nonce_audience_mismatch}
+
       now_ms > exp_ms ->
         {:error, :nonce_expired}
 
@@ -321,6 +330,9 @@ defmodule Siwa.Nonce do
       entry["agentRegistry"] != params.agent_registry ->
         {:error, :nonce_registry_mismatch}
 
+      entry["audience"] != params.audience ->
+        {:error, :nonce_audience_mismatch}
+
       entry["nonce"] != params.nonce ->
         {:error, :nonce_mismatch}
 
@@ -335,7 +347,8 @@ defmodule Siwa.Nonce do
         [
           String.downcase(params.address),
           params.agent_id,
-          String.downcase(params.agent_registry)
+          String.downcase(params.agent_registry),
+          params.audience
         ],
         ":"
       )
@@ -349,6 +362,13 @@ defmodule Siwa.Nonce do
     do: Map.new(params, fn {k, v} -> {normalize_key(k), v} end)
 
   defp normalize(params) when is_list(params), do: params |> Enum.into(%{}) |> normalize()
+
+  defp put_audience_from_opts(params, opts) do
+    case {Map.get(params, :audience), Keyword.get(opts, :audience)} do
+      {nil, audience} when is_binary(audience) -> Map.put(params, :audience, audience)
+      _ -> params
+    end
+  end
 
   defp normalize_key("agentId"), do: :agent_id
   defp normalize_key("agentRegistry"), do: :agent_registry

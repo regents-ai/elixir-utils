@@ -108,7 +108,8 @@ defmodule Siwa.Verify do
         address: fields.address,
         agent_id: fields.agent_id,
         agent_registry: fields.agent_registry,
-        nonce: fields.nonce
+        nonce: fields.nonce,
+        audience: Keyword.get(opts, :audience)
       },
       opts
     )

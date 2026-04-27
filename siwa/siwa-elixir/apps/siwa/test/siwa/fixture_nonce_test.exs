@@ -40,6 +40,7 @@ defmodule Siwa.FixtureNonceTest do
                  address: "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
                  agent_id: 42,
                  agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+                 audience: "techtree",
                  nonce: "fixture-nonce-1"
                },
                nonce_token: token,

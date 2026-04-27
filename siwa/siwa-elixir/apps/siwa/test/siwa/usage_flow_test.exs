@@ -60,6 +60,7 @@ defmodule Siwa.UsageFlowTest do
       Siwa.verify(
         signed.message,
         signed.signature,
+        audience: "techtree",
         domain: "api.example.com",
         nonce_token: nonce.nonce_token,
         nonce_secret: "nonce-secret",
@@ -152,6 +153,7 @@ defmodule Siwa.UsageFlowTest do
              Siwa.verify(
                signed.message,
                signed.signature,
+               audience: "techtree",
                domain: "wrong.example.com",
                nonce_token: nonce.nonce_token,
                nonce_secret: "nonce-secret",
@@ -220,6 +222,7 @@ defmodule Siwa.UsageFlowTest do
              Siwa.verify(
                signed.message,
                signed.signature,
+               audience: "techtree",
                domain: "api.example.com",
                nonce_token: nonce.nonce_token,
                nonce_secret: "nonce-secret",

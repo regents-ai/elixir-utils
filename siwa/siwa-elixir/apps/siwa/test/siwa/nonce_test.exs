@@ -15,6 +15,7 @@ defmodule Siwa.NonceTest do
                address: "0x123",
                agent_id: 9,
                agent_registry: "eip155:84532:0xregistry",
+               audience: "techtree",
                nonce: issued.nonce
              })
   end
@@ -33,6 +34,7 @@ defmodule Siwa.NonceTest do
                "address" => "0x123",
                "agentId" => 9,
                "agentRegistry" => "eip155:84532:0xregistry",
+               "audience" => "techtree",
                "nonce" => issued.nonce
              })
   end
@@ -60,6 +62,7 @@ defmodule Siwa.NonceTest do
                  address: "0x123",
                  agent_id: 9,
                  agent_registry: "eip155:84532:0xother",
+                 audience: "techtree",
                  nonce: issued.nonce
                },
                nonce_token: issued.nonce_token,
@@ -83,6 +86,7 @@ defmodule Siwa.NonceTest do
       address: "0x123",
       agent_id: 9,
       agent_registry: "eip155:84532:0xregistry",
+      audience: "techtree",
       nonce: issued.nonce
     }
 
@@ -117,6 +121,7 @@ defmodule Siwa.NonceTest do
       address: "0x456",
       agent_id: 10,
       agent_registry: "eip155:84532:0xregistry",
+      audience: "techtree",
       nonce: issued.nonce
     }
 
@@ -143,5 +148,41 @@ defmodule Siwa.NonceTest do
            )
 
     assert Enum.count(results, &match?({:error, :nonce_already_used}, &1)) == 19
+  end
+
+  test "audience scopes stored nonces" do
+    {:ok, first} =
+      Siwa.Nonce.issue(%{
+        address: "0xabc",
+        agent_id: 11,
+        agent_registry: "eip155:84532:0xregistry",
+        audience: "app-one"
+      })
+
+    {:ok, second} =
+      Siwa.Nonce.issue(%{
+        address: "0xabc",
+        agent_id: 11,
+        agent_registry: "eip155:84532:0xregistry",
+        audience: "app-two"
+      })
+
+    assert {:ok, _entry} =
+             Siwa.Nonce.consume(%{
+               address: "0xabc",
+               agent_id: 11,
+               agent_registry: "eip155:84532:0xregistry",
+               audience: "app-one",
+               nonce: first.nonce
+             })
+
+    assert {:ok, _entry} =
+             Siwa.Nonce.consume(%{
+               address: "0xabc",
+               agent_id: 11,
+               agent_registry: "eip155:84532:0xregistry",
+               audience: "app-two",
+               nonce: second.nonce
+             })
   end
 end

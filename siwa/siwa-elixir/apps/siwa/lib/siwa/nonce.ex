@@ -11,8 +11,8 @@ defmodule Siwa.Nonce do
     issued_at = DateTime.truncate(now, :second)
     expiration_time = DateTime.add(issued_at, div(ttl_ms, 1_000), :second)
 
-    with :ok <- ensure_audience(params.audience),
-         :ok <- ensure_registry(params.agent_registry),
+    with :ok <- ensure_audience(Map.get(params, :audience)),
+         :ok <- ensure_registry(Map.get(params, :agent_registry)),
          :ok <- maybe_validate_registration(params, opts) do
       case maybe_handle_captcha(params, opts, now) do
         :ok ->
@@ -86,7 +86,7 @@ defmodule Siwa.Nonce do
       nil ->
         store = Keyword.get(opts, :store, Application.fetch_env!(:siwa, :nonce_store))
 
-        with :ok <- ensure_audience(params.audience),
+        with :ok <- ensure_audience(Map.get(params, :audience)),
              {:ok, stored} <- consume_nonce(store, params),
              :ok <- validate_entry(stored, params, now) do
           {:ok, stored}
@@ -98,7 +98,7 @@ defmodule Siwa.Nonce do
             Keyword.fetch!(opts, :secret)
           end)
 
-        with :ok <- ensure_audience(params.audience),
+        with :ok <- ensure_audience(Map.get(params, :audience)),
              {:ok, stored} <- verify_nonce_token(token, nonce_secret: nonce_secret, now: now),
              :ok <- validate_token_entry(stored, params),
              :ok <- consume_nonce_token_once(token, stored) do

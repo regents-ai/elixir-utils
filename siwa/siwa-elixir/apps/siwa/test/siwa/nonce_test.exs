@@ -39,6 +39,31 @@ defmodule Siwa.NonceTest do
              })
   end
 
+  test "missing audience is rejected cleanly" do
+    assert {:error, :audience_required} =
+             Siwa.Nonce.issue(%{
+               address: "0x123",
+               agent_id: 9,
+               agent_registry: "eip155:84532:0xregistry"
+             })
+
+    assert {:ok, issued} =
+             Siwa.Nonce.issue(%{
+               address: "0x123",
+               agent_id: 9,
+               agent_registry: "eip155:84532:0xregistry",
+               audience: "techtree"
+             })
+
+    assert {:error, :audience_required} =
+             Siwa.Nonce.consume(%{
+               address: "0x123",
+               agent_id: 9,
+               agent_registry: "eip155:84532:0xregistry",
+               nonce: issued.nonce
+             })
+  end
+
   test "stateless nonce tokens stay bound to the agent registry" do
     assert {:ok, issued} =
              Siwa.Nonce.issue(

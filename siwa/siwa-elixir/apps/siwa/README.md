@@ -35,7 +35,8 @@ message =
   Siwa.create_nonce(%{
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     agent_id: 77,
-    agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333"
+    agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333",
+    audience: "regent"
   })
 
 {:ok, _stored_nonce} =
@@ -43,6 +44,7 @@ message =
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     agent_id: 77,
     agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333",
+    audience: "regent",
     nonce: nonce.nonce
   })
 ```
@@ -52,6 +54,7 @@ message =
 ```elixir
 {:ok, result} =
   Siwa.verify(message, signature,
+    audience: "regent",
     domain: "regent.cx",
     required_services: ["MCP"],
     required_trust_models: ["reputation"]

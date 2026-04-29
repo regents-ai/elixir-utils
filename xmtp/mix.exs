@@ -46,6 +46,9 @@ defmodule XmtpElixirSdk.MixProject do
     [
       check: [
         "cmd cargo build --manifest-path native/xmtp_native/Cargo.toml",
+        "cmd npm --prefix browser_shim ci",
+        "cmd npm --prefix browser_shim test -- --run",
+        "cmd npm --prefix browser_shim run typecheck",
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format --check-formatted",

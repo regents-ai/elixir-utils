@@ -5,6 +5,7 @@
 /cache/_build/
 /cache/deps/
 /cache/doc/
+/xmtp/browser_shim/node_modules/
 /output/
 .codex/
 .claude/

@@ -2,13 +2,14 @@
 
 Use this guide when adding or changing Phoenix frontend code that talks to Regent XMTP rooms after the XMTP package is native-backed. The room behavior should match Platform's current public company room flow.
 
-The frontend should treat the XMTP package as the room boundary. Phoenix code asks for a room panel, renders that panel, sends user actions back to the room boundary, and refreshes the panel when the room broadcasts a change. Phoenix code should not build XMTP clients, mutate group membership, or write room logs itself.
+The frontend should treat the host app's XMTP wrapper as the room boundary. Phoenix code asks for a room panel, renders that panel, sends user actions back to the wrapper, and refreshes the panel when the room broadcasts a change. Phoenix code should not build XMTP clients, mutate group membership, or write room logs itself.
 
 ## Current Room Shape To Preserve
 
 Platform rooms behave like this:
 
-- A supervised room manager owns the room list, database module, and PubSub module.
+- The host app owns the room list, policy, database module, and PubSub module it passes into the wrapper.
+- The XMTP package keeps the local transport records it needs for the room panel and message flow.
 - Each room has a stable room key, name, description, app data, capacity, moderator wallets, and join policy.
 - Room processes start on demand when a caller asks for a panel, join, message send, moderation action, or bootstrap.
 - Each room has a service wallet that owns the XMTP group.
@@ -52,7 +53,7 @@ Each room definition should include:
 - `presence_check_interval_ms`: how often stale presence is checked.
 - `policy_options`: allowed principal kinds and required claims.
 
-Keep app wrappers small. A good wrapper normalizes app records into principals, computes room keys, exposes room actions, and leaves room mechanics to the XMTP package.
+Keep app wrappers small. A good wrapper normalizes app records into principals, computes room keys, exposes room actions, and leaves transport mechanics to the XMTP package.
 
 ## Starting And Subscribing To Rooms
 

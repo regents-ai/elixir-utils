@@ -30,9 +30,9 @@ defmodule Siwa.Identity do
       @header,
       "",
       "- Address: #{attrs[:address] || attrs["address"] || ""}",
-      "- Agent ID: #{attrs[:agent_id] || attrs["agent_id"] || attrs["agentId"] || ""}",
-      "- Agent Registry: #{attrs[:agent_registry] || attrs["agent_registry"] || attrs["agentRegistry"] || ""}",
-      "- Chain ID: #{attrs[:chain_id] || attrs["chain_id"] || attrs["chainId"] || ""}",
+      "- Agent ID: #{attrs[:agent_id] || attrs["agent_id"] || ""}",
+      "- Agent Registry: #{attrs[:agent_registry] || attrs["agent_registry"] || ""}",
+      "- Chain ID: #{attrs[:chain_id] || attrs["chain_id"] || ""}",
       "- Endpoint: #{attrs[:endpoint] || attrs["endpoint"] || ""}"
     ]
 

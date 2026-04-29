@@ -27,7 +27,9 @@ defmodule Siwa.Receipt do
     {:ok, %{token: token, payload: payload, expires_at: DateTime.from_unix!(exp, :millisecond)}}
   end
 
-  def verify(token, opts \\ []) do
+  def verify(token, opts \\ [])
+
+  def verify(token, opts) when is_binary(token) do
     secret =
       Keyword.get_lazy(opts, :receipt_secret, fn ->
         Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :receipt_secret))
@@ -38,17 +40,23 @@ defmodule Siwa.Receipt do
       |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
       |> DateTime.to_unix(:millisecond)
 
-    with [encoded_body, mac] <- String.split(token, ".", parts: 2),
+    with {:ok, audience} <- required_audience(opts),
+         [encoded_body, mac] <- String.split(token, ".", parts: 2),
          true <- secure_compare(mac, sign(encoded_body, secret)),
          {:ok, json} <- Base.url_decode64(encoded_body, padding: false),
          {:ok, payload} <- Jason.decode(json),
-         true <- payload["exp"] >= now_ms,
-         :ok <- ensure_audience(payload, opts) do
+         exp when is_integer(exp) <- payload["exp"],
+         true <- exp >= now_ms,
+         :ok <- ensure_audience(payload, audience) do
       {:ok, payload}
     else
+      {:error, :audience_required} -> {:error, :audience_required}
+      {:error, :receipt_binding_mismatch} -> {:error, :receipt_binding_mismatch}
       _ -> {:error, :invalid_receipt}
     end
   end
+
+  def verify(_token, _opts), do: {:error, :invalid_receipt}
 
   def default_ttl_ms, do: @default_ttl_ms
 
@@ -64,13 +72,19 @@ defmodule Siwa.Receipt do
 
   defp secure_compare(_, _), do: false
 
-  defp ensure_audience(payload, opts) do
+  defp required_audience(opts) do
     case Keyword.get(opts, :audience) do
-      nil ->
-        :ok
+      audience when is_binary(audience) ->
+        case String.trim(audience) do
+          "" -> {:error, :audience_required}
+          value -> {:ok, value}
+        end
 
-      expected ->
-        if payload["aud"] == expected, do: :ok, else: {:error, :invalid_receipt}
+      _ ->
+        {:error, :audience_required}
     end
   end
+
+  defp ensure_audience(%{"aud" => audience}, expected) when audience == expected, do: :ok
+  defp ensure_audience(_payload, _expected), do: {:error, :receipt_binding_mismatch}
 end

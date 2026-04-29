@@ -130,10 +130,11 @@ defmodule Siwa.Registry do
   defp fetch_metadata(_), do: {:ok, nil}
 
   defp fetch_http(uri) do
-    case :httpc.request(:get, {String.to_charlist(uri), []}, [], body_format: :binary) do
-      {:ok, {{_, 200, _}, _headers, body}} -> Jason.decode(body)
-      {:ok, {{_, status, _}, _headers, _body}} -> {:error, {:metadata_http_error, status}}
-      error -> {:error, error}
+    case Req.get(url: uri, receive_timeout: 5_000, retry: false) do
+      {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
+      {:ok, %{status: 200, body: body}} when is_binary(body) -> Jason.decode(body)
+      {:ok, %{status: status}} -> {:error, {:metadata_http_error, status}}
+      {:error, reason} -> {:error, reason}
     end
   end
 

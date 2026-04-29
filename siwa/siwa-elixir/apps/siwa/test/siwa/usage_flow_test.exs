@@ -76,7 +76,10 @@ defmodule Siwa.UsageFlowTest do
     assert verified.signer_type == "eoa"
 
     assert {:ok, receipt_payload} =
-             Siwa.verify_receipt(verified.receipt, receipt_secret: "receipt-secret")
+             Siwa.verify_receipt(verified.receipt,
+               receipt_secret: "receipt-secret",
+               audience: "techtree"
+             )
 
     assert receipt_payload["sub"] == signer.address
     assert receipt_payload["aud"] == "techtree"

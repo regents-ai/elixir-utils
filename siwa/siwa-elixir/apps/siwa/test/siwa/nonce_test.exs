@@ -24,16 +24,16 @@ defmodule Siwa.NonceTest do
     assert {:ok, issued} =
              Siwa.Nonce.issue(%{
                "address" => "0x123",
-               "agentId" => 9,
-               "agentRegistry" => "eip155:84532:0xregistry",
+               "agent_id" => 9,
+               "agent_registry" => "eip155:84532:0xregistry",
                "audience" => "techtree"
              })
 
     assert {:ok, _entry} =
              Siwa.Nonce.consume(%{
                "address" => "0x123",
-               "agentId" => 9,
-               "agentRegistry" => "eip155:84532:0xregistry",
+               "agent_id" => 9,
+               "agent_registry" => "eip155:84532:0xregistry",
                "audience" => "techtree",
                "nonce" => issued.nonce
              })
@@ -79,7 +79,7 @@ defmodule Siwa.NonceTest do
     assert {:ok, payload} =
              Siwa.Nonce.verify_nonce_token(issued.nonce_token, nonce_secret: "nonce-secret")
 
-    assert payload["agentRegistry"] == "eip155:84532:0xregistry"
+    assert payload["agent_registry"] == "eip155:84532:0xregistry"
 
     assert {:error, :nonce_registry_mismatch} =
              Siwa.Nonce.consume(

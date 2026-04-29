@@ -3,8 +3,6 @@ defmodule Siwa.Ethereum do
   Ethereum helpers used by SIWA flows.
   """
 
-  alias Req.TransportError
-
   @address_regex ~r/^0x[a-fA-F0-9]{40}$/
   @tx_hash_regex ~r/^0x[a-fA-F0-9]{64}$/
   @non_negative_int_string_regex ~r/^(0|[1-9][0-9]*)$/
@@ -91,26 +89,10 @@ defmodule Siwa.Ethereum do
 
   def json_rpc(url, method, params, opts)
       when is_binary(url) and is_binary(method) and is_list(params) do
-    timeout_ms = Keyword.get(opts, :timeout_ms, @default_rpc_timeout_ms)
+    opts =
+      Keyword.put_new(opts, :timeout_ms, @default_rpc_timeout_ms)
 
-    request =
-      opts
-      |> request_options(url, method, params, timeout_ms)
-      |> Req.new()
-
-    case Req.post(request) do
-      {:ok, %{status: status, body: body}} when status in 200..299 ->
-        parse_rpc_response(body)
-
-      {:ok, %{status: _status}} ->
-        {:error, :rpc_request_failed}
-
-      {:error, %TransportError{reason: :timeout}} ->
-        {:error, :rpc_request_timed_out}
-
-      {:error, error} ->
-        {:error, map_rpc_error(error)}
-    end
+    Siwa.RPCClient.call(url, method, params, opts)
   end
 
   def json_rpc(_url, _method, _params, _opts), do: {:error, :rpc_request_failed}
@@ -189,43 +171,5 @@ defmodule Siwa.Ethereum do
     end
   end
 
-  defp parse_rpc_response(%{"error" => %{"message" => message}})
-       when is_binary(message) and byte_size(message) > 0 do
-    {:error, {:rpc_error, message}}
-  end
-
-  defp parse_rpc_response(%{"error" => _error}), do: {:error, :rpc_request_failed}
-  defp parse_rpc_response(%{"result" => result}), do: {:ok, result}
-  defp parse_rpc_response(_body), do: {:error, :invalid_rpc_response}
-
-  defp map_rpc_error(error) do
-    message = Exception.message(error)
-
-    if String.contains?(String.downcase(message), "timeout") do
-      :rpc_request_timed_out
-    else
-      :rpc_request_failed
-    end
-  end
-
   defp encode_hex(bytes), do: "0x" <> Base.encode16(bytes, case: :lower)
-
-  defp request_options(opts, url, method, params, timeout_ms) do
-    request_opts = [
-      url: url,
-      receive_timeout: timeout_ms,
-      retry: false,
-      json: %{
-        id: 1,
-        jsonrpc: "2.0",
-        method: method,
-        params: params
-      }
-    ]
-
-    case Keyword.get(opts, :finch) do
-      nil -> Keyword.put(request_opts, :connect_options, timeout: timeout_ms)
-      finch -> Keyword.put(request_opts, :finch, finch)
-    end
-  end
 end

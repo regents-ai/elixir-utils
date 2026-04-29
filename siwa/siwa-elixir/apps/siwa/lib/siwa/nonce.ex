@@ -40,8 +40,8 @@ defmodule Siwa.Nonce do
                         %{
                           "nonce" => nonce,
                           "address" => params.address,
-                          "agentId" => params.agent_id,
-                          "agentRegistry" => params.agent_registry,
+                          "agent_id" => params.agent_id,
+                          "agent_registry" => params.agent_registry,
                           "audience" => params.audience,
                           "iat" => DateTime.to_unix(issued_at, :millisecond),
                           "exp" => DateTime.to_unix(expiration_time, :millisecond)
@@ -162,7 +162,7 @@ defmodule Siwa.Nonce do
   defp ensure_audience(_audience), do: {:error, :audience_required}
 
   defp maybe_handle_captcha(params, opts, now) do
-    response = Map.get(params, :challenge_response) || Map.get(params, "challenge_response")
+    response = Map.get(params, :challenge_response)
 
     case resolve_captcha_requirement(params, opts, now) do
       nil ->
@@ -227,8 +227,8 @@ defmodule Siwa.Nonce do
       policy when is_function(policy, 1) ->
         case policy.(%{
                address: params.address,
-               agentId: params.agent_id,
-               agentRegistry: params.agent_registry
+               agent_id: params.agent_id,
+               agent_registry: params.agent_registry
              }) do
           nil ->
             nil
@@ -249,8 +249,8 @@ defmodule Siwa.Nonce do
         case module.challenge(
                %{
                  address: params.address,
-                 agentId: params.agent_id,
-                 agentRegistry: params.agent_registry
+                 agent_id: params.agent_id,
+                 agent_registry: params.agent_registry
                },
                opts
              ) do
@@ -324,10 +324,10 @@ defmodule Siwa.Nonce do
       String.downcase(entry["address"]) != String.downcase(params.address) ->
         {:error, :nonce_address_mismatch}
 
-      entry["agentId"] != params.agent_id ->
+      entry["agent_id"] != params.agent_id ->
         {:error, :nonce_agent_id_mismatch}
 
-      entry["agentRegistry"] != params.agent_registry ->
+      entry["agent_registry"] != params.agent_registry ->
         {:error, :nonce_registry_mismatch}
 
       entry["audience"] != params.audience ->
@@ -370,10 +370,10 @@ defmodule Siwa.Nonce do
     end
   end
 
-  defp normalize_key("agentId"), do: :agent_id
-  defp normalize_key("agentRegistry"), do: :agent_registry
+  defp normalize_key("agent_id"), do: :agent_id
+  defp normalize_key("agent_registry"), do: :agent_registry
   defp normalize_key("audience"), do: :audience
-  defp normalize_key("challengeResponse"), do: :challenge_response
+  defp normalize_key("challenge_response"), do: :challenge_response
   defp normalize_key("address"), do: :address
   defp normalize_key("nonce"), do: :nonce
   defp normalize_key(key) when is_binary(key), do: key

@@ -5,6 +5,51 @@ defmodule Siwa.RequestAuthTest do
 
   @request_auth_opts [secret: "secret", audience: "techtree"]
 
+  test "exposes the required authenticated request shape" do
+    base_headers = [
+      "x-siwa-receipt",
+      "signature",
+      "signature-input",
+      "x-key-id",
+      "x-timestamp",
+      "x-agent-wallet-address",
+      "x-agent-chain-id",
+      "x-agent-registry-address",
+      "x-agent-token-id"
+    ]
+
+    assert Siwa.required_authenticated_request_headers(nil) == base_headers
+    assert Siwa.required_authenticated_request_headers("{}") == base_headers ++ ["content-digest"]
+
+    assert Siwa.required_authenticated_request_components(%{}, nil) == [
+             "@method",
+             "@path",
+             "x-siwa-receipt",
+             "x-key-id",
+             "x-timestamp",
+             "x-agent-wallet-address",
+             "x-agent-chain-id",
+             "x-agent-registry-address",
+             "x-agent-token-id"
+           ]
+
+    assert Siwa.required_authenticated_request_components(
+             %{"Content-Digest" => "sha-256=:YWJj:"},
+             nil
+           ) == [
+             "@method",
+             "@path",
+             "x-siwa-receipt",
+             "x-key-id",
+             "x-timestamp",
+             "x-agent-wallet-address",
+             "x-agent-chain-id",
+             "content-digest",
+             "x-agent-registry-address",
+             "x-agent-token-id"
+           ]
+  end
+
   test "signs and verifies an authenticated request" do
     {:ok, signer} = Siwa.LocalSigner.new()
     {:ok, receipt} = receipt_for(signer)
@@ -94,7 +139,7 @@ defmodule Siwa.RequestAuthTest do
                @request_auth_opts
              )
 
-    assert {:error, :invalid_signature} =
+    assert {:error, :signature_invalid} =
              Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
   end
 
@@ -121,6 +166,41 @@ defmodule Siwa.RequestAuthTest do
              Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
 
     assert verified.address == signer.address
+  end
+
+  test "can use a caller-provided replay store after signature verification" do
+    {:ok, signer} = Siwa.LocalSigner.new()
+    {:ok, receipt} = receipt_for(signer)
+    parent = self()
+    created_at = ~U[2026-04-20 00:00:00Z]
+    expires_at = ~U[2026-04-20 00:02:00Z]
+
+    replay_store = fn replay_key, expires_at ->
+      send(parent, {:replay_consumed, replay_key, expires_at})
+      :ok
+    end
+
+    assert {:ok, signed_request} =
+             Siwa.RequestAuth.sign_authenticated_request(
+               request(),
+               receipt.token,
+               signer,
+               Keyword.merge(@request_auth_opts, created_at: created_at, expires_at: expires_at)
+             )
+
+    assert {:ok, verified} =
+             Siwa.RequestAuth.verify_authenticated_request(
+               signed_request,
+               Keyword.merge(@request_auth_opts,
+                 replay_store: replay_store,
+                 now: ~U[2026-04-20 00:01:00Z]
+               )
+             )
+
+    assert verified.address == signer.address
+    assert_receive {:replay_consumed, replay_key, replay_expires_at}
+    assert replay_key =~ signer.address
+    assert replay_expires_at == DateTime.to_unix(expires_at)
   end
 
   test "plug accepts a request body preserved in conn.private" do

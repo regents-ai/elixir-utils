@@ -25,8 +25,8 @@ defmodule Siwa.FixtureX402Test do
     }
 
     facilitator = %{
-      verify: fn _payload, _accepts -> %{valid: true} end,
-      settle: fn _payload, _accepts -> %{success: true, txHash: "0xtxhash"} end
+      verify: fn _payload, _accepts -> %{"valid" => true} end,
+      settle: fn _payload, _accepts -> %{"success" => true, "txHash" => "0xtxhash"} end
     }
 
     assert {:ok, processed} =
@@ -39,5 +39,62 @@ defmodule Siwa.FixtureX402Test do
     assert processed.payment.asset == data["processedPayment"]["payment"]["asset"]
     assert processed.payment.payTo == data["processedPayment"]["payment"]["payTo"]
     assert processed.payment.txHash == data["processedPayment"]["payment"]["txHash"]
+  end
+
+  test "payment processing requires an accepted payment shape and settlement hash" do
+    accepts = [
+      %{
+        "scheme" => "exact",
+        "network" => "eip155:84532",
+        "amount" => "1000",
+        "asset" => "USDC",
+        "payTo" => "0xabc"
+      }
+    ]
+
+    facilitator = %{
+      verify: fn _payload, _accepts -> %{"valid" => true} end,
+      settle: fn _payload, _accepts -> %{"success" => true, "txHash" => "0xtxhash"} end
+    }
+
+    mismatched_payload = %{
+      "payment" => %{
+        "scheme" => "exact",
+        "network" => "eip155:84532",
+        "amount" => "999",
+        "asset" => "USDC",
+        "payTo" => "0xabc"
+      }
+    }
+
+    assert {:error, :x402_payment_not_accepted} =
+             Siwa.X402.process_payment(mismatched_payload, accepts, facilitator)
+
+    payload = %{
+      "payment" => %{
+        "scheme" => "exact",
+        "network" => "eip155:84532",
+        "amount" => "1000",
+        "asset" => "USDC",
+        "payTo" => "0xabc"
+      }
+    }
+
+    no_hash_facilitator = %{
+      verify: fn _payload, _accepts -> %{"valid" => true} end,
+      settle: fn _payload, _accepts -> %{"success" => true} end
+    }
+
+    assert {:error, :x402_missing_settlement_hash} =
+             Siwa.X402.process_payment(payload, accepts, no_hash_facilitator)
+  end
+
+  test "required payment is not accepted from a response header alone" do
+    assert {:error, %{status: "payment_required", amount: "1000"}} =
+             Siwa.X402.verify(
+               %{"headers" => %{"Payment-Response" => "1000"}},
+               required: true,
+               amount: "1000"
+             )
   end
 end

@@ -2,6 +2,7 @@ defmodule Siwa.Message do
   @moduledoc "Builds and parses the SIWA sign-in message."
 
   @required [:domain, :address, :uri, :agent_id, :agent_registry, :chain_id, :nonce, :issued_at]
+  @positive_int_regex ~r/^[1-9][0-9]*$/
   @line_labels [
     {"URI", :uri},
     {"Version", :version},
@@ -21,20 +22,13 @@ defmodule Siwa.Message do
     "uri" => :uri,
     "version" => :version,
     "agent_id" => :agent_id,
-    "agentId" => :agent_id,
     "agent_registry" => :agent_registry,
-    "agentRegistry" => :agent_registry,
     "chain_id" => :chain_id,
-    "chainId" => :chain_id,
     "nonce" => :nonce,
     "issued_at" => :issued_at,
-    "issuedAt" => :issued_at,
     "expiration_time" => :expiration_time,
-    "expirationTime" => :expiration_time,
     "not_before" => :not_before,
-    "notBefore" => :not_before,
-    "request_id" => :request_id,
-    "requestId" => :request_id
+    "request_id" => :request_id
   }
 
   def build(fields) do
@@ -82,6 +76,32 @@ defmodule Siwa.Message do
       _ -> {:error, :invalid_message}
     end
   end
+
+  def validate_canonical(message, expected) when is_binary(message) and is_map(expected) do
+    expected = normalize_fields(expected)
+
+    with {:ok, parsed} <- parse(String.trim(message)),
+         true <- parsed.domain == expected[:domain],
+         true <-
+           parsed.address |> normalize_address() == expected[:address] |> normalize_address(),
+         true <- parsed.uri == expected[:uri],
+         true <- Map.get(parsed, :version, "1") == "1",
+         true <- parsed.agent_id == expected[:agent_id],
+         true <- parsed.chain_id == expected[:chain_id],
+         {:ok, parsed_registry} <- parse_agent_registry(parsed.agent_registry),
+         {:ok, expected_registry} <- parse_agent_registry(expected[:agent_registry]),
+         true <- parsed_registry == expected_registry,
+         true <- parsed_registry.chain_id == parsed.chain_id,
+         true <- Map.get(parsed, :statement) == expected[:statement],
+         true <- parsed.nonce == expected[:nonce],
+         :ok <- validate_issued_at(parsed.issued_at) do
+      :ok
+    else
+      _ -> {:error, :invalid_canonical_message}
+    end
+  end
+
+  def validate_canonical(_message, _expected), do: {:error, :invalid_canonical_message}
 
   def normalize_fields(fields) when is_map(fields), do: Enum.into(fields, %{}, &normalize_pair/1)
 
@@ -165,4 +185,36 @@ defmodule Siwa.Message do
 
   defp maybe_put_statement(map, nil), do: map
   defp maybe_put_statement(map, statement), do: Map.put(map, :statement, statement)
+
+  defp parse_agent_registry("eip155:" <> rest) do
+    with [chain_id, registry_address] <- String.split(rest, ":", parts: 2),
+         true <- Regex.match?(@positive_int_regex, chain_id),
+         {:ok, normalized_address} <- normalize_required_address(registry_address) do
+      {:ok, %{chain_id: String.to_integer(chain_id), address: normalized_address}}
+    else
+      _ -> {:error, :invalid_agent_registry}
+    end
+  end
+
+  defp parse_agent_registry(_value), do: {:error, :invalid_agent_registry}
+
+  defp validate_issued_at(issued_at) do
+    case DateTime.from_iso8601(issued_at) do
+      {:ok, _datetime, 0} -> :ok
+      _ -> {:error, :invalid_issued_at}
+    end
+  end
+
+  defp normalize_address(value) when is_binary(value), do: String.downcase(String.trim(value))
+  defp normalize_address(value), do: value
+
+  defp normalize_required_address(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    if trimmed == "",
+      do: {:error, :invalid_address},
+      else: {:ok, String.downcase(trimmed)}
+  end
+
+  defp normalize_required_address(_value), do: {:error, :invalid_address}
 end

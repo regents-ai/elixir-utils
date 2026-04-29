@@ -9,6 +9,7 @@ defmodule Siwa.FixtureReceiptTest do
              Siwa.Receipt.verify(
                data["receipt"],
                secret: data["secret"],
+               audience: data["verified"]["aud"],
                now: DateTime.from_unix!(data["fixedNowMs"], :millisecond)
              )
 

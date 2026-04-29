@@ -1,5 +1,5 @@
 {
-  "source": "@buildersgarden/siwa@0.0.24",
+  "source": "siwa-elixir canonical nonce token",
   "capturedAt": "2026-04-17",
   "case": {
     "nonceIssued": {
@@ -7,13 +7,13 @@
       "nonce": "KOfLBbboZNOMLZ-p",
       "issuedAt": "2026-04-17T22:52:07.153Z",
       "expirationTime": "2026-04-17T22:57:07.153Z",
-      "nonceToken": "eyJub25jZSI6IktPZkxCYmJvWk5PTUxaLXAiLCJhZGRyZXNzIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwiYWdlbnRJZCI6NDIsImFnZW50UmVnaXN0cnkiOiJlaXAxNTU6ODQ1MzI6MHg4MDA0QTgxOEJGQjkxMjIzM2M0OTE4NzFiM2Q4NGM4OUE0OTRCRDllIiwiYXVkaWVuY2UiOiJ0ZWNodHJlZSIsImlhdCI6MTc3NjQ2NjMyNzE1MywiZXhwIjoxNzc2NDY2NjI3MTUzfQ.aTLDjcy93Z3Qr3F7YPTeVpkhMu9PxoNLeJUP4fsmSuw"
+      "nonceToken": "eyJub25jZSI6IktPZkxCYmJvWk5PTUxaLXAiLCJhZGRyZXNzIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwiYWdlbnRfaWQiOjQyLCJhZ2VudF9yZWdpc3RyeSI6ImVpcDE1NTo4NDUzMjoweDgwMDRBODE4QkZCOTEyMjMzYzQ5MTg3MWIzZDg0Yzg5QTQ5NEJEOWUiLCJhdWRpZW5jZSI6InRlY2h0cmVlIiwiaWF0IjoxNzc2NDY2MzI3MTUzLCJleHAiOjE3NzY0NjY2MjcxNTN9.WEOVzQWDBUUwM9qVO07DD5Efn0ZRDtwwqvv_LDhFfpE"
     },
     "verifySuccess": {
       "valid": true,
       "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
-      "agentId": 42,
-      "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+      "agent_id": 42,
+      "agent_registry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
       "chainId": 84532,
       "verified": "onchain",
       "signerType": "eoa"
@@ -21,8 +21,8 @@
     "verifyBadDomain": {
       "valid": false,
       "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
-      "agentId": 42,
-      "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+      "agent_id": 42,
+      "agent_registry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
       "chainId": 84532,
       "verified": "onchain",
       "code": "DOMAIN_MISMATCH",

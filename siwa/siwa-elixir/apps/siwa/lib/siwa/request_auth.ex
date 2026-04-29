@@ -107,12 +107,7 @@ defmodule Siwa.RequestAuth do
              request.headers,
              parsed_signature_input
            ),
-         :ok <-
-           EvmPersonalSign.verify_personal_signature(
-             signing_message,
-             signature,
-             receipt_payload["sub"]
-           ),
+         :ok <- verify_wallet_signature(signing_message, signature, receipt_payload["sub"]),
          :ok <-
            consume_replay_window(
              receipt_payload["sub"],
@@ -156,6 +151,20 @@ defmodule Siwa.RequestAuth do
 
   def content_digest_for_body(_body), do: nil
 
+  def required_headers(body) do
+    body
+    |> request_body_digest()
+    |> required_headers_for_digest()
+  end
+
+  def required_covered_components(headers, body) when is_map(headers) do
+    body_digest = request_body_digest(body)
+
+    headers
+    |> lowercase_headers()
+    |> required_components_for_headers(body_digest)
+  end
+
   defp unsigned_headers(request, receipt, receipt_payload, created) do
     body_digest = request_body_digest(request.body)
 
@@ -189,6 +198,7 @@ defmodule Siwa.RequestAuth do
       {:ok, payload}
     else
       {:error, :audience_required} -> {:error, :receipt_audience_required}
+      {:error, :receipt_binding_mismatch} -> {:error, :receipt_binding_mismatch}
       {:error, _reason} -> {:error, :invalid_receipt}
     end
   end
@@ -359,16 +369,16 @@ defmodule Siwa.RequestAuth do
 
   defp ensure_required_headers(headers, body_digest) do
     missing =
-      required_headers(body_digest)
+      required_headers_for_digest(body_digest)
       |> Enum.reject(&Map.has_key?(headers, &1))
 
     if missing == [], do: :ok, else: {:error, :missing_signed_headers}
   end
 
-  defp required_headers(body_digest) when is_binary(body_digest),
+  defp required_headers_for_digest(body_digest) when is_binary(body_digest),
     do: @required_headers ++ ["content-digest"]
 
-  defp required_headers(_body_digest), do: @required_headers
+  defp required_headers_for_digest(_body_digest), do: @required_headers
 
   defp ensure_signature_window(parsed_signature_input, headers, opts) do
     now =
@@ -453,11 +463,13 @@ defmodule Siwa.RequestAuth do
 
   defp ensure_header_binding(headers, receipt_payload) do
     [
-      fn -> ensure_claim_binding(headers, receipt_payload, "x-key-id", "key_id") end,
-      fn -> ensure_claim_binding(headers, receipt_payload, "x-agent-wallet-address", "sub") end,
+      fn -> ensure_address_claim_binding(headers, receipt_payload, "x-key-id", "key_id") end,
+      fn ->
+        ensure_address_claim_binding(headers, receipt_payload, "x-agent-wallet-address", "sub")
+      end,
       fn -> ensure_chain_binding(headers, receipt_payload) end,
       fn ->
-        ensure_claim_binding(
+        ensure_address_claim_binding(
           headers,
           receipt_payload,
           "x-agent-registry-address",
@@ -480,12 +492,18 @@ defmodule Siwa.RequestAuth do
       else: {:error, :receipt_binding_mismatch}
   end
 
+  defp ensure_address_claim_binding(headers, claims, header_name, claim_name) do
+    if normalize_address(Map.get(headers, header_name)) == normalize_address(claims[claim_name]),
+      do: :ok,
+      else: {:error, :receipt_binding_mismatch}
+  end
+
   defp ensure_chain_binding(headers, claims) do
     with {:ok, chain_id} <- parse_positive_integer(Map.get(headers, "x-agent-chain-id")),
          true <- chain_id == claims["chain_id"] do
       :ok
     else
-      _ -> {:error, :receipt_binding_mismatch}
+      _ -> {:error, :chain_binding_mismatch}
     end
   end
 
@@ -495,11 +513,11 @@ defmodule Siwa.RequestAuth do
          {:ok, <<_::binary-size(65)>> = bytes} <- Base.decode64(payload) do
       {:ok, "0x" <> Base.encode16(bytes, case: :lower)}
     else
-      _ -> {:error, :invalid_signature}
+      _ -> {:error, :invalid_signature_header}
     end
   end
 
-  defp decode_signature(_signature_header), do: {:error, :invalid_signature}
+  defp decode_signature(_signature_header), do: {:error, :invalid_signature_header}
 
   defp encode_signature_header("0x" <> hex) when byte_size(hex) == 130 do
     case Base.decode16(hex, case: :mixed) do
@@ -547,9 +565,7 @@ defmodule Siwa.RequestAuth do
       |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
       |> DateTime.to_unix(:second)
 
-    replay_ttl_ms =
-      opts
-      |> Keyword.get(:replay_ttl_ms, max(expires - now, 1) * 1_000)
+    replay_expires_at = max(now, expires)
 
     replay_key =
       Enum.join(
@@ -563,7 +579,16 @@ defmodule Siwa.RequestAuth do
         "|"
       )
 
-    Siwa.RequestAuth.ReplayStore.consume(replay_key, replay_ttl_ms)
+    case Keyword.get(opts, :replay_store) do
+      nil ->
+        Siwa.RequestAuth.ReplayStore.consume(replay_key, replay_expires_at)
+
+      fun when is_function(fun, 2) ->
+        fun.(replay_key, replay_expires_at)
+
+      module when is_atom(module) ->
+        module.consume(replay_key, replay_expires_at)
+    end
   end
 
   defp request_body_digest(nil), do: nil
@@ -584,6 +609,16 @@ defmodule Siwa.RequestAuth do
   defp required_value(nil), do: {:error, :missing}
   defp required_value(""), do: {:error, :missing}
   defp required_value(value), do: {:ok, value}
+
+  defp normalize_address(value) when is_binary(value), do: String.downcase(value)
+  defp normalize_address(_value), do: nil
+
+  defp verify_wallet_signature(message, signature, address) do
+    case EvmPersonalSign.verify_personal_signature(message, signature, address) do
+      :ok -> :ok
+      {:error, _reason} -> {:error, :signature_invalid}
+    end
+  end
 
   defp signer_module(%module{}), do: module
 end

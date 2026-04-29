@@ -18,7 +18,9 @@ defmodule Siwa.ReceiptTest do
         secret: "secret"
       )
 
-    assert {:ok, payload} = Siwa.Receipt.verify(receipt.token, secret: "secret")
+    assert {:ok, payload} =
+             Siwa.Receipt.verify(receipt.token, secret: "secret", audience: "techtree")
+
     assert payload["sub"] == "0x123"
     assert payload["token_id"] == "9"
   end
@@ -40,7 +42,7 @@ defmodule Siwa.ReceiptTest do
         secret: "secret"
       )
 
-    assert {:error, :invalid_receipt} =
+    assert {:error, :receipt_binding_mismatch} =
              Siwa.Receipt.verify(receipt.token, secret: "secret", audience: "platform")
   end
 end

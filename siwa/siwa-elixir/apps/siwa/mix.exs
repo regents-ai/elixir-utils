@@ -23,7 +23,7 @@ defmodule Siwa.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :crypto, :inets, :ssl],
+      extra_applications: [:logger, :crypto, :ssl],
       mod: {Siwa.Application, []}
     ]
   end

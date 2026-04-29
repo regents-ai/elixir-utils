@@ -50,21 +50,21 @@ defmodule Siwa.X402 do
 
   def process_payment(payload, accepts, facilitator) do
     with {:ok, verify_result} <- call_facilitator(facilitator, :verify, [payload, accepts]),
-         true <- verify_result.valid || verify_result["valid"],
+         true <- verify_result["valid"],
+         {:ok, payment} <- accepted_payment(payload, accepts),
          {:ok, settle_result} <- call_facilitator(facilitator, :settle, [payload, accepts]),
-         true <- settle_result.success || settle_result["success"] do
-      payment = payload[:payment] || payload["payment"] || %{}
-
+         true <- settle_result["success"],
+         {:ok, tx_hash} <- settlement_tx_hash(settle_result) do
       {:ok,
        %{
          valid: true,
          payment: %{
-           scheme: payment[:scheme] || payment["scheme"],
-           network: payment[:network] || payment["network"],
-           amount: payment[:amount] || payment["amount"],
-           asset: payment[:asset] || payment["asset"],
-           payTo: payment[:payTo] || payment["payTo"],
-           txHash: settle_result[:txHash] || settle_result["txHash"]
+           scheme: payment.scheme,
+           network: payment.network,
+           amount: payment.amount,
+           asset: payment.asset,
+           payTo: payment.pay_to,
+           txHash: tx_hash
          }
        }}
     else
@@ -73,16 +73,50 @@ defmodule Siwa.X402 do
     end
   end
 
-  def verify(request, opts \\ []) do
+  def verify(_request, opts \\ []) do
     required = Keyword.get(opts, :required, false)
     amount = Keyword.get(opts, :amount, "0")
-    headers = request[:headers] || request["headers"] || %{}
-    normalized = Map.new(headers, fn {k, v} -> {String.downcase(to_string(k)), v} end)
 
     cond do
       not required -> {:ok, %{status: "payment_not_required"}}
-      normalized["payment-response"] == amount -> {:ok, %{status: "paid", amount: amount}}
       true -> {:error, %{status: "payment_required", amount: amount}}
+    end
+  end
+
+  defp accepted_payment(payload, accepts) when is_list(accepts) do
+    payment = payload["payment"] || %{}
+
+    normalized_payment = %{
+      scheme: payment["scheme"],
+      network: payment["network"],
+      amount: payment["amount"],
+      asset: payment["asset"],
+      pay_to: payment["payTo"]
+    }
+
+    if Enum.any?(accepts, &payment_matches_accept?(normalized_payment, &1)) do
+      {:ok, normalized_payment}
+    else
+      {:error, :x402_payment_not_accepted}
+    end
+  end
+
+  defp accepted_payment(_payload, _accepts), do: {:error, :x402_payment_not_accepted}
+
+  defp payment_matches_accept?(payment, accept) when is_map(accept) do
+    payment.scheme == accept["scheme"] and
+      payment.network == accept["network"] and
+      payment.amount == accept["amount"] and
+      payment.asset == accept["asset"] and
+      payment.pay_to == accept["payTo"]
+  end
+
+  defp payment_matches_accept?(_payment, _accept), do: false
+
+  defp settlement_tx_hash(settle_result) do
+    case settle_result["txHash"] do
+      "0x" <> rest = tx_hash when byte_size(rest) > 0 -> {:ok, tx_hash}
+      _value -> {:error, :x402_missing_settlement_hash}
     end
   end
 

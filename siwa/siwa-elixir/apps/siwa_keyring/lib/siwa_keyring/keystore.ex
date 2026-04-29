@@ -4,15 +4,15 @@ defmodule SiwaKeyring.Keystore do
   def create_wallet(config) do
     with {:ok, _path} <- wallet_path(config),
          {:ok, signer} <- LocalSigner.new() do
-      payload = %{
+      wallet = %{
         private_key: signer.private_key,
         public_key: signer.public_key,
         address: signer.address,
         signer_type: signer.signer_type
       }
 
-      with :ok <- persist_wallet(config, payload) do
-        {:ok, payload}
+      with :ok <- persist_wallet(config, wallet) do
+        {:ok, public_wallet(wallet)}
       end
     end
   end
@@ -46,7 +46,7 @@ defmodule SiwaKeyring.Keystore do
     with {:ok, path} <- wallet_path(config),
          :ok <- File.mkdir_p(Path.dirname(path)) do
       encrypted = encrypt_wallet(wallet, config.password)
-      File.write(path, encrypted)
+      write_new_wallet(path, encrypted)
     end
   end
 
@@ -69,11 +69,70 @@ defmodule SiwaKeyring.Keystore do
   end
 
   def decrypt_wallet(blob, password) do
+    decrypt_wallet_payload(blob, password)
+  rescue
+    _ -> {:error, :keystore_decrypt_failed}
+  catch
+    _, _ -> {:error, :keystore_decrypt_failed}
+  end
+
+  defp wallet_path(%{path: path}) when is_binary(path) and path != "", do: {:ok, path}
+  defp wallet_path(_config), do: {:error, :wallet_missing}
+
+  defp public_wallet(wallet) do
+    Map.take(wallet, [:public_key, :address, :signer_type])
+  end
+
+  defp write_new_wallet(path, encrypted) do
+    temp_path = path <> ".tmp-" <> Integer.to_string(System.unique_integer([:positive]))
+
+    with :ok <- write_temp_wallet(temp_path, encrypted),
+         :ok <- File.chmod(temp_path, 0o600),
+         :ok <- publish_new_file(temp_path, path) do
+      :ok
+    else
+      {:error, :eexist} ->
+        File.rm(temp_path)
+        {:error, :wallet_already_exists}
+
+      error ->
+        File.rm(temp_path)
+        error
+    end
+  end
+
+  defp write_temp_wallet(temp_path, encrypted) do
+    case File.open(temp_path, [:write, :exclusive, :binary], fn file ->
+           :ok = File.chmod(temp_path, 0o600)
+           IO.binwrite(file, encrypted)
+         end) do
+      {:ok, :ok} -> :ok
+      error -> error
+    end
+  end
+
+  defp publish_new_file(temp_path, path) do
+    case File.ln(temp_path, path) do
+      :ok ->
+        with :ok <- File.chmod(path, 0o600) do
+          File.rm(temp_path)
+        end
+
+      {:error, :eexist} = error ->
+        error
+
+      error ->
+        error
+    end
+  end
+
+  defp decrypt_wallet_payload(blob, password) do
     with {:ok, payload} <- Jason.decode(blob),
-         salt <- Base.decode64!(payload["salt"]),
-         iv <- Base.decode64!(payload["iv"]),
-         ciphertext <- Base.decode64!(payload["ciphertext"]),
-         tag <- Base.decode64!(payload["tag"]),
+         :ok <- ensure_cipher(payload),
+         {:ok, salt} <- fetch_base64(payload, "salt"),
+         {:ok, iv} <- fetch_base64(payload, "iv"),
+         {:ok, ciphertext} <- fetch_base64(payload, "ciphertext"),
+         {:ok, tag} <- fetch_base64(payload, "tag"),
          key <- :crypto.pbkdf2_hmac(:sha256, password, salt, 100_000, 32),
          plaintext <-
            :crypto.crypto_one_time_aead(
@@ -85,6 +144,7 @@ defmodule SiwaKeyring.Keystore do
              tag,
              false
            ),
+         true <- is_binary(plaintext),
          {:ok, wallet} <- Jason.decode(plaintext) do
       {:ok, wallet}
     else
@@ -92,6 +152,15 @@ defmodule SiwaKeyring.Keystore do
     end
   end
 
-  defp wallet_path(%{path: path}) when is_binary(path) and path != "", do: {:ok, path}
-  defp wallet_path(_config), do: {:error, :wallet_missing}
+  defp ensure_cipher(%{"cipher" => "aes-256-gcm"}), do: :ok
+  defp ensure_cipher(_payload), do: {:error, :invalid_cipher}
+
+  defp fetch_base64(payload, key) do
+    with value when is_binary(value) <- Map.get(payload, key),
+         {:ok, decoded} <- Base.decode64(value) do
+      {:ok, decoded}
+    else
+      _ -> {:error, :invalid_base64}
+    end
+  end
 end

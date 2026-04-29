@@ -1,30 +1,34 @@
 defmodule SiwaKeyring.Client do
   alias SiwaKeyring.Auth
 
-  defstruct [:base_url, :secret]
+  defstruct [:base_url, :secret, :finch, timeout_ms: 5_000]
+
+  @prefix "/internal/keyring"
 
   def new(opts) do
     %__MODULE__{
       base_url: Keyword.fetch!(opts, :base_url),
-      secret: Keyword.fetch!(opts, :secret)
+      secret: Keyword.fetch!(opts, :secret),
+      finch: Keyword.get(opts, :finch),
+      timeout_ms: Keyword.get(opts, :timeout_ms, 5_000)
     }
   end
 
-  def create_wallet(client), do: request(client, :post, "/create-wallet", %{})
-  def has_wallet?(client), do: request(client, :post, "/has-wallet", %{})
-  def get_address(client), do: request(client, :post, "/get-address", %{})
+  def create_wallet(client), do: request(client, :post, @prefix <> "/create-wallet", %{})
+  def has_wallet?(client), do: request(client, :post, @prefix <> "/has-wallet", %{})
+  def get_address(client), do: request(client, :post, @prefix <> "/get-address", %{})
 
   def sign_message(client, message),
-    do: request(client, :post, "/sign-message", %{message: message})
+    do: request(client, :post, @prefix <> "/sign-message", %{message: message})
 
   def sign_raw_message(client, payload),
-    do: request(client, :post, "/sign-raw-message", %{payload: payload})
+    do: request(client, :post, @prefix <> "/sign-raw-message", %{payload: payload})
 
   def sign_transaction(client, tx),
-    do: request(client, :post, "/sign-transaction", %{transaction: tx})
+    do: request(client, :post, @prefix <> "/sign-transaction", %{transaction: tx})
 
   def sign_authorization(client, authorization),
-    do: request(client, :post, "/sign-authorization", %{authorization: authorization})
+    do: request(client, :post, @prefix <> "/sign-authorization", %{authorization: authorization})
 
   def proxy_signer(client) do
     {:ok, %{"address" => address}} = get_address(client)
@@ -47,22 +51,35 @@ defmodule SiwaKeyring.Client do
 
     headers =
       Auth.compute_hmac(client.secret, String.upcase(to_string(method)), path, body)
-      |> Enum.map(fn {k, v} -> {String.to_charlist(k), String.to_charlist(v)} end)
-      |> Kernel.++([{~c"content-type", ~c"application/json"}])
+      |> Map.put("content-type", "application/json")
 
-    url = String.to_charlist(client.base_url <> path)
+    request_opts =
+      [
+        method: method,
+        url: client.base_url <> path,
+        headers: headers,
+        body: body,
+        receive_timeout: client.timeout_ms,
+        retry: false
+      ]
+      |> maybe_put_finch(client.finch)
 
-    case :httpc.request(method, {url, headers, ~c"application/json", body}, [],
-           body_format: :binary
-         ) do
-      {:ok, {{_, status, _}, _resp_headers, response_body}} when status in 200..299 ->
-        Jason.decode(response_body)
+    case request_opts |> Req.new() |> Req.request() do
+      {:ok, %{status: status, body: response_body}} when status in 200..299 ->
+        decode_body(response_body)
 
-      {:ok, {{_, status, _}, _resp_headers, response_body}} ->
+      {:ok, %{status: status, body: response_body}} ->
         {:error, {status, response_body}}
 
-      error ->
-        {:error, error}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
+
+  defp maybe_put_finch(opts, nil), do: opts
+  defp maybe_put_finch(opts, finch), do: Keyword.put(opts, :finch, finch)
+
+  defp decode_body(body) when is_map(body), do: {:ok, body}
+  defp decode_body(body) when is_binary(body), do: Jason.decode(body)
+  defp decode_body(_body), do: {:error, :invalid_response_body}
 end

@@ -21,27 +21,29 @@ defmodule SiwaKeyring.Router do
   plug(:authorize)
   plug(:dispatch)
 
+  @prefix "/internal/keyring"
+
   def max_body_bytes, do: @max_body_bytes
 
-  get "/health" do
+  get @prefix <> "/health" do
     send_json(conn, 200, %{status: "ok"})
   end
 
-  post "/create-wallet" do
+  post @prefix <> "/create-wallet" do
     case run_keyring_request(:create_wallet, fn -> SiwaKeyring.create_wallet() end) do
       {:ok, wallet} -> send_json(conn, 200, wallet)
       {:error, _reason} -> send_error(conn, 422, "wallet_create_failed")
     end
   end
 
-  post "/has-wallet" do
+  post @prefix <> "/has-wallet" do
     case run_keyring_request(:has_wallet, fn -> SiwaKeyring.has_wallet?() end) do
       {:ok, result} -> send_json(conn, 200, result)
       {:error, _reason} -> send_error(conn, 422, "wallet_check_failed")
     end
   end
 
-  post "/get-address" do
+  post @prefix <> "/get-address" do
     case run_keyring_request(:get_address, fn -> SiwaKeyring.get_address() end) do
       {:ok, address} -> send_json(conn, 200, %{address: address})
       {:error, :wallet_missing} -> send_error(conn, 404, "wallet_not_found")
@@ -49,7 +51,7 @@ defmodule SiwaKeyring.Router do
     end
   end
 
-  post "/sign-message" do
+  post @prefix <> "/sign-message" do
     with {:ok, message} <- required_text(conn.body_params, "message", :message_required),
          {:ok, signature} <-
            run_keyring_request(:sign_message, fn -> SiwaKeyring.sign_message(message) end) do
@@ -60,7 +62,7 @@ defmodule SiwaKeyring.Router do
     end
   end
 
-  post "/sign-raw-message" do
+  post @prefix <> "/sign-raw-message" do
     with {:ok, payload} <- required_text(conn.body_params, "payload", :payload_required),
          {:ok, signature} <-
            run_keyring_request(:sign_raw_message, fn -> SiwaKeyring.sign_raw_message(payload) end) do
@@ -71,7 +73,7 @@ defmodule SiwaKeyring.Router do
     end
   end
 
-  post "/sign-transaction" do
+  post @prefix <> "/sign-transaction" do
     with {:ok, transaction} <-
            required_object(conn.body_params, "transaction", :transaction_required),
          {:ok, signed} <-
@@ -85,7 +87,7 @@ defmodule SiwaKeyring.Router do
     end
   end
 
-  post "/sign-authorization" do
+  post @prefix <> "/sign-authorization" do
     with {:ok, authorization} <-
            required_object(conn.body_params, "authorization", :authorization_required),
          {:ok, signed} <-
@@ -103,7 +105,6 @@ defmodule SiwaKeyring.Router do
     send_json(conn, 404, %{error: "not_found"})
   end
 
-  defp authorize(%Plug.Conn{request_path: "/health"} = conn, _opts), do: conn
   defp authorize(%Plug.Conn{request_path: "/internal/keyring/health"} = conn, _opts), do: conn
 
   defp authorize(conn, _opts) do
@@ -237,28 +238,31 @@ defmodule SiwaKeyring.Router do
   defp run_keyring_request(action, fun) do
     fun.()
   rescue
-    error ->
-      Logger.error(
-        "keyring #{action} crashed: #{Exception.format(:error, error, __STACKTRACE__)}"
-      )
+    _error ->
+      Logger.error("keyring #{action} crashed")
 
       {:error, :internal_failure}
   catch
-    kind, reason ->
-      Logger.error("keyring #{action} exited: #{inspect({kind, reason})}")
+    _kind, _reason ->
+      Logger.error("keyring #{action} exited")
       {:error, :internal_failure}
   else
     {:ok, result} ->
       {:ok, result}
 
     {:error, reason} = error ->
-      Logger.warning("keyring #{action} failed: #{inspect(reason)}")
+      Logger.warning("keyring #{action} failed: #{redacted_reason(reason)}")
       error
 
     other ->
-      Logger.error("keyring #{action} returned an unexpected response: #{inspect(other)}")
+      Logger.error("keyring #{action} returned an unexpected response: #{redacted_reason(other)}")
       {:error, :internal_failure}
   end
+
+  defp redacted_reason(reason) when reason in [:wallet_missing, :wallet_already_exists],
+    do: Atom.to_string(reason)
+
+  defp redacted_reason(_reason), do: "redacted"
 
   defp send_error(conn, status, error) do
     send_json(conn, status, %{error: error})

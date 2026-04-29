@@ -24,7 +24,7 @@ defmodule SiwaKeyring.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :crypto, :inets, :ssl],
+      extra_applications: [:logger, :crypto, :ssl],
       mod: {SiwaKeyring.Application, []}
     ]
   end
@@ -33,6 +33,7 @@ defmodule SiwaKeyring.MixProject do
     [
       siwa_dependency(),
       {:jason, "~> 1.4"},
+      {:req, "~> 0.5"},
       {:plug, "~> 1.16"},
       {:bandit, "~> 1.5"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}

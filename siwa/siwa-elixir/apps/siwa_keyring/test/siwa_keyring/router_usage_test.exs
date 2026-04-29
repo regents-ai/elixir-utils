@@ -1,7 +1,10 @@
 defmodule SiwaKeyring.RouterUsageTest do
   use ExUnit.Case, async: false
+  import ExUnit.CaptureLog
   import Plug.Conn
   import Plug.Test
+
+  @prefix "/internal/keyring"
 
   defp call_router(conn) do
     SiwaKeyring.Router.call(conn, SiwaKeyring.Router.init([]))
@@ -45,11 +48,15 @@ defmodule SiwaKeyring.RouterUsageTest do
       Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
     end)
 
-    create_conn = signed_conn("POST", "/create-wallet", "{}", "router-secret")
+    create_conn = signed_conn("POST", @prefix <> "/create-wallet", "{}", "router-secret")
     create_response = call_router(create_conn)
     assert create_response.status == 200
+    create_payload = Jason.decode!(create_response.resp_body)
+    refute Map.has_key?(create_payload, "private_key")
+    assert is_binary(create_payload["address"])
+    assert is_binary(create_payload["public_key"])
 
-    address_conn = signed_conn("POST", "/get-address", "{}", "router-secret")
+    address_conn = signed_conn("POST", @prefix <> "/get-address", "{}", "router-secret")
     address_response = call_router(address_conn)
     assert address_response.status == 200
     %{"address" => address} = Jason.decode!(address_response.resp_body)
@@ -57,7 +64,7 @@ defmodule SiwaKeyring.RouterUsageTest do
 
     message_body = "{\n  \"message\": \"hello from keyring\"\n}"
 
-    sign_conn = signed_conn("POST", "/sign-message", message_body, "router-secret")
+    sign_conn = signed_conn("POST", @prefix <> "/sign-message", message_body, "router-secret")
     sign_response = call_router(sign_conn)
     assert sign_response.status == 200
 
@@ -69,7 +76,7 @@ defmodule SiwaKeyring.RouterUsageTest do
 
   test "router rejects requests with a bad signature" do
     conn =
-      conn("POST", "/has-wallet", "{}")
+      conn("POST", @prefix <> "/has-wallet", "{}")
       |> put_req_header("content-type", "application/json")
       |> put_req_header("x-keyring-timestamp", "123")
       |> put_req_header("x-keyring-signature", "bad")
@@ -83,7 +90,13 @@ defmodule SiwaKeyring.RouterUsageTest do
     timestamp = System.system_time(:millisecond) - 60_000
 
     response =
-      signed_conn("POST", "/has-wallet", "{}", "router-secret", Integer.to_string(timestamp))
+      signed_conn(
+        "POST",
+        @prefix <> "/has-wallet",
+        "{}",
+        "router-secret",
+        Integer.to_string(timestamp)
+      )
       |> call_router()
 
     assert response.status == 401
@@ -92,7 +105,7 @@ defmodule SiwaKeyring.RouterUsageTest do
 
   test "router returns json for malformed request bodies" do
     response =
-      signed_conn("POST", "/sign-message", ~s({"message":), "router-secret")
+      signed_conn("POST", @prefix <> "/sign-message", ~s({"message":), "router-secret")
       |> call_router()
 
     assert response.status == 400
@@ -103,7 +116,7 @@ defmodule SiwaKeyring.RouterUsageTest do
     body = Jason.encode!(%{message: String.duplicate("a", SiwaKeyring.Router.max_body_bytes())})
 
     response =
-      signed_conn("POST", "/sign-message", body, "router-secret")
+      signed_conn("POST", @prefix <> "/sign-message", body, "router-secret")
       |> call_router()
 
     assert response.status == 413
@@ -123,10 +136,10 @@ defmodule SiwaKeyring.RouterUsageTest do
       Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
     end)
 
-    headers = SiwaKeyring.Auth.compute_hmac("router-secret", "POST", "/has-wallet", "")
+    headers = SiwaKeyring.Auth.compute_hmac("router-secret", "POST", @prefix <> "/has-wallet", "")
 
     response =
-      conn("POST", "/has-wallet")
+      conn("POST", @prefix <> "/has-wallet")
       |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
       |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
       |> call_router()
@@ -148,10 +161,10 @@ defmodule SiwaKeyring.RouterUsageTest do
       Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
     end)
 
-    headers = SiwaKeyring.Auth.compute_hmac("router-secret", "POST", "/has-wallet", "")
+    headers = SiwaKeyring.Auth.compute_hmac("router-secret", "POST", @prefix <> "/has-wallet", "")
 
     response =
-      conn("POST", "/has-wallet", "")
+      conn("POST", @prefix <> "/has-wallet", "")
       |> put_req_header("content-type", "application/json")
       |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
       |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
@@ -175,14 +188,19 @@ defmodule SiwaKeyring.RouterUsageTest do
     end)
 
     message_response =
-      signed_conn("POST", "/sign-message", "{}", "router-secret")
+      signed_conn("POST", @prefix <> "/sign-message", "{}", "router-secret")
       |> call_router()
 
     assert message_response.status == 400
     assert Jason.decode!(message_response.resp_body) == %{"error" => "message_required"}
 
     transaction_response =
-      signed_conn("POST", "/sign-transaction", ~s({"transaction":{}}), "router-secret")
+      signed_conn(
+        "POST",
+        @prefix <> "/sign-transaction",
+        ~s({"transaction":{}}),
+        "router-secret"
+      )
       |> call_router()
 
     assert transaction_response.status == 400
@@ -202,32 +220,62 @@ defmodule SiwaKeyring.RouterUsageTest do
       Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
     end)
 
-    response = signed_conn("POST", "/get-address", "{}", "router-secret") |> call_router()
+    response =
+      signed_conn("POST", @prefix <> "/get-address", "{}", "router-secret")
+      |> call_router()
 
     assert response.status == 404
     assert Jason.decode!(response.resp_body) == %{"error" => "wallet_not_found"}
   end
 
+  test "router redacts signer failure details from logs" do
+    with_keyring_env(fn path ->
+      File.write!(path, "secret-signing-payload")
+
+      log =
+        capture_log(fn ->
+          response =
+            signed_conn(
+              "POST",
+              @prefix <> "/sign-message",
+              Jason.encode!(%{message: "secret-message"}),
+              "router-secret"
+            )
+            |> call_router()
+
+          assert response.status == 422
+          assert Jason.decode!(response.resp_body) == %{"error" => "message_sign_failed"}
+        end)
+
+      assert log =~ "keyring sign_message failed: redacted"
+      refute log =~ "secret-message"
+      refute log =~ "secret-signing-payload"
+      refute log =~ "keystore_decrypt_failed"
+    end)
+  end
+
   test "router supports concurrent create read and sign requests after the wallet exists" do
     with_keyring_env(fn _path ->
       create_response =
-        signed_conn("POST", "/create-wallet", "{}", "router-secret")
+        signed_conn("POST", @prefix <> "/create-wallet", "{}", "router-secret")
         |> call_router()
 
       assert create_response.status == 200
-      %{"address" => address} = Jason.decode!(create_response.resp_body)
+      create_payload = Jason.decode!(create_response.resp_body)
+      %{"address" => address} = create_payload
+      refute Map.has_key?(create_payload, "private_key")
 
       results =
         1..20
         |> Enum.map(fn index ->
           Task.async(fn ->
             if rem(index, 2) == 0 do
-              signed_conn("POST", "/get-address", "{}", "router-secret")
+              signed_conn("POST", @prefix <> "/get-address", "{}", "router-secret")
               |> call_router()
             else
               body = Jason.encode!(%{message: "hello #{index}"})
 
-              signed_conn("POST", "/sign-message", body, "router-secret")
+              signed_conn("POST", @prefix <> "/sign-message", body, "router-secret")
               |> call_router()
             end
           end)
@@ -254,7 +302,7 @@ defmodule SiwaKeyring.RouterUsageTest do
 
   test "body reader preserves the full raw body across multiple reads" do
     raw_body = String.duplicate("a", 20)
-    conn = conn("POST", "/sign-message", raw_body)
+    conn = conn("POST", @prefix <> "/sign-message", raw_body)
 
     assert {:more, "aaaaa", conn} = SiwaKeyring.Router.read_body(conn, length: 5)
     assert conn.private[:raw_body] == "aaaaa"

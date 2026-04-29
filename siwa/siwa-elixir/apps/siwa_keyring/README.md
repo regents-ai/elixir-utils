@@ -28,22 +28,18 @@ The wallet file is encrypted with AES-256-GCM. The proxy secret signs requests t
 
 ## HTTP Routes
 
-Mount `SiwaKeyring.Router` behind an internal route:
-
-```elixir
-forward "/internal/keyring", SiwaKeyring.Router
-```
+Run `SiwaKeyring.Router` at your internal service root.
 
 Available routes:
 
-- `GET /health`
-- `POST /create-wallet`
-- `POST /has-wallet`
-- `POST /get-address`
-- `POST /sign-message`
-- `POST /sign-raw-message`
-- `POST /sign-transaction`
-- `POST /sign-authorization`
+- `GET /internal/keyring/health`
+- `POST /internal/keyring/create-wallet`
+- `POST /internal/keyring/has-wallet`
+- `POST /internal/keyring/get-address`
+- `POST /internal/keyring/sign-message`
+- `POST /internal/keyring/sign-raw-message`
+- `POST /internal/keyring/sign-transaction`
+- `POST /internal/keyring/sign-authorization`
 
 Every non-health route requires:
 

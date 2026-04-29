@@ -2,7 +2,7 @@ defmodule RegentCache.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @description "Shared Dragonfly-backed cache helpers for Regent Elixir apps."
+  @description "Shared Cachex-backed cache helpers for Regent Elixir apps."
 
   def project do
     [
@@ -30,8 +30,8 @@ defmodule RegentCache.MixProject do
 
   defp deps do
     [
-      {:jason, "~> 1.4"},
-      {:redix, "~> 1.5"}
+      {:cachex, "~> 4.1"},
+      {:jason, "~> 1.4"}
     ]
   end
 

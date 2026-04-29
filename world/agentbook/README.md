@@ -9,6 +9,7 @@ plain Elixir apps:
 - AgentBook wallet-to-human lookup
 - World ID registration session creation
 - Manual or relay-backed AgentBook registration handoff
+- Registration confirmation checks before marking a registration complete
 
 The World App verification screen stays in the product app that uses this
 package.

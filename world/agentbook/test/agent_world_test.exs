@@ -37,15 +37,33 @@ defmodule AgentWorldTest do
 
     def tx_receipt(_rpc_url, "0x" <> rest = tx_hash) when byte_size(rest) == 64 do
       case String.slice(tx_hash, -1, 1) do
-        "1" -> {:ok, %{"status" => "0x1"}}
-        "0" -> {:ok, %{"status" => "0x0"}}
+        "1" -> {:ok, %{"status" => "0x1", "transactionHash" => tx_hash, "to" => @contract}}
+        "0" -> {:ok, %{"status" => "0x0", "transactionHash" => tx_hash, "to" => @contract}}
         _ -> {:ok, nil}
       end
     end
 
     def tx_receipt(_rpc_url, _tx_hash), do: {:ok, nil}
 
-    def relay_post(_url, _body), do: {:error, :relay_disabled}
+    def relay_post(_url, _body, _idempotency_key), do: {:error, :relay_disabled}
+  end
+
+  defmodule RelayStub do
+    def relay_post(_url, body, idempotency_key) do
+      send(self(), {:relay_post, body, idempotency_key})
+      {:ok, %{"txHash" => "0x" <> String.duplicate("c", 64)}}
+    end
+  end
+
+  defmodule WrongContractRpcStub do
+    def tx_receipt(_rpc_url, tx_hash) do
+      {:ok,
+       %{
+         "status" => "0x1",
+         "transactionHash" => tx_hash,
+         "to" => "0x2222222222222222222222222222222222222222"
+       }}
+    end
   end
 
   test "lookup_human reads the human id through the shared package" do
@@ -54,6 +72,27 @@ defmodule AgentWorldTest do
                rpc_module: RpcStub,
                networks: %{"world" => %{rpc_url: "https://world.example"}}
              )
+  end
+
+  test "network overrides keep unknown caller keys as strings" do
+    unknown_key = "caller_key_#{System.unique_integer([:positive])}"
+
+    assert {:ok, network} =
+             AgentBook.resolve_network("world",
+               networks: %{
+                 "world" => %{
+                   "rpc_url" => "https://world.example",
+                   unknown_key => "kept"
+                 }
+               }
+             )
+
+    assert network.rpc_url == "https://world.example"
+    assert network[unknown_key] == "kept"
+
+    assert_raise ArgumentError, fn ->
+      String.to_existing_atom(unknown_key)
+    end
   end
 
   test "create_session returns the request shape the browser flow expects" do
@@ -93,12 +132,14 @@ defmodule AgentWorldTest do
 
   test "submit_proof in manual mode returns the register transaction request" do
     session = %{
+      session_id: "session_test_relay",
       agent_address: @agent,
       network: "world",
       chain_id: 480,
       contract_address: @contract,
       nonce: 7,
-      relay_url: ""
+      relay_url: "",
+      expires_at: ~U[2026-04-28 20:00:00Z]
     }
 
     proof = %{
@@ -113,6 +154,9 @@ defmodule AgentWorldTest do
     assert tx_request.to == String.downcase(@contract)
     assert tx_request.chain_id == 480
     assert tx_request.value == "0x0"
+    assert tx_request.expected_signer == @agent
+    assert tx_request.expires_at == "2026-04-28T20:00:00Z"
+    assert tx_request.risk =~ "Only approve"
 
     assert String.starts_with?(
              tx_request.data,
@@ -135,6 +179,64 @@ defmodule AgentWorldTest do
 
     assert {:ok, %{status: :registered, tx_hash: ^confirmed_hash}} =
              Registration.register_transaction(confirmed_hash, session)
+  end
+
+  test "relay submission waits for later chain confirmation" do
+    session = %{
+      session_id: "session_test_relay",
+      agent_address: @agent,
+      network: "world",
+      chain_id: 480,
+      contract_address: @contract,
+      nonce: 7,
+      relay_url: "https://relay.example",
+      expires_at: DateTime.utc_now() |> DateTime.add(300, :second)
+    }
+
+    proof = %{
+      "merkle_root" => "0x01",
+      "nullifier_hash" => "0x02",
+      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
+    }
+
+    assert {:ok, %{status: :submitted, tx_hash: tx_hash, tx_request: %TxRequest{}}} =
+             Registration.submit_proof(session, proof, rpc_module: RelayStub)
+
+    assert String.starts_with?(tx_hash, "0x")
+
+    assert_received {:relay_post, relay_body, "session_test_relay"}
+    assert relay_body.agent == @agent
+    assert relay_body.contract == @contract
+    assert relay_body.nullifierHash == "0x" <> String.pad_leading("2", 64, "0")
+  end
+
+  test "relay errors do not include protected relay payloads" do
+    error =
+      AgentWorld.Error.new(
+        {:relay_failed,
+         {:http_error, 500, %{"signature" => "secret-signature", "payload" => "secret-payload"}}}
+      )
+
+    rendered = Exception.message(error) <> inspect(error.details)
+
+    refute rendered =~ "secret-signature"
+    refute rendered =~ "secret-payload"
+    assert error.message == "Registration relay failed"
+  end
+
+  test "register_transaction rejects receipts for a different contract" do
+    session = %{
+      network: "world",
+      rpc_module: WrongContractRpcStub,
+      networks: %{"world" => %{"rpc_url" => "https://world.example"}}
+    }
+
+    tx_hash = "0x" <> String.duplicate("d", 64)
+
+    assert {:error, %AgentWorld.Error{message: message}} =
+             Registration.register_transaction(tx_hash, session)
+
+    assert message =~ "different contract"
   end
 
   test "verify_agentkit_signature accepts rpc_url from map options for contract wallets" do

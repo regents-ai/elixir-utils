@@ -13,11 +13,11 @@ defmodule AgentWorld.Registration do
 
   @spec create_session(map()) :: {:ok, map()} | {:error, Error.t()}
   def create_session(attrs) when is_map(attrs) do
-    with {:ok, agent_address} <- normalize_address(fetch(attrs, "agent_address")),
-         {:ok, network} <- normalize_network(fetch(attrs, "network")),
+    with {:ok, agent_address} <- normalize_address(Map.get(attrs, "agent_address")),
+         {:ok, network} <- normalize_network(Map.get(attrs, "network")),
          {:ok, network_config} <- Networks.resolve(network, attrs),
          {:ok, rpc_url} <- required_rpc_url(network_config),
-         rpc <- rpc_module(attrs),
+         rpc <- create_session_rpc_module(attrs),
          {:ok, world_id} <- Networks.world_id_config(attrs),
          {:ok, nonce} <- next_nonce(agent_address, rpc, rpc_url, network_config.contract_address),
          {:ok, signal} <- signal(agent_address, nonce),
@@ -61,17 +61,18 @@ defmodule AgentWorld.Registration do
   @spec register_transaction(String.t(), map()) :: {:ok, map()} | {:error, term()}
   def register_transaction(tx_hash, session) when is_binary(tx_hash) and is_map(session) do
     with {:ok, normalized_hash} <- normalize_tx_hash(tx_hash),
-         {:ok, network} <- normalize_network(fetch(session, :network)),
+         {:ok, network} <- normalize_network(Map.get(session, :network)),
          {:ok, network_config} <- Networks.resolve(network, session),
          {:ok, rpc_url} <- required_rpc_url(network_config),
-         rpc <- rpc_module(session),
+         rpc <- session_rpc_module(session),
+         {:ok, expected_contract} <- normalize_address(network_config.contract_address),
          {:ok, receipt} <- rpc.tx_receipt(rpc_url, normalized_hash) do
       case receipt do
         nil ->
           {:error, {:transaction_pending, normalized_hash}}
 
         %{"status" => "0x1"} ->
-          {:ok, %{status: :registered, tx_hash: normalized_hash}}
+          confirm_registration_receipt(receipt, normalized_hash, expected_contract)
 
         %{"status" => "0x0"} ->
           {:error, Error.new({:registration_failed, "Registration transaction reverted onchain"})}
@@ -90,7 +91,7 @@ defmodule AgentWorld.Registration do
 
   defp maybe_submit_registration(session, proof_payload, tx_request, options) do
     submission = submission_mode(options)
-    relay_url = session |> fetch(:relay_url) |> normalize_optional_binary()
+    relay_url = session |> Map.get(:relay_url) |> normalize_optional_binary()
 
     cond do
       submission == :manual ->
@@ -103,14 +104,16 @@ defmodule AgentWorld.Registration do
          }}
 
       is_binary(relay_url) and relay_url != "" ->
-        case relay_register(relay_url, session, proof_payload) do
+        case relay_register(relay_url, session, proof_payload, relay_rpc_module(session, options)) do
           {:ok, tx_hash} ->
             {:ok,
              %{
-               status: :registered,
+               status: :submitted,
                proof_payload: proof_payload,
+               tx_request: tx_request,
                tx_hash: tx_hash,
-               error_text: nil
+               error_text:
+                 "Registration submitted. Wait for chain confirmation before marking it complete."
              }}
 
           {:error, _reason} ->
@@ -134,19 +137,24 @@ defmodule AgentWorld.Registration do
     end
   end
 
-  defp relay_register(relay_url, session, proof_payload) do
+  defp relay_register(relay_url, session, proof_payload, rpc) do
     url = relay_url |> String.trim_trailing("/") |> Kernel.<>("/register")
 
-    body = %{
-      agent: fetch(session, :agent_address),
-      root: proof_payload["merkle_root"],
-      nonce: Integer.to_string(fetch(session, :nonce)),
-      nullifierHash: proof_payload["nullifier_hash"],
-      proof: proof_payload["proof"],
-      contract: fetch(session, :contract_address)
-    }
+    relay_result =
+      with {:ok, session_id} <- required_session_id(session) do
+        body = %{
+          agent: Map.get(session, :agent_address),
+          root: proof_payload["merkle_root"],
+          nonce: Integer.to_string(Map.get(session, :nonce)),
+          nullifierHash: proof_payload["nullifier_hash"],
+          proof: proof_payload["proof"],
+          contract: Map.get(session, :contract_address)
+        }
 
-    case RPC.relay_post(url, body) do
+        rpc.relay_post(url, body, session_id)
+      end
+
+    case relay_result do
       {:ok, %{"txHash" => tx_hash}} when is_binary(tx_hash) ->
         {:ok, tx_hash}
 
@@ -158,14 +166,50 @@ defmodule AgentWorld.Registration do
     end
   end
 
+  defp confirm_registration_receipt(receipt, tx_hash, expected_contract) do
+    with :ok <- ensure_receipt_tx_hash(receipt, tx_hash),
+         :ok <- ensure_receipt_contract(receipt, expected_contract) do
+      {:ok, %{status: :registered, tx_hash: tx_hash}}
+    end
+  end
+
+  defp ensure_receipt_tx_hash(%{"transactionHash" => receipt_hash}, tx_hash)
+       when is_binary(receipt_hash) do
+    if String.downcase(receipt_hash) == tx_hash do
+      :ok
+    else
+      {:error,
+       Error.new({:registration_failed, "Registration receipt had a different transaction."})}
+    end
+  end
+
+  defp ensure_receipt_tx_hash(_receipt, _tx_hash),
+    do:
+      {:error,
+       Error.new({:registration_failed, "Registration receipt was missing its transaction."})}
+
+  defp ensure_receipt_contract(%{"to" => to}, expected_contract) when is_binary(to) do
+    if String.downcase(to) == expected_contract do
+      :ok
+    else
+      {:error,
+       Error.new({:registration_failed, "Registration transaction used a different contract."})}
+    end
+  end
+
+  defp ensure_receipt_contract(_receipt, _expected_contract),
+    do:
+      {:error,
+       Error.new({:registration_failed, "Registration receipt was missing its contract."})}
+
   defp build_register_tx(session, proof_payload) do
-    with {:ok, agent_address} <- normalize_address(fetch(session, :agent_address)),
-         {:ok, root} <- uint256(fetch(proof_payload, "merkle_root")),
-         {:ok, nonce} <- uint256(fetch(session, :nonce)),
-         {:ok, nullifier_hash} <- uint256(fetch(proof_payload, "nullifier_hash")),
-         {:ok, proof} <- proof_words(fetch(proof_payload, "proof")),
-         {:ok, to} <- normalize_address(fetch(session, :contract_address)),
-         {:ok, chain_id} <- normalize_chain_id(fetch(session, :chain_id)) do
+    with {:ok, agent_address} <- normalize_address(Map.get(session, :agent_address)),
+         {:ok, root} <- uint256(Map.get(proof_payload, "merkle_root")),
+         {:ok, nonce} <- uint256(Map.get(session, :nonce)),
+         {:ok, nullifier_hash} <- uint256(Map.get(proof_payload, "nullifier_hash")),
+         {:ok, proof} <- proof_words(Map.get(proof_payload, "proof")),
+         {:ok, to} <- normalize_address(Map.get(session, :contract_address)),
+         {:ok, chain_id} <- normalize_chain_id(Map.get(session, :chain_id)) do
       {:ok,
        %TxRequest{
          to: to,
@@ -177,10 +221,38 @@ defmodule AgentWorld.Registration do
              ABI.uint256_word(nullifier_hash) <> Enum.join(proof, ""),
          value: "0x0",
          chain_id: chain_id,
-         description: "Register agent wallet in AgentBook"
+         description: "Register agent wallet in AgentBook",
+         expected_signer: agent_address,
+         expires_at: registration_request_expires_at(session),
+         risk:
+           "Only approve if this is your AgentBook registration on the shown network and contract."
        }}
     end
   end
+
+  defp registration_request_expires_at(session) do
+    session_expires_at =
+      Map.get(session, :expires_at) ||
+        case Map.get(session, :rp_context) do
+          context when is_map(context) -> Map.get(context, :expires_at)
+          _value -> nil
+        end
+
+    expires_at_to_iso8601(session_expires_at)
+  end
+
+  defp expires_at_to_iso8601(%DateTime{} = expires_at), do: DateTime.to_iso8601(expires_at)
+
+  defp expires_at_to_iso8601(expires_at) when is_integer(expires_at) do
+    expires_at
+    |> DateTime.from_unix!()
+    |> DateTime.to_iso8601()
+  end
+
+  defp expires_at_to_iso8601(expires_at) when is_binary(expires_at) and expires_at != "",
+    do: expires_at
+
+  defp expires_at_to_iso8601(_expires_at), do: nil
 
   defp proof_words(proof) when is_list(proof) and length(proof) == 8 do
     proof
@@ -387,26 +459,13 @@ defmodule AgentWorld.Registration do
     end
   end
 
-  defp submission_mode(options) when is_map(options) do
-    case Map.get(options, :submission) || Map.get(options, "submission") do
-      :manual -> :manual
-      "manual" -> :manual
-      _ -> :auto
-    end
-  end
-
   defp submission_mode(_options), do: :auto
 
-  defp fetch(map, key) when is_binary(key),
-    do: Map.get(map, key) || Map.get(map, maybe_atom_key(key))
-
-  defp fetch(map, key) when is_atom(key),
-    do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
-
-  defp maybe_atom_key(key) do
-    String.to_existing_atom(key)
-  rescue
-    ArgumentError -> key
+  defp required_session_id(session) do
+    case Map.get(session, :session_id) do
+      value when is_binary(value) and value != "" -> {:ok, value}
+      value -> {:error, Error.new({:missing_required_input, "session_id: #{inspect(value)}"})}
+    end
   end
 
   defp normalize_optional_binary(value) when is_binary(value) do
@@ -422,11 +481,16 @@ defmodule AgentWorld.Registration do
 
   defp ok!({:ok, value}), do: value
 
-  defp rpc_module(opts) when is_list(opts), do: Keyword.get(opts, :rpc_module, RPC)
+  defp create_session_rpc_module(attrs), do: Map.get(attrs, "rpc_module") || RPC
+  defp session_rpc_module(session), do: Map.get(session, :rpc_module) || RPC
 
-  defp rpc_module(opts) when is_map(opts) do
-    Map.get(opts, :rpc_module) || Map.get(opts, "rpc_module") || RPC
+  defp relay_rpc_module(session, options) do
+    case options do
+      opts when is_list(opts) ->
+        Keyword.get(opts, :rpc_module) || session_rpc_module(session)
+
+      _opts ->
+        session_rpc_module(session)
+    end
   end
-
-  defp rpc_module(_opts), do: RPC
 end

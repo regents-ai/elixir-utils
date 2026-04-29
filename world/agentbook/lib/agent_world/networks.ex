@@ -5,6 +5,24 @@ defmodule AgentWorld.Networks do
 
   @world_contract "0xA23aB2712eA7BBa896930544C7d6636a96b944dA"
   @base_contract "0xE1D1D3526A6FAa37eb36bD10B933C1b77f4561a4"
+  @network_atoms %{
+    "world" => [:world],
+    "base" => [:base],
+    "base-sepolia" => [:"base-sepolia", :base_sepolia]
+  }
+
+  @known_string_keys %{
+    "action" => :action,
+    "app_id" => :app_id,
+    "chain_id" => :chain_id,
+    "contract_address" => :contract_address,
+    "id" => :id,
+    "relay_url" => :relay_url,
+    "rp_id" => :rp_id,
+    "rpc_url" => :rpc_url,
+    "signing_key" => :signing_key,
+    "ttl_seconds" => :ttl_seconds
+  }
 
   @defaults %{
     "world" => %{
@@ -104,32 +122,32 @@ defmodule AgentWorld.Networks do
 
   defp normalize_keys(map) do
     Map.new(map, fn
-      {key, value} when is_binary(key) -> {string_key_to_atom(key), deep_normalize(value)}
+      {key, value} when is_binary(key) -> {known_string_key(key), deep_normalize(value)}
       {key, value} -> {key, deep_normalize(value)}
     end)
   end
 
   defp deep_normalize(value) when is_map(value), do: normalize_keys(value)
-  defp deep_normalize(value) when is_list(value), do: Enum.map(value, &deep_normalize/1)
+
+  defp deep_normalize(value) when is_list(value) do
+    if Keyword.keyword?(value) do
+      value |> Enum.into(%{}) |> normalize_keys()
+    else
+      Enum.map(value, &deep_normalize/1)
+    end
+  end
+
   defp deep_normalize(value), do: value
 
   defp network_entry(overrides, network) do
-    Map.get(overrides, network) || Map.get(overrides, maybe_network_atom(network)) || %{}
-  end
-
-  defp maybe_network_atom(network) do
-    String.to_existing_atom(network)
-  rescue
-    ArgumentError -> network
+    Map.get(overrides, network) ||
+      Enum.find_value(Map.get(@network_atoms, network, []), &Map.get(overrides, &1)) ||
+      %{}
   end
 
   defp map_lookup(key, opts) when is_atom(key) do
     Map.get(opts, key) || Map.get(opts, Atom.to_string(key))
   end
 
-  defp string_key_to_atom(key) do
-    String.to_existing_atom(key)
-  rescue
-    ArgumentError -> String.to_atom(key)
-  end
+  defp known_string_key(key), do: Map.get(@known_string_keys, key, key)
 end

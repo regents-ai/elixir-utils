@@ -134,6 +134,9 @@ Think of it as a ready-to-send instruction for a wallet:
 - `data`: the encoded request data
 - `value`: the amount of native token to send with it, usually `0`
 - `chain_id`: the target chain
+- `expected_signer`: the wallet expected to approve it, when known
+- `expires_at`: when the request should no longer be used
+- `risk`: a short review note for the person approving it
 - `description`: a short sentence you can show in logs or review screens
 
 The package stops there. Your app or wallet decides whether to approve and send it.

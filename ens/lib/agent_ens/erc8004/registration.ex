@@ -10,6 +10,8 @@ defmodule AgentEns.ERC8004.Registration do
   defmodule DefaultFetcher do
     @behaviour Fetcher
 
+    @http_timeout_ms 5_000
+
     @impl true
     def fetch(uri, opts \\ []) when is_binary(uri) do
       case URI.parse(uri) do
@@ -36,7 +38,13 @@ defmodule AgentEns.ERC8004.Registration do
     end
 
     defp fetch_http(url, _opts) do
-      case Req.get(url, headers: [{"accept", "application/json, text/plain;q=0.9, */*;q=0.1"}]) do
+      case Req.get(
+             url: url,
+             headers: [{"accept", "application/json, text/plain;q=0.9, */*;q=0.1"}],
+             receive_timeout: @http_timeout_ms,
+             connect_options: [timeout: @http_timeout_ms],
+             retry: false
+           ) do
         {:ok, %{status: status, body: body}} when status in 200..299 ->
           cond do
             is_binary(body) -> {:ok, body}

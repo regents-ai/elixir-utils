@@ -84,11 +84,11 @@ defmodule AgentWorld.Error do
   end
 
   defp from_reason({:relay_failed, reason}) do
-    io("Registration relay failed: #{inspect(reason)}", %{reason: reason})
+    io("Registration relay failed", relay_error_details(reason))
   end
 
-  defp from_reason({:relay_missing_tx_hash, body}) do
-    io("Registration relay did not return a transaction hash", %{body: body})
+  defp from_reason({:relay_missing_tx_hash, _body}) do
+    io("Registration relay did not return a transaction hash", %{})
   end
 
   defp from_reason({:unsupported_chain_namespace, chain_id}) do
@@ -110,4 +110,7 @@ defmodule AgentWorld.Error do
   defp from_reason(reason) do
     internal("Unexpected AgentBook error: #{inspect(reason)}", %{reason: reason})
   end
+
+  defp relay_error_details({:http_error, status}) when is_integer(status), do: %{status: status}
+  defp relay_error_details(_reason), do: %{}
 end

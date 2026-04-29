@@ -2,6 +2,7 @@ defmodule AgentEns.MixProject do
   use Mix.Project
 
   @version "0.1.0"
+  @siwa_requirement "~> 0.1.0"
   @description "Elixir-first ENSIP-25 library for ENS and ERC-8004 verification, planning, and unsigned link preparation."
 
   def project do
@@ -36,6 +37,7 @@ defmodule AgentEns.MixProject do
       {:req, "~> 0.5"},
       {:idna, "~> 6.1"},
       {:jason, "~> 1.4"},
+      siwa_dependency(),
       {:keccak_ex, "~> 0.4.2"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
@@ -70,9 +72,17 @@ defmodule AgentEns.MixProject do
       links: %{
         "ENSIP-25" => "https://docs.ens.domains/ensip/25",
         "Upstream Rust SDK" => "https://github.com/qntx/ensip25",
-        "Source" => "https://github.com/regent-ai/regent"
+        "Source" => "https://github.com/regents-ai/regent"
       }
     ]
+  end
+
+  defp siwa_dependency do
+    if System.get_env("SIWA_HEX_PUBLISH") == "1" do
+      {:siwa, @siwa_requirement}
+    else
+      {:siwa, path: "../siwa/siwa-elixir/apps/siwa"}
+    end
   end
 
   defp docs do

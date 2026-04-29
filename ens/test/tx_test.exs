@@ -17,7 +17,27 @@ defmodule AgentEns.TxTest do
 
     assert tx.to == "0x226159d592e2b063810a10ebf6dcbada94ed68b8"
     assert tx.chain_id == 1
+    assert tx.expected_signer == nil
+    assert {:ok, _expires_at, _offset} = DateTime.from_iso8601(tx.expires_at)
+    assert tx.risk == "Only approve if the destination, network, and action match your request."
     assert String.starts_with?(tx.data, ABI.selector("setText(bytes32,string,string)"))
+  end
+
+  test "preserves prepared request safety details when supplied" do
+    assert {:ok, tx} =
+             Tx.build_set_addr_tx(%{
+               ens_name: "vitalik.eth",
+               chain_id: 1,
+               resolver_address: "0x226159d592e2b063810a10ebf6dcbada94ed68b8",
+               address: "0x1234567890abcdef1234567890ABCDEF12345678",
+               expected_signer: "0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD",
+               expires_at: "2026-04-28T20:00:00Z",
+               risk: "Only approve after checking the name and address."
+             })
+
+    assert tx.expected_signer == "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+    assert tx.expires_at == "2026-04-28T20:00:00Z"
+    assert tx.risk == "Only approve after checking the name and address."
   end
 
   test "builds a generic ENS text-record transaction request" do

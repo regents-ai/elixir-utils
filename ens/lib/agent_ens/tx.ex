@@ -30,6 +30,7 @@ defmodule AgentEns.Tx do
 
   @uint32_max 4_294_967_295
   @uint64_max 18_446_744_073_709_551_615
+  @prepared_request_ttl_seconds 15 * 60
   @address_pattern ~r/^0x[0-9a-fA-F]{40}$/
 
   @spec build_set_text_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
@@ -40,12 +41,11 @@ defmodule AgentEns.Tx do
          {:ok, agent_id} <- required_agent_id(params),
          {:ok, key} <- build_record_key(record_chain_id, registry_address, agent_id) do
       build_set_text_record_tx(%{
-        ens_name: Map.get(params, :ens_name) || Map.get(params, "ens_name"),
+        ens_name: Map.get(params, :ens_name),
         chain_id: chain_id,
-        resolver_address:
-          Map.get(params, :resolver_address) || Map.get(params, "resolver_address"),
+        resolver_address: Map.get(params, :resolver_address),
         key: key,
-        value: Map.get(params, :value) || Map.get(params, "value") || "1"
+        value: Map.get(params, :value) || "1"
       })
     end
   end
@@ -68,7 +68,8 @@ defmodule AgentEns.Tx do
          registrar_address,
          chain_id,
          data,
-         "Upgrade #{label}.regent.eth to an onchain Regent ENS name"
+         "Upgrade #{label}.regent.eth to an onchain Regent ENS name",
+         params
        )}
     end
   end
@@ -94,7 +95,8 @@ defmodule AgentEns.Tx do
          registrar_address,
          chain_id,
          data,
-         "Write ENSIP-25 proof for #{label}.regent.eth through the Regent registrar"
+         "Write ENSIP-25 proof for #{label}.regent.eth through the Regent registrar",
+         params
        )}
     end
   end
@@ -115,7 +117,8 @@ defmodule AgentEns.Tx do
          registrar_address,
          chain_id,
          data,
-         "Set the ETH address for #{label}.regent.eth through the Regent registrar"
+         "Set the ETH address for #{label}.regent.eth through the Regent registrar",
+         params
        )}
     end
   end
@@ -139,7 +142,8 @@ defmodule AgentEns.Tx do
          resolver_address,
          chain_id,
          data,
-         "Set ENS text record #{inspect(key)} on #{normalized_name}"
+         "Set ENS text record #{inspect(key)} on #{normalized_name}",
+         params
        )}
     end
   end
@@ -162,7 +166,8 @@ defmodule AgentEns.Tx do
          resolver_address,
          chain_id,
          data,
-         "Set the ETH address for #{normalized_name}"
+         "Set the ETH address for #{normalized_name}",
+         params
        )}
     end
   end
@@ -185,7 +190,8 @@ defmodule AgentEns.Tx do
          resolver_address,
          chain_id,
          data,
-         "Set the content hash for #{normalized_name}"
+         "Set the content hash for #{normalized_name}",
+         params
        )}
     end
   end
@@ -208,7 +214,8 @@ defmodule AgentEns.Tx do
          control_contract,
          chain_id,
          data,
-         "Update the resolver for #{normalized_name} through #{control_label(control)}"
+         "Update the resolver for #{normalized_name} through #{control_label(control)}",
+         params
        )}
     end
   end
@@ -228,7 +235,8 @@ defmodule AgentEns.Tx do
          control_contract,
          chain_id,
          data,
-         "Update the TTL for #{normalized_name} through #{control_label(control)}"
+         "Update the TTL for #{normalized_name} through #{control_label(control)}",
+         params
        )}
     end
   end
@@ -255,7 +263,8 @@ defmodule AgentEns.Tx do
          control_contract,
          chain_id,
          data,
-         "Update the owner, resolver, and TTL for #{normalized_name} through #{control_label(control)}"
+         "Update the owner, resolver, and TTL for #{normalized_name} through #{control_label(control)}",
+         params
        )}
     end
   end
@@ -276,7 +285,8 @@ defmodule AgentEns.Tx do
          control_contract,
          chain_id,
          data,
-         "Create or update #{label}.#{normalized_parent_name} through #{control_label(control)}"
+         "Create or update #{label}.#{normalized_parent_name} through #{control_label(control)}",
+         params
        )}
     end
   end
@@ -307,7 +317,8 @@ defmodule AgentEns.Tx do
          control_contract,
          chain_id,
          data,
-         "Create or update #{label}.#{normalized_parent_name} with resolver settings through #{control_label(control)}"
+         "Create or update #{label}.#{normalized_parent_name} with resolver settings through #{control_label(control)}",
+         params
        )}
     end
   end
@@ -342,7 +353,8 @@ defmodule AgentEns.Tx do
          registry_address,
          chain_id,
          data,
-         "Update ERC-8004 registration URI for agent #{agent_id}"
+         "Update ERC-8004 registration URI for agent #{agent_id}",
+         params
        )}
     end
   end
@@ -359,7 +371,8 @@ defmodule AgentEns.Tx do
          reverse_registrar,
          chain_id,
          data,
-         reverse_name_description(normalized_name)
+         reverse_name_description(normalized_name),
+         params
        )}
     end
   end
@@ -445,7 +458,7 @@ defmodule AgentEns.Tx do
   end
 
   defp optional_integer(params, key, default) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
+    case Map.get(params, key) do
       nil ->
         {:ok, default}
 
@@ -454,19 +467,55 @@ defmodule AgentEns.Tx do
     end
   end
 
-  defp tx_request(to, chain_id, data, description) do
+  defp tx_request(to, chain_id, data, description, params) do
     %TxRequest{
       to: String.downcase(to),
       data: data,
       value: 0,
       chain_id: chain_id,
-      description: description
+      description: description,
+      expected_signer: prepared_expected_signer(params),
+      expires_at: prepared_expires_at(params),
+      risk: prepared_risk(params)
     }
   end
 
+  defp prepared_expected_signer(params) do
+    case Map.get(params, :expected_signer) do
+      value when is_binary(value) and value != "" -> String.downcase(value)
+      _value -> nil
+    end
+  end
+
+  defp prepared_expires_at(params) do
+    case Map.get(params, :expires_at) do
+      value when is_binary(value) and value != "" ->
+        value
+
+      %DateTime{} = value ->
+        DateTime.to_iso8601(value)
+
+      _value ->
+        DateTime.utc_now()
+        |> DateTime.add(@prepared_request_ttl_seconds, :second)
+        |> DateTime.truncate(:second)
+        |> DateTime.to_iso8601()
+    end
+  end
+
+  defp prepared_risk(params) do
+    case Map.get(params, :risk) do
+      value when is_binary(value) and value != "" ->
+        value
+
+      _value ->
+        "Only approve if the destination, network, and action match your request."
+    end
+  end
+
   defp subname_record_mode(params) do
-    resolver_address = Map.get(params, :resolver_address) || Map.get(params, "resolver_address")
-    ttl = Map.get(params, :ttl) || Map.get(params, "ttl")
+    resolver_address = Map.get(params, :resolver_address)
+    ttl = Map.get(params, :ttl)
 
     case {present?(resolver_address), present?(ttl)} do
       {true, true} -> :record
@@ -496,7 +545,6 @@ defmodule AgentEns.Tx do
   defp contract_from_network(params, chain_id, field, control) do
     value =
       Map.get(params, field) ||
-        Map.get(params, Atom.to_string(field)) ||
         case Networks.get(chain_id) || %{} do
           network -> Map.get(network, field)
         end
@@ -513,15 +561,13 @@ defmodule AgentEns.Tx do
   end
 
   defp explicit_control_contract(params) do
-    Map.get(params, :control_contract) || Map.get(params, "control_contract")
+    Map.get(params, :control_contract)
   end
 
   defp control_type(params) do
-    case Map.get(params, :control) || Map.get(params, "control") || :registry do
+    case Map.get(params, :control) || :registry do
       :registry -> {:ok, :registry}
-      "registry" -> {:ok, :registry}
       :name_wrapper -> {:ok, :name_wrapper}
-      "name_wrapper" -> {:ok, :name_wrapper}
       value -> {:error, Error.new({:invalid_argument, "control", value})}
     end
   end
@@ -530,34 +576,28 @@ defmodule AgentEns.Tx do
   defp control_label(:name_wrapper), do: "the ENS Name Wrapper"
 
   defp required(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
+    case Map.get(params, key) do
       value when is_binary(value) and value != "" -> {:ok, value}
       value -> {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
     end
   end
 
   defp required_or_empty(params, key) do
-    value =
-      case Map.fetch(params, key) do
-        {:ok, direct} -> direct
-        :error -> Map.get(params, Atom.to_string(key))
-      end
-
-    case value do
+    case Map.get(params, key) do
       value when is_binary(value) -> {:ok, value}
       value -> {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
     end
   end
 
   defp required_address(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
+    case Map.get(params, key) do
       value when is_binary(value) and value != "" -> normalize_address(value)
       value -> {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
     end
   end
 
   defp required_integer(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
+    case Map.get(params, key) do
       value when is_integer(value) and value >= 0 ->
         {:ok, value}
 
@@ -577,7 +617,7 @@ defmodule AgentEns.Tx do
   defp required_uint64(params, key), do: required_integer_in_range(params, key, @uint64_max)
 
   defp required_agent_id(params) do
-    case Map.get(params, :agent_id) || Map.get(params, "agent_id") do
+    case Map.get(params, :agent_id) do
       value when is_integer(value) and value >= 0 -> {:ok, value}
       value when is_binary(value) and value != "" -> {:ok, value}
       value -> {:error, Error.new({:missing_required_input, "agent_id: #{inspect(value)}"})}
@@ -596,7 +636,7 @@ defmodule AgentEns.Tx do
   end
 
   defp required_bytes(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
+    case Map.get(params, key) do
       "0x" <> encoded ->
         case Base.decode16(encoded, case: :mixed) do
           {:ok, binary} -> {:ok, binary}
@@ -615,7 +655,7 @@ defmodule AgentEns.Tx do
   defp present?(_value), do: true
 
   defp reverse_registrar(params, chain_id) do
-    case Map.get(params, :reverse_registrar) || Map.get(params, "reverse_registrar") do
+    case Map.get(params, :reverse_registrar) do
       value when is_binary(value) and value != "" ->
         normalize_address(value)
 

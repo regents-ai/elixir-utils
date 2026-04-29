@@ -130,6 +130,9 @@ When the package prepares a change, it returns `%AgentEns.TxRequest{}`. That is 
 - where the request should go
 - the encoded call data
 - the chain it belongs to
+- the wallet that is expected to approve it, when known
+- when the request should no longer be used
+- a short review note for the person approving it
 - a short human description of what the request does
 
 The package does not send that request for you.

@@ -75,7 +75,7 @@ defmodule SiwaKeyring.Router do
 
   post @prefix <> "/sign-transaction" do
     with {:ok, transaction} <-
-           required_object(conn.body_params, "transaction", :transaction_required),
+           required_wallet_action(conn.body_params, "transaction", :transaction_required),
          {:ok, signed} <-
            run_keyring_request(:sign_transaction, fn ->
              SiwaKeyring.sign_transaction(transaction)
@@ -89,7 +89,7 @@ defmodule SiwaKeyring.Router do
 
   post @prefix <> "/sign-authorization" do
     with {:ok, authorization} <-
-           required_object(conn.body_params, "authorization", :authorization_required),
+           required_wallet_action(conn.body_params, "authorization", :authorization_required),
          {:ok, signed} <-
            run_keyring_request(:sign_authorization, fn ->
              SiwaKeyring.sign_authorization(authorization)
@@ -110,21 +110,33 @@ defmodule SiwaKeyring.Router do
   defp authorize(conn, _opts) do
     secret = Application.fetch_env!(:siwa_keyring, :secret)
     body = request_body(conn)
+    request_id = header(conn, "x-keyring-request-id")
+    timestamp = header(conn, "x-keyring-timestamp")
 
-    case SiwaKeyring.Auth.verify_hmac(
-           secret,
-           conn.method,
-           conn.request_path,
-           body,
-           header(conn, "x-keyring-timestamp"),
-           header(conn, "x-keyring-signature")
-         ) do
+    case authorize_once(secret, conn, body, request_id, timestamp) do
       :ok ->
         conn
 
       {:error, reason} ->
         Logger.warning("keyring request authorization failed: #{inspect(reason)}")
         conn |> send_error(401, "unauthorized") |> halt()
+    end
+  end
+
+  defp authorize_once(secret, conn, body, request_id, timestamp) do
+    with :ok <-
+           SiwaKeyring.Auth.verify_hmac(
+             secret,
+             conn.method,
+             conn.request_path,
+             body,
+             request_id,
+             timestamp,
+             header(conn, "x-keyring-signature")
+           ),
+         {:ok, expires_at_ms} <- SiwaKeyring.Auth.request_expires_at_ms(timestamp),
+         :ok <- SiwaKeyring.ReplayStore.consume(request_id, expires_at_ms) do
+      :ok
     end
   end
 
@@ -228,10 +240,16 @@ defmodule SiwaKeyring.Router do
     end
   end
 
-  defp required_object(params, key, error_code) do
+  defp required_wallet_action(params, key, error_code) do
     case Map.get(params, key) do
-      value when is_map(value) and map_size(value) > 0 -> {:ok, value}
-      _value -> {:error, error_code}
+      value when is_map(value) ->
+        case Siwa.WalletAction.validate(value) do
+          {:ok, action} -> {:ok, action}
+          {:error, _reason} -> {:error, error_code}
+        end
+
+      _value ->
+        {:error, error_code}
     end
   end
 

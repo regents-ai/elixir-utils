@@ -41,11 +41,18 @@ defmodule SharedServicesContractCheck do
     "KeyringAddressResponse",
     "KeyringSignMessageRequest",
     "KeyringSignRawMessageRequest",
+    "KeyringWalletActionEnvelope",
     "KeyringSignTransactionRequest",
     "KeyringSignAuthorizationRequest",
     "KeyringSignatureResponse",
     "KeyringSignedTransactionResponse",
     "KeyringSignedAuthorizationResponse"
+  ]
+
+  @required_security_schemes [
+    "KeyringHmacTimestamp",
+    "KeyringHmacRequestId",
+    "KeyringHmacSignature"
   ]
 
   def run do
@@ -64,6 +71,26 @@ defmodule SharedServicesContractCheck do
     missing_schemas =
       @required_schemas
       |> Enum.reject(fn schema -> String.contains?(contract, "    #{schema}:\n") end)
+
+    missing_security_schemes =
+      @required_security_schemes
+      |> Enum.reject(fn scheme -> String.contains?(contract, "    #{scheme}:\n") end)
+
+    missing_keyring_request_id_paths =
+      @keyring_operations
+      |> Enum.reject(fn
+        {{"get", "/internal/keyring/health"}, _operation_id} ->
+          true
+
+        {{_method, path}, _operation_id} ->
+          case path_section(contract, path) do
+            {:ok, section} -> String.contains?(section, "KeyringHmacRequestId")
+            :error -> false
+          end
+      end)
+      |> Enum.map(fn {{method, path}, operation_id} ->
+        "#{String.upcase(method)} #{path} -> #{operation_id}"
+      end)
 
     router_routes = keyring_router |> keyring_router_routes() |> MapSet.new()
     expected_keyring_routes = @keyring_operations |> Map.keys() |> MapSet.new()
@@ -97,12 +124,14 @@ defmodule SharedServicesContractCheck do
     case {
       missing_operations,
       missing_schemas,
+      missing_security_schemes,
+      missing_keyring_request_id_paths,
       missing_router_routes,
       extra_router_routes,
       missing_contract_keyring_paths,
       extra_contract_keyring_paths
     } do
-      {[], [], [], [], [], []} ->
+      {[], [], [], [], [], [], [], []} ->
         Mix.shell().info("Shared services contract covers SIWA routes and response envelopes.")
 
       _ ->
@@ -112,6 +141,11 @@ defmodule SharedServicesContractCheck do
               [
                 missing_message("Missing operations", missing_operations),
                 missing_message("Missing schemas", missing_schemas),
+                missing_message("Missing security schemes", missing_security_schemes),
+                missing_message(
+                  "Missing keyring request-id security",
+                  missing_keyring_request_id_paths
+                ),
                 missing_message("Missing keyring router routes", missing_router_routes),
                 missing_message("Extra keyring router routes", extra_router_routes),
                 missing_message("Missing keyring contract paths", missing_contract_keyring_paths),

@@ -44,6 +44,7 @@ Available routes:
 Every non-health route requires:
 
 - `x-keyring-timestamp`
+- `x-keyring-request-id`
 - `x-keyring-signature`
 
 Build those headers with:
@@ -59,6 +60,10 @@ headers =
     body
   )
 ```
+
+The request id is included in the signed payload and can only be used once during the timestamp freshness window.
+
+Transaction and authorization signing accepts the shared wallet-action envelope from `regent-services-contract.openapiv3.yaml`: `chain_id`, `to`, `value`, `data`, `expected_signer`, `expires_at`, `risk_copy`, and `idempotency_key`.
 
 ## Remote Client
 

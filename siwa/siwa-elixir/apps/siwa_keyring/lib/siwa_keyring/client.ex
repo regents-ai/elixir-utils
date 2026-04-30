@@ -48,9 +48,12 @@ defmodule SiwaKeyring.Client do
 
   defp request(client, method, path, payload) do
     body = Jason.encode!(payload)
+    request_id = Auth.request_id()
 
     headers =
-      Auth.compute_hmac(client.secret, String.upcase(to_string(method)), path, body)
+      Auth.compute_hmac(client.secret, String.upcase(to_string(method)), path, body,
+        request_id: request_id
+      )
       |> Map.put("content-type", "application/json")
 
     request_opts =

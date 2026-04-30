@@ -6,14 +6,18 @@ defmodule SiwaKeyring.Application do
     config = runtime_config!()
 
     children =
-      if config.start_server do
-        [{Bandit, plug: SiwaKeyring.Router, scheme: :http, port: config.port, ip: config.host}]
-      else
-        []
-      end
+      [{SiwaKeyring.ReplayStore, name: SiwaKeyring.ReplayStore}]
+      |> maybe_add_server(config)
 
     Supervisor.start_link(children, strategy: :one_for_one, name: SiwaKeyring.Supervisor)
   end
+
+  defp maybe_add_server(children, %{start_server: true} = config) do
+    children ++
+      [{Bandit, plug: SiwaKeyring.Router, scheme: :http, port: config.port, ip: config.host}]
+  end
+
+  defp maybe_add_server(children, %{start_server: false}), do: children
 
   def runtime_config! do
     %{

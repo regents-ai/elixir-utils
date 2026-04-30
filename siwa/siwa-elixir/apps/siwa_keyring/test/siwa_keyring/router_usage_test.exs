@@ -10,13 +10,30 @@ defmodule SiwaKeyring.RouterUsageTest do
     SiwaKeyring.Router.call(conn, SiwaKeyring.Router.init([]))
   end
 
-  defp signed_conn(method, path, body, secret, timestamp \\ nil) do
-    headers = SiwaKeyring.Auth.compute_hmac(secret, method, path, body, timestamp)
+  defp signed_conn(method, path, body, secret, opts \\ []) do
+    headers = SiwaKeyring.Auth.compute_hmac(secret, method, path, body, opts)
 
     conn(method, path, body)
     |> put_req_header("content-type", "application/json")
     |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+    |> put_req_header("x-keyring-request-id", headers["x-keyring-request-id"])
     |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
+  end
+
+  defp wallet_action(overrides) do
+    Map.merge(
+      %{
+        "chain_id" => 84532,
+        "to" => "0x1111111111111111111111111111111111111111",
+        "value" => "0x0",
+        "data" => "0x",
+        "expected_signer" => "0x1111111111111111111111111111111111111111",
+        "expires_at" => "2099-01-01T00:00:00Z",
+        "risk_copy" => "Review this wallet action before signing.",
+        "idempotency_key" => "wallet-action-idem-0001"
+      },
+      overrides
+    )
   end
 
   defp with_keyring_env(fun) do
@@ -78,8 +95,12 @@ defmodule SiwaKeyring.RouterUsageTest do
     conn =
       conn("POST", @prefix <> "/has-wallet", "{}")
       |> put_req_header("content-type", "application/json")
-      |> put_req_header("x-keyring-timestamp", "123")
-      |> put_req_header("x-keyring-signature", "bad")
+      |> put_req_header(
+        "x-keyring-timestamp",
+        Integer.to_string(System.system_time(:millisecond))
+      )
+      |> put_req_header("x-keyring-request-id", "test-bad-signature-0001")
+      |> put_req_header("x-keyring-signature", String.duplicate("0", 64))
 
     response = call_router(conn)
     assert response.status == 401
@@ -95,12 +116,57 @@ defmodule SiwaKeyring.RouterUsageTest do
         @prefix <> "/has-wallet",
         "{}",
         "router-secret",
-        Integer.to_string(timestamp)
+        timestamp: Integer.to_string(timestamp)
       )
       |> call_router()
 
     assert response.status == 401
     assert Jason.decode!(response.resp_body) == %{"error" => "unauthorized"}
+  end
+
+  test "router rejects replayed signed requests" do
+    with_keyring_env(fn _path ->
+      request_id = "test-replayed-request-0001"
+      opts = [request_id: request_id]
+
+      first_response =
+        signed_conn("POST", @prefix <> "/has-wallet", "{}", "router-secret", opts)
+        |> call_router()
+
+      second_response =
+        signed_conn("POST", @prefix <> "/has-wallet", "{}", "router-secret", opts)
+        |> call_router()
+
+      assert first_response.status == 200
+      assert second_response.status == 401
+      assert Jason.decode!(second_response.resp_body) == %{"error" => "unauthorized"}
+    end)
+  end
+
+  test "bad signatures do not consume request ids" do
+    with_keyring_env(fn _path ->
+      timestamp = Integer.to_string(System.system_time(:millisecond))
+      request_id = "test-valid-after-bad-0001"
+
+      bad_response =
+        conn("POST", @prefix <> "/has-wallet", "{}")
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-keyring-timestamp", timestamp)
+        |> put_req_header("x-keyring-request-id", request_id)
+        |> put_req_header("x-keyring-signature", String.duplicate("0", 64))
+        |> call_router()
+
+      valid_response =
+        signed_conn("POST", @prefix <> "/has-wallet", "{}", "router-secret",
+          request_id: request_id,
+          timestamp: timestamp
+        )
+        |> call_router()
+
+      assert bad_response.status == 401
+      assert valid_response.status == 200
+      assert Jason.decode!(valid_response.resp_body) == %{"has_wallet" => false}
+    end)
   end
 
   test "router returns json for malformed request bodies" do
@@ -141,6 +207,7 @@ defmodule SiwaKeyring.RouterUsageTest do
     response =
       conn("POST", @prefix <> "/has-wallet")
       |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+      |> put_req_header("x-keyring-request-id", headers["x-keyring-request-id"])
       |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
       |> call_router()
 
@@ -167,6 +234,7 @@ defmodule SiwaKeyring.RouterUsageTest do
       conn("POST", @prefix <> "/has-wallet", "")
       |> put_req_header("content-type", "application/json")
       |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
+      |> put_req_header("x-keyring-request-id", headers["x-keyring-request-id"])
       |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
       |> call_router()
 
@@ -205,6 +273,53 @@ defmodule SiwaKeyring.RouterUsageTest do
 
     assert transaction_response.status == 400
     assert Jason.decode!(transaction_response.resp_body) == %{"error" => "transaction_required"}
+  end
+
+  test "router signs canonical wallet-action envelopes only" do
+    with_keyring_env(fn _path ->
+      create_response =
+        signed_conn("POST", @prefix <> "/create-wallet", "{}", "router-secret")
+        |> call_router()
+
+      assert create_response.status == 200
+      %{"address" => address} = Jason.decode!(create_response.resp_body)
+
+      transaction = wallet_action(%{"expected_signer" => address})
+      body = Jason.encode!(%{"transaction" => transaction})
+
+      response =
+        signed_conn("POST", @prefix <> "/sign-transaction", body, "router-secret")
+        |> call_router()
+
+      payload = Jason.decode!(response.resp_body)
+      assert response.status == 200
+      assert payload["transaction"] == transaction
+      assert is_map(payload["signature"])
+    end)
+  end
+
+  test "router rejects wallet-action envelopes with missing policy fields" do
+    with_keyring_env(fn _path ->
+      create_response =
+        signed_conn("POST", @prefix <> "/create-wallet", "{}", "router-secret")
+        |> call_router()
+
+      assert create_response.status == 200
+      %{"address" => address} = Jason.decode!(create_response.resp_body)
+
+      incomplete_transaction =
+        wallet_action(%{"expected_signer" => address})
+        |> Map.delete("expires_at")
+
+      body = Jason.encode!(%{"transaction" => incomplete_transaction})
+
+      response =
+        signed_conn("POST", @prefix <> "/sign-transaction", body, "router-secret")
+        |> call_router()
+
+      assert response.status == 400
+      assert Jason.decode!(response.resp_body) == %{"error" => "transaction_required"}
+    end)
   end
 
   test "router returns stable error codes when a wallet is missing" do

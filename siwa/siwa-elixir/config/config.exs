@@ -1,5 +1,7 @@
 import Config
 
+default_keystore_path = Path.expand("../harness/agent-keystore.bin", __DIR__)
+
 required_prod_env = fn name, default ->
   if config_env() == :prod do
     System.fetch_env!(name)
@@ -22,6 +24,6 @@ config :siwa_keyring,
   path:
     required_prod_env.(
       "KEYSTORE_PATH",
-      "/Users/sean/Documents/regent/elixir-utils/siwa/siwa-elixir/harness/agent-keystore.bin"
+      default_keystore_path
     ),
   host: System.get_env("KEYRING_PROXY_HOST", "127.0.0.1")

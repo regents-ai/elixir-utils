@@ -4,7 +4,7 @@ defmodule Siwa.LocalSigner do
 
   defstruct [:private_key, :public_key, :address, signer_type: "eoa"]
 
-  alias Siwa.Crypto
+  alias Siwa.{Crypto, WalletAction}
 
   def new(opts \\ []) do
     with {:ok, keypair} <- Crypto.generate_keypair() do
@@ -51,18 +51,18 @@ defmodule Siwa.LocalSigner do
 
   @impl true
   def sign_transaction(%__MODULE__{} = signer, tx) do
-    payload = Jason.encode!(tx)
-
-    with {:ok, signature} <- sign_raw_message(signer, payload) do
-      {:ok, %{transaction: tx, signature: signature}}
+    with {:ok, transaction} <- WalletAction.validate(tx),
+         :ok <- WalletAction.require_expected_signer(transaction, signer.address),
+         {:ok, signature} <- sign_raw_message(signer, Jason.encode!(transaction)) do
+      {:ok, %{transaction: transaction, signature: signature}}
     end
   end
 
   @impl true
   def sign_authorization(%__MODULE__{} = signer, authorization) do
-    payload = Jason.encode!(authorization)
-
-    with {:ok, signature} <- sign_raw_message(signer, payload) do
+    with {:ok, authorization} <- WalletAction.validate(authorization),
+         :ok <- WalletAction.require_expected_signer(authorization, signer.address),
+         {:ok, signature} <- sign_raw_message(signer, Jason.encode!(authorization)) do
       {:ok, %{authorization: authorization, signature: signature}}
     end
   end

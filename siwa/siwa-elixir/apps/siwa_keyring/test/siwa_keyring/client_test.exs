@@ -27,6 +27,7 @@ defmodule SiwaKeyring.ClientTest do
                       conn.method,
                       conn.request_path,
                       body,
+                      conn |> get_req_header("x-keyring-request-id") |> List.first(),
                       conn |> get_req_header("x-keyring-timestamp") |> List.first(),
                       conn |> get_req_header("x-keyring-signature") |> List.first()
                     )

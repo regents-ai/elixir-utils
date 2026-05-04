@@ -7,6 +7,8 @@ Each utility below lives in its own folder here:
 - `xmtp/` → publishes as `xmtp_elixir_sdk`
 - `ens/` → publishes as `ens_elixir`
 - `siwa/siwa-elixir/` → umbrella app for the shared SIWA packages used across Regent products
+- `world/agentbook/` → publishes as `agent_world`
+- `cache/` → publishes as `regent_cache`
 
 How to work with it:
 
@@ -14,7 +16,10 @@ How to work with it:
 - Example: from `xmtp/` run `mix deps.get` and `mix test`.
 - Example: from `ens/` run `mix deps.get` and `mix test`.
 - Example: from `siwa/siwa-elixir/` run `mix test`.
+- Example: from `world/agentbook/` run `mix deps.get` and `mix test`.
+- Example: from `cache/` run `mix deps.get` and `mix test`.
 - When you publish, run `mix hex.publish` from the package folder you want to publish.
+- For packages that depend on SIWA, publish with `SIWA_HEX_PUBLISH=1` so the package uses the published SIWA package instead of the local checkout.
 
 A few notes:
 

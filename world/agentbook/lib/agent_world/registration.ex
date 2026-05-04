@@ -224,9 +224,41 @@ defmodule AgentWorld.Registration do
          description: "Register agent wallet in AgentBook",
          expected_signer: agent_address,
          expires_at: registration_request_expires_at(session),
-         risk:
-           "Only approve if this is your AgentBook registration on the shown network and contract."
+         risk_copy:
+           "Only approve if this is your AgentBook registration on the shown network and contract.",
+         idempotency_key:
+           registration_idempotency_key(session, proof_payload, to, chain_id, agent_address)
        }}
+    end
+  end
+
+  defp registration_idempotency_key(session, proof_payload, to, chain_id, agent_address) do
+    case Map.get(session, :idempotency_key) do
+      value when is_binary(value) and value != "" ->
+        value
+
+      _value ->
+        case Map.get(session, :session_id) do
+          value when is_binary(value) and value != "" ->
+            "agentworld:registration:" <> value
+
+          _value ->
+            payload =
+              Enum.join(
+                [
+                  to,
+                  chain_id,
+                  agent_address,
+                  Map.get(session, :nonce),
+                  Map.get(proof_payload, "merkle_root"),
+                  Map.get(proof_payload, "nullifier_hash")
+                ],
+                "\0"
+              )
+
+            "agentworld:registration:" <>
+              Base.encode16(:crypto.hash(:sha256, payload), case: :lower)
+        end
     end
   end
 

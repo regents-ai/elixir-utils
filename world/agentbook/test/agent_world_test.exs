@@ -156,7 +156,8 @@ defmodule AgentWorldTest do
     assert tx_request.value == "0x0"
     assert tx_request.expected_signer == @agent
     assert tx_request.expires_at == "2026-04-28T20:00:00Z"
-    assert tx_request.risk =~ "Only approve"
+    assert tx_request.risk_copy =~ "Only approve"
+    assert tx_request.idempotency_key == "agentworld:registration:session_test_relay"
 
     assert String.starts_with?(
              tx_request.data,
@@ -199,10 +200,11 @@ defmodule AgentWorldTest do
       "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
     }
 
-    assert {:ok, %{status: :submitted, tx_hash: tx_hash, tx_request: %TxRequest{}}} =
+    assert {:ok, %{status: :submitted, tx_hash: tx_hash, tx_request: %TxRequest{} = tx_request}} =
              Registration.submit_proof(session, proof, rpc_module: RelayStub)
 
     assert String.starts_with?(tx_hash, "0x")
+    assert tx_request.idempotency_key == "agentworld:registration:session_test_relay"
 
     assert_received {:relay_post, relay_body, "session_test_relay"}
     assert relay_body.agent == @agent

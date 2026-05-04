@@ -418,8 +418,7 @@ defmodule XmtpElixirSdk.Content do
     do:
       "[Crypto transaction] Use a blockchain explorer to learn more using the transaction hash: #{reference}"
 
-  def fallback_for(%WalletSendCalls{} = content),
-    do: "[Transaction request generated]: #{inspect(content)}"
+  def fallback_for(%WalletSendCalls{}), do: "Wallet action request"
 
   def fallback_for(%Actions{description: description, actions: actions}) do
     action_lines =

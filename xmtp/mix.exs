@@ -74,6 +74,7 @@ defmodule XmtpElixirSdk.MixProject do
         "native/xmtp_native/Cargo.lock",
         "native/xmtp_native/build.rs",
         "native/xmtp_native/src",
+        "priv",
         "readme-assets",
         "mix.exs"
       ],
@@ -87,7 +88,12 @@ defmodule XmtpElixirSdk.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "CHANGELOG.md", "docs/phoenix-frontend-agent-guide.md"]
+      extras: [
+        "README.md",
+        "CHANGELOG.md",
+        "docs/phoenix-frontend-agent-guide.md",
+        "docs/storage-contract.md"
+      ]
     ]
   end
 end

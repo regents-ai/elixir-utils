@@ -192,6 +192,11 @@ the room panel the wrapper returns. See
 [`docs/phoenix-frontend-agent-guide.md`](docs/phoenix-frontend-agent-guide.md)
 for the frontend agent rules.
 
+The room mirror schemas are optional host-owned storage. If a Phoenix app uses
+`Xmtp.RoomServer`, copy the versioned migration template into that app and keep
+product-specific room rules in that app. See
+[`docs/storage-contract.md`](docs/storage-contract.md).
+
 ## Environment Helpers
 
 The SDK includes helpers for XMTP environment URLs:

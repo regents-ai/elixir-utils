@@ -99,6 +99,29 @@ defmodule XmtpElixirSdk.MessagesTest do
     assert decoded.content == %{body: "demo"}
   end
 
+  test "wallet action fallback text does not expose request details" do
+    fallback =
+      Content.fallback_for(%Content.WalletSendCalls{
+        version: "1.0",
+        chain_id: "eip155:8453",
+        from: "0x1111111111111111111111111111111111111111",
+        calls: [
+          %Content.WalletCall{
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0xdeadbeef",
+            value: "0x0",
+            metadata: %{description: "private approval detail"}
+          }
+        ]
+      })
+
+    assert fallback == "Wallet action request"
+    refute fallback =~ "0x1111111111111111111111111111111111111111"
+    refute fallback =~ "0x2222222222222222222222222222222222222222"
+    refute fallback =~ "0xdeadbeef"
+    refute fallback =~ "private approval detail"
+  end
+
   test "streamed envelopes append messages" do
     assert {:ok, alice} = create_client("alice")
     assert {:ok, _bob} = create_client("bob")

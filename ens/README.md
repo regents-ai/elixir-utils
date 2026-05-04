@@ -133,6 +133,7 @@ When the package prepares a change, it returns `%AgentEns.TxRequest{}`. That is 
 - the wallet that is expected to approve it, when known
 - when the request should no longer be used
 - a short review note for the person approving it
+- a stable marker for this one request
 - a short human description of what the request does
 
 The package does not send that request for you.

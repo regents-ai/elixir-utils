@@ -468,15 +468,19 @@ defmodule AgentEns.Tx do
   end
 
   defp tx_request(to, chain_id, data, description, params) do
+    to = String.downcase(to)
+    expected_signer = prepared_expected_signer(params)
+
     %TxRequest{
-      to: String.downcase(to),
+      to: to,
       data: data,
       value: 0,
       chain_id: chain_id,
       description: description,
-      expected_signer: prepared_expected_signer(params),
+      expected_signer: expected_signer,
       expires_at: prepared_expires_at(params),
-      risk: prepared_risk(params)
+      risk_copy: prepared_risk_copy(params),
+      idempotency_key: prepared_idempotency_key(to, chain_id, data, expected_signer, params)
     }
   end
 
@@ -503,13 +507,24 @@ defmodule AgentEns.Tx do
     end
   end
 
-  defp prepared_risk(params) do
-    case Map.get(params, :risk) do
+  defp prepared_risk_copy(params) do
+    case Map.get(params, :risk_copy) do
       value when is_binary(value) and value != "" ->
         value
 
       _value ->
         "Only approve if the destination, network, and action match your request."
+    end
+  end
+
+  defp prepared_idempotency_key(to, chain_id, data, expected_signer, params) do
+    case Map.get(params, :idempotency_key) do
+      value when is_binary(value) and value != "" ->
+        value
+
+      _value ->
+        payload = Enum.join([to, chain_id, data, expected_signer || ""], "\0")
+        "ens:tx:" <> Base.encode16(:crypto.hash(:sha256, payload), case: :lower)
     end
   end
 

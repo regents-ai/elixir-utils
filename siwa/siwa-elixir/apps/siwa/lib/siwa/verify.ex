@@ -21,8 +21,8 @@ defmodule Siwa.Verify do
     with {:ok, fields, message} <- normalize_message(message_or_fields),
          :ok <- validate_domain(fields, opts),
          :ok <- validate_time_window(fields, opts),
-         {:ok, nonce_entry} <- validate_nonce(fields, opts),
          {:ok, verified_signature} <- validate_signature(signature, message, fields, opts),
+         {:ok, nonce_entry} <- validate_nonce(fields, opts),
          {:ok, profile} <- validate_registration(fields, verified_signature, opts),
          {:ok, registry} <- Registry.parse_agent_registry(fields.agent_registry),
          {:ok, audience} <- nonce_audience(nonce_entry) do

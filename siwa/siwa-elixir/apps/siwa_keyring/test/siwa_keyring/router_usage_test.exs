@@ -23,7 +23,7 @@ defmodule SiwaKeyring.RouterUsageTest do
   defp wallet_action(overrides) do
     Map.merge(
       %{
-        "chain_id" => 84532,
+        "chain_id" => 8453,
         "to" => "0x1111111111111111111111111111111111111111",
         "value" => "0x0",
         "data" => "0x",

@@ -6,7 +6,7 @@ defmodule Siwa.WalletActionTest do
   defp wallet_action(overrides \\ %{}) do
     Map.merge(
       %{
-        "chain_id" => 84532,
+        "chain_id" => 8453,
         "to" => "0x1111111111111111111111111111111111111111",
         "value" => "0x0",
         "data" => "0x",
@@ -21,7 +21,7 @@ defmodule Siwa.WalletActionTest do
 
   test "validates the signed wallet-action policy envelope" do
     assert {:ok, action} = WalletAction.validate(wallet_action())
-    assert action["chain_id"] == 84532
+    assert action["chain_id"] == 8453
   end
 
   test "rejects wallet actions with missing policy fields" do

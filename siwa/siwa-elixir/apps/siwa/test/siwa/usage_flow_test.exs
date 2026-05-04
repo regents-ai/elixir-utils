@@ -168,6 +168,69 @@ defmodule Siwa.UsageFlowTest do
     assert rejected.reason == "domain_mismatch"
   end
 
+  test "bad sign-in signatures do not consume nonce tokens" do
+    {:ok, signer} = Siwa.LocalSigner.new()
+    {:ok, wrong_signer} = Siwa.LocalSigner.new()
+    :persistent_term.put({MockChainClient, :owner}, signer.address)
+
+    {:ok, nonce} =
+      Siwa.create_nonce(
+        %{
+          address: signer.address,
+          agent_id: 11,
+          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          audience: "techtree"
+        },
+        nonce_secret: "nonce-secret"
+      )
+
+    {:ok, signed} =
+      Siwa.sign_message(
+        %{
+          domain: "api.example.com",
+          uri: "https://api.example.com/siwa",
+          agent_id: 11,
+          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          chain_id: 84532,
+          nonce: nonce.nonce,
+          issued_at: "2026-04-17T00:00:00Z"
+        },
+        signer
+      )
+
+    {:ok, bad_signature} = Siwa.LocalSigner.sign_message(wrong_signer, signed.message)
+
+    assert {:ok, rejected} =
+             Siwa.verify(
+               signed.message,
+               bad_signature,
+               audience: "techtree",
+               domain: "api.example.com",
+               nonce_token: nonce.nonce_token,
+               nonce_secret: "nonce-secret",
+               receipt_secret: "receipt-secret",
+               chain_client: MockChainClient
+             )
+
+    assert rejected.status == "rejected"
+    assert rejected.reason == "address_mismatch"
+
+    assert {:ok, verified} =
+             Siwa.verify(
+               signed.message,
+               signed.signature,
+               audience: "techtree",
+               domain: "api.example.com",
+               nonce_token: nonce.nonce_token,
+               nonce_secret: "nonce-secret",
+               receipt_secret: "receipt-secret",
+               chain_client: MockChainClient
+             )
+
+    assert verified.status == "authenticated"
+    assert verified.address == signer.address
+  end
+
   test "nonce issuance can require a challenge before continuing" do
     {:ok, signer} = Siwa.LocalSigner.new()
 

@@ -1,5 +1,5 @@
 defmodule Siwa.WalletAction do
-  @allowed_chain_ids MapSet.new([8453, 84532])
+  @allowed_chain_ids MapSet.new([8453])
   @required_keys ~w(chain_id to value data expected_signer expires_at risk_copy idempotency_key)
   @sorted_required_keys Enum.sort(@required_keys)
 

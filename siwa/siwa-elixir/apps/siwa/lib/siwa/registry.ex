@@ -1,26 +1,19 @@
 defmodule Siwa.Registry do
+  alias Siwa.WalletAction
+
   @service_types ["web", "A2A", "MCP", "OASF", "ENS", "DID", "email"]
   @trust_models ["reputation", "crypto-economic", "tee-attestation"]
   @registry_addresses %{
-    1 => "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
     8453 => "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-    84532 => "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-    11_155_111 => "0x8004a6090Cd10A7288092483047B097295Fb8847",
-    59141 => "0x8004aa7C931bCE1233973a0C6A667f73F66282e7",
-    80002 => "0x8004ad19E14B9e0654f73353e8a0B600D46C2898"
+    84532 => "0x8004A818BFB912233c491871b3d84c89A494BD9e"
   }
   @reputation_addresses %{
-    1 => "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
     8453 => "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
     84532 => "0x8004B663056A597Dffe9eCcC1965A193B7388713"
   }
   @rpc_endpoints %{
-    1 => "https://cloudflare-eth.com",
     8453 => "https://mainnet.base.org",
-    84532 => "https://sepolia.base.org",
-    11_155_111 => "https://rpc.sepolia.org",
-    59141 => "https://rpc.sepolia.linea.build",
-    80002 => "https://rpc-amoy.polygon.technology"
+    84532 => "https://sepolia.base.org"
   }
 
   def service_types, do: @service_types
@@ -86,29 +79,57 @@ defmodule Siwa.Registry do
   def encode_register_agent(opts) do
     chain_id = Keyword.fetch!(opts, :chain_id)
     agent_uri = Keyword.fetch!(opts, :agent_uri)
+    expected_signer = Keyword.fetch!(opts, :expected_signer)
 
     with {:ok, registry_address} <- get_registry_address(chain_id) do
-      {:ok,
-       %{
-         to: registry_address,
-         data: abi_encode_register(agent_uri)
-       }}
+      action = %{
+        "chain_id" => chain_id,
+        "to" => registry_address,
+        "value" => "0x0",
+        "data" => abi_encode_register(agent_uri),
+        "expected_signer" => expected_signer,
+        "expires_at" => Keyword.get_lazy(opts, :expires_at, &default_wallet_action_expires_at/0),
+        "risk_copy" => Keyword.get(opts, :risk_copy, "Register this agent with Regent."),
+        "idempotency_key" =>
+          Keyword.get_lazy(opts, :idempotency_key, fn ->
+            register_idempotency_key(chain_id, registry_address, agent_uri, expected_signer)
+          end)
+      }
+
+      WalletAction.validate(action)
     end
   end
 
   def register_agent(opts) do
-    with {:ok, tx} <- encode_register_agent(opts) do
-      case {Keyword.get(opts, :tx_signer), Keyword.get(opts, :client)} do
-        {nil, _} ->
+    case {Keyword.get(opts, :tx_signer), Keyword.get(opts, :client)} do
+      {nil, _} ->
+        with {:ok, tx} <- encode_register_agent(opts) do
           {:ok, %{encoded: tx}}
+        end
 
-        {signer, client} ->
-          with {:ok, signed} <- signer_module(signer).sign_transaction(signer, tx),
-               {:ok, result} <- client.submit_registration(signed, opts) do
-            {:ok, %{encoded: tx, signed: signed, result: result}}
-          end
-      end
+      {signer, client} ->
+        signer_module = signer_module(signer)
+
+        with {:ok, expected_signer} <- signer_module.get_address(signer),
+             opts = Keyword.put(opts, :expected_signer, expected_signer),
+             {:ok, tx} <- encode_register_agent(opts),
+             {:ok, signed} <- signer_module.sign_transaction(signer, tx),
+             {:ok, result} <- client.submit_registration(signed, opts) do
+          {:ok, %{encoded: tx, signed: signed, result: result}}
+        end
     end
+  end
+
+  defp default_wallet_action_expires_at do
+    DateTime.utc_now()
+    |> DateTime.add(300, :second)
+    |> DateTime.truncate(:second)
+    |> DateTime.to_iso8601()
+  end
+
+  defp register_idempotency_key(chain_id, registry_address, agent_uri, expected_signer) do
+    payload = Enum.join([chain_id, registry_address, agent_uri, expected_signer], "\0")
+    "register-agent:" <> Base.encode16(:crypto.hash(:sha256, payload), case: :lower)
   end
 
   defp maybe_fetch_metadata(uri, opts) do

@@ -13,6 +13,16 @@ defmodule Siwa.FixtureRegistryTest do
 
     def reputation_summary(_registry_address, 42, _opts),
       do: {:ok, %{count: 5, score: 25, rawValue: 2500, decimals: 2}}
+
+    def submit_registration(signed, _opts), do: {:ok, %{transaction: signed.transaction}}
+  end
+
+  test "registry starts with Base and Base Sepolia only" do
+    base_chains = MapSet.new([8453, 84532])
+
+    assert Map.keys(Siwa.Registry.registry_addresses()) |> MapSet.new() == base_chains
+    assert Map.keys(Siwa.Registry.reputation_addresses()) |> MapSet.new() == base_chains
+    assert Map.keys(Siwa.Registry.rpc_endpoints()) |> MapSet.new() == base_chains
   end
 
   test "matches the frozen JS registry and reputation cases" do
@@ -46,10 +56,31 @@ defmodule Siwa.FixtureRegistryTest do
     assert {:ok, encoded} =
              Siwa.Registry.encode_register_agent(
                agent_uri: "ipfs://fixture-agent",
-               chain_id: 84532
+               chain_id: 8453,
+               expected_signer: data["encodedRegistration"]["expected_signer"],
+               expires_at: data["encodedRegistration"]["expires_at"],
+               risk_copy: data["encodedRegistration"]["risk_copy"],
+               idempotency_key: data["encodedRegistration"]["idempotency_key"]
              )
 
-    assert encoded.to == data["encodedRegistration"]["to"]
-    assert encoded.data == data["encodedRegistration"]["data"]
+    assert encoded == data["encodedRegistration"]
+  end
+
+  test "registers agents through the canonical wallet action envelope" do
+    {:ok, signer} = Siwa.LocalSigner.new()
+
+    assert {:ok, registration} =
+             Siwa.Registry.register_agent(
+               agent_uri: "ipfs://fixture-agent",
+               chain_id: 8453,
+               tx_signer: signer,
+               client: MockClient
+             )
+
+    assert registration.encoded["expected_signer"] == signer.address
+    assert registration.encoded["risk_copy"] == "Register this agent with Regent."
+    assert {:ok, _expires_at, 0} = DateTime.from_iso8601(registration.encoded["expires_at"])
+    assert registration.signed.transaction == registration.encoded
+    assert registration.result.transaction == registration.encoded
   end
 end

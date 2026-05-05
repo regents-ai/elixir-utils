@@ -1,0 +1,45 @@
+name: SIWA contract check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  siwa-contract-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out elixir-utils
+        uses: actions/checkout@v4
+        with:
+          path: elixir-utils
+
+      - name: Check out contract owner
+        uses: actions/checkout@v4
+        with:
+          repository: regents-ai/regent
+          path: contract-owner
+          sparse-checkout: |
+            regents-cli/docs/regent-services-contract.openapiv3.yaml
+          sparse-checkout-cone-mode: false
+
+      - name: Expose shared services contract
+        run: |
+          ln -s "$GITHUB_WORKSPACE/contract-owner/regents-cli" "$GITHUB_WORKSPACE/regents-cli"
+          test -f "$GITHUB_WORKSPACE/regents-cli/docs/regent-services-contract.openapiv3.yaml"
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.2"
+
+      - name: Fetch SIWA dependencies
+        working-directory: elixir-utils/siwa/siwa-elixir
+        run: mix deps.get
+
+      - name: Run SIWA checks
+        working-directory: elixir-utils/siwa/siwa-elixir
+        run: mix check

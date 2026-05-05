@@ -48,7 +48,7 @@ defmodule XmtpElixirSdk.ClientsTest do
     assert fetched_inbox_id == alice.inbox_id
 
     assert {:ok, inbox_state} = XmtpElixirSdk.Preferences.inbox_state(alice)
-    assert inbox_state.recovery_identifier == recovery_identifier.identifier
+    assert inbox_state.recovery_identifier == String.downcase(recovery_identifier.identifier)
   end
 
   test "installation revocation removes sibling installs" do
@@ -64,7 +64,7 @@ defmodule XmtpElixirSdk.ClientsTest do
     assert {:ok, _alice} = create_client("alice")
     bob = identifier("bob")
     assert {:ok, result} = Clients.can_message(current_runtime(), [identifier("alice"), bob])
-    assert result["ethereum:#{identifier("alice").identifier}"]
-    refute result["ethereum:#{bob.identifier}"]
+    assert result["ethereum:#{String.downcase(identifier("alice").identifier)}"]
+    refute result["ethereum:#{String.downcase(bob.identifier)}"]
   end
 end

@@ -20,11 +20,13 @@ stays in the upstream SDK.
 With this SDK you can:
 
 - create and register XMTP clients for server-owned wallets
+- connect user or agent chat identities behind a product-safe state machine
+- resolve wallet addresses to inbox ids with shared normalization and caching
 - reopen existing XMTP clients by address
 - open direct messages and groups
 - send, count, sync, and read text messages
 - inspect conversations, group members, and inbox reachability
-- keep Phoenix room behavior behind a small app wrapper
+- keep Phoenix room behavior behind a typed room panel
 
 ## How The SDK Is Organized
 
@@ -38,6 +40,14 @@ The main modules are:
 - `XmtpElixirSdk.Groups`: group metadata, membership, roles, and permissions
 - `XmtpElixirSdk.Preferences`: inbox state, consent, and preference sync
 - `XmtpElixirSdk.Sync`: archive and device sync flows
+- `Xmtp.Identity`: product-safe identity registration and wallet signature flow
+- `Xmtp.Resolver`: normalized wallet-to-inbox resolution with positive and null caches
+- `Xmtp.Installations`: product-safe device status and cleanup guidance
+- `Xmtp.Rooms`: shared room action facade for Phoenix apps
+- `Xmtp.RoomPanel`: typed room display contract for host apps
+- `Xmtp.Metadata.Profile`: Regent profile metadata codec
+- `Xmtp.Metadata.GroupAppData`: Regent group appData codec
+- `Xmtp.Sync`: room mirror sync, idempotency, and ordering helpers
 
 ## Installation
 
@@ -163,6 +173,46 @@ data at creation time.
 {:ok, inbox_id} = XmtpElixirSdk.Native.inbox_id_for(client, peer_address)
 ```
 
+For Regent product rooms, prefer the shared resolver so wallet normalization,
+missing inboxes, and cannot-message states are handled one way:
+
+```elixir
+{:ok, _pid} = Xmtp.Resolver.start_link(name: MyApp.XmtpResolver)
+
+{:ok, target} =
+  Xmtp.Resolver.resolve_for_room_invite(
+    MyApp.XmtpResolver,
+    client,
+    %{wallet_address: "0xabc0000000000000000000000000000000000001"}
+  )
+```
+
+### Connect a chat identity
+
+Product apps own the account row. `Xmtp.Identity` owns XMTP registration:
+
+```elixir
+{:ok, state} =
+  Xmtp.Identity.ensure_identity(%{
+    runtime: MyApp.XmtpIdentity.Runtime,
+    principal: %{
+      kind: :human,
+      id: human.id,
+      wallet_address: human.wallet_address,
+      inbox_id: human.xmtp_inbox_id
+    },
+    stored_inbox_id: human.xmtp_inbox_id
+  })
+
+case state.status do
+  :ready -> human
+  :needs_wallet_signature -> state.signature_request
+end
+```
+
+After the wallet signs `state.signature_request.text`, complete the request and
+store the returned `inbox_id` on the product account.
+
 ### List and sync conversations
 
 ```elixir
@@ -187,8 +237,8 @@ If your app runs fully on the server, you can usually ignore it.
 
 ## Phoenix Rooms
 
-Phoenix apps should keep room mechanics behind an app wrapper and render from
-the room panel the wrapper returns. See
+Phoenix apps should keep room mechanics behind `Xmtp.Rooms` and render from the
+`Xmtp.RoomPanel` struct the wrapper returns. See
 [`docs/phoenix-frontend-agent-guide.md`](docs/phoenix-frontend-agent-guide.md)
 for the frontend agent rules.
 

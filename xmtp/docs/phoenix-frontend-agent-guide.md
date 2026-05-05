@@ -2,7 +2,7 @@
 
 Use this guide when adding or changing Phoenix frontend code that talks to Regent XMTP rooms after the XMTP package is native-backed. The room behavior should match Platform's current public company room flow.
 
-The frontend should treat the host app's XMTP wrapper as the room boundary. Phoenix code asks for a room panel, renders that panel, sends user actions back to the wrapper, and refreshes the panel when the room broadcasts a change. Phoenix code should not build XMTP clients, mutate group membership, or write room logs itself.
+The frontend should treat the host app's XMTP wrapper as the room boundary. Phoenix code asks for a `%Xmtp.RoomPanel{}`, renders that panel, sends user actions back through `Xmtp.Rooms`, and refreshes the panel when the room broadcasts a change. Phoenix code should not build XMTP clients, mutate group membership, or write room logs itself.
 
 ## Current Room Shape To Preserve
 
@@ -91,21 +91,22 @@ Render from the panel instead of making fresh membership decisions in components
 The panel includes:
 
 - `room_key`
-- `room_name`
-- `room_id`
-- `connected_wallet`
-- `ready?`
-- `joined?`
-- `can_join?`
-- `can_send?`
-- `moderator?`
-- `membership_state`
+- `xmtp_group_id`
+- `name`
 - `status`
+- `membership`
+- `connected_wallet`
+- `can_join`
+- `can_send`
+- `can_moderate`
 - `pending_signature_request_id`
 - `member_count`
 - `active_member_count`
-- `seat_count`
+- `capacity`
 - `seats_remaining`
+- `presence_ttl_seconds`
+- `last_synced_at`
+- `user_copy`
 - `messages`
 
 Message entries include the fields the UI needs: key, author, body, time label, side, sender details, visibility state, and moderation permissions.
@@ -177,7 +178,7 @@ Frontend code should:
 
 - Keep the typed message when sending fails.
 - Clear the form only after a successful send.
-- Disable the composer when `can_send?` is false.
+- Disable the composer when `can_send` is false.
 - Use the panel's message list after each success or refresh.
 
 ## Presence And Heartbeats
@@ -262,7 +263,7 @@ Use the panel permissions:
 - Reload the panel from the returned result.
 - Show the mapped room status when moderation fails.
 
-Do not infer moderator status from page ownership in the component. The panel already carries `moderator?` and per-message permissions.
+Do not infer moderator status from page ownership in the component. The panel already carries `can_moderate` and per-message permissions.
 
 ## What Not To Do
 
@@ -271,7 +272,7 @@ Do not infer moderator status from page ownership in the component. The panel al
 - Do not write room rows, memberships, or message logs from frontend code.
 - Do not duplicate membership, capacity, moderator, or policy checks in components.
 - Do not accept a browser-supplied wallet address as proof of membership.
-- Do not send a message before the room says `can_send?`.
+- Do not send a message before the room says `can_send`.
 - Do not clear a message draft after a failed send.
 - Do not show internal error names, request IDs, wallet signing details, or package names in public copy.
 - Do not add alternate room shapes, compatibility branches, aliases, adapters, or old-field handling.

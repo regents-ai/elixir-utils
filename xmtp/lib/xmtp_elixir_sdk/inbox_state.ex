@@ -37,7 +37,8 @@ defmodule XmtpElixirSdk.InboxState do
         %Types.InboxState{account_identifiers: identifiers},
         %Types.Identifier{} = identifier
       ) do
-    Enum.any?(identifiers, &(&1 == identifier))
+    identifier = normalize_identifier(identifier)
+    Enum.any?(identifiers, &(normalize_identifier(&1) == identifier))
   end
 
   @spec includes_installation?(Types.InboxState.t(), String.t()) :: boolean()
@@ -45,4 +46,13 @@ defmodule XmtpElixirSdk.InboxState do
       when is_binary(installation_id) do
     installation_id in installation_ids(state)
   end
+
+  defp normalize_identifier(
+         %Types.Identifier{identifier_kind: :ethereum, identifier: identifier} = value
+       )
+       when is_binary(identifier) do
+    %Types.Identifier{value | identifier: identifier |> String.trim() |> String.downcase()}
+  end
+
+  defp normalize_identifier(%Types.Identifier{} = value), do: value
 end

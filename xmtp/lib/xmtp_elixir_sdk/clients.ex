@@ -29,6 +29,7 @@ defmodule XmtpElixirSdk.Clients do
           {:ok, Client.t()} | {:error, Error.t()}
   def create(runtime, identifier, opts \\ []) do
     runtime = XmtpElixirSdk.Internal.Names.runtime_name(runtime)
+    identifier = normalize_identifier(identifier)
     opts = Keyword.put(opts, :env, Keyword.get(opts, :env, :dev))
 
     with {:ok, record} <- IdentityServer.create_client(runtime, identifier, opts, true) do
@@ -40,6 +41,7 @@ defmodule XmtpElixirSdk.Clients do
           {:ok, Client.t()} | {:error, Error.t()}
   def build(runtime, identifier, opts \\ []) do
     runtime = XmtpElixirSdk.Internal.Names.runtime_name(runtime)
+    identifier = normalize_identifier(identifier)
     opts = Keyword.put(opts, :env, Keyword.get(opts, :env, :dev))
 
     with {:ok, record} <- IdentityServer.create_client(runtime, identifier, opts, false) do
@@ -65,12 +67,14 @@ defmodule XmtpElixirSdk.Clients do
   @spec unsafe_add_account_signature_text(Client.t(), Types.Identifier.t()) ::
           {:ok, map()} | {:error, Error.t()}
   def unsafe_add_account_signature_text(%Client{} = client, identifier) do
+    identifier = normalize_identifier(identifier)
     IdentityServer.create_signature_request(client, :add_account, %{identifier: identifier})
   end
 
   @spec unsafe_remove_account_signature_text(Client.t(), Types.Identifier.t()) ::
           {:ok, map()} | {:error, Error.t()}
   def unsafe_remove_account_signature_text(%Client{} = client, identifier) do
+    identifier = normalize_identifier(identifier)
     IdentityServer.create_signature_request(client, :remove_account, %{identifier: identifier})
   end
 
@@ -91,6 +95,8 @@ defmodule XmtpElixirSdk.Clients do
   @spec unsafe_change_recovery_identifier_signature_text(Client.t(), Types.Identifier.t()) ::
           {:ok, map()} | {:error, Error.t()}
   def unsafe_change_recovery_identifier_signature_text(%Client{} = client, identifier) do
+    identifier = normalize_identifier(identifier)
+
     IdentityServer.create_signature_request(client, :change_recovery_identifier, %{
       identifier: identifier
     })
@@ -152,9 +158,10 @@ defmodule XmtpElixirSdk.Clients do
   @spec can_message(Client.t() | XmtpElixirSdk.Runtime.t() | atom(), [Types.Identifier.t()]) ::
           {:ok, map()} | {:error, Error.t()}
   def can_message(%Client{runtime: runtime}, identifiers),
-    do: IdentityServer.can_message(runtime, identifiers)
+    do: IdentityServer.can_message(runtime, normalize_identifiers(identifiers))
 
-  def can_message(runtime, identifiers), do: IdentityServer.can_message(runtime, identifiers)
+  def can_message(runtime, identifiers),
+    do: IdentityServer.can_message(runtime, normalize_identifiers(identifiers))
 
   @spec fetch_inbox_id_by_identifier(
           Client.t() | XmtpElixirSdk.Runtime.t() | atom(),
@@ -165,6 +172,8 @@ defmodule XmtpElixirSdk.Clients do
     do: fetch_inbox_id_by_identifier(runtime, identifier)
 
   def fetch_inbox_id_by_identifier(runtime, identifier) do
+    identifier = normalize_identifier(identifier)
+
     case IdentityServer.get_inbox_id_for_identifier(runtime, identifier) do
       {:ok, inbox_id} -> {:ok, inbox_id}
       {:error, %Error{kind: :not_found}} -> {:ok, nil}
@@ -219,4 +228,17 @@ defmodule XmtpElixirSdk.Clients do
   @spec clear_all_statistics(Client.t()) :: :ok | {:error, Error.t()}
   def clear_all_statistics(%Client{} = client),
     do: XmtpElixirSdk.Debug.clear_all_statistics(client)
+
+  defp normalize_identifiers(identifiers) when is_list(identifiers) do
+    Enum.map(identifiers, &normalize_identifier/1)
+  end
+
+  defp normalize_identifier(
+         %Types.Identifier{identifier_kind: :ethereum, identifier: identifier} = value
+       )
+       when is_binary(identifier) do
+    %Types.Identifier{value | identifier: identifier |> String.trim() |> String.downcase()}
+  end
+
+  defp normalize_identifier(%Types.Identifier{} = value), do: value
 end

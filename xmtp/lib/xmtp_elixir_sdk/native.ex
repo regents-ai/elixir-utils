@@ -32,7 +32,7 @@ defmodule XmtpElixirSdk.Native do
           {:ok, Client.t()} | {:error, Error.t()}
   def build_existing_client(runtime, address, opts \\ []) when is_binary(address) do
     runtime = Names.runtime_name(runtime)
-    params = opts |> native_client_params() |> Map.put(:address, address)
+    params = opts |> native_client_params() |> Map.put(:address, normalize_address(address))
 
     with {:ok, record} <- request(runtime, "build_existing_client", params) do
       {:ok, Client.from_native_record(runtime, record, opts)}
@@ -48,13 +48,19 @@ defmodule XmtpElixirSdk.Native do
 
   @spec can_message(Client.t(), [String.t()]) :: {:ok, map()} | {:error, Error.t()}
   def can_message(%Client{} = client, addresses) when is_list(addresses) do
-    request(client.runtime, "can_message", %{client_id: client.id, addresses: addresses})
+    request(client.runtime, "can_message", %{
+      client_id: client.id,
+      addresses: Enum.map(addresses, &normalize_address/1)
+    })
   end
 
   @spec inbox_id_for(Client.t(), String.t()) :: {:ok, String.t() | nil} | {:error, Error.t()}
   def inbox_id_for(%Client{} = client, address) when is_binary(address) do
     with {:ok, %{"inbox_id" => inbox_id}} <-
-           request(client.runtime, "inbox_id_for", %{client_id: client.id, address: address}) do
+           request(client.runtime, "inbox_id_for", %{
+             client_id: client.id,
+             address: normalize_address(address)
+           }) do
       {:ok, inbox_id}
     end
   end
@@ -62,7 +68,10 @@ defmodule XmtpElixirSdk.Native do
   @spec create_dm(Client.t(), String.t()) :: {:ok, Conversation.t()} | {:error, Error.t()}
   def create_dm(%Client{} = client, recipient) when is_binary(recipient) do
     with {:ok, %{"conversation" => record}} <-
-           request(client.runtime, "create_dm", %{client_id: client.id, recipient: recipient}) do
+           request(client.runtime, "create_dm", %{
+             client_id: client.id,
+             recipient: normalize_address(recipient)
+           }) do
       {:ok, Conversation.from_native_record(client, record)}
     end
   end
@@ -76,7 +85,7 @@ defmodule XmtpElixirSdk.Native do
       |> put_optional_request_string(opts, :description)
       |> put_optional_request_string(opts, :image_url)
       |> put_optional_request_string(opts, :app_data)
-      |> Map.merge(%{client_id: client.id, members: members})
+      |> Map.merge(%{client_id: client.id, members: Enum.map(members, &normalize_address/1)})
 
     with {:ok, %{"conversation" => record}} <- request(client.runtime, "create_group", params) do
       {:ok, Conversation.from_native_record(client, record)}
@@ -232,5 +241,9 @@ defmodule XmtpElixirSdk.Native do
       {key, value} when is_atom(value) -> {key, Atom.to_string(value)}
       pair -> pair
     end)
+  end
+
+  defp normalize_address(address) when is_binary(address) do
+    address |> String.trim() |> String.downcase()
   end
 end

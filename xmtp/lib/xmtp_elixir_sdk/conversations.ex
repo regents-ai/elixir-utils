@@ -70,6 +70,8 @@ defmodule XmtpElixirSdk.Conversations do
   @spec fetch_dm_by_identifier(Client.t(), Types.Identifier.t()) ::
           {:ok, Conversation.t() | nil} | {:error, Error.t()}
   def fetch_dm_by_identifier(%Client{} = client, identifier) do
+    identifier = normalize_identifier(identifier)
+
     case IdentityServer.get_inbox_id_for_identifier(client.runtime, identifier) do
       {:ok, inbox_id} -> get_dm_by_inbox_id(client, inbox_id)
       {:error, %Error{kind: :not_found}} -> {:ok, nil}
@@ -175,6 +177,15 @@ defmodule XmtpElixirSdk.Conversations do
   end
 
   defp resolve_inbox_id(%Client{} = client, %Types.Identifier{} = identifier) do
-    IdentityServer.get_inbox_id_for_identifier(client.runtime, identifier)
+    IdentityServer.get_inbox_id_for_identifier(client.runtime, normalize_identifier(identifier))
   end
+
+  defp normalize_identifier(
+         %Types.Identifier{identifier_kind: :ethereum, identifier: identifier} = value
+       )
+       when is_binary(identifier) do
+    %Types.Identifier{value | identifier: identifier |> String.trim() |> String.downcase()}
+  end
+
+  defp normalize_identifier(%Types.Identifier{} = value), do: value
 end

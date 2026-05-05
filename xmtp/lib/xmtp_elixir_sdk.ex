@@ -46,6 +46,7 @@ defmodule XmtpElixirSdk do
   @spec generate_inbox_id(Types.Identifier.t(), non_neg_integer(), non_neg_integer()) ::
           {:ok, String.t()}
   def generate_inbox_id(identifier, kind, nonce \\ 1) do
+    identifier = normalize_identifier(identifier)
     data = "#{identifier.identifier_kind}:#{identifier.identifier}|#{kind}|#{nonce}"
     {:ok, Base.encode16(:crypto.hash(:sha256, data), case: :lower) |> binary_part(0, 32)}
   end
@@ -78,4 +79,13 @@ defmodule XmtpElixirSdk do
 
   @spec ns_to_datetime(non_neg_integer()) :: DateTime.t()
   defdelegate ns_to_datetime(ns), to: Date
+
+  defp normalize_identifier(
+         %Types.Identifier{identifier_kind: :ethereum, identifier: identifier} = value
+       )
+       when is_binary(identifier) do
+    %Types.Identifier{value | identifier: identifier |> String.trim() |> String.downcase()}
+  end
+
+  defp normalize_identifier(%Types.Identifier{} = value), do: value
 end

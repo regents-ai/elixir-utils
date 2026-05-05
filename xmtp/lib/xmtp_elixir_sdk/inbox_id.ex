@@ -11,6 +11,7 @@ defmodule XmtpElixirSdk.InboxId do
   @spec generate(Types.Identifier.t(), non_neg_integer(), non_neg_integer()) ::
           {:ok, String.t()} | {:error, Error.t()}
   def generate(%Types.Identifier{} = identifier, kind, nonce \\ 1) do
+    identifier = normalize_identifier(identifier)
     data = "#{identifier.identifier_kind}:#{identifier.identifier}|#{kind}|#{nonce}"
     {:ok, Base.encode16(:crypto.hash(:sha256, data), case: :lower) |> binary_part(0, 32)}
   end
@@ -28,4 +29,13 @@ defmodule XmtpElixirSdk.InboxId do
       {:ok, not is_nil(inbox_id)}
     end
   end
+
+  defp normalize_identifier(
+         %Types.Identifier{identifier_kind: :ethereum, identifier: identifier} = value
+       )
+       when is_binary(identifier) do
+    %Types.Identifier{value | identifier: identifier |> String.trim() |> String.downcase()}
+  end
+
+  defp normalize_identifier(%Types.Identifier{} = value), do: value
 end

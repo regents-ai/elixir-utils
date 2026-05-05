@@ -11,6 +11,7 @@ defmodule Xmtp.RoomServer do
   alias Xmtp.Principal
   alias Xmtp.Room
   alias Xmtp.RoomMembership
+  alias Xmtp.RoomPanel
   alias Xmtp.Wallet
   alias XmtpElixirSdk.Client
   alias XmtpElixirSdk.Clients
@@ -525,76 +526,80 @@ defmodule Xmtp.RoomServer do
     :ok = Events.subscribe(runtime_name, {:conversation, room_id}, pid)
   end
 
-  defp build_panel(state, principal, status_override \\ nil, pending_request_id \\ nil)
+  defp build_panel(state, principal, copy_override \\ nil, pending_request_id \\ nil)
 
   defp build_panel(
          %{mode: :unavailable, definition: definition},
          principal,
-         status_override,
+         copy_override,
          pending_request_id
        ) do
     connected_wallet = principal && Principal.wallet(principal)
 
-    %{
+    RoomPanel.new!(%{
       room_key: definition.key,
-      room_name: definition.name,
-      room_id: nil,
+      xmtp_group_id: nil,
+      name: definition.name,
+      status: :disabled,
+      membership: if(connected_wallet, do: :not_joined, else: :not_connected),
       connected_wallet: connected_wallet,
-      ready?: false,
-      joined?: false,
-      can_join?: false,
-      can_send?: false,
-      moderator?: moderator_wallet?(definition, connected_wallet),
-      membership_state: :view_only,
-      status: status_override || "This chat is unavailable right now.",
+      can_join: false,
+      can_send: false,
+      can_moderate: moderator_wallet?(definition, connected_wallet),
       pending_signature_request_id: pending_request_id,
       member_count: 0,
       active_member_count: 0,
-      seat_count: definition.capacity,
+      capacity: definition.capacity,
       seats_remaining: definition.capacity,
-      messages: []
-    }
+      presence_ttl_seconds: div(definition.presence_timeout_ms, 1_000),
+      last_synced_at: nil,
+      messages: [],
+      user_copy: RoomPanel.copy(copy_override || "This room is unavailable right now.")
+    })
   end
 
   defp build_panel(
          %{mode: :ready, room: room, definition: definition} = state,
          principal,
-         status_override,
+         copy_override,
          pending_signature_request_id
        ) do
     connected_wallet = principal && Principal.wallet(principal)
 
-    membership_state =
-      membership_state(state, principal, connected_wallet, pending_signature_request_id)
+    membership =
+      membership(state, principal, connected_wallet, pending_signature_request_id)
 
-    joined? = membership_state == :joined
+    joined? = membership == :joined
     moderator? = moderator_wallet?(definition, connected_wallet)
-    ready? = connected_wallet && client_ready?(state, connected_wallet)
-    seat_count = room.capacity
+    capacity = room.capacity
     member_count = human_member_count(state.repo, room)
     active_member_count = active_human_member_count(state.repo, room, definition)
-    seats_remaining = max(seat_count - member_count, 0)
+    seats_remaining = max(capacity - member_count, 0)
 
-    %{
+    pending_request_id =
+      pending_signature_request_id || pending_request_id_for_wallet(state, connected_wallet)
+
+    RoomPanel.new!(%{
       room_key: definition.key,
-      room_name: room.room_name,
-      room_id: room.conversation_id,
+      xmtp_group_id: room.conversation_id,
+      name: room.room_name,
+      status: :ready,
+      membership: membership,
       connected_wallet: connected_wallet,
-      ready?: ready? == true,
-      joined?: joined?,
-      can_join?: can_join?(membership_state, principal),
-      can_send?: joined?,
-      moderator?: moderator?,
-      membership_state: membership_state,
-      status: status_override || default_status(membership_state, principal, seats_remaining),
-      pending_signature_request_id:
-        pending_signature_request_id || pending_request_id_for_wallet(state, connected_wallet),
+      can_join: can_join?(membership, principal),
+      can_send: joined?,
+      can_moderate: moderator?,
+      pending_signature_request_id: pending_request_id,
       member_count: member_count,
       active_member_count: active_member_count,
-      seat_count: seat_count,
+      capacity: capacity,
       seats_remaining: seats_remaining,
+      presence_ttl_seconds: div(definition.presence_timeout_ms, 1_000),
+      last_synced_at: room.updated_at,
+      user_copy:
+        RoomPanel.copy(copy_override || default_copy(membership, principal, seats_remaining)),
       messages: list_panel_messages(state, connected_wallet, moderator?)
-    }
+    })
   end
 
   defp list_panel_messages(%{repo: repo, room: room}, connected_wallet, moderator?) do
@@ -640,49 +645,49 @@ defmodule Xmtp.RoomServer do
 
   defp membership_change_message?(%MessageLog{}), do: false
 
-  defp membership_state(_state, nil, _wallet_address, _pending_request_id), do: :view_only
+  defp membership(_state, nil, _wallet_address, _pending_request_id), do: :not_connected
 
-  defp membership_state(state, principal, wallet_address, pending_request_id) do
+  defp membership(state, principal, wallet_address, pending_request_id) do
     cond do
       joined?(state, wallet_address) ->
         :joined
 
       is_binary(pending_request_id) or pending_request_id_for_wallet(state, wallet_address) ->
-        :join_pending_signature
+        :pending_signature
 
       kicked?(state, wallet_address) ->
-        :kicked
+        :removed
 
       room_full?(state, principal) ->
-        :full
+        :blocked
 
       true ->
-        :view_only
+        :not_joined
     end
   end
 
-  defp can_join?(:view_only, %Principal{}), do: true
-  defp can_join?(:kicked, %Principal{}), do: true
+  defp can_join?(:not_joined, %Principal{}), do: true
+  defp can_join?(:removed, %Principal{}), do: true
   defp can_join?(_, _), do: false
 
-  defp default_status(:view_only, nil, _seats_remaining), do: "Sign in to join this chat."
+  defp default_copy(:not_connected, nil, _seats_remaining), do: "Sign in to join this room."
 
-  defp default_status(:view_only, principal, seats_remaining),
+  defp default_copy(:not_joined, principal, seats_remaining),
     do:
       "Connected as #{Principal.short(Principal.wallet(principal))}. #{seats_remaining} seats are open."
 
-  defp default_status(:join_pending_signature, _principal, _seats_remaining),
+  defp default_copy(:pending_signature, _principal, _seats_remaining),
     do: "Check your wallet to finish joining."
 
-  defp default_status(:joined, principal, _seats_remaining),
-    do: "Connected as #{Principal.short(Principal.wallet(principal))}. You are in the chat."
+  defp default_copy(:joined, principal, _seats_remaining),
+    do: "Connected as #{Principal.short(Principal.wallet(principal))}. You are in the room."
 
-  defp default_status(:full, _principal, _seats_remaining),
-    do: "This chat is full right now. You can still watch from the site."
+  defp default_copy(:blocked, _principal, _seats_remaining),
+    do: "This room is full right now. You can still read along."
 
-  defp default_status(:kicked, _principal, seats_remaining),
+  defp default_copy(:removed, _principal, seats_remaining),
     do:
-      "You were removed from the chat. Join again later if a seat opens. #{seats_remaining} seats are open."
+      "You were removed from the room. Join again later if a seat opens. #{seats_remaining} seats are open."
 
   defp persist_streamed_message(%{repo: repo, room: room} = state, message) do
     sender_membership = fetch_membership_for_inbox(repo, room, message.sender_inbox_id)
@@ -962,13 +967,6 @@ defmodule Xmtp.RoomServer do
          ) do
       %RoomMembership{membership_state: "kicked"} -> true
       _ -> false
-    end
-  end
-
-  defp client_ready?(state, wallet_address) do
-    case Map.get(state.clients_by_wallet, wallet_address) do
-      %Client{ready?: ready?} -> ready?
-      _ -> existing_membership?(state.repo, state.room, wallet_address)
     end
   end
 

@@ -240,7 +240,8 @@ defmodule AgentWorld.Registration do
       _value ->
         case Map.get(session, :session_id) do
           value when is_binary(value) and value != "" ->
-            "agentworld:registration:" <> value
+            "agentworld:registration:" <>
+              Base.encode16(:crypto.hash(:sha256, value), case: :lower)
 
           _value ->
             payload =

@@ -145,7 +145,8 @@ defmodule AgentWorldTest do
     proof = %{
       "merkle_root" => "0x01",
       "nullifier_hash" => "0x02",
-      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
+      "proof" =>
+        Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
     }
 
     assert {:ok, %{status: :proof_ready, tx_request: %TxRequest{} = tx_request}} =
@@ -157,12 +158,39 @@ defmodule AgentWorldTest do
     assert tx_request.expected_signer == @agent
     assert tx_request.expires_at == "2026-04-28T20:00:00Z"
     assert tx_request.risk_copy =~ "Only approve"
-    assert tx_request.idempotency_key == "agentworld:registration:session_test_relay"
+    assert tx_request.idempotency_key == registration_idempotency_key("session_test_relay")
 
     assert String.starts_with?(
              tx_request.data,
              ABI.selector("register(address,uint256,uint256,uint256,uint256[8])")
            )
+  end
+
+  test "generated session ids produce wallet-sized registration request markers" do
+    session = %{
+      session_id: "session_" <> String.duplicate("a", 128),
+      agent_address: @agent,
+      network: "world",
+      chain_id: 480,
+      contract_address: @contract,
+      nonce: 7,
+      relay_url: "",
+      expires_at: ~U[2026-04-28 20:00:00Z]
+    }
+
+    proof = %{
+      "merkle_root" => "0x01",
+      "nullifier_hash" => "0x02",
+      "proof" =>
+        Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
+    }
+
+    assert {:ok, %{status: :proof_ready, tx_request: %TxRequest{} = tx_request}} =
+             Registration.submit_proof(session, proof, submission: :manual)
+
+    assert tx_request.idempotency_key == registration_idempotency_key(session.session_id)
+    assert String.length(tx_request.idempotency_key) <= 128
+    assert tx_request.idempotency_key =~ ~r/\A[A-Za-z0-9._:-]{16,128}\z/
   end
 
   test "register_transaction waits for confirmation and then succeeds" do
@@ -204,7 +232,7 @@ defmodule AgentWorldTest do
              Registration.submit_proof(session, proof, rpc_module: RelayStub)
 
     assert String.starts_with?(tx_hash, "0x")
-    assert tx_request.idempotency_key == "agentworld:registration:session_test_relay"
+    assert tx_request.idempotency_key == registration_idempotency_key("session_test_relay")
 
     assert_received {:relay_post, relay_body, "session_test_relay"}
     assert relay_body.agent == @agent
@@ -287,6 +315,11 @@ defmodule AgentWorldTest do
   defp eoa_address do
     {:ok, public_key} = ExSecp256k1.create_public_key(@private_key)
     EvmPersonalSign.public_key_to_address(public_key)
+  end
+
+  defp registration_idempotency_key(session_id) do
+    "agentworld:registration:" <>
+      Base.encode16(:crypto.hash(:sha256, session_id), case: :lower)
   end
 
   defp sign_agentkit_payload(address) do

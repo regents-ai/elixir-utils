@@ -4,6 +4,18 @@ All notable changes to `ens_elixir` should be recorded here.
 
 ## Unreleased
 
+## 0.1.1 - 2026-05-06
+
+### Added
+
+- Wallet-ready unsigned transaction request envelopes for ENS and ERC-8004 identity actions.
+- ERC-8004 registration helpers and richer transaction request metadata.
+
+### Changed
+
+- ENS action preparation now preserves caller and network metadata in stable string-keyed shapes.
+- Prepared action keys now produce consistent app-safe request data.
+
 ## 0.1.0 - 2026-04-22
 
 ### Added

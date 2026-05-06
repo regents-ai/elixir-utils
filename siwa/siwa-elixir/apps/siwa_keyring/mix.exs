@@ -1,8 +1,8 @@
 defmodule SiwaKeyring.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
-  @siwa_requirement "~> 0.1.0"
+  @version "0.1.1"
+  @siwa_requirement "~> 0.1.1"
   @description "Isolated signing service and Elixir client for SIWA flows that need key separation."
 
   def project do

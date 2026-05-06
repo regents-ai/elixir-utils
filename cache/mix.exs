@@ -11,6 +11,7 @@ defmodule RegentCache.MixProject do
       elixir: "~> 1.19.5",
       start_permanent: Mix.env() == :prod,
       description: @description,
+      package: package(),
       deps: deps(),
       aliases: aliases()
     ]
@@ -32,6 +33,22 @@ defmodule RegentCache.MixProject do
     [
       {:cachex, "~> 4.1"},
       {:jason, "~> 1.4"}
+    ]
+  end
+
+  defp package do
+    [
+      files: [
+        ".formatter.exs",
+        "CHANGELOG.md",
+        "README.md",
+        "lib",
+        "mix.exs"
+      ],
+      licenses: ["MIT"],
+      links: %{
+        "Source" => "https://github.com/regents-ai/regent/tree/main/elixir-utils/cache"
+      }
     ]
   end
 

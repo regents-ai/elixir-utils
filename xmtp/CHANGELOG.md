@@ -4,6 +4,18 @@ All notable changes to `xmtp_elixir_sdk` should be recorded here.
 
 ## Unreleased
 
+## 0.1.2 - 2026-05-06
+
+### Added
+
+- Product-safe room primitives for identity, resolver, installations, room panels, metadata, sync, and room actions.
+- Phoenix frontend agent guide for rendering shared room panels in host apps.
+
+### Changed
+
+- Wallet and inbox handling now normalizes addresses consistently across client and inbox helpers.
+- Room server panels now use the shared room panel contract.
+
 ## 0.1.1 - 2026-04-22
 
 ### Changed

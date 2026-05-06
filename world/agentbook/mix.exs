@@ -2,7 +2,7 @@ defmodule AgentWorld.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @siwa_requirement "~> 0.1.0"
+  @siwa_requirement "~> 0.1.1"
   @description "Shared Elixir helpers for AgentBook registration, lookup, and AgentKit verification."
 
   def project do
@@ -13,6 +13,7 @@ defmodule AgentWorld.MixProject do
       start_permanent: Mix.env() == :prod,
       compilers: [:elixir, :app],
       description: @description,
+      package: package(),
       deps: deps(),
       aliases: aliases(),
       docs: docs()
@@ -62,10 +63,27 @@ defmodule AgentWorld.MixProject do
     end
   end
 
+  defp package do
+    [
+      files: [
+        ".formatter.exs",
+        "CHANGELOG.md",
+        "README.md",
+        "lib",
+        "mix.exs"
+      ],
+      licenses: ["MIT"],
+      links: %{
+        "World ID" => "https://docs.world.org/world-id",
+        "Source" => "https://github.com/regents-ai/regent/tree/main/elixir-utils/world/agentbook"
+      }
+    ]
+  end
+
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"],
+      extras: ["README.md", "CHANGELOG.md"],
       groups_for_modules: [
         "Start Here": [AgentWorld, AgentWorld.Error, AgentWorld.TxRequest],
         "Lookup and Registration": [AgentWorld.AgentBook, AgentWorld.Registration],

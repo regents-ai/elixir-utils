@@ -1,7 +1,7 @@
 defmodule Siwa.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
   @description "Shared Elixir library for SIWA nonce, message, receipt, and request verification flows."
 
   def project do

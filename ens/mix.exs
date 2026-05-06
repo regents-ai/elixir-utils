@@ -1,8 +1,8 @@
 defmodule AgentEns.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
-  @siwa_requirement "~> 0.1.0"
+  @version "0.1.1"
+  @siwa_requirement "~> 0.1.1"
   @description "Elixir-first ENSIP-25 library for ENS and ERC-8004 verification, planning, and unsigned link preparation."
 
   def project do

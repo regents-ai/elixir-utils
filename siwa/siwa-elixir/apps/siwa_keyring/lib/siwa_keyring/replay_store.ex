@@ -11,7 +11,12 @@ defmodule SiwaKeyring.ReplayStore do
   end
 
   def consume(request_id, expires_at_ms) do
-    GenServer.call(__MODULE__, {:consume, request_id, expires_at_ms})
+    case configured_store() do
+      nil -> GenServer.call(__MODULE__, {:consume, request_id, expires_at_ms})
+      {module, function} -> apply(module, function, [request_id, expires_at_ms])
+      module when is_atom(module) -> module.consume(request_id, expires_at_ms)
+      fun when is_function(fun, 2) -> fun.(request_id, expires_at_ms)
+    end
   end
 
   @impl true
@@ -32,5 +37,9 @@ defmodule SiwaKeyring.ReplayStore do
       true ->
         {:reply, :ok, Map.put(state, request_id, expires_at_ms)}
     end
+  end
+
+  defp configured_store do
+    Application.get_env(:siwa_keyring, :replay_store)
   end
 end

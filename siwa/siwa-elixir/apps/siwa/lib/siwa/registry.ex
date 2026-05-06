@@ -4,16 +4,13 @@ defmodule Siwa.Registry do
   @service_types ["web", "A2A", "MCP", "OASF", "ENS", "DID", "email"]
   @trust_models ["reputation", "crypto-economic", "tee-attestation"]
   @registry_addresses %{
-    8453 => "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-    84532 => "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+    8453 => "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
   }
   @reputation_addresses %{
-    8453 => "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
-    84532 => "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+    8453 => "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
   }
   @rpc_endpoints %{
-    8453 => "https://mainnet.base.org",
-    84532 => "https://sepolia.base.org"
+    8453 => "https://mainnet.base.org"
   }
 
   def service_types, do: @service_types

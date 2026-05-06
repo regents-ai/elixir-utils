@@ -9,10 +9,10 @@ defmodule Siwa.ReceiptTest do
           "jti" => "receipt-test",
           "sub" => "0x123",
           "aud" => "techtree",
-          "chain_id" => 84532,
+          "chain_id" => 8453,
           "nonce" => "nonce-test",
           "key_id" => "0x123",
-          "registry_address" => "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+          "registry_address" => "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
           "token_id" => "9"
         },
         secret: "secret"
@@ -33,10 +33,10 @@ defmodule Siwa.ReceiptTest do
           "jti" => "receipt-test",
           "sub" => "0x123",
           "aud" => "techtree",
-          "chain_id" => 84532,
+          "chain_id" => 8453,
           "nonce" => "nonce-test",
           "key_id" => "0x123",
-          "registry_address" => "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+          "registry_address" => "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
           "token_id" => "9"
         },
         secret: "secret"

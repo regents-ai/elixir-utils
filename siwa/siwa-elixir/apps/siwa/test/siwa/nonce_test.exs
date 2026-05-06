@@ -6,7 +6,7 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.issue(%{
                address: "0x123",
                agent_id: 9,
-               agent_registry: "eip155:84532:0xregistry",
+               agent_registry: "eip155:8453:0xregistry",
                audience: "techtree"
              })
 
@@ -14,7 +14,7 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.consume(%{
                address: "0x123",
                agent_id: 9,
-               agent_registry: "eip155:84532:0xregistry",
+               agent_registry: "eip155:8453:0xregistry",
                audience: "techtree",
                nonce: issued.nonce
              })
@@ -25,7 +25,7 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.issue(%{
                "address" => "0x123",
                "agent_id" => 9,
-               "agent_registry" => "eip155:84532:0xregistry",
+               "agent_registry" => "eip155:8453:0xregistry",
                "audience" => "techtree"
              })
 
@@ -33,7 +33,7 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.consume(%{
                "address" => "0x123",
                "agent_id" => 9,
-               "agent_registry" => "eip155:84532:0xregistry",
+               "agent_registry" => "eip155:8453:0xregistry",
                "audience" => "techtree",
                "nonce" => issued.nonce
              })
@@ -44,14 +44,14 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.issue(%{
                address: "0x123",
                agent_id: 9,
-               agent_registry: "eip155:84532:0xregistry"
+               agent_registry: "eip155:8453:0xregistry"
              })
 
     assert {:ok, issued} =
              Siwa.Nonce.issue(%{
                address: "0x123",
                agent_id: 9,
-               agent_registry: "eip155:84532:0xregistry",
+               agent_registry: "eip155:8453:0xregistry",
                audience: "techtree"
              })
 
@@ -59,7 +59,7 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.consume(%{
                address: "0x123",
                agent_id: 9,
-               agent_registry: "eip155:84532:0xregistry",
+               agent_registry: "eip155:8453:0xregistry",
                nonce: issued.nonce
              })
   end
@@ -70,7 +70,7 @@ defmodule Siwa.NonceTest do
                %{
                  address: "0x123",
                  agent_id: 9,
-                 agent_registry: "eip155:84532:0xregistry",
+                 agent_registry: "eip155:8453:0xregistry",
                  audience: "techtree"
                },
                nonce_secret: "nonce-secret"
@@ -79,14 +79,14 @@ defmodule Siwa.NonceTest do
     assert {:ok, payload} =
              Siwa.Nonce.verify_nonce_token(issued.nonce_token, nonce_secret: "nonce-secret")
 
-    assert payload["agent_registry"] == "eip155:84532:0xregistry"
+    assert payload["agent_registry"] == "eip155:8453:0xregistry"
 
     assert {:error, :nonce_registry_mismatch} =
              Siwa.Nonce.consume(
                %{
                  address: "0x123",
                  agent_id: 9,
-                 agent_registry: "eip155:84532:0xother",
+                 agent_registry: "eip155:8453:0xother",
                  audience: "techtree",
                  nonce: issued.nonce
                },
@@ -101,7 +101,7 @@ defmodule Siwa.NonceTest do
                %{
                  address: "0x123",
                  agent_id: 9,
-                 agent_registry: "eip155:84532:0xregistry",
+                 agent_registry: "eip155:8453:0xregistry",
                  audience: "techtree"
                },
                nonce_secret: "nonce-secret"
@@ -110,7 +110,7 @@ defmodule Siwa.NonceTest do
     params = %{
       address: "0x123",
       agent_id: 9,
-      agent_registry: "eip155:84532:0xregistry",
+      agent_registry: "eip155:8453:0xregistry",
       audience: "techtree",
       nonce: issued.nonce
     }
@@ -136,7 +136,7 @@ defmodule Siwa.NonceTest do
                %{
                  address: "0x456",
                  agent_id: 10,
-                 agent_registry: "eip155:84532:0xregistry",
+                 agent_registry: "eip155:8453:0xregistry",
                  audience: "techtree"
                },
                nonce_secret: "nonce-secret"
@@ -145,7 +145,7 @@ defmodule Siwa.NonceTest do
     params = %{
       address: "0x456",
       agent_id: 10,
-      agent_registry: "eip155:84532:0xregistry",
+      agent_registry: "eip155:8453:0xregistry",
       audience: "techtree",
       nonce: issued.nonce
     }
@@ -180,7 +180,7 @@ defmodule Siwa.NonceTest do
       Siwa.Nonce.issue(%{
         address: "0xabc",
         agent_id: 11,
-        agent_registry: "eip155:84532:0xregistry",
+        agent_registry: "eip155:8453:0xregistry",
         audience: "app-one"
       })
 
@@ -188,7 +188,7 @@ defmodule Siwa.NonceTest do
       Siwa.Nonce.issue(%{
         address: "0xabc",
         agent_id: 11,
-        agent_registry: "eip155:84532:0xregistry",
+        agent_registry: "eip155:8453:0xregistry",
         audience: "app-two"
       })
 
@@ -196,7 +196,7 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.consume(%{
                address: "0xabc",
                agent_id: 11,
-               agent_registry: "eip155:84532:0xregistry",
+               agent_registry: "eip155:8453:0xregistry",
                audience: "app-one",
                nonce: first.nonce
              })
@@ -205,7 +205,7 @@ defmodule Siwa.NonceTest do
              Siwa.Nonce.consume(%{
                address: "0xabc",
                agent_id: 11,
-               agent_registry: "eip155:84532:0xregistry",
+               agent_registry: "eip155:8453:0xregistry",
                audience: "app-two",
                nonce: second.nonce
              })

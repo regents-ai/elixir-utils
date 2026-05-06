@@ -6,7 +6,7 @@
       "accepts": [
         {
           "scheme": "exact",
-          "network": "eip155:84532",
+          "network": "eip155:8453",
           "amount": "1000",
           "asset": "USDC",
           "payTo": "0xabc",
@@ -18,12 +18,12 @@
         "description": "Weather report"
       }
     },
-    "encoded": "eyJhY2NlcHRzIjpbeyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6ODQ1MzIiLCJhbW91bnQiOiIxMDAwIiwiYXNzZXQiOiJVU0RDIiwicGF5VG8iOiIweGFiYyIsIm1heFRpbWVvdXRTZWNvbmRzIjo2MH1dLCJyZXNvdXJjZSI6eyJ1cmwiOiJodHRwczovL2FwaS5leGFtcGxlLmNvbS93ZWF0aGVyIiwiZGVzY3JpcHRpb24iOiJXZWF0aGVyIHJlcG9ydCJ9fQ==",
+    "encoded": "eyJhY2NlcHRzIjpbeyJhbW91bnQiOiIxMDAwIiwiYXNzZXQiOiJVU0RDIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJwYXlUbyI6IjB4YWJjIiwic2NoZW1lIjoiZXhhY3QifV0sInJlc291cmNlIjp7ImRlc2NyaXB0aW9uIjoiV2VhdGhlciByZXBvcnQiLCJ1cmwiOiJodHRwczovL2FwaS5leGFtcGxlLmNvbS93ZWF0aGVyIn19",
     "decoded": {
       "accepts": [
         {
           "scheme": "exact",
-          "network": "eip155:84532",
+          "network": "eip155:8453",
           "amount": "1000",
           "asset": "USDC",
           "payTo": "0xabc",
@@ -39,7 +39,7 @@
       "valid": true,
       "payment": {
         "scheme": "exact",
-        "network": "eip155:84532",
+        "network": "eip155:8453",
         "amount": "1000",
         "asset": "USDC",
         "payTo": "0xabc",

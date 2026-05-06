@@ -14,12 +14,12 @@
     "receiptPayload": {
       "typ": "siwa_receipt",
       "jti": "fixture-request-auth-receipt",
-      "sub": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "sub": "0x6970b330d2f970039165a2d7a71acf2db85b0c8d",
       "aud": "techtree",
-      "chain_id": 84532,
+      "chain_id": 8453,
       "nonce": "fixture-request-auth-nonce",
-      "key_id": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-      "registry_address": "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+      "key_id": "0x6970b330d2f970039165a2d7a71acf2db85b0c8d",
+      "registry_address": "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
       "token_id": "42",
       "verified": "onchain",
       "iat": 1776465945649,
@@ -28,22 +28,22 @@
     "signedHeaders": {
       "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
       "content-type": "application/json",
-      "signature": "sig1=:9U9aT8M88Ic0qu4Ox+0RdqaT5usl2ekjq6a96Y8bI/wYr8/sq2aJR4KO93O+E4+VioB/Y1M0cBFAcOtq+oEzVRs=:",
-      "signature-input": "sig1=(\"@method\" \"@path\" \"x-siwa-receipt\" \"x-key-id\" \"x-timestamp\" \"x-agent-wallet-address\" \"x-agent-chain-id\" \"content-digest\" \"x-agent-registry-address\" \"x-agent-token-id\");created=1776465945;expires=1776466065;nonce=\"sig-nonce-fixture\";keyid=\"0x70997970C51812dc3A010C7d01b50e0d17dc79C8\"",
-      "x-siwa-receipt": "eyJ0eXAiOiJzaXdhX3JlY2VpcHQiLCJqdGkiOiJmaXh0dXJlLXJlcXVlc3QtYXV0aC1yZWNlaXB0Iiwic3ViIjoiMHg3MDk5Nzk3MEM1MTgxMmRjM0EwMTBDN2QwMWI1MGUwZDE3ZGM3OUM4IiwiYXVkIjoidGVjaHRyZWUiLCJjaGFpbl9pZCI6ODQ1MzIsIm5vbmNlIjoiZml4dHVyZS1yZXF1ZXN0LWF1dGgtbm9uY2UiLCJrZXlfaWQiOiIweDcwOTk3OTcwQzUxODEyZGMzQTAxMEM3ZDAxYjUwZTBkMTdkYzc5QzgiLCJyZWdpc3RyeV9hZGRyZXNzIjoiMHg4MDA0YTgxOGJmYjkxMjIzM2M0OTE4NzFiM2Q4NGM4OWE0OTRiZDllIiwidG9rZW5faWQiOiI0MiIsInZlcmlmaWVkIjoib25jaGFpbiIsImlhdCI6MTc3NjQ2NTk0NTY0OSwiZXhwIjoxNzc2NDY3NzQ1NjQ5fQ.M4XWw5XLs7zkrCvtQZEQdEDFJjGGFBT8Q_0QEhP0G5o",
-      "x-key-id": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "signature": "sig1=:WH6rQ4B4cZ70F/pCSbkWxw/31RJr6wUA+uSmqEv7SOdaH+4gy5CKFe9spm3F4UA7G5byMYmK8hsbuvsLXK8kaBw=:",
+      "signature-input": "sig1=(\"@method\" \"@path\" \"x-siwa-receipt\" \"x-key-id\" \"x-timestamp\" \"x-agent-wallet-address\" \"x-agent-chain-id\" \"content-digest\" \"x-agent-registry-address\" \"x-agent-token-id\");created=1776465945;expires=1776466065;nonce=\"sig-nonce-fixture\";keyid=\"0x6970b330d2f970039165a2d7a71acf2db85b0c8d\"",
+      "x-siwa-receipt": "eyJhdWQiOiJ0ZWNodHJlZSIsImNoYWluX2lkIjo4NDUzLCJleHAiOjE3NzY0Njc3NDU2NDksImlhdCI6MTc3NjQ2NTk0NTY0OSwianRpIjoiZml4dHVyZS1yZXF1ZXN0LWF1dGgtcmVjZWlwdCIsImtleV9pZCI6IjB4Njk3MGIzMzBkMmY5NzAwMzkxNjVhMmQ3YTcxYWNmMmRiODViMGM4ZCIsIm5vbmNlIjoiZml4dHVyZS1yZXF1ZXN0LWF1dGgtbm9uY2UiLCJyZWdpc3RyeV9hZGRyZXNzIjoiMHg4MDA0YTE2OWZiNGEzMzI1MTM2ZWIyOWZhMGNlYjZkMmU1MzlhNDMyIiwic3ViIjoiMHg2OTcwYjMzMGQyZjk3MDAzOTE2NWEyZDdhNzFhY2YyZGI4NWIwYzhkIiwidG9rZW5faWQiOiI0MiIsInR5cCI6InNpd2FfcmVjZWlwdCIsInZlcmlmaWVkIjoib25jaGFpbiJ9.iGEFAUOo7vRDCN6nSfF2ma2u2ceJK0agOIUQ2uWDruM",
+      "x-key-id": "0x6970b330d2f970039165a2d7a71acf2db85b0c8d",
       "x-timestamp": "1776465945",
-      "x-agent-wallet-address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-      "x-agent-chain-id": "84532",
-      "x-agent-registry-address": "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+      "x-agent-wallet-address": "0x6970b330d2f970039165a2d7a71acf2db85b0c8d",
+      "x-agent-chain-id": "8453",
+      "x-agent-registry-address": "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
       "x-agent-token-id": "42"
     },
     "verified": {
       "valid": true,
       "agent": {
-        "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-        "chain_id": 84532,
-        "registry_address": "0x8004a818bfb912233c491871b3d84c89a494bd9e",
+        "wallet_address": "0x6970b330d2f970039165a2d7a71acf2db85b0c8d",
+        "chain_id": 8453,
+        "registry_address": "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
         "token_id": "42"
       }
     }

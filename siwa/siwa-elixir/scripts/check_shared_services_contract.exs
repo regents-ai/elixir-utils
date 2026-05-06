@@ -7,6 +7,23 @@ defmodule SharedServicesContractCheck do
                          "../apps/siwa_keyring/lib/siwa_keyring/router.ex",
                          __DIR__
                        )
+  @local_surface_paths [
+    Path.expand("../README.md", __DIR__),
+    Path.expand("../apps/siwa/lib", __DIR__),
+    Path.expand("../apps/siwa/test", __DIR__),
+    Path.expand("../apps/siwa_keyring/lib", __DIR__),
+    Path.expand("../apps/siwa_keyring/test", __DIR__),
+    Path.expand("../fixtures/siwa", __DIR__)
+  ]
+  @canonical_chain_id 8453
+  @forbidden_chain_id 84_532
+  @forbidden_chain_terms [
+    Integer.to_string(@forbidden_chain_id),
+    "eip155:" <> Integer.to_string(@forbidden_chain_id),
+    "Base " <> "Se" <> "polia",
+    "base " <> "se" <> "polia",
+    "https://" <> "se" <> "polia" <> ".base.org"
+  ]
 
   @siwa_operations %{
     {"post", "/v1/agent/siwa/nonce"} => "createSharedAgentSiwaNonce",
@@ -121,6 +138,10 @@ defmodule SharedServicesContractCheck do
       |> MapSet.difference(expected_keyring_paths)
       |> Enum.sort()
 
+    base_chain_schema_errors = base_chain_schema_errors(contract)
+    base_chain_config_errors = base_chain_config_errors()
+    local_chain_drift = local_chain_drift()
+
     case {
       missing_operations,
       missing_schemas,
@@ -129,9 +150,12 @@ defmodule SharedServicesContractCheck do
       missing_router_routes,
       extra_router_routes,
       missing_contract_keyring_paths,
-      extra_contract_keyring_paths
+      extra_contract_keyring_paths,
+      base_chain_schema_errors,
+      base_chain_config_errors,
+      local_chain_drift
     } do
-      {[], [], [], [], [], [], [], []} ->
+      {[], [], [], [], [], [], [], [], [], [], []} ->
         Mix.shell().info("Shared services contract covers SIWA routes and response envelopes.")
 
       _ ->
@@ -149,7 +173,10 @@ defmodule SharedServicesContractCheck do
                 missing_message("Missing keyring router routes", missing_router_routes),
                 missing_message("Extra keyring router routes", extra_router_routes),
                 missing_message("Missing keyring contract paths", missing_contract_keyring_paths),
-                missing_message("Extra keyring contract paths", extra_contract_keyring_paths)
+                missing_message("Extra keyring contract paths", extra_contract_keyring_paths),
+                missing_message("Base chain contract drift", base_chain_schema_errors),
+                missing_message("Base chain runtime drift", base_chain_config_errors),
+                missing_message("Base chain local fixture/test drift", local_chain_drift)
               ]
               |> Enum.reject(&is_nil/1),
               "\n"
@@ -177,6 +204,83 @@ defmodule SharedServicesContractCheck do
 
       [_] ->
         :error
+    end
+  end
+
+  defp schema_section(contract, schema) do
+    case String.split(contract, "    #{schema}:\n", parts: 2) do
+      [_before, section] ->
+        {:ok, section |> String.split(~r/\n    [A-Za-z0-9]+:/, parts: 2) |> hd()}
+
+      [_] ->
+        :error
+    end
+  end
+
+  defp base_chain_schema_errors(contract) do
+    case schema_section(contract, "BaseChainId") do
+      {:ok, section} ->
+        cond do
+          not Regex.match?(~r/type:\s+integer/, section) ->
+            ["BaseChainId must remain an integer schema"]
+
+          not Regex.match?(~r/enum:\s+\[#{@canonical_chain_id}\]/, section) ->
+            ["BaseChainId must remain enum [#{@canonical_chain_id}]"]
+
+          true ->
+            []
+        end
+
+      :error ->
+        ["BaseChainId schema is missing"]
+    end
+  end
+
+  defp base_chain_config_errors do
+    [
+      chain_config_error("Siwa.Registry.registry_addresses", Siwa.Registry.registry_addresses()),
+      chain_config_error("Siwa.Registry.reputation_addresses", Siwa.Registry.reputation_addresses()),
+      chain_config_error("Siwa.Registry.rpc_endpoints", Siwa.Registry.rpc_endpoints())
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp chain_config_error(label, values) do
+    chain_ids = values |> Map.keys() |> Enum.sort()
+
+    if chain_ids == [@canonical_chain_id] do
+      nil
+    else
+      "#{label} must only expose #{@canonical_chain_id}; found #{inspect(chain_ids)}"
+    end
+  end
+
+  defp local_chain_drift do
+    @local_surface_paths
+    |> Enum.flat_map(&surface_files/1)
+    |> Enum.flat_map(fn path ->
+      source = File.read!(path)
+
+      @forbidden_chain_terms
+      |> Enum.filter(&String.contains?(source, &1))
+      |> Enum.map(fn _term -> Path.relative_to(path, Path.expand("..", __DIR__)) end)
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp surface_files(path) do
+    cond do
+      File.regular?(path) ->
+        [path]
+
+      File.dir?(path) ->
+        path
+        |> File.ls!()
+        |> Enum.flat_map(fn entry -> surface_files(Path.join(path, entry)) end)
+
+      true ->
+        []
     end
   end
 

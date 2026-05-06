@@ -17,8 +17,8 @@ defmodule Siwa.FixtureRegistryTest do
     def submit_registration(signed, _opts), do: {:ok, %{transaction: signed.transaction}}
   end
 
-  test "registry starts with Base and Base Sepolia only" do
-    base_chains = MapSet.new([8453, 84532])
+  test "registry only exposes Base mainnet" do
+    base_chains = MapSet.new([8453])
 
     assert Map.keys(Siwa.Registry.registry_addresses()) |> MapSet.new() == base_chains
     assert Map.keys(Siwa.Registry.reputation_addresses()) |> MapSet.new() == base_chains

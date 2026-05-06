@@ -269,7 +269,7 @@ defmodule Siwa.RequestAuthTest do
         "jti" => "receipt-#{System.unique_integer([:positive])}",
         "sub" => signer.address,
         "aud" => "techtree",
-        "chain_id" => 84532,
+        "chain_id" => 8453,
         "nonce" => "nonce-#{System.unique_integer([:positive])}",
         "key_id" => signer.address,
         "registry_address" => registry_address(),
@@ -289,5 +289,5 @@ defmodule Siwa.RequestAuthTest do
     }
   end
 
-  defp registry_address, do: "0x8004a818bfb912233c491871b3d84c89a494bd9e"
+  defp registry_address, do: "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
 end

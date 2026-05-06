@@ -10,16 +10,16 @@ defmodule Siwa.HelperUsageTest do
       Siwa.Identity.write(path, %{
         address: "0x123",
         agent_id: 12,
-        agent_registry: "eip155:84532:0xregistry",
-        chain_id: 84532,
+        agent_registry: "eip155:8453:0xregistry",
+        chain_id: 8453,
         endpoint: "https://api.example.com"
       })
 
     assert {:ok, identity} = Siwa.Identity.read(path)
     assert identity.address == "0x123"
     assert identity.agent_id == "12"
-    assert identity.agent_registry == "eip155:84532:0xregistry"
-    assert identity.chain_id == "84532"
+    assert identity.agent_registry == "eip155:8453:0xregistry"
+    assert identity.chain_id == "8453"
     assert identity.endpoint == "https://api.example.com"
   end
 
@@ -46,7 +46,7 @@ defmodule Siwa.HelperUsageTest do
                  "customField" => "hello",
                  address: "0x123",
                  agent_id: 1,
-                 agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+                 agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
                  audience: "techtree"
                },
                store: fn _key, _nonce, _metadata, params ->
@@ -68,8 +68,8 @@ defmodule Siwa.HelperUsageTest do
   end
 
   test "token-bound helper and registry helper cover the common lookups" do
-    assert {:ok, registry} = Siwa.Registry.get_agent_registry_string(84532)
-    assert registry == "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e"
+    assert {:ok, registry} = Siwa.Registry.get_agent_registry_string(8453)
+    assert registry == "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
 
     account = Siwa.TBA.account_key(registry, 42)
     assert Siwa.TBA.matches?(account, registry, 42)

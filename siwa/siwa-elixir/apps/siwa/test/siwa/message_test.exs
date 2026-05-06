@@ -8,8 +8,8 @@ defmodule Siwa.MessageTest do
       statement: "Authenticate as a registered agent.",
       uri: "https://api.example.com/siwa",
       agent_id: 7,
-      agent_registry: "eip155:84532:0xregistry",
-      chain_id: 84532,
+      agent_registry: "eip155:8453:0xregistry",
+      chain_id: 8453,
       nonce: "abc12345",
       issued_at: "2026-04-17T00:00:00Z"
     }
@@ -28,8 +28,8 @@ defmodule Siwa.MessageTest do
         "statement" => "Authenticate as a registered agent.",
         "uri" => "https://api.example.com/siwa",
         "agent_id" => 7,
-        "agent_registry" => "eip155:84532:0xregistry",
-        "chain_id" => 84532,
+        "agent_registry" => "eip155:8453:0xregistry",
+        "chain_id" => 8453,
         "nonce" => "abc12345",
         "issued_at" => "2026-04-17T00:00:00Z"
       })
@@ -45,8 +45,8 @@ defmodule Siwa.MessageTest do
       statement: "Sign in to platform.",
       uri: "https://regent.cx/v1/agent/siwa/verify",
       agent_id: 77,
-      agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333",
-      chain_id: 84532,
+      agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
+      chain_id: 8453,
       nonce: "abc12345",
       issued_at: "2026-04-17T00:00:00Z"
     }
@@ -75,8 +75,8 @@ defmodule Siwa.MessageTest do
         "URI: https://api.example.com/siwa",
         "Version: 1",
         "Agent ID: 7",
-        "Agent Registry: eip155:84532:0xregistry",
-        "Chain ID: 84532",
+        "Agent Registry: eip155:8453:0xregistry",
+        "Chain ID: 8453",
         "Nonce: abc12345",
         "Nonce: duplicate",
         "Issued At: 2026-04-17T00:00:00Z"
@@ -95,8 +95,8 @@ defmodule Siwa.MessageTest do
         "URI: https://api.example.com/siwa",
         "Version: 1",
         "Agent ID: abc",
-        "Agent Registry: eip155:84532:0xregistry",
-        "Chain ID: 84532",
+        "Agent Registry: eip155:8453:0xregistry",
+        "Chain ID: 8453",
         "Nonce: abc12345",
         "Issued At: 2026-04-17T00:00:00Z"
       ]

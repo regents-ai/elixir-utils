@@ -6,14 +6,14 @@
       "domain": "api.example.com",
       "uri": "https://api.example.com/siwa",
       "agentId": 42,
-      "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-      "chainId": 84532,
+      "agentRegistry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "chainId": 8453,
       "nonce": "abc12345",
       "issuedAt": "2026-04-17T00:00:00Z",
       "statement": "Authenticate as a registered ERC-8004 agent.",
       "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A"
     },
-    "builtMessage": "api.example.com wants you to sign in with your Agent account:\n0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A\n\nAuthenticate as a registered ERC-8004 agent.\n\nURI: https://api.example.com/siwa\nVersion: 1\nAgent ID: 42\nAgent Registry: eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e\nChain ID: 84532\nNonce: abc12345\nIssued At: 2026-04-17T00:00:00Z",
+    "builtMessage": "api.example.com wants you to sign in with your Agent account:\n0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A\n\nAuthenticate as a registered ERC-8004 agent.\n\nURI: https://api.example.com/siwa\nVersion: 1\nAgent ID: 42\nAgent Registry: eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432\nChain ID: 8453\nNonce: abc12345\nIssued At: 2026-04-17T00:00:00Z",
     "parsed": {
       "domain": "api.example.com",
       "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
@@ -21,13 +21,13 @@
       "uri": "https://api.example.com/siwa",
       "version": "1",
       "agentId": 42,
-      "agentRegistry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-      "chainId": 84532,
+      "agentRegistry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "chainId": 8453,
       "nonce": "abc12345",
       "issuedAt": "2026-04-17T00:00:00Z"
     },
     "signed": {
-      "message": "api.example.com wants you to sign in with your Agent account:\n0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A\n\nAuthenticate as a registered ERC-8004 agent.\n\nURI: https://api.example.com/siwa\nVersion: 1\nAgent ID: 42\nAgent Registry: eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e\nChain ID: 84532\nNonce: abc12345\nIssued At: 2026-04-17T00:00:00Z",
+      "message": "api.example.com wants you to sign in with your Agent account:\n0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A\n\nAuthenticate as a registered ERC-8004 agent.\n\nURI: https://api.example.com/siwa\nVersion: 1\nAgent ID: 42\nAgent Registry: eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432\nChain ID: 8453\nNonce: abc12345\nIssued At: 2026-04-17T00:00:00Z",
       "signature": "0xe05116ed69a74bac01e7e64f97bed593e2f51f7c5acee468e2aced6b51991f7553989712ab4467efcf097166a6c17a25ae0aa479a62c16ec4c4bdd1eba07298c1b",
       "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A"
     }

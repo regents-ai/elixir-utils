@@ -31,7 +31,7 @@ defmodule Siwa.UsageFlowTest do
         %{
           address: signer.address,
           agent_id: 7,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
           audience: "techtree"
         },
         nonce_secret: "nonce-secret"
@@ -47,8 +47,8 @@ defmodule Siwa.UsageFlowTest do
           domain: "api.example.com",
           uri: "https://api.example.com/siwa",
           agent_id: 7,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-          chain_id: 84532,
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+          chain_id: 8453,
           nonce: nonce.nonce,
           issued_at: "2026-04-17T00:00:00Z",
           statement: "Authenticate as a registered agent."
@@ -83,7 +83,7 @@ defmodule Siwa.UsageFlowTest do
 
     assert receipt_payload["sub"] == signer.address
     assert receipt_payload["aud"] == "techtree"
-    assert receipt_payload["registry_address"] == "0x8004a818bfb912233c491871b3d84c89a494bd9e"
+    assert receipt_payload["registry_address"] == "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
     assert receipt_payload["token_id"] == "7"
 
     request = %{
@@ -107,7 +107,7 @@ defmodule Siwa.UsageFlowTest do
              )
 
     assert follow_up.address == signer.address
-    assert follow_up.claims["registry_address"] == "0x8004a818bfb912233c491871b3d84c89a494bd9e"
+    assert follow_up.claims["registry_address"] == "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
 
     assert follow_up.covered_components == [
              "@method",
@@ -132,7 +132,7 @@ defmodule Siwa.UsageFlowTest do
         %{
           address: signer.address,
           agent_id: 8,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
           audience: "techtree"
         },
         nonce_secret: "nonce-secret"
@@ -144,8 +144,8 @@ defmodule Siwa.UsageFlowTest do
           domain: "api.example.com",
           uri: "https://api.example.com/siwa",
           agent_id: 8,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-          chain_id: 84532,
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+          chain_id: 8453,
           nonce: nonce.nonce,
           issued_at: "2026-04-17T00:00:00Z"
         },
@@ -178,7 +178,7 @@ defmodule Siwa.UsageFlowTest do
         %{
           address: signer.address,
           agent_id: 11,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
           audience: "techtree"
         },
         nonce_secret: "nonce-secret"
@@ -190,8 +190,8 @@ defmodule Siwa.UsageFlowTest do
           domain: "api.example.com",
           uri: "https://api.example.com/siwa",
           agent_id: 11,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-          chain_id: 84532,
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+          chain_id: 8453,
           nonce: nonce.nonce,
           issued_at: "2026-04-17T00:00:00Z"
         },
@@ -239,7 +239,7 @@ defmodule Siwa.UsageFlowTest do
                %{
                  address: signer.address,
                  agent_id: 9,
-                 agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+                 agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
                  audience: "techtree"
                },
                captcha_policy: fn _ -> "medium" end,
@@ -262,7 +262,7 @@ defmodule Siwa.UsageFlowTest do
         %{
           address: signer.address,
           agent_id: 10,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
           audience: "techtree"
         },
         nonce_secret: "nonce-secret"
@@ -274,8 +274,8 @@ defmodule Siwa.UsageFlowTest do
           domain: "api.example.com",
           uri: "https://api.example.com/siwa",
           agent_id: 10,
-          agent_registry: "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-          chain_id: 84532,
+          agent_registry: "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+          chain_id: 8453,
           nonce: nonce.nonce,
           issued_at: "2026-04-17T00:00:00Z",
           not_before: "2026-04-17T01:00:00Z",

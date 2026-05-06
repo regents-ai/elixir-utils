@@ -7,14 +7,14 @@
       "nonce": "KOfLBbboZNOMLZ-p",
       "issuedAt": "2026-04-17T22:52:07.153Z",
       "expirationTime": "2026-04-17T22:57:07.153Z",
-      "nonceToken": "eyJub25jZSI6IktPZkxCYmJvWk5PTUxaLXAiLCJhZGRyZXNzIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwiYWdlbnRfaWQiOjQyLCJhZ2VudF9yZWdpc3RyeSI6ImVpcDE1NTo4NDUzMjoweDgwMDRBODE4QkZCOTEyMjMzYzQ5MTg3MWIzZDg0Yzg5QTQ5NEJEOWUiLCJhdWRpZW5jZSI6InRlY2h0cmVlIiwiaWF0IjoxNzc2NDY2MzI3MTUzLCJleHAiOjE3NzY0NjY2MjcxNTN9.WEOVzQWDBUUwM9qVO07DD5Efn0ZRDtwwqvv_LDhFfpE"
+      "nonceToken": "eyJhZGRyZXNzIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwiYWdlbnRfaWQiOjQyLCJhZ2VudF9yZWdpc3RyeSI6ImVpcDE1NTo4NDUzOjB4ODAwNEExNjlGQjRhMzMyNTEzNkVCMjlmQTBjZUI2RDJlNTM5YTQzMiIsImF1ZGllbmNlIjoidGVjaHRyZWUiLCJleHAiOjE3NzY0NjY2MjcxNTMsImlhdCI6MTc3NjQ2NjMyNzE1Mywibm9uY2UiOiJLT2ZMQmJib1pOT01MWi1wIn0.yeLqWkcxLw_MSnhrViiDopmpeSjq_Lz4FlImZjer-T8"
     },
     "verifySuccess": {
       "valid": true,
       "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
       "agent_id": 42,
-      "agent_registry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-      "chainId": 84532,
+      "agent_registry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "chainId": 8453,
       "verified": "onchain",
       "signerType": "eoa"
     },
@@ -22,8 +22,8 @@
       "valid": false,
       "address": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
       "agent_id": 42,
-      "agent_registry": "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e",
-      "chainId": 84532,
+      "agent_registry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "chainId": 8453,
       "verified": "onchain",
       "code": "DOMAIN_MISMATCH",
       "error": "Domain mismatch: expected wrong.example.com, got api.example.com"

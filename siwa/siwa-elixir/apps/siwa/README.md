@@ -21,8 +21,8 @@ message =
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     uri: "https://regent.cx/v1/agent/siwa/verify",
     agent_id: 77,
-    agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333",
-    chain_id: 84532,
+    agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
+    chain_id: 8453,
     nonce: "nonce1234",
     issued_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
   })
@@ -35,7 +35,7 @@ message =
   Siwa.create_nonce(%{
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     agent_id: 77,
-    agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333",
+    agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
     audience: "regent"
   })
 
@@ -43,7 +43,7 @@ message =
   Siwa.verify_nonce(%{
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     agent_id: 77,
-    agent_registry: "eip155:84532:0x3333333333333333333333333333333333333333",
+    agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
     audience: "regent",
     nonce: nonce.nonce
   })
@@ -74,7 +74,7 @@ end
   Siwa.create_receipt(%{
     "typ" => "siwa_receipt",
     "sub" => "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    "chain_id" => 84532,
+    "chain_id" => 8453,
     "registry_address" => "0x3333333333333333333333333333333333333333",
     "token_id" => "77",
     "aud" => "platform"

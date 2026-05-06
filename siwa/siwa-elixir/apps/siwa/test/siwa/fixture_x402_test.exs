@@ -12,7 +12,7 @@ defmodule Siwa.FixtureX402Test do
       "signature" => "0xsig",
       "payment" => %{
         "scheme" => "exact",
-        "network" => "eip155:84532",
+        "network" => "eip155:8453",
         "amount" => "1000",
         "asset" => "USDC",
         "payTo" => "0xabc",
@@ -45,7 +45,7 @@ defmodule Siwa.FixtureX402Test do
     accepts = [
       %{
         "scheme" => "exact",
-        "network" => "eip155:84532",
+        "network" => "eip155:8453",
         "amount" => "1000",
         "asset" => "USDC",
         "payTo" => "0xabc"
@@ -60,7 +60,7 @@ defmodule Siwa.FixtureX402Test do
     mismatched_payload = %{
       "payment" => %{
         "scheme" => "exact",
-        "network" => "eip155:84532",
+        "network" => "eip155:8453",
         "amount" => "999",
         "asset" => "USDC",
         "payTo" => "0xabc"
@@ -73,7 +73,7 @@ defmodule Siwa.FixtureX402Test do
     payload = %{
       "payment" => %{
         "scheme" => "exact",
-        "network" => "eip155:84532",
+        "network" => "eip155:8453",
         "amount" => "1000",
         "asset" => "USDC",
         "payTo" => "0xabc"

@@ -8,8 +8,8 @@ defmodule SiwaTest do
         address: "0xabc",
         uri: "https://api.example.com/siwa",
         agent_id: 42,
-        agent_registry: "eip155:84532:0xregistry",
-        chain_id: 84532,
+        agent_registry: "eip155:8453:0xregistry",
+        chain_id: 8453,
         nonce: "nonce1234",
         issued_at: "2026-04-17T00:00:00Z"
       })

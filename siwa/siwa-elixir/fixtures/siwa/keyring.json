@@ -5,11 +5,11 @@
     "secret": "fixture-secret",
     "method": "POST",
     "path": "/sign-message",
-    "body": "{\"message\":\"api.example.com wants you to sign in with your Agent account:\\n0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A\\n\\nAuthenticate as a registered ERC-8004 agent.\\n\\nURI: https://api.example.com/siwa\\nVersion: 1\\nAgent ID: 42\\nAgent Registry: eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e\\nChain ID: 84532\\nNonce: abc12345\\nIssued At: 2026-04-17T00:00:00Z\"}",
+    "body": "{\"message\":\"api.example.com wants you to sign in with your Agent account:\\n0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A\\n\\nAuthenticate as a registered ERC-8004 agent.\\n\\nURI: https://api.example.com/siwa\\nVersion: 1\\nAgent ID: 42\\nAgent Registry: eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432\\nChain ID: 8453\\nNonce: abc12345\\nIssued At: 2026-04-17T00:00:00Z\"}",
     "headers": {
       "X-Keyring-Timestamp": "1776465945649",
       "X-Keyring-Request-Id": "fixture-keyring-request-0001",
-      "X-Keyring-Signature": "6c34d3900135130ae600a0cef3dfaec06f6317c62fa766b81377c305409477a1"
+      "X-Keyring-Signature": "076ef55c6a49fb959edbc8ab2861e1de9f59f35ed7bca60feb4143db8c27716a"
     }
   }
 }

@@ -145,8 +145,7 @@ defmodule AgentWorldTest do
     proof = %{
       "merkle_root" => "0x01",
       "nullifier_hash" => "0x02",
-      "proof" =>
-        Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
+      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
     }
 
     assert {:ok, %{status: :proof_ready, tx_request: %TxRequest{} = tx_request}} =
@@ -181,8 +180,7 @@ defmodule AgentWorldTest do
     proof = %{
       "merkle_root" => "0x01",
       "nullifier_hash" => "0x02",
-      "proof" =>
-        Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
+      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
     }
 
     assert {:ok, %{status: :proof_ready, tx_request: %TxRequest{} = tx_request}} =

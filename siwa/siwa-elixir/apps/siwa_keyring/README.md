@@ -1,19 +1,43 @@
 # SiwaKeyring
 
-Isolated signer service and Elixir client for Regent SIWA.
+[Hex package](https://hex.pm/packages/siwa_keyring)
+[Docs](https://hexdocs.pm/siwa_keyring)
+[Changelog](CHANGELOG.md)
 
-Use this package when a Regent process needs a local wallet for SIWA receipts, request signatures, transaction payloads, or authorization payloads.
+`siwa_keyring` is Regent’s isolated signing service and Elixir client for SIWA
+and wallet-action flows.
+
+Use it when a Regent process needs a wallet address or signature, but should not
+receive or store the private key itself.
+
+## Installation
+
+```elixir
+def deps do
+  [
+    {:siwa_keyring, "~> 0.1.1"}
+  ]
+end
+```
+
+When building this package from this repository against the published SIWA Hex
+package:
+
+```bash
+SIWA_HEX_PUBLISH=1 mix deps.get
+```
 
 ## Configure The Wallet Store
 
 ```elixir
 config :siwa_keyring,
-  path: "/data/siwa-keyring.json",
+  path: "/data/siwa-keyring.bin",
   password: System.fetch_env!("KEYSTORE_PASSWORD"),
   secret: System.fetch_env!("KEYRING_PROXY_SECRET")
 ```
 
-The wallet file is encrypted with AES-256-GCM. The proxy secret signs requests to the keyring routes.
+The wallet file is encrypted with AES-256-GCM. The proxy secret signs internal
+requests to the keyring routes.
 
 ## Local Service Calls
 
@@ -26,9 +50,26 @@ The wallet file is encrypted with AES-256-GCM. The proxy secret signs requests t
 {:ok, raw_signature} = SiwaKeyring.sign_raw_message("payload-to-bind")
 ```
 
+Sign a wallet action:
+
+```elixir
+action = %{
+  "chain_id" => 8453,
+  "to" => "0x1111111111111111111111111111111111111111",
+  "value" => "0x0",
+  "data" => "0x",
+  "expected_signer" => address,
+  "expires_at" => "2027-05-06T12:00:00Z",
+  "risk_copy" => "Signs a prepared Regent action.",
+  "idempotency_key" => "platform:action:123"
+}
+
+{:ok, signed} = SiwaKeyring.sign_transaction(action)
+```
+
 ## HTTP Routes
 
-Run `SiwaKeyring.Router` at your internal service root.
+Run `SiwaKeyring.Router` at an internal service root.
 
 Available routes:
 
@@ -47,7 +88,7 @@ Every non-health route requires:
 - `x-keyring-request-id`
 - `x-keyring-signature`
 
-Build those headers with:
+Build those headers with `SiwaKeyring.Auth.compute_hmac/5`:
 
 ```elixir
 body = Jason.encode!(%{"message" => "Sign in to Regent"})
@@ -61,9 +102,7 @@ headers =
   )
 ```
 
-The request id is included in the signed payload and can only be used once during the timestamp freshness window.
-
-Transaction and authorization signing accepts the shared wallet-action envelope from `regent-services-contract.openapiv3.yaml`: `chain_id`, `to`, `value`, `data`, `expected_signer`, `expires_at`, `risk_copy`, and `idempotency_key`.
+The request id can be used once during the timestamp freshness window.
 
 ## Remote Client
 
@@ -71,15 +110,29 @@ Transaction and authorization signing accepts the shared wallet-action envelope 
 client =
   SiwaKeyring.Client.new(
     base_url: "https://siwa.internal",
-    secret: "proxy-secret"
+    secret: System.fetch_env!("KEYRING_PROXY_SECRET")
   )
 
-{:ok, %{"address" => address}} = SiwaKeyring.Client.get_address(client)
+{:ok, %{"address" => address}} =
+  SiwaKeyring.Client.get_address(client)
+
+signer = SiwaKeyring.Client.proxy_signer(client)
 ```
+
+Use the proxy signer anywhere a SIWA signer is expected.
+
+## Security Boundaries
+
+- Keep the keyring service on an internal network.
+- Protect every non-health route with HMAC headers.
+- Preserve the raw request body for HMAC verification.
+- Use a strong keystore password and proxy secret.
+- Do not log private keys, raw signatures, request bodies, or auth headers.
 
 ## Development
 
 ```bash
+mix deps.get
 mix test
-mix format --check-formatted
+mix docs
 ```

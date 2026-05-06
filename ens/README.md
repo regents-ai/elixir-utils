@@ -1,214 +1,244 @@
 # ens-elixir
 
+[Hex package](https://hex.pm/packages/ens_elixir)
+[Docs](https://hexdocs.pm/ens_elixir)
 [Changelog](CHANGELOG.md)
+[Guide](USAGE.md)
 
-`ens_elixir` helps an Elixir app work with ENS names when the job is to:
+`ens_elixir` is the Regent ENS and ERC-8004 identity helper package.
 
-- prove that an ENS name points at an agent record
-- inspect the current state of a name or subname
-- figure out what needs to change before asking a person to approve anything
-- prepare wallet-ready requests for ENS, reverse records, subnames, and ERC-8004 registration updates
+Use it when an Elixir app needs to read ENS state, verify that an ENS name
+points at an agent, plan what is missing, or prepare the unsigned request that a
+wallet should approve next.
 
-It is a library package. It reads ENS state, explains what is missing, and prepares the next request to send. Your app, wallet, or signer still decides whether to approve and send that request.
-
-This package ports the core [ENSIP-25](https://docs.ens.domains/ensip/25) helpers from [qntx/ensip25](https://github.com/qntx/ensip25) and adds the higher-level tools needed by CLI tools and Phoenix apps.
+The package reads, verifies, plans, and prepares. It does not hold private keys,
+ask a wallet for approval, send chain transactions, or decide product
+permissions.
 
 ## Installation
-
-Add `ens_elixir` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:ens_elixir, "~> 0.1.0"}
+    {:ens_elixir, "~> 0.1.1"}
   ]
 end
 ```
 
-## Start Here
+If you are publishing or building docs from this repository, use the published
+SIWA dependency:
 
-Most apps only need one of these entry points:
-
-- `AgentEns.verify/6` when you only want to know whether an ENS name already proves the link
-- `AgentEns.read_name/1` when you want a fuller picture of a name or subname
-- `AgentEns.plan_link/1` when you want to know what is missing before asking a person to approve changes
-- `AgentEns.prepare_bidirectional_link/1` when you want the next unsigned requests for both sides of the link
-
-If you are building a custom flow, use `AgentEns.Tx` for one-off ENS and subname changes.
-
-## Quick Examples
-
-Build the ENSIP-25 record key for an EVM registry entry:
-
-```elixir
-iex> AgentEns.evm_record_key(1, "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", 42)
-{:ok, "agent-registration[0x000100000101148004a169fb4a3325136eb29fa0ceb6d2e539a432][42]"}
+```bash
+SIWA_HEX_PUBLISH=1 mix deps.get
 ```
 
-Check whether an ENS name already proves the link:
+## When To Use It
+
+Use `ens_elixir` for:
+
+- ENSIP-25 proof checks
+- ENS name reads and resolver inspection
+- ENS text record, address, content hash, resolver, TTL, reverse name, and subname request preparation
+- ERC-8004 registration reads and update planning
+- wallet-ready request envelopes that can be handed to a browser wallet, Safe, CLI signer, or keyring
+- Platform and Autolaunch trust-link flows that need clear “already set / ready / blocked” states
+
+Use product code for:
+
+- the approval screen
+- transaction submission
+- transaction confirmation
+- product database writes after confirmation
+- final permission or trust-label decisions
+
+## Main Entry Points
+
+| Function | Use it when |
+| --- | --- |
+| `AgentEns.read_name/1` | You need a name details page or CLI inspect output. |
+| `AgentEns.verify/6` | You know the registry and agent id and only need to check an ENSIP-25 proof. |
+| `AgentEns.verify_agent/5` | You want the built-in ERC-8004 network defaults. |
+| `AgentEns.plan_link/1` | You need to explain what is already set and what is missing before asking for approval. |
+| `AgentEns.prepare_bidirectional_link/1` | You want the next unsigned ENS, ERC-8004, and optional reverse-name requests. |
+| `AgentEns.Tx` | You already know the exact ENS request to prepare. |
+| `AgentEns.ERC8004.Registration` | You need to read or patch the JSON registration file referenced by an ERC-8004 agent. |
+
+## Common Flow
+
+Most app flows should use this order:
+
+1. Read the name with `AgentEns.read_name/1`.
+2. Plan the identity link with `AgentEns.plan_link/1`.
+3. Show the current state and the next action to the person or operator.
+4. Prepare unsigned requests with `AgentEns.prepare_bidirectional_link/1`.
+5. Send the prepared request to the app’s existing wallet or signer.
+6. Confirm the transaction and update the product record that owns the workflow.
+
+## Read A Name
 
 ```elixir
-iex> AgentEns.verify(
-...>   "https://eth.llamarpc.com",
-...>   "vitalik.eth",
-...>   1,
-...>   "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-...>   42
-...> )
-{:ok, :verified}
+{:ok, details} =
+  AgentEns.read_name(%{
+    ens_name: "alice.eth",
+    chain_id: 1,
+    rpc_url: "https://eth.llamarpc.com",
+    text_keys: ["avatar", "url", "description"]
+  })
 ```
 
-Read the current state of a name:
+The result includes the normalized name, owner evidence, resolver address,
+resolver capabilities, selected text records, ETH address, content hash, TTL,
+wrapped-name evidence when available, and warnings for edge cases.
+
+## Verify An ENSIP-25 Proof
 
 ```elixir
-iex> AgentEns.read_name(%{
-...>   ens_name: "vitalik.eth",
-...>   chain_id: 1,
-...>   rpc_url: "https://eth.llamarpc.com",
-...>   text_keys: ["avatar", "url"]
-...> })
-{:ok, %AgentEns.Read.NameDetails{}}
+{:ok, status} =
+  AgentEns.verify(
+    "https://eth.llamarpc.com",
+    "alice.eth",
+    1,
+    "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    42
+  )
+
+case status do
+  :verified -> :ok
+  :ens_record_missing -> {:error, :needs_ens_record}
+end
 ```
 
-Plan what needs to change before prompting a signer:
+Use `verify_agent/5` when the chain is one of the built-in ERC-8004 networks:
 
 ```elixir
-iex> AgentEns.plan_link(%{
-...>   ens_name: "vitalik.eth",
-...>   chain_id: 1,
-...>   registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-...>   agent_id: 42,
-...>   rpc_url: "https://eth.llamarpc.com",
-...>   signer_address: "0x1234..."
-...> })
-{:ok, %AgentEns.Plan.LinkPlan{}}
+AgentEns.verify_agent("https://eth.llamarpc.com", :ethereum_mainnet, 42, "alice.eth")
 ```
 
-Prepare the next unsigned requests for both sides of the link:
+## Plan A Link
 
 ```elixir
-iex> AgentEns.prepare_bidirectional_link(%{
-...>   ens_name: "vitalik.eth",
-...>   chain_id: 1,
-...>   registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-...>   agent_id: 42,
-...>   rpc_url: "https://eth.llamarpc.com",
-...>   signer_address: "0x1234..."
-...> })
-{:ok,
- %{
-   plan: %AgentEns.Plan.LinkPlan{},
-   ensip25: %{tx: %AgentEns.TxRequest{}},
-   erc8004: %{tx: %AgentEns.TxRequest{}},
-   reverse: :skipped
- }}
+{:ok, plan} =
+  AgentEns.plan_link(%{
+    ens_name: "alice.eth",
+    chain_id: 1,
+    registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    agent_id: 42,
+    rpc_url: "https://eth.llamarpc.com",
+    signer_address: "0x1111111111111111111111111111111111111111",
+    reverse?: true
+  })
 ```
 
-Prepare an unsigned request to create or update a subname:
+The plan tells the caller whether:
+
+- the ENS proof exists
+- the ERC-8004 registration points back to the name
+- the signer can change the ENS name
+- the signer can change the agent registration
+- a reverse name update is possible
+- each next action is ready, already done, blocked, or skipped
+
+## Prepare Wallet-Ready Requests
 
 ```elixir
-iex> AgentEns.Tx.build_create_subname_tx(%{
-...>   parent_name: "vitalik.eth",
-...>   chain_id: 1,
-...>   label: "agent",
-...>   owner_address: "0x1234...",
-...>   resolver_address: "0x226159d592e2b063810a10ebf6dcbada94ed68b8",
-...>   ttl: 0
-...> })
-{:ok, %AgentEns.TxRequest{}}
+{:ok, result} =
+  AgentEns.prepare_bidirectional_link(%{
+    ens_name: "alice.eth",
+    chain_id: 1,
+    registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    agent_id: 42,
+    rpc_url: "https://eth.llamarpc.com",
+    signer_address: "0x1111111111111111111111111111111111111111",
+    reverse?: true
+  })
 ```
 
-## What You Get Back
+Each prepared request is an `%AgentEns.TxRequest{}` with:
 
-The package always returns one of two shapes:
+- `chain_id`
+- `to`
+- `value`
+- `data`
+- `expected_signer`
+- `expires_at`
+- `risk_copy`
+- `idempotency_key`
+- `description`
 
-- `{:ok, value}` when the work succeeded
-- `{:error, %AgentEns.Error{}}` when something is missing, invalid, unsupported, or unreachable
+Hand that request to your wallet, Safe flow, keyring, or CLI signer. The package
+does not submit it.
 
-When the package prepares a change, it returns `%AgentEns.TxRequest{}`. That is a wallet-ready request with:
+## Prepare One ENS Request
 
-- where the request should go
-- the encoded call data
-- the chain it belongs to
-- the wallet that is expected to approve it, when known
-- when the request should no longer be used
-- a short review note for the person approving it
-- a stable marker for this one request
-- a short human description of what the request does
+Use `AgentEns.Tx` for focused ENS work:
 
-The package does not send that request for you.
+```elixir
+{:ok, tx} =
+  AgentEns.Tx.build_set_text_record_tx(%{
+    ens_name: "alice.eth",
+    chain_id: 1,
+    resolver_address: "0x226159d592e2b063810a10ebf6dcbada94ed68b8",
+    key: "url",
+    value: "https://example.com",
+    signer_address: "0x1111111111111111111111111111111111111111"
+  })
+```
 
-## Common Jobs
+Other helpers prepare address, content hash, resolver, TTL, subname, and reverse
+name updates.
 
-### 1. Check an existing link
+## ERC-8004 Registration Files
 
-Use `AgentEns.verify/6` when you already know the chain, registry, and agent ID and only want a yes-or-no answer.
+`AgentEns.ERC8004.Registration` can fetch, parse, update, and serialize agent
+registration files. Use it when the agent record itself should carry an ENS
+service entry.
 
-Use `AgentEns.verify_agent/5` when the registry is one of the built-in ERC-8004 defaults for Ethereum mainnet or Sepolia.
+```elixir
+{:ok, registration} =
+  AgentEns.ERC8004.Registration.fetch(agent_uri)
 
-### 2. Inspect a name before showing UI
+{:ok, updated_registration} =
+  AgentEns.ERC8004.Registration.upsert_ens_service(registration, "alice.eth")
+```
 
-Use `AgentEns.read_name/1` when you want to show a person who controls a name, which resolver it uses, whether it has an ETH address, whether it has a content hash, and which text records are present.
+If the flow needs a new registration URI, pass a publisher to
+`prepare_erc8004_update/1`. The publisher owns storage and returns the new URI.
 
-### 3. Decide what should happen next
+## Network Defaults
 
-Use `AgentEns.plan_link/1` when you want to know:
+Built-in defaults are available for Ethereum mainnet and Ethereum Sepolia. Pass
+explicit contract addresses for other networks.
 
-- whether the ENS proof is already present
-- whether the ERC-8004 registration already points back to the ENS name
-- whether the current signer can make the needed changes
-- whether a reverse record can also be updated
+## Return Shapes
 
-This is the safest starting point for a UI that wants to explain the situation before asking for approval.
+Successful calls return `{:ok, value}`. Failures return
+`{:error, %AgentEns.Error{}}`.
 
-### 4. Prepare updates
+`%AgentEns.Error{}` carries:
 
-Use `AgentEns.prepare_ensip25_update/1` when you only need the ENS proof record.
+- `kind`
+- `message`
+- `details`
 
-Use `AgentEns.prepare_erc8004_update/1` when you only need to patch the agent registration.
-
-Use `AgentEns.prepare_bidirectional_link/1` when you want the full answer in one call.
-
-Use `AgentEns.Tx` when you want to prepare other ENS changes such as:
-
-- setting text records
-- changing the ETH address
-- changing the content hash
-- changing the resolver
-- changing TTL
-- creating or updating subnames
-- setting the reverse name
-
-## Built-In Network Defaults
-
-The package ships with default ENS and ERC-8004 addresses for:
-
-- Ethereum mainnet
-- Ethereum Sepolia
-
-You can still pass explicit addresses whenever you want to override those defaults.
+Use `kind` for program behavior and `message` for operator-facing diagnostics.
 
 ## What This Package Does Not Do
 
 - It does not manage private keys.
 - It does not ask a wallet for approval.
-- It does not send requests to the chain.
-- It does not store your registrations for you unless you provide a publisher when updating ERC-8004 data.
+- It does not submit transactions.
+- It does not confirm transactions.
+- It does not decide whether a product should show “verified.”
+- It does not write Platform, Autolaunch, Techtree, or CLI state.
 
 ## Full Guide
 
-For a fuller walkthrough of the package, see [USAGE.md](USAGE.md).
+For a longer guide with more examples, read [USAGE.md](USAGE.md).
 
-## Publishing
-
-Build the package locally with:
+## Development
 
 ```bash
-mix hex.build
-```
-
-Publish it with:
-
-```bash
-mix hex.publish
+mix deps.get
+mix test
+mix docs
 ```

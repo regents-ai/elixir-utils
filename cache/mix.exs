@@ -13,7 +13,8 @@ defmodule RegentCache.MixProject do
       description: @description,
       package: package(),
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+      docs: docs()
     ]
   end
 
@@ -32,7 +33,8 @@ defmodule RegentCache.MixProject do
   defp deps do
     [
       {:cachex, "~> 4.1"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end
 
@@ -61,6 +63,13 @@ defmodule RegentCache.MixProject do
         "test"
       ],
       precommit: ["check"]
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md", "CHANGELOG.md"]
     ]
   end
 end

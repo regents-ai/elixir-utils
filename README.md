@@ -1,30 +1,120 @@
 # Regent Elixir Utilities
 
-This folder is one repository for multiple Elixir utilities.
+This repository holds the shared Elixir packages used by Regent services and
+Phoenix apps.
 
-Each utility below lives in its own folder here:
+Each package has one job. Product apps decide what a feature means for users;
+these packages provide the reusable identity, messaging, signing, trust, and
+cache tools behind those features.
 
-- `xmtp/` → publishes as `xmtp_elixir_sdk`
-- `ens/` → publishes as `ens_elixir`
-- `siwa/siwa-elixir/` → umbrella app for the shared SIWA packages used across Regent products
-- `world/agentbook/` → publishes as `agent_world`
-- `cache/` → publishes as `regent_cache`
+## Packages
 
-How to work with it:
+| Folder | Hex package | Use it for | Use it in |
+| --- | --- | --- | --- |
+| `siwa/siwa-elixir/apps/siwa` | `siwa` | Agent sign-in messages, nonces, receipts, signed request checks, wallet action envelopes, Ethereum helpers, and payment header parsing. | Shared SIWA service, product APIs that verify signed agent/operator requests, CLI-backed service calls. |
+| `siwa/siwa-elixir/apps/siwa_keyring` | `siwa_keyring` | Isolated local wallet creation and signing behind an internal HMAC-protected service. | Shared SIWA deployments, internal signing sidecars, services that need a wallet without exposing private keys to the caller. |
+| `ens/` | `ens_elixir` | ENS name reads, ENSIP-25 verification, ERC-8004 registration helpers, link planning, and wallet-ready unsigned ENS requests. | Platform trust linking, Autolaunch trust follow-up, CLI ENS commands, any app that needs to show or prepare ENS identity work. |
+| `xmtp/` | `xmtp_elixir_sdk` | XMTP client lifecycle, conversations, groups, messages, sync helpers, product-scoped room panels, identity setup, resolver caching, and room metadata. | Platform company rooms, Autolaunch launch or subject rooms, Techtree public/review/research rooms, server-owned room workers. |
+| `world/agentbook/` | `agent_world` | AgentKit header parsing, AgentBook lookup, World proof registration sessions, and wallet-ready AgentBook registration requests. | Product trust sessions, Autolaunch trust summaries, Platform identity checks, CLI trust-link commands. |
+| `cache/` | `regent_cache` | Cachex-backed JSON values, strings, counters, sets, health checks, and cache child specs. | Short-lived read projections in Platform, Autolaunch, Techtree, SIWA, and shared workers. |
 
-- Open any utility folder and run its Elixir commands there.
-- Example: from `xmtp/` run `mix deps.get` and `mix test`.
-- Example: from `ens/` run `mix deps.get` and `mix test`.
-- Example: from `siwa/siwa-elixir/` run `mix test`.
-- Example: from `world/agentbook/` run `mix deps.get` and `mix test`.
-- Example: from `cache/` run `mix deps.get` and `mix test`.
-- When you publish, run `mix hex.publish` from the package folder you want to publish.
-- For packages that depend on SIWA, publish with `SIWA_HEX_PUBLISH=1` so the package uses the published SIWA package instead of the local checkout.
+## Choosing The Right Package
 
-A few notes:
+Use `siwa` when the question is: “Who signed this Regent request, what audience
+was it for, and is the receipt still valid?”
 
-- This repo is only one code tracker for all utilities.
-- Each package keeps its own version number and package settings in its own `mix.exs`.
-- `siwa/siwa-js/` is reference material only and is not tracked here.
+Use `siwa_keyring` when a process needs a signing wallet but should not receive
+or store the private key.
 
-If we add more utilities later, put each new one in its own folder with its own `mix.exs` and release name.
+Use `ens_elixir` when a product needs to read ENS state, prove that an ENS name
+points at an agent, or prepare the next wallet approval for ENS or ERC-8004.
+
+Use `xmtp_elixir_sdk` when a product needs chat identity, room membership,
+message sync, or a room panel for Phoenix UI code. Product apps still own room
+policy, moderation, persistence, and user-facing copy.
+
+Use `agent_world` when a product needs AgentKit or AgentBook evidence. The
+package returns evidence; the product decides what that evidence allows.
+
+Use `regent_cache` for bounded, safe read caches. Do not use it as the owner of
+workflow state, permissions, balances, ownership, or revenue data.
+
+## Source-Of-Truth Rules
+
+- Product HTTP behavior starts in the owning OpenAPI YAML file.
+- Shipped CLI behavior starts in the owning CLI YAML file.
+- Product databases own product workflow state.
+- Onchain state owns balances, ownership, staking, and revenue distribution.
+- Shared SIWA proves request identity and audience; product apps still decide
+  whether the verified identity may perform the product action.
+- XMTP inbox identity may be shared, but room meaning stays product-owned.
+
+## Working Locally
+
+Run package commands from the package folder:
+
+```bash
+cd /Users/sean/Documents/regent/elixir-utils/xmtp
+mix deps.get
+mix test
+```
+
+For the SIWA umbrella:
+
+```bash
+cd /Users/sean/Documents/regent/elixir-utils/siwa/siwa-elixir
+mix test
+```
+
+Packages that depend on `siwa` use the local checkout during normal
+development. When building or publishing those packages against Hex, set
+`SIWA_HEX_PUBLISH=1`:
+
+```bash
+cd /Users/sean/Documents/regent/elixir-utils/ens
+SIWA_HEX_PUBLISH=1 mix deps.get
+SIWA_HEX_PUBLISH=1 mix hex.build
+```
+
+## Publishing Order
+
+Publish `siwa` first. Then publish the packages that depend on it:
+`siwa_keyring`, `ens_elixir`, and `agent_world`.
+
+`regent_cache` and `xmtp_elixir_sdk` can be published independently.
+
+```bash
+cd /Users/sean/Documents/regent/elixir-utils/siwa/siwa-elixir/apps/siwa
+mix hex.publish package
+
+cd /Users/sean/Documents/regent/elixir-utils/siwa/siwa-elixir/apps/siwa_keyring
+SIWA_HEX_PUBLISH=1 mix hex.publish package
+
+cd /Users/sean/Documents/regent/elixir-utils/ens
+SIWA_HEX_PUBLISH=1 mix hex.publish package
+
+cd /Users/sean/Documents/regent/elixir-utils/world/agentbook
+SIWA_HEX_PUBLISH=1 mix hex.publish package
+
+cd /Users/sean/Documents/regent/elixir-utils/cache
+mix hex.publish package
+
+cd /Users/sean/Documents/regent/elixir-utils/xmtp
+mix hex.publish package
+```
+
+## Current Package Versions
+
+```bash
+for d in \
+  siwa/siwa-elixir/apps/siwa \
+  siwa/siwa-elixir/apps/siwa_keyring \
+  ens \
+  world/agentbook \
+  cache \
+  xmtp
+do
+  printf "\n== %s ==\n" "$d"
+  (cd "$d" && mix run --no-start -e 'IO.puts("#{Mix.Project.config()[:app]} #{Mix.Project.config()[:version]}")')
+done
+```

@@ -1,5 +1,11 @@
 defmodule Xmtp.RoomDefinition do
-  @moduledoc false
+  @moduledoc """
+  Product-owned room configuration for `Xmtp.Rooms`.
+
+  Host apps turn their own records into room definitions. The definition names
+  the room, points to the service wallet, sets capacity and presence timing, and
+  chooses the policy module that decides who may join.
+  """
 
   alias Xmtp.Policy.Default
 

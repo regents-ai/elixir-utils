@@ -1,5 +1,12 @@
 defmodule Xmtp.RoomServer do
-  @moduledoc false
+  @moduledoc """
+  Runtime process for one Regent XMTP room.
+
+  Product apps should call `Xmtp.Rooms` instead of this module. The room server
+  owns the live room process, local room mirror updates, membership state,
+  pending join signatures, presence heartbeats, and refresh broadcasts for one
+  room key.
+  """
 
   use GenServer
 

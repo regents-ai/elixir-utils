@@ -1,164 +1,108 @@
 # Using ens-elixir
 
-This guide explains the package as a set of practical jobs instead of a list of modules.
+This guide shows `ens_elixir` as a set of jobs a product app or CLI command can
+perform.
 
-## The Short Version
+The package exists to keep ENS and ERC-8004 identity work in one place:
+normalize names, read chain state, verify proof records, plan missing work, and
+prepare unsigned requests. The host app owns wallet approval, transaction
+submission, confirmation, and product records.
 
-The package helps with four things:
+## Pick The Right Starting Point
 
-1. Turn an ENS name into something your app can trust.
-2. Read what is already set on a name or subname.
-3. Decide what needs to change before asking for approval.
-4. Prepare the next request to send.
-
-If you remember only one rule, remember this one:
-
-- `AgentEns.Plan` tells you what is true now.
-- `AgentEns.Link` tells you what to do next.
-- `AgentEns.Tx` builds one specific request when you already know what you want.
+| Job | Start with |
+| --- | --- |
+| Show the current state of a name | `AgentEns.read_name/1` |
+| Check whether an ENSIP-25 proof exists | `AgentEns.verify/6` |
+| Check a built-in ERC-8004 network | `AgentEns.verify_agent/5` |
+| Decide what is missing before approval | `AgentEns.plan_link/1` |
+| Prepare the next identity-link requests | `AgentEns.prepare_bidirectional_link/1` |
+| Prepare one exact ENS request | `AgentEns.Tx` |
+| Patch an ERC-8004 registration file | `AgentEns.ERC8004.Registration` |
 
 ## The Main Inputs
 
-Most flows use the same small set of inputs:
-
-- `ens_name`: the ENS name you care about, such as `"alice.eth"`
-- `chain_id`: the chain where the ENS name and agent registry live
-- `rpc_url`: a JSON-RPC endpoint for that chain
-- `registry_address`: the ERC-8004 registry address
-- `agent_id`: the agent entry you want the name to prove
-- `signer_address`: the address that might approve changes
-
-Some flows also use:
-
-- `resolver_address`: the resolver you want to write to
-- `reverse_registrar`: the reverse name contract when you want to set a primary name
-- `text_keys`: text records you want to read
-
-## Pick the Right Starting Point
-
-### I only want to know whether the link already exists
-
-Use `AgentEns.verify/6`.
-
-It answers one question: does this ENS name already contain the right proof record for this registry entry?
-
-Expected result:
-
-- `{:ok, :verified}` when the name already proves the link
-- `{:ok, :ens_record_missing}` when the proof record is missing or empty
-- `{:error, error}` when the name, resolver, network, or request is invalid or unreachable
-
-### I want to show the current state of a name
-
-Use `AgentEns.read_name/1`.
-
-This is the best choice when you are building a details page, a review screen, or a CLI inspect command.
-
-It can tell you:
-
-- the normalized form of the name
-- whether the name exists
-- who controls it
-- whether it is wrapped
-- which resolver it uses
-- which resolver features appear to be available
-- the current ETH address
-- the current content hash
-- any text records you asked for
-- warnings about important edge cases
-
-Example:
+Most flows use this input shape:
 
 ```elixir
-AgentEns.read_name(%{
+%{
   ens_name: "alice.eth",
   chain_id: 1,
   rpc_url: "https://eth.llamarpc.com",
-  text_keys: ["avatar", "url", "com.twitter"]
-})
-```
-
-### I want to know what is missing before asking for approval
-
-Use `AgentEns.plan_link/1`.
-
-This is the best starting point for most apps. It gives you a read-only snapshot of the current link state and tells you which actions are ready, blocked, already done, or skipped.
-
-The plan helps answer:
-
-- Is the ENS proof already there?
-- Does the agent registration already point back to the ENS name?
-- Does the current signer control the ENS name?
-- Does the current signer control the agent entry?
-- Can a reverse name also be set?
-
-This lets you explain the situation clearly before you show an approval screen.
-
-Example:
-
-```elixir
-AgentEns.plan_link(%{
-  ens_name: "alice.eth",
-  chain_id: 1,
   registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
   agent_id: 42,
-  rpc_url: "https://eth.llamarpc.com",
-  signer_address: "0x1234..."
-})
+  signer_address: "0x1111111111111111111111111111111111111111"
+}
 ```
 
-### I want the next unsigned requests
+Optional fields include:
 
-Use `AgentEns.prepare_bidirectional_link/1`.
+- `text_keys`: selected text records to read
+- `resolver_address`: resolver to use for a prepared write
+- `reverse?`: whether to include reverse-name planning
+- `publisher`: a module or function that stores updated ERC-8004 registration content and returns a URI
+- explicit ENS registry, name wrapper, reverse registrar, and ERC-8004 registry addresses when not using a built-in network
 
-This call runs the plan first, then prepares the next available requests for:
+## Read A Name
 
-- the ENS proof record
-- the ERC-8004 registration update
-- the reverse name update when requested
-
-Each branch comes back as one of:
-
-- a prepared result with a request inside it
-- `:noop` when nothing needs to change
-- `:blocked` when the package can see that the change cannot be prepared from the current inputs
-- `:skipped` for reverse name updates that were not requested
-
-## Working With the Returned Request
-
-When the package prepares a change, you get `%AgentEns.TxRequest{}`.
-
-Think of it as a ready-to-send instruction for a wallet:
-
-- `to`: the contract that should receive the request
-- `data`: the encoded request data
-- `value`: the amount of native token to send with it, usually `0`
-- `chain_id`: the target chain
-- `expected_signer`: the wallet expected to approve it, when known
-- `expires_at`: when the request should no longer be used
-- `risk_copy`: a short review note for the person approving it
-- `idempotency_key`: the stable marker for this one request
-- `description`: a short sentence you can show in logs or review screens
-
-The package stops there. Your app or wallet decides whether to approve and send it.
-
-## Common Workflows
-
-### Verify a link
-
-Use this when you are checking an existing setup:
+Use `AgentEns.read_name/1` for inspect pages, CLI detail commands, and review
+screens.
 
 ```elixir
-AgentEns.verify(
-  "https://eth.llamarpc.com",
-  "alice.eth",
-  1,
-  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-  42
-)
+{:ok, details} =
+  AgentEns.read_name(%{
+    ens_name: "alice.eth",
+    chain_id: 1,
+    rpc_url: "https://eth.llamarpc.com",
+    text_keys: ["avatar", "url", "description"]
+  })
 ```
 
-If you are using one of the built-in ERC-8004 networks:
+The result can include:
+
+- normalized ENS name
+- registry owner
+- wrapped owner when available
+- resolver address
+- resolver capability hints
+- ETH address
+- content hash
+- TTL
+- requested text records
+- warnings about missing or unsupported records
+
+Read results are evidence snapshots. Product apps should store their own
+workflow state and refresh chain evidence when it matters.
+
+## Verify A Proof
+
+Use `AgentEns.verify/6` when you already know the chain, registry, agent id, and
+ENS name:
+
+```elixir
+{:ok, status} =
+  AgentEns.verify(
+    "https://eth.llamarpc.com",
+    "alice.eth",
+    1,
+    "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    42
+  )
+```
+
+Possible success statuses are:
+
+- `:verified`
+- `:ens_record_missing`
+
+Use `AgentEns.Verify.verified?/1` when you want a boolean from that status:
+
+```elixir
+{:ok, status} = AgentEns.verify(rpc_url, name, chain_id, registry, agent_id)
+AgentEns.Verify.verified?(status)
+```
+
+Use `verify_agent/5` for a built-in ERC-8004 network:
 
 ```elixir
 AgentEns.verify_agent(
@@ -169,59 +113,63 @@ AgentEns.verify_agent(
 )
 ```
 
-### Read a name and selected text records
+## Plan Before Asking For Approval
+
+Use `AgentEns.plan_link/1` before showing any approval step.
 
 ```elixir
-AgentEns.read_name(%{
-  ens_name: "alice.eth",
-  chain_id: 1,
-  rpc_url: "https://eth.llamarpc.com",
-  text_keys: ["avatar", "description"]
-})
+{:ok, plan} =
+  AgentEns.plan_link(%{
+    ens_name: "alice.eth",
+    chain_id: 1,
+    rpc_url: "https://eth.llamarpc.com",
+    registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    agent_id: 42,
+    signer_address: "0x1111111111111111111111111111111111111111",
+    reverse?: true
+  })
 ```
 
-### Plan a full ENS <-> ERC-8004 link
+The plan helps answer:
+
+- Does the ENS name already contain the right ENSIP-25 text record?
+- Does the ERC-8004 agent registration already point back to the ENS name?
+- Can the signer update the ENS name?
+- Can the signer update the agent registration?
+- Should a reverse-name request be prepared?
+- Which actions are `:ready`, `:noop`, `:blocked`, or `:skipped`?
+
+Use the plan to explain the next step. Do not ask a wallet to approve a request
+until the plan says that request is ready.
+
+## Prepare A Full Link
+
+Use `AgentEns.prepare_bidirectional_link/1` when you want the next unsigned
+requests for a two-sided identity link.
 
 ```elixir
-AgentEns.plan_link(%{
-  ens_name: "alice.eth",
-  chain_id: 1,
-  registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-  agent_id: 42,
-  rpc_url: "https://eth.llamarpc.com",
-  signer_address: "0x1234..."
-})
+{:ok, result} =
+  AgentEns.prepare_bidirectional_link(%{
+    ens_name: "alice.eth",
+    chain_id: 1,
+    rpc_url: "https://eth.llamarpc.com",
+    registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    agent_id: 42,
+    signer_address: "0x1111111111111111111111111111111111111111",
+    reverse?: true
+  })
 ```
 
-### Prepare only the ENS proof update
+The result includes:
 
-```elixir
-AgentEns.prepare_ensip25_update(%{
-  ens_name: "alice.eth",
-  chain_id: 1,
-  registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-  agent_id: 42,
-  rpc_url: "https://eth.llamarpc.com",
-  signer_address: "0x1234..."
-})
-```
+- `:plan`: the read-only plan
+- `:ensip25`: the ENS proof request, `:noop`, or `:blocked`
+- `:erc8004`: the agent registration request, `:noop`, or `:blocked`
+- `:reverse`: the reverse-name request, `:noop`, `:blocked`, or `:skipped`
 
-### Prepare only the ERC-8004 update
+## Prepare One Request
 
-```elixir
-AgentEns.prepare_erc8004_update(%{
-  ens_name: "alice.eth",
-  chain_id: 1,
-  registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-  agent_id: 42,
-  rpc_url: "https://eth.llamarpc.com",
-  signer_address: "0x1234..."
-})
-```
-
-### Prepare a general ENS change
-
-The `AgentEns.Tx` module is for focused one-off jobs.
+Use `AgentEns.Tx` when the product already knows the exact ENS change it wants.
 
 Set a text record:
 
@@ -231,7 +179,8 @@ AgentEns.Tx.build_set_text_record_tx(%{
   chain_id: 1,
   resolver_address: "0x226159d592e2b063810a10ebf6dcbada94ed68b8",
   key: "url",
-  value: "https://example.com"
+  value: "https://example.com",
+  signer_address: "0x1111111111111111111111111111111111111111"
 })
 ```
 
@@ -242,7 +191,8 @@ AgentEns.Tx.build_set_addr_tx(%{
   ens_name: "alice.eth",
   chain_id: 1,
   resolver_address: "0x226159d592e2b063810a10ebf6dcbada94ed68b8",
-  address: "0x1111111111111111111111111111111111111111"
+  address: "0x2222222222222222222222222222222222222222",
+  signer_address: "0x1111111111111111111111111111111111111111"
 })
 ```
 
@@ -253,9 +203,10 @@ AgentEns.Tx.build_create_subname_tx(%{
   parent_name: "alice.eth",
   chain_id: 1,
   label: "agent",
-  owner_address: "0x1111111111111111111111111111111111111111",
+  owner_address: "0x2222222222222222222222222222222222222222",
   resolver_address: "0x226159d592e2b063810a10ebf6dcbada94ed68b8",
-  ttl: 0
+  ttl: 0,
+  signer_address: "0x1111111111111111111111111111111111111111"
 })
 ```
 
@@ -264,74 +215,128 @@ Set the primary name:
 ```elixir
 AgentEns.Tx.build_reverse_set_name_tx(%{
   chain_id: 1,
-  ens_name: "alice.eth"
+  ens_name: "alice.eth",
+  signer_address: "0x1111111111111111111111111111111111111111"
 })
 ```
 
+## Wallet-Ready Request Shape
+
+Prepared changes return `%AgentEns.TxRequest{}`:
+
+```elixir
+%AgentEns.TxRequest{
+  chain_id: 1,
+  to: "0x...",
+  value: 0,
+  data: "0x...",
+  expected_signer: "0x1111111111111111111111111111111111111111",
+  expires_at: "2026-05-06T12:00:00Z",
+  risk_copy: "Sets an ENS text record.",
+  idempotency_key: "...",
+  description: "Set ENS text record"
+}
+```
+
+The host app should:
+
+1. Check `expected_signer`.
+2. Show `risk_copy` or product-specific review copy.
+3. Send `to`, `value`, `data`, and `chain_id` to the wallet or signer.
+4. Confirm the transaction.
+5. Update product state after confirmation.
+
 ## ERC-8004 Registration Files
 
-`AgentEns.ERC8004.Registration` helps when the link also needs to be written into the agent registration itself.
+Use `AgentEns.ERC8004.Registration` when an agent registration file needs an ENS
+service entry.
 
-It can:
+```elixir
+{:ok, registration} =
+  AgentEns.ERC8004.Registration.fetch(agent_uri)
 
-- fetch the current registration
-- parse JSON or supported data links
-- update or insert the ENS service entry
-- serialize the result
-- hand the updated content to a publisher that returns a new URI
+{:ok, next_registration} =
+  AgentEns.ERC8004.Registration.upsert_ens_service(registration, "alice.eth")
 
-This is useful when you want your app to keep the agent record and the ENS name in sync.
+{:ok, json} =
+  AgentEns.ERC8004.Registration.serialize_registration(next_registration)
+```
+
+To prepare an ERC-8004 update, the package needs a publisher that stores the
+new registration content and returns the new URI:
+
+```elixir
+publisher = fn body ->
+  MyApp.RegistrationStorage.put(body)
+end
+
+AgentEns.prepare_erc8004_update(%{
+  ens_name: "alice.eth",
+  chain_id: 1,
+  rpc_url: "https://eth.llamarpc.com",
+  registry_address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+  agent_id: 42,
+  signer_address: "0x1111111111111111111111111111111111111111",
+  publisher: publisher
+})
+```
 
 ## Network Defaults
 
-The package ships with network defaults for:
+`AgentEns.Networks` includes defaults for:
 
-- Ethereum mainnet
-- Ethereum Sepolia
+- `:ethereum_mainnet`
+- `:ethereum_sepolia`
 
-That includes the ENS registry, name wrapper, reverse registrar, and ERC-8004 registry for those networks.
+Use explicit addresses for other networks.
 
-If you are working somewhere else, pass the addresses directly.
+```elixir
+{:ok, defaults} = AgentEns.Networks.get(1)
+```
 
-## What to Show a Person
+## Regent-Specific Prepared Actions
 
-If you are building a UI or CLI, these are the most useful messages to surface:
+The top-level `AgentEns` module also includes Regent helper entry points for
+flows that prepare wallet-ready Regent identity actions:
 
-- whether the ENS proof already exists
-- whether the agent registration already points back to the name
-- who controls the ENS name
-- whether the current signer can make the needed changes
-- whether a reverse name can also be set
-- any warnings returned by the read or plan step
+- `prepare_regent_subname_upgrade/1`
+- `prepare_regent_ensip25_update/1`
+- `prepare_regent_addr_update/1`
 
-In practice, `read_name/1` and `plan_link/1` give you almost everything you need for a review screen.
+Use these from Regent product code when the product has already decided which
+Regent identity action it needs.
 
-## Good Defaults for App Flows
+## What To Show In A Product
 
-If you are unsure how to structure your flow, this is a solid order:
+Show product-safe state:
 
-1. Call `AgentEns.read_name/1` for the details page.
-2. Call `AgentEns.plan_link/1` before asking for approval.
-3. Show the person what is already done and what still needs to change.
-4. Call `AgentEns.prepare_bidirectional_link/1` only after the person decides to proceed.
-5. Hand the resulting request to the wallet or signer you already use.
+- “This name is connected.”
+- “This name needs one wallet approval.”
+- “This wallet cannot update this name.”
+- “This agent record needs to point back to the name.”
+- “The request is ready for approval.”
+
+Avoid showing raw module names, request ids, calldata, resolver internals, or
+registry internals in customer-facing UI. Keep those details in operator logs or
+developer screens.
 
 ## Module Map
 
-- `AgentEns`: the best starting point for most callers
-- `AgentEns.Verify`: yes-or-no ENSIP-25 verification
-- `AgentEns.Read`: richer name inspection
-- `AgentEns.Plan`: read-only link planning
-- `AgentEns.Link`: prepare the next unsigned updates
-- `AgentEns.Tx`: build one specific ENS, reverse, or subname request
-- `AgentEns.RecordKey`: build ENSIP-25 text record keys
-- `AgentEns.ERC7930`: encode or decode interoperable registry addresses
-- `AgentEns.ERC8004.Registration`: read and patch ERC-8004 registration files
-- `AgentEns.Networks`: built-in chain defaults
+- `AgentEns`: top-level API for most callers
+- `AgentEns.Verify`: ENSIP-25 verification
+- `AgentEns.Read`: ENS name inspection
+- `AgentEns.Plan`: link planning
+- `AgentEns.Link`: prepared link requests
+- `AgentEns.Tx`: focused ENS, reverse, and subname request builders
+- `AgentEns.TxRequest`: wallet-ready request envelope
+- `AgentEns.RecordKey`: ENSIP-25 text record keys
+- `AgentEns.ERC7930`: interoperable registry address encoding
+- `AgentEns.ERC8004.Registration`: registration-file read and patch helpers
+- `AgentEns.Networks`: built-in network defaults
 - `AgentEns.Normalize`: ENS name normalization helpers
 
 ## Final Advice
 
-If your app needs only one safe starting point, use `AgentEns.plan_link/1`.
-
-It gives you the clearest picture of what is already true, what is missing, and whether the next step is ready before you ask a person to approve anything.
+Use `AgentEns.plan_link/1` before approval. It gives the caller the clearest
+view of what is already true, what is missing, and whether the next request is
+ready.

@@ -1,32 +1,34 @@
 # XMTP Elixir Browser Shim
 
-This package is the thin browser-only boundary for the Elixir SDK.
+This private TypeScript package contains the browser-only pieces used by
+`xmtp_elixir_sdk`.
 
-It keeps only the pieces that must live in the browser:
+Most Regent apps do not import this package directly. Phoenix and Elixir code
+should use the Hex package and the `Xmtp.*` room modules. Use this shim only
+when a browser feature is required, such as worker messaging or OPFS-backed
+browser storage.
 
-- worker request and response wiring
-- stream delivery over worker messages
-- OPFS access for browser storage
+## What Is Here
 
-It does not reintroduce the old browser SDK surface. Product logic stays in
-Elixir.
+- `WorkerBridge`: request/reply correlation for browser workers
+- `AsyncStream`: stream delivery helpers over worker messages
+- `Opfs`: request builders for browser storage operations
+- `workers/opfs`: the OPFS worker implementation
+- `contracts` and `errors`: the narrow message and error shapes shared by the shim
 
-## What is here
+## What Stays In Elixir
 
-- `WorkerBridge` for request/reply correlation
-- `AsyncStream` and `streams` for stream transport helpers
-- `Opfs` for browser storage operations
-- `workers/opfs` for the actual OPFS worker implementation
-- `contracts` and `errors` for the narrow message shapes and failures
+- product room behavior
+- room policy
+- message persistence
+- membership decisions
+- wallet approval handling after the browser returns a signature
+- any Phoenix UI state
 
-## What the main Elixir SDK must wire up
+## Development
 
-- the public Elixir API that owns product behavior
-- the code that decides when to use the browser shim worker
-- any persistence or messaging hooks that need the browser boundary
-
-## Hard-cutover rule
-
-This package assumes there is no dual API and no fallback runtime. If the
-browser shim is used, it is only because the browser feature itself is
-unavoidable.
+```bash
+npm ci
+npm test -- --run
+npm run typecheck
+```

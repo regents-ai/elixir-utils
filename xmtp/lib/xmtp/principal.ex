@@ -1,5 +1,12 @@
 defmodule Xmtp.Principal do
-  @moduledoc false
+  @moduledoc """
+  Product-facing identity used by Regent XMTP room actions.
+
+  A principal is the current human, agent, or system actor as seen by the host
+  app. Product code can pass maps into `Xmtp.Rooms`; this module normalizes
+  those maps into one shape for room policy, membership, presence, and message
+  display.
+  """
 
   @type kind :: :human | :agent | :system
 

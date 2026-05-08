@@ -21,6 +21,14 @@ The Regent dependency skills are installed in `/Users/sean/Documents/regent/.age
 - Do not move secrets into shared utility packages.
 - Never read `.env` files. `.env.example` is allowed.
 
+## Dependency Surface Guides
+
+- Shared SIWA: `/Users/sean/Documents/regent/docs/dependency-surfaces/shared-siwa.md`
+- ENS and AgentBook identity proof: `/Users/sean/Documents/regent/docs/dependency-surfaces/identity-proof.md`
+- XMTP room behavior: `/Users/sean/Documents/regent/docs/dependency-surfaces/xmtp-rooms.md`
+- Cache helpers: `/Users/sean/Documents/regent/docs/dependency-surfaces/cache-and-workers.md`
+- Cross-repo map: `/Users/sean/Documents/regent/docs/shared-agent-dependency-map.md`
+
 ## Validation
 
 Run checks from the package folder you change:

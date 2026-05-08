@@ -9,8 +9,10 @@ defmodule SharedServicesContractCheck do
                        )
   @local_surface_paths [
     Path.expand("../README.md", __DIR__),
+    Path.expand("../apps/siwa/README.md", __DIR__),
     Path.expand("../apps/siwa/lib", __DIR__),
     Path.expand("../apps/siwa/test", __DIR__),
+    Path.expand("../apps/siwa_keyring/README.md", __DIR__),
     Path.expand("../apps/siwa_keyring/lib", __DIR__),
     Path.expand("../apps/siwa_keyring/test", __DIR__),
     Path.expand("../fixtures/siwa", __DIR__)
@@ -239,7 +241,10 @@ defmodule SharedServicesContractCheck do
   defp base_chain_config_errors do
     [
       chain_config_error("Siwa.Registry.registry_addresses", Siwa.Registry.registry_addresses()),
-      chain_config_error("Siwa.Registry.reputation_addresses", Siwa.Registry.reputation_addresses()),
+      chain_config_error(
+        "Siwa.Registry.reputation_addresses",
+        Siwa.Registry.reputation_addresses()
+      ),
       chain_config_error("Siwa.Registry.rpc_endpoints", Siwa.Registry.rpc_endpoints())
     ]
     |> Enum.reject(&is_nil/1)

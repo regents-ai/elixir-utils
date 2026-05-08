@@ -19,6 +19,13 @@ defmodule Siwa.WalletActionTest do
     )
   end
 
+  defp assert_invalid_wallet_action(overrides) do
+    assert {:error, :invalid_wallet_action} =
+             overrides
+             |> wallet_action()
+             |> WalletAction.validate()
+  end
+
   test "validates the signed wallet-action policy envelope" do
     assert {:ok, action} = WalletAction.validate(wallet_action())
     assert action["chain_id"] == 8453
@@ -29,6 +36,24 @@ defmodule Siwa.WalletActionTest do
              wallet_action()
              |> Map.delete("expires_at")
              |> WalletAction.validate()
+  end
+
+  test "rejects wallet actions on unsupported chains" do
+    assert_invalid_wallet_action(%{"chain_id" => 84_532})
+  end
+
+  test "rejects expired wallet actions" do
+    expires_at =
+      DateTime.utc_now()
+      |> DateTime.add(-60, :second)
+      |> DateTime.to_iso8601()
+
+    assert_invalid_wallet_action(%{"expires_at" => expires_at})
+  end
+
+  test "rejects malformed wallet action value and data" do
+    assert_invalid_wallet_action(%{"value" => "1"})
+    assert_invalid_wallet_action(%{"data" => "0xnot-hex"})
   end
 
   test "local signer requires the expected signer to match the wallet" do

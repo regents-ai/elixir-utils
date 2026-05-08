@@ -1,6 +1,6 @@
 # Elixir Utilities Layer 3
 
-This file is the finished repo-local code atlas for `elixir-utils`. It covers the shared SIWA umbrella, the isolated keyring service, the ENS helper package, the XMTP Elixir SDK, and the AgentBook and AgentWorld helpers under `world/agentbook`. It also points at the tests and generated docs that prove each package behavior.
+This file is the finished repo-local code atlas for `elixir-utils`. It covers the shared SIWA umbrella, the isolated keyring service, the ENS helper package, the XMTP Elixir SDK, and the AgentBook and AgentWorld helpers under `world/agentbook`. It also points at the tests and committed package docs that prove each package behavior.
 
 ## Repo Shape
 
@@ -8,7 +8,7 @@ This file is the finished repo-local code atlas for `elixir-utils`. It covers th
 | --- | --- |
 | `/Users/sean/Documents/regent/elixir-utils/siwa/siwa-elixir` | Umbrella app for shared SIWA libraries. |
 | `/Users/sean/Documents/regent/elixir-utils/ens` | `ens_elixir` package. |
-| `/Users/sean/Documents/regent/elixir-utils/xmtp` | `xmtp_elixir_sdk` package plus browser shim and generated docs. |
+| `/Users/sean/Documents/regent/elixir-utils/xmtp` | `xmtp_elixir_sdk` package plus browser shim and committed docs. |
 | `/Users/sean/Documents/regent/elixir-utils/world/agentbook` | `agent_world` package for AgentBook and AgentKit helpers. |
 | `/Users/sean/Documents/regent/elixir-utils/README.md` | Top-level explanation that this repo tracks multiple packages, each with its own `mix.exs`. |
 
@@ -218,11 +218,11 @@ Boundary-crossing functions in the SDK:
 - `XmtpElixirSdk.Sync` enters archive export and import
 - browser shim modules bridge the server package into browser-managed workers and OPFS storage
 
-### Generated docs and browser shim
+### Committed docs and browser shim
 
-- `xmtp/doc/*` is generated API documentation for the package and is useful as a secondary atlas, but the source of truth remains `lib/`.
+- `xmtp/docs/*` contains committed package guidance, but the source of truth remains `lib/`.
 - `xmtp/browser_shim/src/*` and `xmtp/browser_shim/test/*` hold the browser-side support package that is not bundled into Hex as a runtime dependency.
-- `lib/mix/tasks/compile.xmtp_compat.ex` is the custom compile task for compatibility artifacts.
+- `lib/mix/tasks/compile.xmtp_native.ex` is the custom compile task for the native bridge.
 
 Tests for `xmtp_elixir_sdk`:
 

@@ -53,7 +53,9 @@ defmodule AgentWorld.Registration do
   def submit_proof(session, proof_payload, options \\ %{})
       when is_map(session) and is_map(proof_payload) do
     with {:ok, normalized_proof} <- normalize_proof_payload(proof_payload),
-         {:ok, tx_request} <- build_register_tx(session, normalized_proof) do
+         {:ok, expires_at} <- registration_request_expiry(session),
+         :ok <- validate_registration_expiry(expires_at, options),
+         {:ok, tx_request} <- build_register_tx(session, normalized_proof, expires_at) do
       maybe_submit_registration(session, normalized_proof, tx_request, options)
     end
   end
@@ -202,7 +204,7 @@ defmodule AgentWorld.Registration do
       {:error,
        Error.new({:registration_failed, "Registration receipt was missing its contract."})}
 
-  defp build_register_tx(session, proof_payload) do
+  defp build_register_tx(session, proof_payload, expires_at) do
     with {:ok, agent_address} <- normalize_address(Map.get(session, :agent_address)),
          {:ok, root} <- uint256(Map.get(proof_payload, "merkle_root")),
          {:ok, nonce} <- uint256(Map.get(session, :nonce)),
@@ -223,7 +225,7 @@ defmodule AgentWorld.Registration do
          chain_id: chain_id,
          description: "Register agent wallet in AgentBook",
          expected_signer: agent_address,
-         expires_at: registration_request_expires_at(session),
+         expires_at: DateTime.to_iso8601(expires_at),
          risk_copy:
            "Only approve if this is your AgentBook registration on the shown network and contract.",
          idempotency_key:
@@ -263,29 +265,68 @@ defmodule AgentWorld.Registration do
     end
   end
 
-  defp registration_request_expires_at(session) do
-    session_expires_at =
-      Map.get(session, :expires_at) ||
-        case Map.get(session, :rp_context) do
-          context when is_map(context) -> Map.get(context, :expires_at)
-          _value -> nil
-        end
-
-    expires_at_to_iso8601(session_expires_at)
+  defp registration_request_expiry(session) do
+    session
+    |> session_expiry_value()
+    |> normalize_registration_expiry()
   end
 
-  defp expires_at_to_iso8601(%DateTime{} = expires_at), do: DateTime.to_iso8601(expires_at)
-
-  defp expires_at_to_iso8601(expires_at) when is_integer(expires_at) do
-    expires_at
-    |> DateTime.from_unix!()
-    |> DateTime.to_iso8601()
+  defp session_expiry_value(session) do
+    Map.get(session, :expires_at) ||
+      case Map.get(session, :rp_context) do
+        context when is_map(context) -> Map.get(context, :expires_at)
+        _value -> nil
+      end
   end
 
-  defp expires_at_to_iso8601(expires_at) when is_binary(expires_at) and expires_at != "",
-    do: expires_at
+  defp normalize_registration_expiry(%DateTime{} = expires_at), do: {:ok, expires_at}
 
-  defp expires_at_to_iso8601(_expires_at), do: nil
+  defp normalize_registration_expiry(expires_at) when is_integer(expires_at) do
+    case DateTime.from_unix(expires_at) do
+      {:ok, datetime} -> {:ok, datetime}
+      {:error, _reason} -> {:error, Error.new({:invalid_registration_expiry, expires_at})}
+    end
+  end
+
+  defp normalize_registration_expiry(expires_at)
+       when is_binary(expires_at) and expires_at != "" do
+    case DateTime.from_iso8601(expires_at) do
+      {:ok, datetime, _offset} -> {:ok, datetime}
+      {:error, _reason} -> {:error, Error.new({:invalid_registration_expiry, expires_at})}
+    end
+  end
+
+  defp normalize_registration_expiry(nil), do: {:error, Error.new(:missing_registration_expiry)}
+
+  defp normalize_registration_expiry(expires_at),
+    do: {:error, Error.new({:invalid_registration_expiry, expires_at})}
+
+  defp validate_registration_expiry(expires_at, options) do
+    with {:ok, now} <- registration_now(options) do
+      if DateTime.compare(expires_at, now) == :gt do
+        :ok
+      else
+        {:error, Error.new({:expired_registration_session, DateTime.to_iso8601(expires_at)})}
+      end
+    end
+  end
+
+  defp registration_now(options) do
+    case option_value(options, :now, DateTime.utc_now()) do
+      %DateTime{} = now -> {:ok, now}
+      value -> {:error, Error.new({:invalid_registration_expiry, value})}
+    end
+  end
+
+  defp option_value(options, key, default) when is_list(options) do
+    Keyword.get(options, key, default)
+  end
+
+  defp option_value(options, key, default) when is_map(options) do
+    Map.get(options, key, Map.get(options, Atom.to_string(key), default))
+  end
+
+  defp option_value(_options, _key, default), do: default
 
   defp proof_words(proof) when is_list(proof) and length(proof) == 8 do
     proof

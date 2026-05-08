@@ -91,6 +91,18 @@ defmodule AgentWorld.Error do
     io("Registration relay did not return a transaction hash", %{})
   end
 
+  defp from_reason(:missing_registration_expiry) do
+    invalid_argument("Registration session is missing an expiry.", %{})
+  end
+
+  defp from_reason({:invalid_registration_expiry, value}) do
+    invalid_argument("Registration session has an invalid expiry.", %{expires_at: inspect(value)})
+  end
+
+  defp from_reason({:expired_registration_session, expires_at}) do
+    invalid_argument("Registration session has expired.", %{expires_at: expires_at})
+  end
+
   defp from_reason({:unsupported_chain_namespace, chain_id}) do
     unsupported("Unsupported chain namespace: #{chain_id}", %{chain_id: chain_id})
   end

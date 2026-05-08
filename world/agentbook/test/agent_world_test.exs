@@ -11,6 +11,9 @@ defmodule AgentWorldTest do
   @agent "0x1111111111111111111111111111111111111111"
   @contract "0xA23aB2712eA7BBa896930544C7d6636a96b944dA"
   @private_key Base.decode16!("59C6995E998F97A5A0044966F094538C5F6C75A5D9E7F0B6E6A0F9F5D4D17CE4")
+  @registration_expires_at ~U[2026-04-28 20:00:00Z]
+  @registration_fresh_at ~U[2026-04-28 19:59:00Z]
+  @registration_expired_at ~U[2026-04-28 20:00:01Z]
 
   defmodule RpcStub do
     @contract "0xA23aB2712eA7BBa896930544C7d6636a96b944dA"
@@ -131,25 +134,14 @@ defmodule AgentWorldTest do
   end
 
   test "submit_proof in manual mode returns the register transaction request" do
-    session = %{
-      session_id: "session_test_relay",
-      agent_address: @agent,
-      network: "world",
-      chain_id: 480,
-      contract_address: @contract,
-      nonce: 7,
-      relay_url: "",
-      expires_at: ~U[2026-04-28 20:00:00Z]
-    }
-
-    proof = %{
-      "merkle_root" => "0x01",
-      "nullifier_hash" => "0x02",
-      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
-    }
+    session = registration_session()
+    proof = registration_proof()
 
     assert {:ok, %{status: :proof_ready, tx_request: %TxRequest{} = tx_request}} =
-             Registration.submit_proof(session, proof, submission: :manual)
+             Registration.submit_proof(session, proof,
+               submission: :manual,
+               now: @registration_fresh_at
+             )
 
     assert tx_request.to == String.downcase(@contract)
     assert tx_request.chain_id == 480
@@ -165,26 +157,24 @@ defmodule AgentWorldTest do
            )
   end
 
-  test "generated session ids produce wallet-sized registration request markers" do
-    session = %{
-      session_id: "session_" <> String.duplicate("a", 128),
-      agent_address: @agent,
-      network: "world",
-      chain_id: 480,
-      contract_address: @contract,
-      nonce: 7,
-      relay_url: "",
-      expires_at: ~U[2026-04-28 20:00:00Z]
-    }
+  test "submit_proof rejects expired registration sessions" do
+    assert {:error, %AgentWorld.Error{message: message}} =
+             Registration.submit_proof(registration_session(), registration_proof(),
+               submission: :manual,
+               now: @registration_expired_at
+             )
 
-    proof = %{
-      "merkle_root" => "0x01",
-      "nullifier_hash" => "0x02",
-      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
-    }
+    assert message =~ "expired"
+  end
+
+  test "generated session ids produce wallet-sized registration request markers" do
+    session = registration_session(%{session_id: "session_" <> String.duplicate("a", 128)})
 
     assert {:ok, %{status: :proof_ready, tx_request: %TxRequest{} = tx_request}} =
-             Registration.submit_proof(session, proof, submission: :manual)
+             Registration.submit_proof(session, registration_proof(),
+               submission: :manual,
+               now: @registration_fresh_at
+             )
 
     assert tx_request.idempotency_key == registration_idempotency_key(session.session_id)
     assert String.length(tx_request.idempotency_key) <= 128
@@ -209,25 +199,14 @@ defmodule AgentWorldTest do
   end
 
   test "relay submission waits for later chain confirmation" do
-    session = %{
-      session_id: "session_test_relay",
-      agent_address: @agent,
-      network: "world",
-      chain_id: 480,
-      contract_address: @contract,
-      nonce: 7,
-      relay_url: "https://relay.example",
-      expires_at: DateTime.utc_now() |> DateTime.add(300, :second)
-    }
-
-    proof = %{
-      "merkle_root" => "0x01",
-      "nullifier_hash" => "0x02",
-      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
-    }
+    session =
+      registration_session(%{
+        relay_url: "https://relay.example",
+        expires_at: DateTime.utc_now() |> DateTime.add(300, :second)
+      })
 
     assert {:ok, %{status: :submitted, tx_hash: tx_hash, tx_request: %TxRequest{} = tx_request}} =
-             Registration.submit_proof(session, proof, rpc_module: RelayStub)
+             Registration.submit_proof(session, registration_proof(), rpc_module: RelayStub)
 
     assert String.starts_with?(tx_hash, "0x")
     assert tx_request.idempotency_key == registration_idempotency_key("session_test_relay")
@@ -318,6 +297,30 @@ defmodule AgentWorldTest do
   defp registration_idempotency_key(session_id) do
     "agentworld:registration:" <>
       Base.encode16(:crypto.hash(:sha256, session_id), case: :lower)
+  end
+
+  defp registration_session(overrides \\ %{}) do
+    Map.merge(
+      %{
+        session_id: "session_test_relay",
+        agent_address: @agent,
+        network: "world",
+        chain_id: 480,
+        contract_address: @contract,
+        nonce: 7,
+        relay_url: "",
+        expires_at: @registration_expires_at
+      },
+      overrides
+    )
+  end
+
+  defp registration_proof do
+    %{
+      "merkle_root" => "0x01",
+      "nullifier_hash" => "0x02",
+      "proof" => Enum.map(1..8, &("0x" <> String.pad_leading(Integer.to_string(&1, 16), 64, "0")))
+    }
   end
 
   defp sign_agentkit_payload(address) do

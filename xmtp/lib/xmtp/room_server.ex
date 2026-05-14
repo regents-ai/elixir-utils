@@ -254,13 +254,6 @@ defmodule Xmtp.RoomServer do
     end
   end
 
-  def handle_call(:reset_for_test, _from, state) do
-    state = refresh_definition(state)
-    delete_room_data(state)
-    :ok = XmtpElixirSdk.Runtime.reset!(state.runtime_name)
-    {:reply, :ok, restore_state!(state)}
-  end
-
   @impl true
   def handle_cast({:heartbeat, principal}, state) do
     state = refresh_definition(state)
@@ -1158,21 +1151,6 @@ defmodule Xmtp.RoomServer do
       Manager.topic(state.manager, state.definition.key),
       {:xmtp_public_room, :refresh}
     )
-  end
-
-  defp delete_room_data(state) do
-    repo = state.repo
-
-    case load_room(repo, state.definition.key) do
-      %Room{} = room ->
-        repo.delete_all(from(log in MessageLog, where: log.room_id == ^room.id))
-        repo.delete_all(from(membership in RoomMembership, where: membership.room_id == ^room.id))
-        repo.delete(room)
-        :ok
-
-      nil ->
-        :ok
-    end
   end
 
   defp normalize_sender_kind("agent"), do: :agent

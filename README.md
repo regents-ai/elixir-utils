@@ -7,6 +7,10 @@ Each package has one job. Product apps decide what a feature means for users;
 these packages provide the reusable identity, messaging, signing, trust, and
 cache tools behind those features.
 
+Techtree proof and Fold policy are Techtree product records. Shared SIWA and
+utility packages prove identity or provide helper evidence; they do not decide
+benchmark proof status or Fold reward eligibility.
+
 ## Packages
 
 | Folder | Hex package | Use it for | Use it in |

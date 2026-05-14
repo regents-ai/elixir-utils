@@ -73,17 +73,15 @@ defmodule RegentCache do
       case Cachex.put(cache_name, key, encoded, ttl: :timer.seconds(ttl_seconds)) do
         {:ok, true} -> :ok
         {:ok, other} -> {:error, {:unexpected_put_result, other}}
-        {:error, reason} -> {:error, reason}
+        {:error, reason} -> log_put_error(cache_name, key, reason)
       end
     end
   rescue
     error ->
-      Logger.debug("cache put failed cache=#{cache_name} key=#{key}: #{inspect(error)}")
-      {:error, error}
+      log_put_error(cache_name, key, error)
   catch
     :exit, reason ->
-      Logger.debug("cache put failed cache=#{cache_name} key=#{key}: #{inspect(reason)}")
-      {:error, reason}
+      log_put_error(cache_name, key, reason)
   end
 
   @spec delete(cache_name(), String.t() | [String.t()]) :: :ok | {:error, term()}
@@ -213,4 +211,12 @@ defmodule RegentCache do
   end
 
   defp parse_integer(_value), do: 0
+
+  defp log_put_error(cache_name, key, reason) do
+    Logger.debug(
+      "cache put failed cache=#{cache_name} key_hash=#{digest(key)}: #{inspect(reason)}"
+    )
+
+    {:error, reason}
+  end
 end

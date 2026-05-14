@@ -7,6 +7,7 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
   alias XmtpElixirSdk.Events
   alias XmtpElixirSdk.Internal.Names
   alias XmtpElixirSdk.Internal.StatsServer
+  alias XmtpElixirSdk.Signer
   alias XmtpElixirSdk.Types
   alias XmtpElixirSdk.Types.{Identifier, InboxState, Installation}
 
@@ -358,22 +359,19 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
           })}, state}
 
       {:ok, request} ->
-        if request.client_id != client_id do
-          {:reply,
-           {:error,
-            Error.conflict("signature request belongs to another client", %{
-              signature_request_id: signature_request_id
-            })}, state}
-        else
+        with :ok <- ensure_signature_request_client(request, client_id, signature_request_id),
+             :ok <- verify_signature_request_signer(state, request, signer) do
           next_state = apply_signature_request_action(state, request, signer)
-          request = %{request | applied?: true}
+          applied_request = %{request | applied?: true}
 
           {:reply, :ok,
            %{
              next_state
              | signature_requests:
-                 Map.put(next_state.signature_requests, signature_request_id, request)
+                 Map.put(next_state.signature_requests, signature_request_id, applied_request)
            }}
+        else
+          {:error, error} -> {:reply, {:error, error}, state}
         end
     end
   end
@@ -384,6 +382,51 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
       :error -> {:error, Error.not_found("client not found", %{client_id: client_id})}
     end
   end
+
+  defp ensure_signature_request_client(request, client_id, signature_request_id) do
+    if request.client_id == client_id do
+      :ok
+    else
+      {:error,
+       Error.conflict("signature request belongs to another client", %{
+         signature_request_id: signature_request_id
+       })}
+    end
+  end
+
+  defp verify_signature_request_signer(state, request, signer) do
+    with {:ok, client} <- fetch_client_from_state(state, request.client_id),
+         {:ok, expected_identifier} <- expected_signature_identifier(request, client),
+         :ok <- ensure_signer_identifier(signer, expected_identifier),
+         :ok <- Signer.verify(signer, request.signature_text) do
+      :ok
+    end
+  end
+
+  defp expected_signature_identifier(
+         %{action: :add_account, data: %{identifier: identifier}},
+         _client
+       ),
+       do: {:ok, identifier}
+
+  defp expected_signature_identifier(
+         %{action: :remove_account, data: %{identifier: identifier}},
+         _client
+       ),
+       do: {:ok, identifier}
+
+  defp expected_signature_identifier(_request, client), do: {:ok, client.identifier}
+
+  defp ensure_signer_identifier(%{identifier: identifier}, expected_identifier) do
+    if identifier_key(identifier) == identifier_key(expected_identifier) do
+      :ok
+    else
+      {:error, Error.invalid_argument("signature signer does not match request", %{})}
+    end
+  end
+
+  defp ensure_signer_identifier(_signer, _expected_identifier),
+    do: {:error, Error.invalid_argument("invalid signer payload", %{})}
 
   defp identifier_key(%Identifier{identifier: identifier, identifier_kind: kind}),
     do: "#{kind}:#{identifier}"

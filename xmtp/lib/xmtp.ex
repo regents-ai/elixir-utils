@@ -58,10 +58,6 @@ defmodule Xmtp do
     call(manager, room_key, {:bootstrap_room, opts}, :timer.seconds(30))
   end
 
-  def reset_for_test!(manager, room_key) do
-    call(manager, room_key, :reset_for_test, :timer.seconds(30))
-  end
-
   defp call(manager, room_key, message, timeout \\ 5_000) do
     with :ok <- Manager.ensure_room_started(manager, room_key) do
       GenServer.call(Manager.via(manager, room_key), message, timeout)

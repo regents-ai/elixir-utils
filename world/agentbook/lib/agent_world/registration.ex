@@ -158,7 +158,7 @@ defmodule AgentWorld.Registration do
 
     case relay_result do
       {:ok, %{"txHash" => tx_hash}} when is_binary(tx_hash) ->
-        {:ok, tx_hash}
+        normalize_tx_hash(tx_hash)
 
       {:ok, payload} ->
         {:error, Error.new({:relay_missing_tx_hash, payload})}

@@ -4,7 +4,7 @@ defmodule Siwa.Receipt do
   def create(payload, opts \\ []) do
     secret =
       Keyword.get_lazy(opts, :receipt_secret, fn ->
-        Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :receipt_secret))
+        Keyword.get_lazy(opts, :secret, fn -> Application.fetch_env!(:siwa, :receipt_secret) end)
       end)
 
     now = Keyword.get(opts, :now, DateTime.utc_now())
@@ -32,7 +32,7 @@ defmodule Siwa.Receipt do
   def verify(token, opts) when is_binary(token) do
     secret =
       Keyword.get_lazy(opts, :receipt_secret, fn ->
-        Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :receipt_secret))
+        Keyword.get_lazy(opts, :secret, fn -> Application.fetch_env!(:siwa, :receipt_secret) end)
       end)
 
     now_ms =

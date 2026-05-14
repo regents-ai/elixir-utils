@@ -43,7 +43,7 @@
         "amount": "1000",
         "asset": "USDC",
         "payTo": "0xabc",
-        "txHash": "0xtxhash"
+        "txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
     }
   }

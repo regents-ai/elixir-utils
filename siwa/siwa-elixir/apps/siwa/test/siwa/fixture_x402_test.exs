@@ -24,9 +24,11 @@ defmodule Siwa.FixtureX402Test do
       }
     }
 
+    tx_hash = "0x" <> String.duplicate("a", 64)
+
     facilitator = %{
       verify: fn _payload, _accepts -> %{"valid" => true} end,
-      settle: fn _payload, _accepts -> %{"success" => true, "txHash" => "0xtxhash"} end
+      settle: fn _payload, _accepts -> %{"success" => true, "txHash" => tx_hash} end
     }
 
     assert {:ok, processed} =
@@ -54,7 +56,9 @@ defmodule Siwa.FixtureX402Test do
 
     facilitator = %{
       verify: fn _payload, _accepts -> %{"valid" => true} end,
-      settle: fn _payload, _accepts -> %{"success" => true, "txHash" => "0xtxhash"} end
+      settle: fn _payload, _accepts ->
+        %{"success" => true, "txHash" => "0x" <> String.duplicate("b", 64)}
+      end
     }
 
     mismatched_payload = %{
@@ -87,6 +91,36 @@ defmodule Siwa.FixtureX402Test do
 
     assert {:error, :x402_missing_settlement_hash} =
              Siwa.X402.process_payment(payload, accepts, no_hash_facilitator)
+  end
+
+  test "payment processing rejects malformed settlement hashes" do
+    accepts = [
+      %{
+        "scheme" => "exact",
+        "network" => "eip155:8453",
+        "amount" => "1000",
+        "asset" => "USDC",
+        "payTo" => "0xabc"
+      }
+    ]
+
+    payload = %{
+      "payment" => %{
+        "scheme" => "exact",
+        "network" => "eip155:8453",
+        "amount" => "1000",
+        "asset" => "USDC",
+        "payTo" => "0xabc"
+      }
+    }
+
+    facilitator = %{
+      verify: fn _payload, _accepts -> %{"valid" => true} end,
+      settle: fn _payload, _accepts -> %{"success" => true, "txHash" => "0xtxhash"} end
+    }
+
+    assert {:error, :x402_invalid_settlement_hash} =
+             Siwa.X402.process_payment(payload, accepts, facilitator)
   end
 
   test "required payment is not accepted from a response header alone" do

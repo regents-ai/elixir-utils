@@ -71,10 +71,12 @@ defmodule Xmtp.Identity do
       })
       when is_binary(client_id) and is_binary(request_id) and is_binary(signature) do
     with {:ok, wallet_address} <- normalize_wallet(wallet_address),
+         {:ok, cached_request} <-
+           require_cached_signature_request(runtime, wallet_address, client_id, request_id),
          identifier = wallet_identifier(wallet_address),
          client = %Client{runtime: runtime_key(runtime), id: client_id},
          {:ok, signer} <- Signer.eoa(identifier, signature),
-         :ok <- Clients.unsafe_apply_signature_request(client, request_id, signer),
+         :ok <- Clients.unsafe_apply_signature_request(client, cached_request.id, signer),
          {:ok, registered_client} <- Clients.register(client),
          :ok <- ensure_registered(registered_client) do
       delete_cached_signature_request(runtime, wallet_address)
@@ -198,6 +200,19 @@ defmodule Xmtp.Identity do
       {:ok, true} -> :ok
       {:ok, false} -> {:error, Error.internal("XMTP identity did not register", %{})}
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp require_cached_signature_request(runtime, wallet_address, client_id, request_id) do
+    case cached_signature_request(runtime, wallet_address) do
+      {:ok, %{signature_request: %{client_id: ^client_id, id: ^request_id} = request}} ->
+        {:ok, request}
+
+      {:ok, _state} ->
+        {:error, :signature_request_mismatch}
+
+      :miss ->
+        {:error, :signature_request_expired}
     end
   end
 

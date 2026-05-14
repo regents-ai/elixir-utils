@@ -1,0 +1,46 @@
+name: Package checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  package-checks:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - cache
+          - ens
+          - world/agentbook
+          - xmtp
+
+    steps:
+      - name: Check out elixir-utils
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.2"
+
+      - name: Set up Node
+        if: matrix.package == 'xmtp'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: xmtp/browser_shim/package-lock.json
+
+      - name: Fetch dependencies
+        working-directory: ${{ matrix.package }}
+        run: mix deps.get
+
+      - name: Run package check
+        working-directory: ${{ matrix.package }}
+        run: mix check

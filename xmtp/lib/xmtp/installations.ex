@@ -70,12 +70,6 @@ defmodule Xmtp.Installations do
     end
   end
 
-  @spec revoke_old_installation(Client.t(), String.t(), map()) :: :ok | {:error, term()}
-  def revoke_old_installation(%Client{} = client, installation_id, signer)
-      when is_binary(installation_id) and is_map(signer) do
-    LowLevelInstallations.revoke(client, [installation_id], signer)
-  end
-
   defp user_copy(:ok), do: "This wallet can use chat."
 
   defp user_copy(:too_many_devices),

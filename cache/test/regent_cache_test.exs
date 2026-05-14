@@ -1,5 +1,6 @@
 defmodule RegentCacheTest do
   use ExUnit.Case, async: false
+  import ExUnit.CaptureLog
 
   @cache :regent_cache_test_cache
 
@@ -30,6 +31,19 @@ defmodule RegentCacheTest do
   test "cache errors compute a fresh value" do
     assert {:ok, %{value: 5}} =
              RegentCache.fetch(:missing_cache, "subject:test", 15, value_fun(5))
+  end
+
+  test "cache write failures do not log raw keys" do
+    sensitive_key = "siwa:request:v1:0xabc0000000000000000000000000000000000001:rate"
+
+    log =
+      capture_log([level: :debug], fn ->
+        assert {:error, _reason} = RegentCache.put_json(:missing_cache, sensitive_key, %{}, 15)
+      end)
+
+    assert log =~ "key_hash=#{RegentCache.digest(sensitive_key)}"
+    refute log =~ sensitive_key
+    refute log =~ "0xabc0000000000000000000000000000000000001"
   end
 
   test "status reports readiness" do

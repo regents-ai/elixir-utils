@@ -228,7 +228,7 @@ Prepared changes return `%AgentEns.TxRequest{}`:
 %AgentEns.TxRequest{
   chain_id: 1,
   to: "0x...",
-  value: 0,
+  value: "0x0",
   data: "0x...",
   expected_signer: "0x1111111111111111111111111111111111111111",
   expires_at: "2026-05-06T12:00:00Z",

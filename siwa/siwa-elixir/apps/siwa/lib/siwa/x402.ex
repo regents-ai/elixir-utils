@@ -115,8 +115,18 @@ defmodule Siwa.X402 do
 
   defp settlement_tx_hash(settle_result) do
     case settle_result["txHash"] do
-      "0x" <> rest = tx_hash when byte_size(rest) > 0 -> {:ok, tx_hash}
-      _value -> {:error, :x402_missing_settlement_hash}
+      "0x" <> rest = tx_hash when byte_size(rest) == 64 ->
+        if Regex.match?(~r/\A[0-9a-fA-F]{64}\z/, rest) do
+          {:ok, String.downcase(tx_hash)}
+        else
+          {:error, :x402_invalid_settlement_hash}
+        end
+
+      "0x" <> _rest ->
+        {:error, :x402_invalid_settlement_hash}
+
+      _value ->
+        {:error, :x402_missing_settlement_hash}
     end
   end
 

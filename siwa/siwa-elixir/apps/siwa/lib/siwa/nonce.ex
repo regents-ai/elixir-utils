@@ -5,7 +5,7 @@ defmodule Siwa.Nonce do
 
   def issue(params, opts \\ []) do
     params = normalize(params)
-    store = Keyword.get(opts, :store, Application.fetch_env!(:siwa, :nonce_store))
+    store = Keyword.get_lazy(opts, :store, fn -> Application.fetch_env!(:siwa, :nonce_store) end)
     ttl_ms = Keyword.get(opts, :ttl_ms, @default_ttl_ms)
     now = Keyword.get(opts, :now, DateTime.utc_now())
     issued_at = DateTime.truncate(now, :second)
@@ -84,7 +84,8 @@ defmodule Siwa.Nonce do
 
     case Keyword.get(opts, :nonce_token) do
       nil ->
-        store = Keyword.get(opts, :store, Application.fetch_env!(:siwa, :nonce_store))
+        store =
+          Keyword.get_lazy(opts, :store, fn -> Application.fetch_env!(:siwa, :nonce_store) end)
 
         with :ok <- ensure_audience(Map.get(params, :audience)),
              {:ok, stored} <- consume_nonce(store, params),
@@ -115,7 +116,7 @@ defmodule Siwa.Nonce do
   def create_nonce_token(payload, opts \\ []) do
     secret =
       Keyword.get_lazy(opts, :nonce_secret, fn ->
-        Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :nonce_secret))
+        Keyword.get_lazy(opts, :secret, fn -> Application.fetch_env!(:siwa, :nonce_secret) end)
       end)
 
     body = Jason.encode!(payload)
@@ -127,7 +128,7 @@ defmodule Siwa.Nonce do
   def verify_nonce_token(token, opts \\ []) do
     secret =
       Keyword.get_lazy(opts, :nonce_secret, fn ->
-        Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :nonce_secret))
+        Keyword.get_lazy(opts, :secret, fn -> Application.fetch_env!(:siwa, :nonce_secret) end)
       end)
 
     now_ms =
@@ -199,7 +200,9 @@ defmodule Siwa.Nonce do
     created_at = DateTime.to_unix(now, :millisecond)
 
     captcha_secret =
-      Keyword.get(opts, :captcha_secret, Application.fetch_env!(:siwa, :nonce_secret))
+      Keyword.get_lazy(opts, :captcha_secret, fn ->
+        Application.fetch_env!(:siwa, :nonce_secret)
+      end)
 
     case Keyword.get(opts, :captcha_policy) do
       nil ->

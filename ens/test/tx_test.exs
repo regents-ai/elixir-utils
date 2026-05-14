@@ -17,6 +17,7 @@ defmodule AgentEns.TxTest do
 
     assert tx.to == "0x226159d592e2b063810a10ebf6dcbada94ed68b8"
     assert tx.chain_id == 1
+    assert tx.value == "0x0"
     assert tx.expected_signer == nil
     assert {:ok, _expires_at, _offset} = DateTime.from_iso8601(tx.expires_at)
 

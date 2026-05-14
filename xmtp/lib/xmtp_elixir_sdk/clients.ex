@@ -103,49 +103,8 @@ defmodule XmtpElixirSdk.Clients do
   end
 
   @spec unsafe_apply_signature_request(Client.t(), String.t(), map()) :: :ok | {:error, Error.t()}
-  def unsafe_apply_signature_request(%Client{} = client, signature_request_id, signer \\ %{}) do
+  def unsafe_apply_signature_request(%Client{} = client, signature_request_id, signer) do
     IdentityServer.apply_signature_request(client, signature_request_id, signer)
-  end
-
-  @spec unsafe_add_account(Client.t(), Types.Identifier.t(), map()) :: :ok | {:error, Error.t()}
-  def unsafe_add_account(%Client{} = client, identifier, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <-
-           unsafe_add_account_signature_text(client, identifier) do
-      unsafe_apply_signature_request(client, signature_request_id, signer)
-    end
-  end
-
-  @spec remove_account(Client.t(), Types.Identifier.t(), map()) :: :ok | {:error, Error.t()}
-  def remove_account(%Client{} = client, identifier, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <-
-           unsafe_remove_account_signature_text(client, identifier) do
-      unsafe_apply_signature_request(client, signature_request_id, signer)
-    end
-  end
-
-  @spec revoke_all_other_installations(Client.t(), map()) :: :ok | {:error, Error.t()}
-  def revoke_all_other_installations(%Client{} = client, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <-
-           unsafe_revoke_all_other_installations_signature_text(client) do
-      unsafe_apply_signature_request(client, signature_request_id, signer)
-    end
-  end
-
-  @spec revoke_installations(Client.t(), [String.t()], map()) :: :ok | {:error, Error.t()}
-  def revoke_installations(%Client{} = client, installation_ids, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <-
-           unsafe_revoke_installations_signature_text(client, installation_ids) do
-      unsafe_apply_signature_request(client, signature_request_id, signer)
-    end
-  end
-
-  @spec change_recovery_identifier(Client.t(), Types.Identifier.t(), map()) ::
-          :ok | {:error, Error.t()}
-  def change_recovery_identifier(%Client{} = client, identifier, signer \\ %{}) do
-    with {:ok, %{signature_request_id: signature_request_id}} <-
-           unsafe_change_recovery_identifier_signature_text(client, identifier) do
-      unsafe_apply_signature_request(client, signature_request_id, signer)
-    end
   end
 
   @spec is_registered(Client.t()) :: {:ok, boolean()} | {:error, Error.t()}
@@ -207,10 +166,12 @@ defmodule XmtpElixirSdk.Clients do
   @spec verify_signed_with_public_key(Client.t(), String.t(), binary(), binary()) ::
           {:ok, boolean()} | {:error, Error.t()}
   def verify_signed_with_public_key(%Client{}, signature_text, signature_bytes, public_key) do
-    expected =
-      :crypto.hash(:sha256, "#{Base.encode16(public_key, case: :lower)}:#{signature_text}")
+    digest = :crypto.hash(:sha256, signature_text)
 
-    {:ok, expected == signature_bytes}
+    case ExSecp256k1.verify(digest, signature_bytes, public_key) do
+      :ok -> {:ok, true}
+      _error -> {:ok, false}
+    end
   end
 
   @spec api_statistics(Client.t()) :: {:ok, Types.ApiStats.t()} | {:error, Error.t()}

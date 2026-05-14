@@ -25,7 +25,9 @@ defmodule Siwa.Captcha do
   def create_challenge(difficulty, opts \\ []) do
     config = Map.fetch!(@difficulty_defaults, to_string(difficulty))
     created_at = Keyword.get(opts, :created_at, System.system_time(:millisecond))
-    secret = Keyword.get(opts, :secret, Application.fetch_env!(:siwa, :nonce_secret))
+
+    secret =
+      Keyword.get_lazy(opts, :secret, fn -> Application.fetch_env!(:siwa, :nonce_secret) end)
 
     challenge =
       %{

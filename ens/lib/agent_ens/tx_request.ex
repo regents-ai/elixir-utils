@@ -32,7 +32,7 @@ defmodule AgentEns.TxRequest do
   @type t :: %__MODULE__{
           to: String.t(),
           data: String.t(),
-          value: non_neg_integer(),
+          value: String.t(),
           chain_id: non_neg_integer(),
           description: String.t(),
           expected_signer: String.t() | nil,

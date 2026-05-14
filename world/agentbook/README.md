@@ -102,6 +102,8 @@ product app.
 Create a pending registration session:
 
 ```elixir
+world_id_signing_key = "...loaded by the host app..."
+
 {:ok, session} =
   AgentWorld.Registration.create_session(%{
     "agent_address" => "0x1111111111111111111111111111111111111111",
@@ -111,7 +113,7 @@ Create a pending registration session:
       "app_id" => "app_...",
       "action" => "agentbook-register",
       "rp_id" => "platform.regent.cx",
-      "signing_key" => System.fetch_env!("WORLD_ID_SIGNING_KEY")
+      "signing_key" => world_id_signing_key
     }
   })
 ```
@@ -150,17 +152,21 @@ Built-in network ids:
 Override network details in config:
 
 ```elixir
+base_rpc_url = "...loaded by the host app..."
+world_id_app_id = "...loaded by the host app..."
+world_id_signing_key = "...loaded by the host app..."
+
 config :agent_world,
   networks: %{
     "base" => %{
-      rpc_url: System.fetch_env!("BASE_RPC_URL")
+      rpc_url: base_rpc_url
     }
   },
   world_id: %{
-    app_id: System.fetch_env!("WORLD_ID_APP_ID"),
+    app_id: world_id_app_id,
     action: "agentbook-register",
     rp_id: "platform.regent.cx",
-    signing_key: System.fetch_env!("WORLD_ID_SIGNING_KEY")
+    signing_key: world_id_signing_key
   }
 ```
 

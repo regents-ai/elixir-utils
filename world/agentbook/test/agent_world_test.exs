@@ -58,6 +58,10 @@ defmodule AgentWorldTest do
     end
   end
 
+  defmodule BadRelayHashStub do
+    def relay_post(_url, _body, _idempotency_key), do: {:ok, %{"txHash" => "0xtxhash"}}
+  end
+
   defmodule WrongContractRpcStub do
     def tx_receipt(_rpc_url, tx_hash) do
       {:ok,
@@ -215,6 +219,22 @@ defmodule AgentWorldTest do
     assert relay_body.agent == @agent
     assert relay_body.contract == @contract
     assert relay_body.nullifierHash == "0x" <> String.pad_leading("2", 64, "0")
+  end
+
+  test "relay submission with a malformed transaction hash stays wallet-ready" do
+    session =
+      registration_session(%{
+        relay_url: "https://relay.example",
+        expires_at: DateTime.utc_now() |> DateTime.add(300, :second)
+      })
+
+    assert {:ok, %{status: :proof_ready, error_text: error_text} = result} =
+             Registration.submit_proof(session, registration_proof(),
+               rpc_module: BadRelayHashStub
+             )
+
+    refute Map.has_key?(result, :tx_hash)
+    assert error_text =~ "Send the register transaction"
   end
 
   test "relay errors do not include protected relay payloads" do

@@ -271,7 +271,7 @@ def rooms do
       name: "Acme Company Room",
       description: "Company updates and coordination",
       app_data: "platform:company:acme",
-      agent_private_key: System.fetch_env!("XMTP_ROOM_PRIVATE_KEY"),
+      agent_private_key: System.fetch_env!("XMTP_AGENT_PRIVATE_KEY"),
       moderator_wallets: ["0x1111111111111111111111111111111111111111"],
       capacity: 200,
       presence_timeout_ms: :timer.minutes(2),

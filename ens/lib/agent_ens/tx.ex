@@ -474,7 +474,7 @@ defmodule AgentEns.Tx do
     %TxRequest{
       to: to,
       data: data,
-      value: 0,
+      value: "0x0",
       chain_id: chain_id,
       description: description,
       expected_signer: expected_signer,

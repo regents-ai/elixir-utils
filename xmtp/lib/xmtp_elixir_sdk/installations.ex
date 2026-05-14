@@ -26,10 +26,4 @@ defmodule XmtpElixirSdk.Installations do
       when is_list(installation_ids) do
     Clients.unsafe_revoke_installations_signature_text(client, installation_ids)
   end
-
-  @spec revoke(Client.t(), [String.t()], map()) :: :ok | {:error, Error.t()}
-  def revoke(%Client{} = client, installation_ids, signer \\ %{})
-      when is_list(installation_ids) do
-    Clients.revoke_installations(client, installation_ids, signer)
-  end
 end

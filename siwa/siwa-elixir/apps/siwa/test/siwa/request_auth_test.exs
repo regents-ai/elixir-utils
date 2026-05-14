@@ -203,6 +203,25 @@ defmodule Siwa.RequestAuthTest do
     assert replay_expires_at == DateTime.to_unix(expires_at)
   end
 
+  test "rejects replayed authenticated requests" do
+    {:ok, signer} = Siwa.LocalSigner.new()
+    {:ok, receipt} = receipt_for(signer)
+
+    assert {:ok, signed_request} =
+             Siwa.RequestAuth.sign_authenticated_request(
+               request(),
+               receipt.token,
+               signer,
+               @request_auth_opts
+             )
+
+    assert {:ok, _verified} =
+             Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
+
+    assert {:error, :replayed_request} =
+             Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
+  end
+
   test "plug accepts a request body preserved in conn.private" do
     {:ok, signer} = Siwa.LocalSigner.new()
     {:ok, receipt} = receipt_for(signer)

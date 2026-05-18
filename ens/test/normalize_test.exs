@@ -10,4 +10,8 @@ defmodule AgentEns.NormalizeTest do
   test "normalizes mixed case and trims surrounding whitespace" do
     assert {:ok, "regent.eth"} = Normalize.normalize("  ReGeNt.ETH ")
   end
+
+  test "normalizes dns imported names without requiring an eth suffix" do
+    assert {:ok, "example.com"} = Normalize.normalize(" Example.COM ")
+  end
 end

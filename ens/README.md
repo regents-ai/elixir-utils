@@ -38,6 +38,7 @@ Use `ens_elixir` for:
 
 - ENSIP-25 proof checks
 - ENS name reads and resolver inspection
+- normalized ENS names, including DNS-imported names and other non-`.eth` names
 - ENS text record, address, content hash, resolver, TTL, reverse name, and subname request preparation
 - ERC-8004 registration reads and update planning
 - wallet-ready request envelopes that can be handed to a browser wallet, Safe, CLI signer, or keyring

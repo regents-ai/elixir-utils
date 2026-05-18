@@ -163,13 +163,19 @@ authorization signing. Use it before handing a prepared action to a signer.
 :ok = Siwa.WalletAction.require_expected_signer(action, signer_address)
 ```
 
+`Siwa.Registry.register_agent/1` can sign and submit an agent registration when
+the host supplies both the signer and the submission client. The consuming
+product still owns wallet approval, chain confirmation, and product record
+updates.
+
 ## What This Package Does Not Do
 
 - It does not own product sessions.
 - It does not decide product permissions.
 - It does not store product workflow state.
 - It does not expose private keys.
-- It does not submit transactions.
+- It does not submit transactions unless the host explicitly provides the signer
+  and submission client for a registration.
 
 ## Development
 

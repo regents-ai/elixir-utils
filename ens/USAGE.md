@@ -8,6 +8,9 @@ normalize names, read chain state, verify proof records, plan missing work, and
 prepare unsigned requests. The host app owns wallet approval, transaction
 submission, confirmation, and product records.
 
+Do not limit callers to `.eth` names. Normalize the submitted name, then resolve
+it. DNS-imported names and other dotted ENS names should use the same path.
+
 ## Pick The Right Starting Point
 
 | Job | Start with |

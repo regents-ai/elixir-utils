@@ -1,0 +1,27 @@
+[package]
+name = "railgun_native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+alloy = { version = "1.8", default-features = false, features = ["signers", "signer-local", "sol-types", "rpc-types", "serde"] }
+async-trait = "0.1.89"
+eip-1193-provider = { git = "https://github.com/ethereum/kohaku", rev = "a34ad427797d1851e232297e404203a5159d69e5", package = "eip-1193-provider", default-features = false, features = ["alloy"] }
+hex = "0.4"
+railgun = { git = "https://github.com/ethereum/kohaku", rev = "a34ad427797d1851e232297e404203a5159d69e5", package = "railgun" }
+rand = "0.9.2"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1.49", features = ["rt-multi-thread", "macros"] }
+userop-kit = { git = "https://github.com/ethereum/kohaku", rev = "a34ad427797d1851e232297e404203a5159d69e5", package = "userop-kit", features = ["railgun"] }
+
+[patch.crates-io]
+ruint = { git = "https://github.com/Robert-MacWha/ruint" }
+ark-circom = { git = "https://github.com/Robert-MacWha/circom-compat", branch = "release/0.6.0" }
+
+[profile.release]
+codegen-units = 1
+strip = "symbols"

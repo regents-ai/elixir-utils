@@ -26,6 +26,7 @@ defmodule AgentEns.Read do
   alias AgentEns.Error
   alias AgentEns.Internal.Contract
   alias AgentEns.Internal.RPC
+  alias AgentEns.Internal.Validation
   alias AgentEns.Networks
   alias AgentEns.Normalize
   alias AgentEns.Verify
@@ -141,8 +142,12 @@ defmodule AgentEns.Read do
   defp do_read(%Input{} = input) do
     rpc = input.rpc_module || RPC
     network = Networks.get(input.chain_id) || %{}
-    ens_registry = normalize_address(input.ens_registry || Map.get(network, :ens_registry))
-    name_wrapper = normalize_address(input.name_wrapper || Map.get(network, :name_wrapper))
+
+    ens_registry =
+      Validation.normalize_address(input.ens_registry || Map.get(network, :ens_registry))
+
+    name_wrapper =
+      Validation.normalize_address(input.name_wrapper || Map.get(network, :name_wrapper))
 
     with {:ok, registry_address} <- required_address(ens_registry, "ens_registry"),
          {:ok, normalized_name} <- Normalize.normalize(input.ens_name),
@@ -212,9 +217,9 @@ defmodule AgentEns.Read do
   end
 
   defp build_input(params) do
-    with {:ok, ens_name} <- required_binary(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
-         {:ok, rpc_url} <- required_binary(params, :rpc_url),
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
+         {:ok, rpc_url} <- Validation.required_binary(params, :rpc_url),
          {:ok, text_keys} <- text_keys(params) do
       {:ok,
        %Input{
@@ -347,29 +352,6 @@ defmodule AgentEns.Read do
   defp required_address(_value, name),
     do: {:error, Error.new({:missing_required_input, name})}
 
-  defp required_binary(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
-      value when is_binary(value) and value != "" -> {:ok, value}
-      value -> {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
-    end
-  end
-
-  defp required_integer(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
-      value when is_integer(value) and value >= 0 ->
-        {:ok, value}
-
-      value when is_binary(value) and value != "" ->
-        case Integer.parse(value) do
-          {parsed, ""} when parsed >= 0 -> {:ok, parsed}
-          _ -> {:error, Error.new({:invalid_argument, Atom.to_string(key), value})}
-        end
-
-      value ->
-        {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
-    end
-  end
-
   defp text_keys(params) do
     values = fetch_param(params, :text_keys) || []
 
@@ -391,8 +373,4 @@ defmodule AgentEns.Read do
       :error -> Map.get(params, Atom.to_string(key))
     end
   end
-
-  defp normalize_address(nil), do: nil
-  defp normalize_address(value) when is_binary(value), do: String.downcase(value)
-  defp normalize_address(_value), do: nil
 end

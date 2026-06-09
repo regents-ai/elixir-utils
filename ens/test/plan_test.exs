@@ -174,7 +174,7 @@ defmodule AgentEns.PlanTest do
           {:ok, bool_word(false)}
 
         {@resolver, "0x59d1d43c" <> _rest} ->
-          {:error, {:rpc_error, :offchain_only}}
+          {:error, {:rpc_call_failed, %{to: @resolver, reason: :offchain_only}}}
 
         {@resolver, "0x691f3431" <> _rest} ->
           {:ok, encode_string("")}

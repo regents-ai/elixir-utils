@@ -28,6 +28,27 @@ defmodule RegentCacheTest do
     assert {:ok, %{value: 4}} = RegentCache.fetch(@cache, "subject:test", 15, value_fun(4))
   end
 
+  test "bad cached JSON reads as a decode failure, not a miss" do
+    assert {:ok, true} = Cachex.put(@cache, "subject:test", "not-json", ttl: :timer.seconds(15))
+
+    assert {:error, {:decode_failure, %Jason.DecodeError{}}} =
+             RegentCache.get_json(@cache, "subject:test")
+  end
+
+  test "delete removes keys and ignores non-binary entries" do
+    assert :ok = RegentCache.put_json(@cache, "subject:a", %{"value" => 1}, 15)
+    assert :ok = RegentCache.put_json(@cache, "subject:b", %{"value" => 2}, 15)
+
+    assert :ok = RegentCache.delete(@cache, ["subject:a", :not_a_key, "subject:b"])
+
+    assert :miss = RegentCache.get_json(@cache, "subject:a")
+    assert :miss = RegentCache.get_json(@cache, "subject:b")
+  end
+
+  test "delete reports failures instead of swallowing them" do
+    assert {:error, _reason} = RegentCache.delete(:missing_cache, ["subject:test"])
+  end
+
   test "loader errors are not cached" do
     assert {:error, :boom} =
              RegentCache.fetch(@cache, "subject:test", 15, fn -> {:error, :boom} end)

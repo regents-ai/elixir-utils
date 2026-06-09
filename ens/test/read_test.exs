@@ -133,7 +133,7 @@ defmodule AgentEns.ReadTest do
           {:ok, bool_word(true)}
 
         to == @resolver and interface_probe?(data, "0x3b3b57de") ->
-          {:error, {:rpc_error, :probe_failed}}
+          {:error, {:rpc_call_failed, %{to: @resolver, reason: :probe_failed}}}
       end
     end
 

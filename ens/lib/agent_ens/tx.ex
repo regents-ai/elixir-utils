@@ -22,6 +22,7 @@ defmodule AgentEns.Tx do
 
   alias AgentEns.Error
   alias AgentEns.Internal.ABI
+  alias AgentEns.Internal.Validation
   alias AgentEns.Networks
   alias AgentEns.Normalize
   alias AgentEns.RecordKey
@@ -35,11 +36,11 @@ defmodule AgentEns.Tx do
 
   @spec build_set_text_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_text_tx(params) when is_map(params) do
-    with {:ok, chain_id} <- required_integer(params, :chain_id),
-         {:ok, record_chain_id} <- optional_integer(params, :record_chain_id, chain_id),
+    with {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
+         {:ok, record_chain_id} <- Validation.optional_integer(params, :record_chain_id, chain_id),
          {:ok, registry_address} <- required_address(params, :registry_address),
-         {:ok, agent_id} <- required_agent_id(params),
-         {:ok, key} <- build_record_key(record_chain_id, registry_address, agent_id) do
+         {:ok, agent_id} <- Validation.required_agent_id(params),
+         {:ok, key} <- RecordKey.for_agent(record_chain_id, registry_address, agent_id) do
       build_set_text_record_tx(%{
         ens_name: Map.get(params, :ens_name),
         chain_id: chain_id,
@@ -52,7 +53,7 @@ defmodule AgentEns.Tx do
 
   @spec build_regent_subname_upgrade_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_regent_subname_upgrade_tx(params) when is_map(params) do
-    with {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, registrar_address} <- required_address(params, :registrar_address),
          {:ok, label} <- required_label(params),
          {:ok, owner_address} <- required_address(params, :owner_address),
@@ -76,13 +77,13 @@ defmodule AgentEns.Tx do
 
   @spec build_regent_ensip25_link_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_regent_ensip25_link_tx(params) when is_map(params) do
-    with {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, registrar_address} <- required_address(params, :registrar_address),
          {:ok, label} <- required_label(params),
-         {:ok, registry_chain_id} <- required_integer(params, :registry_chain_id),
+         {:ok, registry_chain_id} <- Validation.required_integer(params, :registry_chain_id),
          {:ok, registry_address} <- required_address(params, :registry_address),
-         {:ok, agent_id} <- required_agent_id(params),
-         {:ok, key} <- build_record_key(registry_chain_id, registry_address, agent_id),
+         {:ok, agent_id} <- Validation.required_agent_id(params),
+         {:ok, key} <- RecordKey.for_agent(registry_chain_id, registry_address, agent_id),
          {:ok, value} <- required_or_empty(params, :value),
          {:ok, data} <-
            ABI.encode_call("setAgentRegistrationText(string,string,string)", [
@@ -103,7 +104,7 @@ defmodule AgentEns.Tx do
 
   @spec build_regent_addr_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_regent_addr_tx(params) when is_map(params) do
-    with {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, registrar_address} <- required_address(params, :registrar_address),
          {:ok, label} <- required_label(params),
          {:ok, target_address} <- required_address(params, :address),
@@ -125,10 +126,10 @@ defmodule AgentEns.Tx do
 
   @spec build_set_text_record_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_text_record_tx(params) when is_map(params) do
-    with {:ok, ens_name} <- required(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, resolver_address} <- required_address(params, :resolver_address),
-         {:ok, key} <- required(params, :key),
+         {:ok, key} <- Validation.required_binary(params, :key),
          {:ok, value} <- required_or_empty(params, :value),
          {:ok, normalized_name} <- Normalize.normalize(ens_name),
          {:ok, node} <- Verify.namehash(normalized_name),
@@ -150,8 +151,8 @@ defmodule AgentEns.Tx do
 
   @spec build_set_addr_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_addr_tx(params) when is_map(params) do
-    with {:ok, ens_name} <- required(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, resolver_address} <- required_address(params, :resolver_address),
          {:ok, target_address} <- required_address(params, :address),
          {:ok, normalized_name} <- Normalize.normalize(ens_name),
@@ -174,8 +175,8 @@ defmodule AgentEns.Tx do
 
   @spec build_set_contenthash_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_contenthash_tx(params) when is_map(params) do
-    with {:ok, ens_name} <- required(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, resolver_address} <- required_address(params, :resolver_address),
          {:ok, contenthash} <- required_bytes(params, :contenthash),
          {:ok, normalized_name} <- Normalize.normalize(ens_name),
@@ -198,8 +199,8 @@ defmodule AgentEns.Tx do
 
   @spec build_set_resolver_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_resolver_tx(params) when is_map(params) do
-    with {:ok, ens_name} <- required(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, new_resolver_address} <- required_address(params, :new_resolver_address),
          {:ok, {control, control_contract}} <- control_contract(params, chain_id),
          {:ok, normalized_name} <- Normalize.normalize(ens_name),
@@ -222,8 +223,8 @@ defmodule AgentEns.Tx do
 
   @spec build_set_ttl_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_ttl_tx(params) when is_map(params) do
-    with {:ok, ens_name} <- required(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, ttl} <- required_uint64(params, :ttl),
          {:ok, {control, control_contract}} <- control_contract(params, chain_id),
          {:ok, normalized_name} <- Normalize.normalize(ens_name),
@@ -243,8 +244,8 @@ defmodule AgentEns.Tx do
 
   @spec build_set_record_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_record_tx(params) when is_map(params) do
-    with {:ok, ens_name} <- required(params, :ens_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, owner_address} <- required_address(params, :owner_address),
          {:ok, resolver_address} <- required_address(params, :resolver_address),
          {:ok, ttl} <- required_uint64(params, :ttl),
@@ -271,8 +272,8 @@ defmodule AgentEns.Tx do
 
   @spec build_set_subnode_owner_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_subnode_owner_tx(params) when is_map(params) do
-    with {:ok, parent_name} <- required(params, :parent_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, parent_name} <- Validation.required_binary(params, :parent_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, label} <- required_label(params),
          {:ok, owner_address} <- required_address(params, :owner_address),
          {:ok, {control, control_contract}} <- control_contract(params, chain_id),
@@ -293,8 +294,8 @@ defmodule AgentEns.Tx do
 
   @spec build_set_subnode_record_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_subnode_record_tx(params) when is_map(params) do
-    with {:ok, parent_name} <- required(params, :parent_name),
-         {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, parent_name} <- Validation.required_binary(params, :parent_name),
+         {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, label} <- required_label(params),
          {:ok, owner_address} <- required_address(params, :owner_address),
          {:ok, resolver_address} <- required_address(params, :resolver_address),
@@ -339,10 +340,10 @@ defmodule AgentEns.Tx do
 
   @spec build_set_agent_uri_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_agent_uri_tx(params) when is_map(params) do
-    with {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, registry_address} <- required_address(params, :registry_address),
-         {:ok, agent_id} <- required_integer(params, :agent_id),
-         {:ok, new_uri} <- required(params, :new_uri),
+         {:ok, agent_id} <- Validation.required_integer(params, :agent_id),
+         {:ok, new_uri} <- Validation.required_binary(params, :new_uri),
          {:ok, data} <-
            ABI.encode_call(
              "setAgentURI(uint256,string)",
@@ -361,7 +362,7 @@ defmodule AgentEns.Tx do
 
   @spec build_reverse_set_name_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_reverse_set_name_tx(params) when is_map(params) do
-    with {:ok, chain_id} <- required_integer(params, :chain_id),
+    with {:ok, chain_id} <- Validation.required_integer(params, :chain_id),
          {:ok, ens_name} <- required_or_empty(params, :ens_name),
          {:ok, normalized_name} <- normalize_or_empty_name(ens_name),
          {:ok, reverse_registrar} <- reverse_registrar(params, chain_id),
@@ -440,30 +441,6 @@ defmodule AgentEns.Tx do
         {:uint256, fuses},
         {:uint256, expiry}
       ])
-    end
-  end
-
-  defp build_record_key(chain_id, registry_address, agent_id) when is_integer(agent_id) do
-    RecordKey.evm_record_key(chain_id, registry_address, agent_id)
-  end
-
-  defp build_record_key(chain_id, registry_address, agent_id) when is_binary(agent_id) do
-    with {:ok, interop} <- AgentEns.ERC7930.evm(chain_id, registry_address) do
-      RecordKey.record_key(interop, agent_id)
-    end
-  end
-
-  defp build_record_key(_chain_id, _registry_address, agent_id) do
-    {:error, Error.new({:invalid_agent_id_type, agent_id})}
-  end
-
-  defp optional_integer(params, key, default) do
-    case Map.get(params, key) do
-      nil ->
-        {:ok, default}
-
-      value ->
-        required_integer(%{key => value}, key)
     end
   end
 
@@ -590,13 +567,6 @@ defmodule AgentEns.Tx do
   defp control_label(:registry), do: "the ENS registry"
   defp control_label(:name_wrapper), do: "the ENS Name Wrapper"
 
-  defp required(params, key) do
-    case Map.get(params, key) do
-      value when is_binary(value) and value != "" -> {:ok, value}
-      value -> {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
-    end
-  end
-
   defp required_or_empty(params, key) do
     case Map.get(params, key) do
       value when is_binary(value) -> {:ok, value}
@@ -611,36 +581,12 @@ defmodule AgentEns.Tx do
     end
   end
 
-  defp required_integer(params, key) do
-    case Map.get(params, key) do
-      value when is_integer(value) and value >= 0 ->
-        {:ok, value}
-
-      value when is_binary(value) and value != "" ->
-        case Integer.parse(value) do
-          {parsed, ""} when parsed >= 0 -> {:ok, parsed}
-          _ -> {:error, Error.new({:invalid_argument, Atom.to_string(key), value})}
-        end
-
-      value ->
-        {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
-    end
-  end
-
   defp required_uint32(params, key), do: required_integer_in_range(params, key, @uint32_max)
 
   defp required_uint64(params, key), do: required_integer_in_range(params, key, @uint64_max)
 
-  defp required_agent_id(params) do
-    case Map.get(params, :agent_id) do
-      value when is_integer(value) and value >= 0 -> {:ok, value}
-      value when is_binary(value) and value != "" -> {:ok, value}
-      value -> {:error, Error.new({:missing_required_input, "agent_id: #{inspect(value)}"})}
-    end
-  end
-
   defp required_label(params) do
-    with {:ok, value} <- required(params, :label),
+    with {:ok, value} <- Validation.required_binary(params, :label),
          {:ok, normalized} <- Normalize.normalize(value) do
       if String.contains?(normalized, ".") do
         {:error, Error.new({:invalid_argument, "label", value})}
@@ -686,7 +632,7 @@ defmodule AgentEns.Tx do
   end
 
   defp required_integer_in_range(params, key, max_value) do
-    with {:ok, value} <- required_integer(params, key),
+    with {:ok, value} <- Validation.required_integer(params, key),
          :ok <- validate_integer_range(key, value, max_value) do
       {:ok, value}
     end

@@ -7,9 +7,21 @@ defmodule RegentCache do
 
   @type cache_name :: atom()
 
-  @spec child_spec(cache_name()) :: Supervisor.child_spec()
+  @doc """
+  Returns a child spec that starts a Cachex cache named `cache_name`.
+
+  Add it to a supervision tree before calling the other functions in this
+  module with the same cache name.
+  """
+  @spec child_spec(cache_name()) :: {module(), keyword()}
   def child_spec(cache_name) when is_atom(cache_name), do: {Cachex, name: cache_name}
 
+  @doc """
+  Checks whether the cache process is up and responding.
+
+  Returns `:ready` when the cache answers a probe request, and
+  `{:error, reason}` otherwise (for example when the cache was never started).
+  """
   @spec status(cache_name()) :: :ready | {:error, term()}
   def status(cache_name) when is_atom(cache_name) do
     case Cachex.exists?(cache_name, "__regent_cache_health__") do
@@ -50,6 +62,14 @@ defmodule RegentCache do
     end
   end
 
+  @doc """
+  Reads and JSON-decodes the value cached under `key`.
+
+  Returns `{:ok, decoded}` on a hit, `:miss` when nothing is cached, and
+  `{:error, {:decode_failure, reason}}` when a cached binary is not valid
+  JSON, so a corrupt entry is never mistaken for a miss. Other cache failures
+  return `{:error, reason}`.
+  """
   @spec get_json(cache_name(), String.t()) :: {:ok, term()} | :miss | {:error, term()}
   def get_json(cache_name, key) when is_atom(cache_name) and is_binary(key) do
     case Cachex.get(cache_name, key) do
@@ -59,7 +79,7 @@ defmodule RegentCache do
       {:ok, value} when is_binary(value) ->
         case Jason.decode(value) do
           {:ok, decoded} -> {:ok, decoded}
-          {:error, reason} -> {:error, reason}
+          {:error, reason} -> {:error, {:decode_failure, reason}}
         end
 
       {:ok, _value} ->
@@ -74,6 +94,12 @@ defmodule RegentCache do
     :exit, reason -> {:error, reason}
   end
 
+  @doc """
+  JSON-encodes `value` and caches it under `key` for `ttl_seconds`.
+
+  Returns `:ok` on success and `{:error, reason}` when encoding or the cache
+  write fails. Write failures are logged with a hashed key, never the raw key.
+  """
   @spec put_json(cache_name(), String.t(), term(), pos_integer()) :: :ok | {:error, term()}
   def put_json(cache_name, key, value, ttl_seconds)
       when is_atom(cache_name) and is_binary(key) and is_integer(ttl_seconds) and ttl_seconds > 0 do
@@ -92,12 +118,23 @@ defmodule RegentCache do
       log_put_error(cache_name, key, reason)
   end
 
+  @doc """
+  Deletes one key or a list of keys from the cache.
+
+  Non-binary entries in a key list are ignored. Returns `:ok` when every
+  delete succeeds, and `{:error, reason}` from the first failed delete
+  (remaining keys are left untouched).
+  """
   @spec delete(cache_name(), String.t() | [String.t()]) :: :ok | {:error, term()}
   def delete(cache_name, keys) when is_atom(cache_name) and is_list(keys) do
-    keys = Enum.filter(keys, &is_binary/1)
-
-    Enum.each(keys, fn key -> Cachex.del(cache_name, key) end)
-    :ok
+    keys
+    |> Enum.filter(&is_binary/1)
+    |> Enum.reduce_while(:ok, fn key, :ok ->
+      case Cachex.del(cache_name, key) do
+        {:ok, _deleted?} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   rescue
     error -> {:error, error}
   catch
@@ -109,6 +146,12 @@ defmodule RegentCache do
 
   def delete(_cache_name, _keys), do: {:error, :invalid_key}
 
+  @doc """
+  Reads the raw cached value under `key` as a string.
+
+  Returns `{:ok, nil}` on a miss and coerces non-binary cached values with
+  `to_string/1`.
+  """
   @spec get_string(cache_name(), String.t()) :: {:ok, String.t() | nil} | {:error, term()}
   def get_string(cache_name, key) when is_atom(cache_name) and is_binary(key) do
     case Cachex.get(cache_name, key) do
@@ -122,6 +165,12 @@ defmodule RegentCache do
     :exit, reason -> {:error, reason}
   end
 
+  @doc """
+  Increments the integer counter stored under `key` and resets its TTL.
+
+  Missing or non-numeric values count as `0`, so the first call returns
+  `{:ok, 1}`. The counter is stored as a string.
+  """
   @spec increment(cache_name(), String.t(), pos_integer()) :: {:ok, integer()} | {:error, term()}
   def increment(cache_name, key, ttl_seconds)
       when is_atom(cache_name) and is_binary(key) and is_integer(ttl_seconds) and
@@ -144,6 +193,12 @@ defmodule RegentCache do
     :exit, reason -> {:error, reason}
   end
 
+  @doc """
+  Adds `member` to the set stored under `key` and resets the set's TTL.
+
+  Creates the set when missing. Adding an existing member is a no-op that
+  still refreshes the TTL.
+  """
   @spec set_add(cache_name(), String.t(), String.t(), pos_integer()) :: :ok | {:error, term()}
   def set_add(cache_name, key, member, ttl_seconds)
       when is_atom(cache_name) and is_binary(key) and is_binary(member) and
@@ -166,6 +221,11 @@ defmodule RegentCache do
     :exit, reason -> {:error, reason}
   end
 
+  @doc """
+  Removes `member` from the set stored under `key` and resets the set's TTL.
+
+  Removing from a missing set stores an empty set.
+  """
   @spec set_remove(cache_name(), String.t(), String.t(), pos_integer()) :: :ok | {:error, term()}
   def set_remove(cache_name, key, member, ttl_seconds)
       when is_atom(cache_name) and is_binary(key) and is_binary(member) and
@@ -187,6 +247,12 @@ defmodule RegentCache do
     :exit, reason -> {:error, reason}
   end
 
+  @doc """
+  Lists the string members of the set stored under `key`.
+
+  Returns `{:ok, []}` when the set is missing and
+  `{:error, :invalid_cached_set}` when the cached value is not a list.
+  """
   @spec set_members(cache_name(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
   def set_members(cache_name, key) when is_atom(cache_name) and is_binary(key) do
     case Cachex.get(cache_name, key) do
@@ -201,6 +267,11 @@ defmodule RegentCache do
     :exit, reason -> {:error, reason}
   end
 
+  @doc """
+  Returns a lowercase hex SHA-256 digest of any term.
+
+  Useful for building cache keys from values that should not appear in logs.
+  """
   @spec digest(term()) :: String.t()
   def digest(value) do
     value

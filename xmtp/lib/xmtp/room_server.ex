@@ -35,12 +35,14 @@ defmodule Xmtp.RoomServer do
 
   @message_limit 24
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     definition = Keyword.fetch!(opts, :definition)
     registry = Keyword.fetch!(opts, :registry)
     GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {registry, definition.key}})
   end
 
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     definition = Keyword.fetch!(opts, :definition)
 

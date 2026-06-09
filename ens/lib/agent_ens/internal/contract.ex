@@ -39,7 +39,7 @@ defmodule AgentEns.Internal.Contract do
       {:error, %Error{} = error} ->
         {:error, error}
 
-      {:error, {:rpc_error, _} = reason} ->
+      {:error, {:rpc_call_failed, _} = reason} ->
         {:error, Error.new({:resolver_call_failed, reason})}
 
       {:error, reason} ->
@@ -60,7 +60,7 @@ defmodule AgentEns.Internal.Contract do
       {:error, %Error{} = error} ->
         {:error, error}
 
-      {:error, {:rpc_error, _} = reason} ->
+      {:error, {:rpc_call_failed, _} = reason} ->
         {:error, Error.new({:resolver_call_failed, reason})}
 
       {:error, reason} ->
@@ -84,7 +84,7 @@ defmodule AgentEns.Internal.Contract do
       {:error, %Error{} = error} ->
         {:error, error}
 
-      {:error, {:rpc_error, _} = reason} ->
+      {:error, {:rpc_call_failed, _} = reason} ->
         {:error, Error.new({:resolver_call_failed, reason})}
 
       {:error, reason} ->
@@ -108,7 +108,7 @@ defmodule AgentEns.Internal.Contract do
       {:error, %Error{} = error} ->
         {:error, error}
 
-      {:error, {:rpc_error, _} = reason} ->
+      {:error, {:rpc_call_failed, _} = reason} ->
         {:error, Error.new({:resolver_call_failed, reason})}
 
       {:error, reason} ->
@@ -255,9 +255,14 @@ defmodule AgentEns.Internal.Contract do
          {:ok, supported?} <- ABI.decode_bool(result) do
       {:ok, supported?}
     else
-      {:error, %Error{} = error} -> {:error, error}
-      {:error, {:rpc_error, _} = reason} -> {:error, Error.new({:resolver_call_failed, reason})}
-      {:error, reason} -> {:error, Error.new({:rpc_error, reason})}
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      {:error, {:rpc_call_failed, _} = reason} ->
+        {:error, Error.new({:resolver_call_failed, reason})}
+
+      {:error, reason} ->
+        {:error, Error.new({:rpc_error, reason})}
     end
   end
 end

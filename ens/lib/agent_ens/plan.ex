@@ -17,10 +17,10 @@ defmodule AgentEns.Plan do
   """
 
   alias AgentEns.Error
-  alias AgentEns.ERC7930
   alias AgentEns.ERC8004.Registration
   alias AgentEns.Internal.Contract
   alias AgentEns.Internal.RPC
+  alias AgentEns.Internal.Validation
   alias AgentEns.Networks
   alias AgentEns.Normalize
   alias AgentEns.RecordKey
@@ -200,6 +200,35 @@ defmodule AgentEns.Plan do
           token_reads_supported?: boolean()
         }
 
+  @doc """
+  Builds a read-only `LinkPlan` for linking an ENS name to an ERC-8004 agent.
+
+  Accepts an `Input` struct or a params map (atom or string keys) with the
+  `Input` fields. The function only reads chain state; it never prepares or
+  sends a transaction.
+
+  The returned plan contains one `Action` per possible next step
+  (`:set_ens_text`, `:set_ens_address`, `:update_erc8004_registration`, and
+  `:set_reverse_name`), each with a `status` and a `reason`:
+
+  - `:noop` — the outcome the action would produce is already true on chain.
+    `reason` is `nil`.
+  - `:ready` — the action is needed and the current signer can perform it.
+    `reason` is `nil`.
+  - `:blocked` — the action is needed but cannot proceed. `reason` is the
+    blocking status atom: for the ENS write actions one of the
+    `ens_write_status` values (for example `:no_resolver`, `:signer_required`,
+    `:manager_mismatch`, `:unsupported_offchain_resolver`, or
+    `:resolver_unsupported`); for `:update_erc8004_registration` one of the
+    `erc8004_write_status` values (`:signer_required`, `:forbidden`, or
+    `:registration_unavailable`); for `:set_reverse_name` one of
+    `:unsupported_network` or `:signer_required`.
+  - `:skipped` — only used by `:set_reverse_name` when a reverse update was
+    not requested. `reason` is `nil`.
+
+  Returns `{:error, %AgentEns.Error{}}` when inputs are invalid or a chain
+  read fails.
+  """
   @spec plan_link(plan_input()) :: {:ok, link_plan()} | {:error, Error.t()}
   def plan_link(%Input{} = input), do: do_plan(input)
 
@@ -215,12 +244,12 @@ defmodule AgentEns.Plan do
     ens_registry = input.ens_registry || Map.get(network, :ens_registry)
     name_wrapper = input.name_wrapper || Map.get(network, :name_wrapper)
     reverse_registrar = input.reverse_registrar || Map.get(network, :reverse_registrar)
-    signer_address = normalize_address(input.signer_address)
+    signer_address = Validation.normalize_address(input.signer_address)
 
     with {:ok, normalized_name} <- Normalize.normalize(input.ens_name),
          {:ok, node} <- Verify.namehash(normalized_name),
          {:ok, key} <-
-           record_key(input.registry_chain_id, input.registry_address, input.agent_id),
+           RecordKey.for_agent(input.registry_chain_id, input.registry_address, input.agent_id),
          {:ok, resolver} <- Contract.fetch_resolver(rpc, input.ens_rpc_url, ens_registry, node),
          {:ok, resolver_support} <- classify_resolver_support(rpc, input.ens_rpc_url, resolver),
          {:ok, text_value} <-
@@ -317,13 +346,13 @@ defmodule AgentEns.Plan do
   end
 
   defp build_input(params) do
-    with {:ok, ens_name} <- required_binary(params, :ens_name),
-         {:ok, ens_chain_id} <- required_integer(params, :ens_chain_id),
-         {:ok, ens_rpc_url} <- required_binary(params, :ens_rpc_url),
-         {:ok, registry_chain_id} <- required_integer(params, :registry_chain_id),
-         {:ok, registry_rpc_url} <- required_binary(params, :registry_rpc_url),
-         {:ok, registry_address} <- required_binary(params, :registry_address),
-         {:ok, agent_id} <- required_agent_id(params) do
+    with {:ok, ens_name} <- Validation.required_binary(params, :ens_name),
+         {:ok, ens_chain_id} <- Validation.required_integer(params, :ens_chain_id),
+         {:ok, ens_rpc_url} <- Validation.required_binary(params, :ens_rpc_url),
+         {:ok, registry_chain_id} <- Validation.required_integer(params, :registry_chain_id),
+         {:ok, registry_rpc_url} <- Validation.required_binary(params, :registry_rpc_url),
+         {:ok, registry_address} <- Validation.required_binary(params, :registry_address),
+         {:ok, agent_id} <- Validation.required_agent_id(params) do
       {:ok,
        %Input{
          ens_name: ens_name,
@@ -347,16 +376,6 @@ defmodule AgentEns.Plan do
          current_agent_uri:
            Map.get(params, :current_agent_uri) || Map.get(params, "current_agent_uri")
        }}
-    end
-  end
-
-  defp record_key(chain_id, registry_address, agent_id) when is_integer(agent_id) do
-    RecordKey.evm_record_key(chain_id, registry_address, agent_id)
-  end
-
-  defp record_key(chain_id, registry_address, agent_id) when is_binary(agent_id) do
-    with {:ok, interop} <- ERC7930.evm(chain_id, registry_address) do
-      RecordKey.record_key(interop, agent_id)
     end
   end
 
@@ -738,46 +757,6 @@ defmodule AgentEns.Plan do
 
   defp maybe_require_registration(nil), do: :registration_unavailable
   defp maybe_require_registration(_registration), do: :ready
-
-  defp required_binary(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
-      value when is_binary(value) and value != "" -> {:ok, value}
-      value -> {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
-    end
-  end
-
-  defp required_integer(params, key) do
-    case Map.get(params, key) || Map.get(params, Atom.to_string(key)) do
-      value when is_integer(value) and value >= 0 ->
-        {:ok, value}
-
-      value when is_binary(value) and value != "" ->
-        case Integer.parse(value) do
-          {parsed, ""} when parsed >= 0 -> {:ok, parsed}
-          _ -> {:error, Error.new({:invalid_argument, Atom.to_string(key), value})}
-        end
-
-      value ->
-        {:error, Error.new({:missing_required_input, "#{key}: #{inspect(value)}"})}
-    end
-  end
-
-  defp required_agent_id(params) do
-    case Map.get(params, :agent_id) || Map.get(params, "agent_id") do
-      value when is_integer(value) and value >= 0 ->
-        {:ok, value}
-
-      value when is_binary(value) and value != "" ->
-        {:ok, value}
-
-      value ->
-        {:error, Error.new({:invalid_agent_id_type, value})}
-    end
-  end
-
-  defp normalize_address(nil), do: nil
-  defp normalize_address(value) when is_binary(value), do: String.downcase(String.trim(value))
-  defp normalize_address(_), do: nil
 
   defp reverse_lookup_name("0x" <> address), do: "#{String.downcase(address)}.addr.reverse"
 

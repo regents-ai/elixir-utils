@@ -17,6 +17,35 @@ defmodule Siwa.Verify do
     end
   end
 
+  @doc """
+  Verifies a signed SIWA message and returns the authentication outcome.
+
+  Accepts either the raw message string or a fields map, plus the signature
+  produced by the signer. Validation covers, in order: message parsing, the
+  expected `:domain`, the expiration/not-before time window, the signature
+  (and that the recovered address matches the message address), nonce
+  consumption, and agent registration checks.
+
+  All outcomes are returned as `{:ok, map}` with a `:status` key:
+
+  - `"authenticated"` — every check passed. The map includes `:address`,
+    `:agent_id`, `:agent_registry`, `:nonce`, `:signer_type`, `:profile`,
+    `:receipt`, and `:receipt_expires_at`.
+  - `"not_registered"` — the signature was valid but the agent is not
+    registered in the on-chain registry. The map includes an `:action`
+    describing the `"register_agent"` step to take before retrying.
+  - `"rejected"` — any other failed check. The map includes a `:reason`
+    string (for example `"domain_mismatch"`, `"message_expired"`,
+    `"message_not_yet_valid"`, `"address_mismatch"`, `"invalid_signature"`,
+    nonce errors such as `"nonce_expired"` or `"nonce_address_mismatch"`,
+    or registration errors such as `"owner_mismatch"`, `"inactive_agent"`,
+    `"missing_required_services"`, or `"missing_required_trust_model"`).
+    Non-atom internal errors are reported as `"invalid_request"`.
+
+  Options include `:domain`, `:now`, `:audience`, `:nonce_token`,
+  `:signature_validator`, `:profile_resolver`, `:chain_client`,
+  `:require_active`, `:required_services`, and `:required_trust_models`.
+  """
   def verify(message_or_fields, signature, opts \\ []) do
     with {:ok, fields, message} <- normalize_message(message_or_fields),
          :ok <- validate_domain(fields, opts),

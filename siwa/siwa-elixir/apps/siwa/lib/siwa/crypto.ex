@@ -22,28 +22,30 @@ defmodule Siwa.Crypto do
     error -> {:error, error}
   end
 
+  # Personal messages always use the canonical EVM personal-sign path
+  # (`Siwa.EvmPersonalSign`): signing produces a 65-byte "0x..." compact
+  # signature and verification recovers the signer address from it.
   def sign_personal_message(private_key_hex, message, _opts \\ []) do
     Siwa.EvmPersonalSign.sign_personal_signature(private_key_hex, message)
   end
 
-  def verify_personal_message("0x" <> _ = signature, message) do
+  def verify_personal_message(signature, message) when is_binary(signature) do
     with {:ok, address} <- Siwa.EvmPersonalSign.recover_personal_address(message, signature) do
       {:ok, %{address: address, signer_type: "eoa", signature: signature}}
     end
   end
 
-  def verify_personal_message(signature, message) do
-    digest = personal_hash(message)
-    verify_digest(signature, digest)
-  end
+  def verify_personal_message(_signature, _message), do: {:error, :invalid_signature_encoding}
 
-  def sign_raw(private_key_hex, payload, opts \\ []) do
+  def sign_raw(private_key_hex, payload, opts \\ []) when is_list(opts) do
     signer_type = Keyword.get(opts, :signer_type, "eoa")
-    public_key_hex = Keyword.fetch!(opts, :public_key)
-    public_key = decode_hex!(public_key_hex)
-    private_key = decode_hex!(private_key_hex)
-    digest = raw_hash(payload)
-    sign_digest(private_key, public_key, digest, signer_type, :raw)
+
+    with {:ok, payload} <- require_binary(payload, :invalid_payload),
+         {:ok, public_key_hex} <- fetch_public_key(opts),
+         {:ok, public_key} <- decode_hex(public_key_hex),
+         {:ok, private_key} <- decode_hex(private_key_hex) do
+      sign_digest(private_key, public_key, raw_hash(payload), signer_type, :raw)
+    end
   end
 
   def verify_raw(signature, payload) do
@@ -78,6 +80,27 @@ defmodule Siwa.Crypto do
 
   def decode_hex!("0x" <> hex), do: Base.decode16!(String.upcase(hex), case: :mixed)
   def decode_hex!(hex), do: Base.decode16!(String.upcase(hex), case: :mixed)
+
+  defp decode_hex("0x" <> hex), do: decode_hex(hex)
+
+  defp decode_hex(hex) when is_binary(hex) do
+    case Base.decode16(hex, case: :mixed) do
+      {:ok, binary} -> {:ok, binary}
+      :error -> {:error, :invalid_hex}
+    end
+  end
+
+  defp decode_hex(_value), do: {:error, :invalid_hex}
+
+  defp fetch_public_key(opts) do
+    case Keyword.fetch(opts, :public_key) do
+      {:ok, value} when is_binary(value) and value != "" -> {:ok, value}
+      _ -> {:error, :missing_public_key}
+    end
+  end
+
+  defp require_binary(value, _reason) when is_binary(value), do: {:ok, value}
+  defp require_binary(_value, reason), do: {:error, reason}
 
   defp sign_digest(private_key, public_key, digest_hex, signer_type, purpose) do
     digest = decode_hex!(digest_hex)

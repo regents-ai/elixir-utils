@@ -119,10 +119,7 @@ defmodule Siwa.Nonce do
         Keyword.get_lazy(opts, :secret, fn -> Application.fetch_env!(:siwa, :nonce_secret) end)
       end)
 
-    body = Jason.encode!(payload)
-    encoded_body = Base.url_encode64(body, padding: false)
-    mac = :crypto.mac(:hmac, :sha256, secret, encoded_body) |> Base.url_encode64(padding: false)
-    {:ok, encoded_body <> "." <> mac}
+    {:ok, encode_nonce_token(payload, secret)}
   end
 
   def verify_nonce_token(token, opts \\ [])
@@ -148,6 +145,23 @@ defmodule Siwa.Nonce do
 
   def verify_nonce_token(_token, _opts), do: {:error, :invalid_nonce_token}
 
+  # Nonce token wire format
+  #
+  #     token = encoded_body <> "." <> mac
+  #
+  # where `encoded_body` is the unpadded base64url encoding of the JSON
+  # payload map and `mac` is the unpadded base64url encoding of
+  # HMAC-SHA256(secret, encoded_body). Both parts must be non-empty, and the
+  # MAC is checked with a constant-time compare before the payload is decoded.
+
+  @spec encode_nonce_token(map(), binary()) :: String.t()
+  defp encode_nonce_token(payload, secret) do
+    encoded_body = payload |> Jason.encode!() |> Base.url_encode64(padding: false)
+    encoded_body <> "." <> nonce_token_mac(encoded_body, secret)
+  end
+
+  @spec split_nonce_token(String.t()) ::
+          {:ok, String.t(), String.t()} | {:error, :invalid_nonce_token}
   defp split_nonce_token(token) do
     case String.split(token, ".") do
       [encoded_body, mac] when encoded_body != "" and mac != "" -> {:ok, encoded_body, mac}
@@ -155,17 +169,22 @@ defmodule Siwa.Nonce do
     end
   end
 
+  @spec verify_nonce_token_mac(String.t(), String.t(), binary()) ::
+          :ok | {:error, :invalid_nonce_token}
   defp verify_nonce_token_mac(encoded_body, mac, secret) do
-    expected =
-      :crypto.mac(:hmac, :sha256, secret, encoded_body) |> Base.url_encode64(padding: false)
-
-    if Plug.Crypto.secure_compare(expected, mac) do
+    if Plug.Crypto.secure_compare(nonce_token_mac(encoded_body, secret), mac) do
       :ok
     else
       {:error, :invalid_nonce_token}
     end
   end
 
+  @spec nonce_token_mac(String.t(), binary()) :: String.t()
+  defp nonce_token_mac(encoded_body, secret) do
+    :crypto.mac(:hmac, :sha256, secret, encoded_body) |> Base.url_encode64(padding: false)
+  end
+
+  @spec decode_nonce_token_payload(String.t()) :: {:ok, map()} | {:error, :invalid_nonce_token}
   defp decode_nonce_token_payload(encoded_body) do
     with {:ok, body} <- Base.url_decode64(encoded_body, padding: false),
          {:ok, payload} when is_map(payload) <- Jason.decode(body) do
@@ -175,6 +194,7 @@ defmodule Siwa.Nonce do
     end
   end
 
+  @spec check_nonce_token_expiration(map(), integer()) :: :ok | {:error, :invalid_nonce_token}
   defp check_nonce_token_expiration(payload, now_ms) do
     case payload do
       %{"exp" => exp} when is_integer(exp) and exp >= now_ms -> :ok

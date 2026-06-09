@@ -3,21 +3,17 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
 
   use GenServer
 
-  alias XmtpElixirSdk.Content
   alias XmtpElixirSdk.Error
-  alias XmtpElixirSdk.Events
+  alias XmtpElixirSdk.Internal.ConversationServer.Consent
+  alias XmtpElixirSdk.Internal.ConversationServer.Conversations
+  alias XmtpElixirSdk.Internal.ConversationServer.Members
+  alias XmtpElixirSdk.Internal.ConversationServer.Messaging
   alias XmtpElixirSdk.Internal.Names
-  alias XmtpElixirSdk.Internal.StatsServer
-  alias XmtpElixirSdk.Internal.ConversationServer.ContentValidation
-  alias XmtpElixirSdk.Internal.ConversationServer.Filtering
-  alias XmtpElixirSdk.Internal.ConversationServer.MessageConstruction
-  alias XmtpElixirSdk.Internal.ConversationServer.Permissions
   alias XmtpElixirSdk.Types
 
   alias XmtpElixirSdk.Types.{
     Conversation,
     GroupMember,
-    Identifier,
     LastReadTime,
     Message
   }
@@ -358,218 +354,74 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   end
 
   def handle_call({:import_conversations, conversations}, _from, state) do
-    next_state =
-      Enum.reduce(conversations, state, fn conversation, acc ->
-        acc
-        |> put_in([Access.key(:conversations), conversation.id], conversation)
-        |> index_conversation_messages(conversation)
-      end)
-
-    {:reply, :ok, next_state}
+    {:reply, :ok, Conversations.import_all(state, conversations)}
   end
 
   def handle_call({:create_dm, client, inbox_id, opts}, _from, state) do
-    peer_inbox = resolve_inbox_id(state, inbox_id)
-    dm_key = MessageConstruction.dm_key(client.inbox_id, peer_inbox)
-
-    next_state =
-      if Map.has_key?(state.conversations, dm_key) do
-        state
-      else
-        conversation = MessageConstruction.build_dm_conversation(client, dm_key, peer_inbox, opts)
-
-        state
-        |> put_in([Access.key(:conversations), dm_key], conversation)
-        |> index_conversation_messages(conversation)
-        |> emit_conversation_created(client.id, conversation)
-      end
-
-    StatsServer.bump_api(state.runtime, :send_welcome_messages)
-    {:reply, {:ok, Map.fetch!(next_state.conversations, dm_key)}, next_state}
+    {reply, next_state} = Conversations.create_dm(state, client, inbox_id, opts)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:create_group, client, inbox_ids, opts}, _from, state) do
-    members = Enum.uniq([client.inbox_id | Enum.map(inbox_ids, &resolve_inbox_id(state, &1))])
-    conversation_id = "conversation-#{state.next_conversation_id}"
-
-    conversation =
-      MessageConstruction.build_group_conversation(client, conversation_id, members, opts)
-
-    next_state =
-      state
-      |> put_in([Access.key(:conversations), conversation_id], conversation)
-      |> index_conversation_messages(conversation)
-      |> Map.update!(:next_conversation_id, &(&1 + 1))
-      |> emit_conversation_created(client.id, conversation)
-
-    StatsServer.bump_api(state.runtime, :send_group_messages)
-    {:reply, {:ok, conversation}, next_state}
+    {reply, next_state} = Conversations.create_group(state, client, inbox_ids, opts)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:get_conversation_by_id, _client, id}, _from, state) do
-    {:reply, {:ok, Map.get(state.conversations, id)}, state}
+    {:reply, Conversations.get(state, id), state}
   end
 
   def handle_call({:get_message_by_id, _client, id}, _from, state) do
-    {:reply, {:ok, Map.get(state.message_index, id)}, state}
+    {:reply, Messaging.get(state, id), state}
   end
 
   def handle_call({:list_conversations, client, opts}, _from, state) do
-    conversations =
-      state.conversations
-      |> Map.values()
-      |> Enum.filter(&Filtering.member_of?(&1, client.inbox_id))
-      |> Filtering.filter_conversations(opts)
-      |> Filtering.sort_conversations(opts)
-      |> Enum.take(opts.limit)
-
-    {:reply, {:ok, conversations}, state}
+    {:reply, Conversations.list(state, client, opts), state}
   end
 
   def handle_call({:list_messages, client, conversation_id, opts}, _from, state) do
-    next_state = prune_expired_messages(state, client.id, conversation_id)
-
-    with {:ok, conversation} <- fetch_conversation(next_state, conversation_id) do
-      messages =
-        conversation.messages
-        |> Enum.filter(&Filtering.visible_message?(&1, client))
-        |> Enum.filter(&Filtering.within_message_window?(&1, opts))
-        |> Filtering.filter_messages(opts)
-        |> Filtering.sort_messages(opts)
-        |> Enum.take(opts.limit)
-
-      {:reply, {:ok, messages}, next_state}
-    else
-      {:error, error} -> {:reply, {:error, error}, next_state}
-    end
+    {reply, next_state} = Messaging.list(state, client, conversation_id, opts)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:count_messages, client, conversation_id, opts}, _from, state) do
-    next_state = prune_expired_messages(state, client.id, conversation_id)
-
-    with {:ok, conversation} <- fetch_conversation(next_state, conversation_id) do
-      count =
-        conversation.messages
-        |> Enum.filter(&Filtering.visible_message?(&1, client))
-        |> Enum.filter(&Filtering.countable_message?/1)
-        |> Enum.filter(&Filtering.within_message_window?(&1, opts))
-        |> Filtering.filter_messages(opts)
-        |> length()
-
-      {:reply, {:ok, count}, next_state}
-    else
-      {:error, error} -> {:reply, {:error, error}, next_state}
-    end
+    {reply, next_state} = Messaging.count(state, client, conversation_id, opts)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:send_message, client, conversation_id, content, opts}, _from, state) do
-    with {:ok, conversation} <- fetch_conversation(state, conversation_id),
-         :ok <- ContentValidation.validate(content) do
-      delivery_status =
-        if Keyword.get(opts, :is_optimistic, false), do: :unpublished, else: :published
-
-      {next_state, message} =
-        append_message(state, client, conversation, content, delivery_status)
-
-      StatsServer.bump_api(state.runtime, :send_group_messages)
-      {:reply, {:ok, message.id}, next_state}
-    else
-      {:error, error} -> {:reply, {:error, error}, state}
-    end
+    {reply, next_state} = Messaging.send(state, client, conversation_id, content, opts)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:publish_messages, client, conversation_id}, _from, state) do
-    {next_state, published_ids} =
-      case Map.fetch(state.conversations, conversation_id) do
-        {:ok, conversation} ->
-          messages = Enum.map(conversation.messages, &%{&1 | delivery_status: :published})
-          state = put_in(state.conversations[conversation_id].messages, messages)
-
-          state =
-            Enum.reduce(messages, state, fn message, acc ->
-              put_in(acc.message_index[message.id], message)
-            end)
-
-          {state, Enum.map(messages, & &1.id)}
-
-        :error ->
-          {state, []}
-      end
-
-    StatsServer.bump_api(state.runtime, :publish_commit_log)
-
-    Events.emit(state.runtime, {:messages, client.id}, %Events.MessagePublished{
-      conversation_id: conversation_id,
-      message_ids: published_ids
-    })
-
-    Events.emit(state.runtime, {:messages, conversation_id}, %Events.MessagePublished{
-      conversation_id: conversation_id,
-      message_ids: published_ids
-    })
-
-    {:reply, :ok, next_state}
+    {:reply, :ok, Messaging.publish(state, client, conversation_id)}
   end
 
   def handle_call({:conversation_members, _client, conversation_id}, _from, state) do
-    case fetch_conversation(state, conversation_id) do
-      {:ok, conversation} -> {:reply, {:ok, conversation.members}, state}
-      {:error, error} -> {:reply, {:error, error}, state}
-    end
+    {:reply, Members.list(state, conversation_id), state}
   end
 
   def handle_call({:conversation_last_message, client, conversation_id}, _from, state) do
-    with {:ok, conversation} <- fetch_conversation(state, conversation_id) do
-      last_visible =
-        conversation.messages
-        |> Enum.filter(&Filtering.visible_message?(&1, client))
-        |> List.last()
-
-      {:reply, {:ok, last_visible}, state}
-    else
-      {:error, error} -> {:reply, {:error, error}, state}
-    end
+    {:reply, Messaging.last_message(state, client, conversation_id), state}
   end
 
   def handle_call({:conversation_sync, client, conversation_id}, _from, state) do
-    next_state = prune_expired_messages(state, client.id, conversation_id)
-
-    case fetch_conversation(next_state, conversation_id) do
-      {:ok, conversation} -> {:reply, {:ok, conversation}, next_state}
-      {:error, error} -> {:reply, {:error, error}, next_state}
-    end
+    {reply, next_state} = Conversations.sync(state, client, conversation_id)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:sync_conversations, client, consent_states}, _from, state) do
-    conversation_ids =
-      state.conversations
-      |> Map.values()
-      |> Enum.filter(&Filtering.member_of?(&1, client.inbox_id))
-      |> Enum.filter(fn conversation ->
-        Enum.empty?(consent_states) or conversation.consent_state in consent_states
-      end)
-      |> Enum.map(& &1.id)
-
-    next_state =
-      Enum.reduce(conversation_ids, state, fn conversation_id, acc ->
-        prune_expired_messages(acc, client.id, conversation_id)
-      end)
-
-    StatsServer.bump_api(state.runtime, :query_group_messages)
-    synced = length(conversation_ids)
-    {:reply, {:ok, %Types.SyncResult{synced: synced, eligible: synced}}, next_state}
+    {reply, next_state} = Conversations.sync_all(state, client, consent_states)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:apply_consent_records, records}, _from, state) do
-    next_state = Enum.reduce(records, state, &apply_consent_record(&2, &1))
-    {:reply, :ok, next_state}
+    {:reply, :ok, Consent.apply_records(state, records)}
   end
 
   def handle_call({:consent_for_group, group_id}, _from, state) do
-    case fetch_conversation(state, group_id) do
-      {:ok, conversation} -> {:reply, {:ok, conversation.consent_state}, state}
-      {:error, _} -> {:reply, {:ok, :unknown}, state}
-    end
+    {:reply, Consent.for_group(state, group_id), state}
   end
 
   def handle_call(
@@ -577,12 +429,8 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         _from,
         state
       ) do
-    reply = update_conv_field(state, client, conversation_id, field, value)
-
-    case reply do
-      {{:ok, conversation}, next_state} -> {:reply, {:ok, conversation}, next_state}
-      {{:error, error}, next_state} -> {:reply, {:error, error}, next_state}
-    end
+    {reply, next_state} = Conversations.update_field(state, client, conversation_id, field, value)
+    {:reply, reply, next_state}
   end
 
   def handle_call(
@@ -590,74 +438,56 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         _from,
         state
       ) do
-    case fetch_conversation(state, conversation_id) do
-      {:ok, conversation} ->
-        with {:ok, policy_field} <- Permissions.policy_field(update_type, metadata_field),
-             :ok <- Permissions.validate_policy(policy),
-             :ok <- Permissions.ensure(client, conversation, :manage_permissions, policy_field) do
-          policies =
-            Permissions.put_policy(conversation.permissions.policies, policy_field, policy)
+    {reply, next_state} =
+      Members.update_permission(
+        state,
+        client,
+        conversation_id,
+        update_type,
+        policy,
+        metadata_field
+      )
 
-          updated = %{
-            conversation
-            | permissions: %{conversation.permissions | policies: policies}
-          }
-
-          next_state =
-            put_in(state.conversations[conversation_id], updated)
-            |> emit_conversation_updated(client.id, updated)
-
-          {:reply, {:ok, updated}, next_state}
-        else
-          {:error, error} -> {:reply, {:error, error}, state}
-        end
-
-      {:error, error} ->
-        {:reply, {:error, error}, state}
-    end
+    {:reply, reply, next_state}
   end
 
   def handle_call({:list_admins, conversation_id}, _from, state) do
-    {:reply, fetch_conversation_field(state, conversation_id, :admins), state}
+    {:reply, Members.admins(state, conversation_id), state}
   end
 
   def handle_call({:list_super_admins, conversation_id}, _from, state) do
-    {:reply, fetch_conversation_field(state, conversation_id, :super_admins), state}
+    {:reply, Members.super_admins(state, conversation_id), state}
   end
 
   def handle_call({:is_admin, conversation_id, inbox_id}, _from, state) do
-    {:reply, boolean_conversation_field(state, conversation_id, :admins, inbox_id), state}
+    {:reply, Members.admin?(state, conversation_id, inbox_id), state}
   end
 
   def handle_call({:is_super_admin, conversation_id, inbox_id}, _from, state) do
-    {:reply, boolean_conversation_field(state, conversation_id, :super_admins, inbox_id), state}
+    {:reply, Members.super_admin?(state, conversation_id, inbox_id), state}
   end
 
   def handle_call({:mutate_members, client, conversation_id, inbox_ids, op}, _from, state) do
-    case mutate_members(state, client, conversation_id, inbox_ids, op) do
-      {{:ok, conversation}, next_state} -> {:reply, {:ok, conversation}, next_state}
-      {{:error, error}, next_state} -> {:reply, {:error, error}, next_state}
-    end
+    {reply, next_state} = Members.mutate_members(state, client, conversation_id, inbox_ids, op)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:mutate_admin, client, conversation_id, inbox_id, op}, _from, state) do
-    case mutate_admin(state, client, conversation_id, inbox_id, op) do
-      {{:ok, conversation}, next_state} -> {:reply, {:ok, conversation}, next_state}
-      {{:error, error}, next_state} -> {:reply, {:error, error}, next_state}
-    end
+    {reply, next_state} = Members.mutate_admin(state, client, conversation_id, inbox_id, op)
+    {:reply, reply, next_state}
   end
 
   def handle_call({:is_pending_removal, conversation_id}, _from, state) do
-    {:reply, fetch_boolean_field(state, conversation_id, :pending_removal), state}
+    {:reply, Conversations.fetch_field(state, conversation_id, :pending_removal), state}
   end
 
   def handle_call({:conversation_disappearing_settings, conversation_id}, _from, state) do
-    {:reply, fetch_conversation_field(state, conversation_id, :disappearing_settings), state}
+    {:reply, Conversations.fetch_field(state, conversation_id, :disappearing_settings), state}
   end
 
   def handle_call({:is_disappearing_enabled, conversation_id}, _from, state) do
     reply =
-      case fetch_conversation(state, conversation_id) do
+      case Conversations.fetch(state, conversation_id) do
         {:ok, conversation} -> {:ok, not is_nil(conversation.disappearing_settings)}
         {:error, error} -> {:error, error}
       end
@@ -666,7 +496,7 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   end
 
   def handle_call({:paused_for_version, conversation_id}, _from, state) do
-    {:reply, fetch_conversation_field(state, conversation_id, :paused_for_version), state}
+    {:reply, Conversations.fetch_field(state, conversation_id, :paused_for_version), state}
   end
 
   def handle_call({:hmac_keys, :all}, _from, state) do
@@ -677,29 +507,15 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
   end
 
   def handle_call({:hmac_keys, conversation_id}, _from, state) do
-    {:reply, fetch_conversation_field(state, conversation_id, :hmac_keys), state}
+    {:reply, Conversations.fetch_field(state, conversation_id, :hmac_keys), state}
   end
 
   def handle_call({:last_read_times, conversation_id}, _from, state) do
-    {:reply, fetch_conversation_field(state, conversation_id, :last_read_times), state}
+    {:reply, Conversations.fetch_field(state, conversation_id, :last_read_times), state}
   end
 
   def handle_call({:duplicate_dms, conversation_id}, _from, state) do
-    case fetch_conversation(state, conversation_id) do
-      {:ok, conversation} ->
-        duplicates =
-          state.conversations
-          |> Map.values()
-          |> Enum.filter(
-            &(&1.conversation_type == :dm and &1.id != conversation.id and
-                &1.metadata.creator_inbox_id == conversation.metadata.creator_inbox_id)
-          )
-
-        {:reply, {:ok, duplicates}, state}
-
-      {:error, error} ->
-        {:reply, {:error, error}, state}
-    end
+    {:reply, Conversations.duplicate_dms(state, conversation_id), state}
   end
 
   def handle_call(
@@ -707,448 +523,13 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
         _from,
         state
       ) do
-    with {:ok, conversation} <- fetch_conversation(state, conversation_id),
-         {:ok, content} <- ContentValidation.decode_streamed(envelope_bytes),
-         :ok <- ContentValidation.validate(content) do
-      {next_state, message} = append_message(state, client, conversation, content, :published)
-      StatsServer.bump_api(state.runtime, :query_group_messages)
-      {:reply, {:ok, [message]}, next_state}
-    else
-      {:error, error} -> {:reply, {:error, error}, state}
-    end
+    {reply, next_state} =
+      Messaging.process_streamed(state, client, conversation_id, envelope_bytes)
+
+    {:reply, reply, next_state}
   end
 
   def handle_call({:conversation_debug_info, conversation_id}, _from, state) do
-    case fetch_conversation(state, conversation_id) do
-      {:ok, conversation} ->
-        {:reply,
-         {:ok,
-          %Types.ConversationDebugInfo{
-            epoch: max(length(conversation.messages), 1),
-            maybe_forked: false,
-            fork_details: "",
-            is_commit_log_forked: nil,
-            local_commit_log: "local:#{conversation.id}",
-            remote_commit_log: "remote:#{conversation.id}",
-            cursor: [
-              %Types.Cursor{originator_id: 1, sequence_id: max(length(conversation.messages), 1)}
-            ]
-          }}, state}
-
-      {:error, error} ->
-        {:reply, {:error, error}, state}
-    end
-  end
-
-  defp fetch_conversation(state, conversation_id) do
-    case Map.fetch(state.conversations, conversation_id) do
-      {:ok, conversation} ->
-        {:ok, conversation}
-
-      :error ->
-        {:error, Error.not_found("conversation not found", %{conversation_id: conversation_id})}
-    end
-  end
-
-  defp fetch_conversation_field(state, conversation_id, field) do
-    case fetch_conversation(state, conversation_id) do
-      {:ok, conversation} -> {:ok, Map.get(conversation, field)}
-      {:error, error} -> {:error, error}
-    end
-  end
-
-  defp fetch_boolean_field(state, conversation_id, field) do
-    case fetch_conversation(state, conversation_id) do
-      {:ok, conversation} -> {:ok, Map.get(conversation, field)}
-      {:error, error} -> {:error, error}
-    end
-  end
-
-  defp boolean_conversation_field(state, conversation_id, field, value) do
-    case fetch_conversation(state, conversation_id) do
-      {:ok, conversation} -> {:ok, value in Map.get(conversation, field)}
-      {:error, error} -> {:error, error}
-    end
-  end
-
-  defp emit_conversation_created(state, client_id, conversation) do
-    Events.emit(state.runtime, {:conversations, client_id}, %Events.ConversationCreated{
-      conversation: conversation
-    })
-
-    Events.emit(state.runtime, {:conversation, conversation.id}, %Events.ConversationCreated{
-      conversation: conversation
-    })
-
-    state
-  end
-
-  defp emit_conversation_updated(state, client_id, conversation) do
-    Events.emit(state.runtime, {:conversations, client_id}, %Events.ConversationUpdated{
-      conversation: conversation
-    })
-
-    Events.emit(state.runtime, {:conversation, conversation.id}, %Events.ConversationUpdated{
-      conversation: conversation
-    })
-
-    state
-  end
-
-  defp resolve_inbox_id(_state, %Identifier{} = identifier), do: identifier.identifier
-  defp resolve_inbox_id(_state, inbox_id) when is_binary(inbox_id), do: inbox_id
-
-  defp index_conversation_messages(state, conversation) do
-    Enum.reduce(conversation.messages, state, fn message, acc ->
-      put_in(acc.message_index[message.id], message)
-    end)
-  end
-
-  defp append_message(state, client, conversation, content, delivery_status) do
-    message_id = "message-#{state.next_message_id}"
-    sent_at_ns = System.system_time(:nanosecond)
-
-    base =
-      MessageConstruction.build_message(
-        client,
-        conversation,
-        content,
-        message_id,
-        sent_at_ns,
-        delivery_status
-      )
-
-    {message, next_state} = attach_reply_and_reaction_state(state, conversation.id, base)
-    next_state = store_message(next_state, conversation.id, message)
-    next_state = maybe_update_last_read_times(next_state, conversation.id, message)
-    next_state = %{next_state | next_message_id: next_state.next_message_id + 1}
-
-    Events.emit(next_state.runtime, {:messages, client.id}, %Events.MessageCreated{
-      message: message
-    })
-
-    Events.emit(next_state.runtime, {:messages, conversation.id}, %Events.MessageCreated{
-      message: message
-    })
-
-    next_state =
-      if message.kind == :membership_change do
-        emit_conversation_updated(
-          next_state,
-          client.id,
-          Map.fetch!(next_state.conversations, conversation.id)
-        )
-      else
-        next_state
-      end
-
-    {next_state, message}
-  end
-
-  defp store_message(state, conversation_id, message) do
-    conversation = Map.fetch!(state.conversations, conversation_id)
-
-    updated = %{
-      conversation
-      | messages: conversation.messages ++ [message],
-        last_activity_ns: message.sent_at_ns
-    }
-
-    state = put_in(state.conversations[conversation_id], updated)
-    put_in(state.message_index[message.id], message)
-  end
-
-  defp append_system_message(state, client_id, conversation_id, message) do
-    next_state = store_message(state, conversation_id, message)
-
-    Events.emit(next_state.runtime, {:messages, client_id}, %Events.MessageCreated{
-      message: message
-    })
-
-    Events.emit(next_state.runtime, {:messages, conversation_id}, %Events.MessageCreated{
-      message: message
-    })
-
-    next_state
-  end
-
-  defp attach_reply_and_reaction_state(
-         state,
-         conversation_id,
-         %Message{content: %Content.Reaction{reference: reference}} = message
-       ) do
-    updated_state =
-      update_message_relationship(state, conversation_id, reference, fn target ->
-        %{target | reactions: target.reactions ++ [message]}
-      end)
-
-    {message, updated_state}
-  end
-
-  defp attach_reply_and_reaction_state(
-         state,
-         conversation_id,
-         %Message{content: %Content.Reply{reference: reference}} = message
-       ) do
-    updated_state =
-      update_message_relationship(state, conversation_id, reference, fn target ->
-        %{target | num_replies: target.num_replies + 1}
-      end)
-
-    referenced = Map.get(updated_state.message_index, reference)
-
-    reply_content =
-      if referenced, do: %{message.content | in_reply_to: referenced}, else: message.content
-
-    {%{message | content: reply_content, fallback: Content.fallback_for(reply_content)},
-     updated_state}
-  end
-
-  defp attach_reply_and_reaction_state(state, _conversation_id, message), do: {message, state}
-
-  defp update_message_relationship(state, conversation_id, reference_id, updater) do
-    conversation = Map.fetch!(state.conversations, conversation_id)
-
-    case Enum.find_index(conversation.messages, &(&1.id == reference_id)) do
-      nil ->
-        state
-
-      index ->
-        original = Enum.at(conversation.messages, index)
-        updated = updater.(original)
-        updated_messages = List.replace_at(conversation.messages, index, updated)
-        state = put_in(state.conversations[conversation_id].messages, updated_messages)
-        put_in(state.message_index[reference_id], updated)
-    end
-  end
-
-  defp prune_expired_messages(state, client_id, conversation_id) do
-    case Map.fetch(state.conversations, conversation_id) do
-      {:ok, conversation} ->
-        now = System.system_time(:nanosecond)
-
-        {expired, kept} =
-          Enum.split_with(conversation.messages, &MessageConstruction.expired?(&1, now))
-
-        if expired == [] do
-          state
-        else
-          updated = %{conversation | messages: kept}
-          next_state = put_in(state.conversations[conversation_id], updated)
-
-          next_state =
-            Enum.reduce(expired, next_state, fn message, acc ->
-              put_in(acc.message_index[message.id], nil)
-            end)
-
-          event = %Events.MessageDeleted{
-            messages: expired,
-            message_ids: Enum.map(expired, & &1.id)
-          }
-
-          Events.emit(next_state.runtime, {:deleted_messages, client_id}, event)
-          next_state
-        end
-
-      :error ->
-        state
-    end
-  end
-
-  defp maybe_update_last_read_times(state, conversation_id, %Message{
-         content: %Content.ReadReceipt{},
-         sender_inbox_id: inbox_id,
-         sent_at_ns: sent_at_ns
-       }) do
-    update_in(state.conversations[conversation_id], fn
-      nil ->
-        nil
-
-      conversation ->
-        updated_last_read_times =
-          case Enum.find_index(conversation.last_read_times, &(&1.inbox_id == inbox_id)) do
-            nil ->
-              conversation.last_read_times ++
-                [%LastReadTime{inbox_id: inbox_id, timestamp_ns: sent_at_ns}]
-
-            index ->
-              List.update_at(
-                conversation.last_read_times,
-                index,
-                &%{&1 | timestamp_ns: sent_at_ns}
-              )
-          end
-
-        %{conversation | last_read_times: updated_last_read_times}
-    end)
-  end
-
-  defp maybe_update_last_read_times(state, _conversation_id, _message), do: state
-
-  defp apply_consent_record(state, record) do
-    entity = Map.get(record, :group_id) || Map.get(record, :entity)
-    state_value = Map.get(record, :state, :unknown)
-
-    cond do
-      Map.has_key?(state.conversations, entity) ->
-        update_in(state.conversations[entity], fn conversation ->
-          %{conversation | consent_state: state_value}
-        end)
-
-      is_binary(entity) ->
-        update_conversation_members_by_inbox(state, entity, fn member ->
-          %{member | consent_state: state_value}
-        end)
-
-      true ->
-        state
-    end
-  end
-
-  defp update_conversation_members_by_inbox(state, inbox_id, updater) do
-    conversations =
-      Enum.into(state.conversations, %{}, fn {id, conversation} ->
-        updated_members =
-          Enum.map(conversation.members, fn member ->
-            if member.inbox_id == inbox_id, do: updater.(member), else: member
-          end)
-
-        {id, %{conversation | members: updated_members}}
-      end)
-
-    %{state | conversations: conversations}
-  end
-
-  defp update_conv_field(state, client, conversation_id, field, value) do
-    with {:ok, conversation} <- fetch_conversation(state, conversation_id),
-         :ok <-
-           Permissions.ensure(
-             client,
-             conversation,
-             Permissions.action_for_field(field),
-             Permissions.metadata_field_for_update(field)
-           ) do
-      old_value = Map.get(conversation, field)
-
-      updated = %{
-        Map.put(conversation, field, value)
-        | last_activity_ns: System.system_time(:nanosecond)
-      }
-
-      next_state = put_in(state.conversations[conversation_id], updated)
-
-      next_state =
-        case Permissions.action_for_field(field) do
-          nil ->
-            next_state
-
-          _ ->
-            append_system_message(
-              next_state,
-              client.id,
-              conversation_id,
-              MessageConstruction.build_group_update_message_for_field(
-                updated,
-                client,
-                Permissions.metadata_field_for_update(field),
-                old_value,
-                value
-              )
-            )
-        end
-
-      next_state = emit_conversation_updated(next_state, client.id, updated)
-      {{:ok, updated}, next_state}
-    else
-      {:error, error} -> {{:error, error}, state}
-    end
-  end
-
-  defp mutate_members(state, client, conversation_id, inbox_ids, op) do
-    with {:ok, conversation} <- fetch_conversation(state, conversation_id),
-         :ok <- Permissions.ensure(client, conversation, op, nil) do
-      {members, added_inboxes, removed_inboxes} =
-        case op do
-          :add ->
-            new_members =
-              Enum.map(inbox_ids, fn inbox_id ->
-                %GroupMember{
-                  inbox_id: inbox_id,
-                  account_identifiers: [inbox_id],
-                  installation_ids: [],
-                  permission_level: :member,
-                  consent_state: :unknown
-                }
-              end)
-
-            {Enum.uniq_by(conversation.members ++ new_members, & &1.inbox_id), new_members, []}
-
-          :remove ->
-            removed = Enum.filter(conversation.members, &(&1.inbox_id in inbox_ids))
-            remaining = Enum.reject(conversation.members, &(&1.inbox_id in inbox_ids))
-            {remaining, [], removed}
-        end
-
-      updated =
-        %{conversation | members: members, last_activity_ns: System.system_time(:nanosecond)}
-        |> Permissions.update_admin_lists_after_member_change()
-
-      next_state = put_in(state.conversations[conversation_id], updated)
-
-      next_state =
-        append_system_message(
-          next_state,
-          client.id,
-          conversation_id,
-          MessageConstruction.build_group_update_message(
-            updated,
-            added_inboxes,
-            removed_inboxes,
-            []
-          )
-        )
-
-      next_state = emit_conversation_updated(next_state, client.id, updated)
-      {{:ok, updated}, next_state}
-    else
-      {:error, error} -> {{:error, error}, state}
-    end
-  end
-
-  defp mutate_admin(state, client, conversation_id, inbox_id, op) do
-    with {:ok, conversation} <- fetch_conversation(state, conversation_id),
-         :ok <- Permissions.ensure(client, conversation, op, nil) do
-      {admins, super_admins} =
-        case op do
-          :add_admin ->
-            {Enum.uniq([inbox_id | conversation.admins]), conversation.super_admins}
-
-          :remove_admin ->
-            {Enum.reject(conversation.admins, &(&1 == inbox_id)), conversation.super_admins}
-
-          :add_super_admin ->
-            {conversation.admins, Enum.uniq([inbox_id | conversation.super_admins])}
-
-          :remove_super_admin ->
-            {conversation.admins, Enum.reject(conversation.super_admins, &(&1 == inbox_id))}
-        end
-
-      updated =
-        %{
-          conversation
-          | admins: admins,
-            super_admins: super_admins,
-            last_activity_ns: System.system_time(:nanosecond)
-        }
-        |> Permissions.update_admin_lists_after_member_change()
-
-      next_state =
-        put_in(state.conversations[conversation_id], updated)
-        |> emit_conversation_updated(client.id, updated)
-
-      {{:ok, updated}, next_state}
-    else
-      {:error, error} -> {{:error, error}, state}
-    end
+    {:reply, Conversations.debug_info(state, conversation_id), state}
   end
 end

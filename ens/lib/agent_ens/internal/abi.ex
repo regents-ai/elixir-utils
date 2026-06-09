@@ -107,49 +107,48 @@ defmodule AgentEns.Internal.ABI do
       String.duplicate("0", rem(64 - rem(byte_size(hex), 64), 64))
   end
 
-  defp encode_args(args) do
-    {head, tail, _dynamic_words} =
-      Enum.reduce(args, {"", "", length(args)}, fn
-        {:uint256, value}, {head, tail, dynamic_words} ->
-          {head <> uint256_word(value), tail, dynamic_words}
+  defp encode_args(args), do: encode_args(args, "", "", length(args))
 
-        {:bytes32, value}, {head, tail, dynamic_words} ->
-          case bytes32_word(value) do
-            {:ok, word} -> {head <> word, tail, dynamic_words}
-            {:error, error} -> throw({:error, error})
-          end
+  defp encode_args([], head, tail, _dynamic_words), do: {:ok, head <> tail}
 
-        {:address, value}, {head, tail, dynamic_words} ->
-          case address_word(value) do
-            {:ok, word} -> {head <> word, tail, dynamic_words}
-            {:error, error} -> throw({:error, error})
-          end
+  defp encode_args([{:uint256, value} | rest], head, tail, dynamic_words) do
+    encode_args(rest, head <> uint256_word(value), tail, dynamic_words)
+  end
 
-        {:bytes4, value}, {head, tail, dynamic_words} ->
-          case bytes4_word(value) do
-            {:ok, word} -> {head <> word, tail, dynamic_words}
-            {:error, error} -> throw({:error, error})
-          end
+  defp encode_args([{:bytes32, value} | rest], head, tail, dynamic_words) do
+    with {:ok, word} <- bytes32_word(value) do
+      encode_args(rest, head <> word, tail, dynamic_words)
+    end
+  end
 
-        {:string, value}, {head, tail, dynamic_words} ->
-          encoded_tail = string_tail(value)
-          offset_bytes = dynamic_words * 32
-          new_words = dynamic_words + div(byte_size(encoded_tail), 64)
-          {head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words}
+  defp encode_args([{:address, value} | rest], head, tail, dynamic_words) do
+    with {:ok, word} <- address_word(value) do
+      encode_args(rest, head <> word, tail, dynamic_words)
+    end
+  end
 
-        {:bytes, value}, {head, tail, dynamic_words} when is_binary(value) ->
-          encoded_tail = bytes_tail(value)
-          offset_bytes = dynamic_words * 32
-          new_words = dynamic_words + div(byte_size(encoded_tail), 64)
-          {head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words}
+  defp encode_args([{:bytes4, value} | rest], head, tail, dynamic_words) do
+    with {:ok, word} <- bytes4_word(value) do
+      encode_args(rest, head <> word, tail, dynamic_words)
+    end
+  end
 
-        invalid, _acc ->
-          throw({:error, Error.new({:abi_error, {:unsupported_arg, invalid}})})
-      end)
+  defp encode_args([{:string, value} | rest], head, tail, dynamic_words) do
+    encode_dynamic_arg(string_tail(value), rest, head, tail, dynamic_words)
+  end
 
-    {:ok, head <> tail}
-  catch
-    {:error, %Error{} = error} -> {:error, error}
+  defp encode_args([{:bytes, value} | rest], head, tail, dynamic_words) when is_binary(value) do
+    encode_dynamic_arg(bytes_tail(value), rest, head, tail, dynamic_words)
+  end
+
+  defp encode_args([invalid | _rest], _head, _tail, _dynamic_words) do
+    {:error, Error.new({:abi_error, {:unsupported_arg, invalid}})}
+  end
+
+  defp encode_dynamic_arg(encoded_tail, rest, head, tail, dynamic_words) do
+    offset_bytes = dynamic_words * 32
+    new_words = dynamic_words + div(byte_size(encoded_tail), 64)
+    encode_args(rest, head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words)
   end
 
   defp read_word(payload, offset) do

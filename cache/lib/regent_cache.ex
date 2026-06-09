@@ -22,6 +22,14 @@ defmodule RegentCache do
     :exit, reason -> {:error, reason}
   end
 
+  @doc """
+  Returns the cached value for `key`, or invokes `fun` to load and cache it.
+
+  On a cache miss, `fun` is called. A `{:ok, value}` result is cached for
+  `ttl_seconds` and returned. An `{:error, reason}` result is returned as-is
+  and is deliberately NOT cached, so a transient loader failure never poisons
+  the cache — the next call invokes the loader again.
+  """
   @spec fetch(cache_name(), String.t(), pos_integer(), (-> {:ok, term()} | {:error, term()})) ::
           {:ok, term()} | {:error, term()}
   def fetch(cache_name, key, ttl_seconds, fun)

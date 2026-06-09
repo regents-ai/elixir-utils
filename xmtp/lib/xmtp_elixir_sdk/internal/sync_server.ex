@@ -8,6 +8,9 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   alias XmtpElixirSdk.Internal.Names
   alias XmtpElixirSdk.Types
 
+  # Matches the native bridge request timeout used elsewhere in the SDK.
+  @call_timeout 30_000
+
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     name = Keyword.fetch!(opts, :name)
@@ -16,11 +19,15 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   end
 
   @spec reset!(XmtpElixirSdk.Runtime.t() | XmtpElixirSdk.Client.t() | atom()) :: :ok
-  def reset!(runtime), do: GenServer.call(Names.sync_server(runtime), :reset)
+  def reset!(runtime), do: GenServer.call(Names.sync_server(runtime), :reset, @call_timeout)
 
   @spec send_sync_request(XmtpElixirSdk.Client.t(), Types.ArchiveOptions.t(), String.t()) :: :ok
   def send_sync_request(client, options, server_url) do
-    GenServer.call(Names.sync_server(client), {:send_sync_request, client, options, server_url})
+    GenServer.call(
+      Names.sync_server(client),
+      {:send_sync_request, client, options, server_url},
+      @call_timeout
+    )
   end
 
   @spec send_sync_archive(
@@ -34,38 +41,55 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   def send_sync_archive(client, pin, options, server_url, conversations) do
     GenServer.call(
       Names.sync_server(client),
-      {:send_sync_archive, client, pin, options, server_url, conversations}
+      {:send_sync_archive, client, pin, options, server_url, conversations},
+      @call_timeout
     )
   end
 
   @spec process_sync_archive(XmtpElixirSdk.Client.t(), String.t() | nil) ::
           {:ok, [term()]} | {:error, Error.t()}
   def process_sync_archive(client, archive_pin) do
-    GenServer.call(Names.sync_server(client), {:process_sync_archive, client, archive_pin})
+    GenServer.call(
+      Names.sync_server(client),
+      {:process_sync_archive, client, archive_pin},
+      @call_timeout
+    )
   end
 
   @spec list_available_archives(XmtpElixirSdk.Client.t(), non_neg_integer()) ::
           {:ok, [Types.AvailableArchiveInfo.t()]}
   def list_available_archives(client, days_cutoff) do
-    GenServer.call(Names.sync_server(client), {:list_available_archives, client, days_cutoff})
+    GenServer.call(
+      Names.sync_server(client),
+      {:list_available_archives, client, days_cutoff},
+      @call_timeout
+    )
   end
 
   @spec create_archive(XmtpElixirSdk.Client.t(), binary(), Types.ArchiveOptions.t(), list()) ::
           {:ok, binary()}
   def create_archive(client, key, opts, conversations) do
-    GenServer.call(Names.sync_server(client), {:create_archive, client, key, opts, conversations})
+    GenServer.call(
+      Names.sync_server(client),
+      {:create_archive, client, key, opts, conversations},
+      @call_timeout
+    )
   end
 
   @spec import_archive(XmtpElixirSdk.Client.t(), binary(), binary()) ::
           {:ok, [term()]} | {:error, Error.t()}
   def import_archive(client, data, key) do
-    GenServer.call(Names.sync_server(client), {:import_archive, client, data, key})
+    GenServer.call(Names.sync_server(client), {:import_archive, client, data, key}, @call_timeout)
   end
 
   @spec archive_metadata(XmtpElixirSdk.Client.t(), binary(), binary()) ::
           {:ok, Types.ArchiveMetadata.t()} | {:error, Error.t()}
   def archive_metadata(client, data, key) do
-    GenServer.call(Names.sync_server(client), {:archive_metadata, client, data, key})
+    GenServer.call(
+      Names.sync_server(client),
+      {:archive_metadata, client, data, key},
+      @call_timeout
+    )
   end
 
   @spec sync_all_device_sync_groups(XmtpElixirSdk.Client.t(), list()) ::
@@ -73,7 +97,8 @@ defmodule XmtpElixirSdk.Internal.SyncServer do
   def sync_all_device_sync_groups(client, conversations) do
     GenServer.call(
       Names.sync_server(client),
-      {:sync_all_device_sync_groups, client, conversations}
+      {:sync_all_device_sync_groups, client, conversations},
+      @call_timeout
     )
   end
 

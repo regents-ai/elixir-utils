@@ -436,23 +436,23 @@ defmodule XmtpElixirSdk.Internal.IdentityServer do
 
   defp identifier_key(other), do: inspect(other)
 
-  defp preference_update_from_consent_record(record) do
+  # Only normalized consent records (see `normalize_consent_record/1`) reach
+  # this function, so the two normalized shapes are exhaustive.
+  defp preference_update_from_consent_record(%{group_id: group_id, state: state})
+       when is_binary(group_id) do
     %Types.PreferenceUpdate{
       kind: :consent,
-      consent: %Types.ConsentUpdate{
-        entity_type: consent_entity_type(record),
-        state: Map.get(record, :state, :unknown),
-        entity: consent_entity(record)
-      }
+      consent: %Types.ConsentUpdate{entity_type: :group_id, state: state, entity: group_id}
     }
   end
 
-  defp consent_entity_type(%{group_id: group_id}) when is_binary(group_id), do: :group_id
-  defp consent_entity_type(_record), do: :inbox_id
-
-  defp consent_entity(%{group_id: group_id}) when is_binary(group_id), do: group_id
-  defp consent_entity(%{entity: entity}) when is_binary(entity), do: entity
-  defp consent_entity(_record), do: raise(ArgumentError, "invalid consent record")
+  defp preference_update_from_consent_record(%{entity: entity, state: state})
+       when is_binary(entity) do
+    %Types.PreferenceUpdate{
+      kind: :consent,
+      consent: %Types.ConsentUpdate{entity_type: :inbox_id, state: state, entity: entity}
+    }
+  end
 
   defp normalize_consent_records(records) when is_list(records) do
     Enum.reduce_while(records, {:ok, []}, fn record, {:ok, acc} ->

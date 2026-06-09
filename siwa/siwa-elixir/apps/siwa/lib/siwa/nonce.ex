@@ -125,7 +125,9 @@ defmodule Siwa.Nonce do
     {:ok, encoded_body <> "." <> mac}
   end
 
-  def verify_nonce_token(token, opts \\ []) do
+  def verify_nonce_token(token, opts \\ [])
+
+  def verify_nonce_token(token, opts) when is_binary(token) do
     secret =
       Keyword.get_lazy(opts, :nonce_secret, fn ->
         Keyword.get_lazy(opts, :secret, fn -> Application.fetch_env!(:siwa, :nonce_secret) end)
@@ -136,15 +138,46 @@ defmodule Siwa.Nonce do
       |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
       |> DateTime.to_unix(:millisecond)
 
-    with [encoded_body, mac] <- String.split(token, ".", parts: 2),
-         expected <-
-           :crypto.mac(:hmac, :sha256, secret, encoded_body) |> Base.url_encode64(padding: false),
-         true <- Plug.Crypto.secure_compare(expected, mac),
-         {:ok, body} <- Base.url_decode64(encoded_body, padding: false),
-         {:ok, payload} <- Jason.decode(body),
-         true <- payload["exp"] >= now_ms do
+    with {:ok, encoded_body, mac} <- split_nonce_token(token),
+         :ok <- verify_nonce_token_mac(encoded_body, mac, secret),
+         {:ok, payload} <- decode_nonce_token_payload(encoded_body),
+         :ok <- check_nonce_token_expiration(payload, now_ms) do
+      {:ok, payload}
+    end
+  end
+
+  def verify_nonce_token(_token, _opts), do: {:error, :invalid_nonce_token}
+
+  defp split_nonce_token(token) do
+    case String.split(token, ".") do
+      [encoded_body, mac] when encoded_body != "" and mac != "" -> {:ok, encoded_body, mac}
+      _ -> {:error, :invalid_nonce_token}
+    end
+  end
+
+  defp verify_nonce_token_mac(encoded_body, mac, secret) do
+    expected =
+      :crypto.mac(:hmac, :sha256, secret, encoded_body) |> Base.url_encode64(padding: false)
+
+    if Plug.Crypto.secure_compare(expected, mac) do
+      :ok
+    else
+      {:error, :invalid_nonce_token}
+    end
+  end
+
+  defp decode_nonce_token_payload(encoded_body) do
+    with {:ok, body} <- Base.url_decode64(encoded_body, padding: false),
+         {:ok, payload} when is_map(payload) <- Jason.decode(body) do
       {:ok, payload}
     else
+      _ -> {:error, :invalid_nonce_token}
+    end
+  end
+
+  defp check_nonce_token_expiration(payload, now_ms) do
+    case payload do
+      %{"exp" => exp} when is_integer(exp) and exp >= now_ms -> :ok
       _ -> {:error, :invalid_nonce_token}
     end
   end

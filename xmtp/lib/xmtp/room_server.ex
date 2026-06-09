@@ -10,6 +10,8 @@ defmodule Xmtp.RoomServer do
 
   use GenServer
 
+  require Logger
+
   import Ecto.Query, warn: false
 
   alias Xmtp.Log
@@ -66,7 +68,7 @@ defmodule Xmtp.RoomServer do
         clients_by_wallet: %{},
         pending_signatures: %{}
       }
-      |> restore_state!()
+      |> restore_state()
 
     schedule_presence_tick(state)
     {:ok, state}
@@ -246,7 +248,7 @@ defmodule Xmtp.RoomServer do
     case bootstrap_room(state, reuse?) do
       {:ok, room_info} ->
         :ok = XmtpElixirSdk.Runtime.reset!(state.runtime_name)
-        next_state = restore_state!(state)
+        next_state = restore_state(state)
         {:reply, {:ok, room_info}, next_state}
 
       {:error, reason} ->
@@ -336,23 +338,27 @@ defmodule Xmtp.RoomServer do
     {:noreply, state}
   end
 
-  defp restore_state!(state) do
-    case restore_state(state) do
+  defp restore_state(state) do
+    case load_room_state(state) do
       {:ok, next_state} ->
         next_state
 
-      {:error, :agent_private_key_missing} ->
-        unavailable_state(state, :room_unavailable)
-
-      {:error, :room_not_bootstrapped} ->
-        unavailable_state(state, :room_unavailable)
-
       {:error, reason} ->
-        raise "XMTP room agent failed to start for #{state.definition.key}: #{inspect(reason)}"
+        log_unavailable(state, reason)
+        unavailable_state(state, reason)
     end
   end
 
-  defp restore_state(state) do
+  defp log_unavailable(state, reason)
+       when reason in [:agent_private_key_missing, :room_not_bootstrapped] do
+    Logger.info("XMTP room #{state.definition.key} starting unavailable: #{inspect(reason)}")
+  end
+
+  defp log_unavailable(state, reason) do
+    Logger.warning("XMTP room #{state.definition.key} starting unavailable: #{inspect(reason)}")
+  end
+
+  defp load_room_state(state) do
     repo = state.repo
 
     with {:ok, private_key} <- configured_private_key(state),

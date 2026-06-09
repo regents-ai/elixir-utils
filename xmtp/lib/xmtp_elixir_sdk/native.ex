@@ -12,14 +12,20 @@ defmodule XmtpElixirSdk.Native do
 
   @type runtime :: XmtpElixirSdk.Runtime.t() | atom()
 
-  @spec libxmtp_version(runtime()) :: {:ok, String.t()} | {:error, Error.t()}
+  @typedoc """
+  Native request error: a structured SDK error, or `:bridge_down` when the
+  supervised native bridge process is not currently running.
+  """
+  @type error :: Error.t() | :bridge_down
+
+  @spec libxmtp_version(runtime()) :: {:ok, String.t()} | {:error, error()}
   def libxmtp_version(runtime) do
     with {:ok, %{"version" => version}} <- request(runtime, "libxmtp_version") do
       {:ok, version}
     end
   end
 
-  @spec create_client(runtime(), keyword()) :: {:ok, Client.t()} | {:error, Error.t()}
+  @spec create_client(runtime(), keyword()) :: {:ok, Client.t()} | {:error, error()}
   def create_client(runtime, opts) do
     runtime = Names.runtime_name(runtime)
 
@@ -29,7 +35,7 @@ defmodule XmtpElixirSdk.Native do
   end
 
   @spec build_existing_client(runtime(), String.t(), keyword()) ::
-          {:ok, Client.t()} | {:error, Error.t()}
+          {:ok, Client.t()} | {:error, error()}
   def build_existing_client(runtime, address, opts \\ []) when is_binary(address) do
     runtime = Names.runtime_name(runtime)
     params = opts |> native_client_params() |> Map.put(:address, normalize_address(address))
@@ -39,14 +45,14 @@ defmodule XmtpElixirSdk.Native do
     end
   end
 
-  @spec close_client(Client.t()) :: :ok | {:error, Error.t()}
+  @spec close_client(Client.t()) :: :ok | {:error, error()}
   def close_client(%Client{} = client) do
     with {:ok, _result} <- request(client.runtime, "close_client", %{client_id: client.id}) do
       :ok
     end
   end
 
-  @spec can_message(Client.t(), [String.t()]) :: {:ok, map()} | {:error, Error.t()}
+  @spec can_message(Client.t(), [String.t()]) :: {:ok, map()} | {:error, error()}
   def can_message(%Client{} = client, addresses) when is_list(addresses) do
     request(client.runtime, "can_message", %{
       client_id: client.id,
@@ -54,7 +60,7 @@ defmodule XmtpElixirSdk.Native do
     })
   end
 
-  @spec inbox_id_for(Client.t(), String.t()) :: {:ok, String.t() | nil} | {:error, Error.t()}
+  @spec inbox_id_for(Client.t(), String.t()) :: {:ok, String.t() | nil} | {:error, error()}
   def inbox_id_for(%Client{} = client, address) when is_binary(address) do
     with {:ok, %{"inbox_id" => inbox_id}} <-
            request(client.runtime, "inbox_id_for", %{
@@ -65,7 +71,7 @@ defmodule XmtpElixirSdk.Native do
     end
   end
 
-  @spec create_dm(Client.t(), String.t()) :: {:ok, Conversation.t()} | {:error, Error.t()}
+  @spec create_dm(Client.t(), String.t()) :: {:ok, Conversation.t()} | {:error, error()}
   def create_dm(%Client{} = client, recipient) when is_binary(recipient) do
     with {:ok, %{"conversation" => record}} <-
            request(client.runtime, "create_dm", %{
@@ -77,7 +83,7 @@ defmodule XmtpElixirSdk.Native do
   end
 
   @spec create_group(Client.t(), [String.t()], keyword()) ::
-          {:ok, Conversation.t()} | {:error, Error.t()}
+          {:ok, Conversation.t()} | {:error, error()}
   def create_group(%Client{} = client, members, opts \\ []) when is_list(members) do
     params =
       %{}
@@ -93,7 +99,7 @@ defmodule XmtpElixirSdk.Native do
   end
 
   @spec get_conversation(Client.t(), String.t()) ::
-          {:ok, Conversation.t() | nil} | {:error, Error.t()}
+          {:ok, Conversation.t() | nil} | {:error, error()}
   def get_conversation(%Client{} = client, conversation_id) when is_binary(conversation_id) do
     with {:ok, %{"conversation" => record}} <-
            request(client.runtime, "get_conversation", %{
@@ -108,7 +114,7 @@ defmodule XmtpElixirSdk.Native do
   end
 
   @spec list_conversations(Client.t(), keyword()) ::
-          {:ok, [Conversation.t()]} | {:error, Error.t()}
+          {:ok, [Conversation.t()]} | {:error, error()}
   def list_conversations(%Client{} = client, opts \\ []) do
     params =
       %{}
@@ -122,16 +128,16 @@ defmodule XmtpElixirSdk.Native do
     end
   end
 
-  @spec sync_all(Client.t()) :: {:ok, map()} | {:error, Error.t()}
+  @spec sync_all(Client.t()) :: {:ok, map()} | {:error, error()}
   def sync_all(%Client{} = client),
     do: request(client.runtime, "sync_all", %{client_id: client.id})
 
-  @spec sync_conversation(Conversation.t()) :: {:ok, map()} | {:error, Error.t()}
+  @spec sync_conversation(Conversation.t()) :: {:ok, map()} | {:error, error()}
   def sync_conversation(%Conversation{} = conversation) do
     request(conversation.runtime, "sync_conversation", %{conversation_id: conversation.id})
   end
 
-  @spec send_text(Conversation.t(), String.t()) :: {:ok, String.t()} | {:error, Error.t()}
+  @spec send_text(Conversation.t(), String.t()) :: {:ok, String.t()} | {:error, error()}
   def send_text(%Conversation{} = conversation, text) when is_binary(text) do
     with {:ok, %{"message_id" => message_id}} <-
            request(conversation.runtime, "send_text", %{
@@ -142,7 +148,7 @@ defmodule XmtpElixirSdk.Native do
     end
   end
 
-  @spec count_messages(Conversation.t()) :: {:ok, non_neg_integer()} | {:error, Error.t()}
+  @spec count_messages(Conversation.t()) :: {:ok, non_neg_integer()} | {:error, error()}
   def count_messages(%Conversation{} = conversation) do
     with {:ok, %{"count" => count}} <-
            request(conversation.runtime, "count_messages", %{conversation_id: conversation.id}) do
@@ -150,7 +156,7 @@ defmodule XmtpElixirSdk.Native do
     end
   end
 
-  @spec members(Conversation.t()) :: {:ok, [map()]} | {:error, Error.t()}
+  @spec members(Conversation.t()) :: {:ok, [map()]} | {:error, error()}
   def members(%Conversation{} = conversation) do
     with {:ok, %{"members" => members}} <-
            request(conversation.runtime, "members", %{conversation_id: conversation.id}) do
@@ -158,7 +164,7 @@ defmodule XmtpElixirSdk.Native do
     end
   end
 
-  @spec list_messages(Conversation.t(), keyword()) :: {:ok, [map()]} | {:error, Error.t()}
+  @spec list_messages(Conversation.t(), keyword()) :: {:ok, [map()]} | {:error, error()}
   def list_messages(%Conversation{} = conversation, opts \\ []) do
     params =
       %{}
@@ -172,7 +178,7 @@ defmodule XmtpElixirSdk.Native do
     end
   end
 
-  @spec request(runtime(), String.t(), map()) :: {:ok, map()} | {:error, Error.t()}
+  @spec request(runtime(), String.t(), map()) :: {:ok, map()} | {:error, error()}
   def request(runtime, op, params \\ %{}) do
     runtime
     |> Names.native_port()

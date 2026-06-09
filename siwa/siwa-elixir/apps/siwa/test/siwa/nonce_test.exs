@@ -175,6 +175,126 @@ defmodule Siwa.NonceTest do
     assert Enum.count(results, &match?({:error, :nonce_already_used}, &1)) == 19
   end
 
+  describe "verify_nonce_token/2" do
+    @nonce_secret "nonce-secret"
+
+    defp issued_token do
+      {:ok, issued} =
+        Siwa.Nonce.issue(
+          %{
+            address: "0x123",
+            agent_id: 9,
+            agent_registry: "eip155:8453:0xregistry",
+            audience: "techtree"
+          },
+          nonce_secret: @nonce_secret
+        )
+
+      issued.nonce_token
+    end
+
+    test "verifies a valid token" do
+      token = issued_token()
+
+      assert {:ok, payload} = Siwa.Nonce.verify_nonce_token(token, nonce_secret: @nonce_secret)
+      assert payload["address"] == "0x123"
+      assert payload["agent_id"] == 9
+      assert payload["agent_registry"] == "eip155:8453:0xregistry"
+      assert payload["audience"] == "techtree"
+      assert is_integer(payload["exp"])
+    end
+
+    test "rejects tokens with extra dot segments" do
+      token = issued_token()
+      [encoded_body, mac] = String.split(token, ".")
+
+      for bad <- [
+            token <> ".extra",
+            encoded_body <> ".." <> mac,
+            encoded_body <> ".extra." <> mac
+          ] do
+        assert {:error, :invalid_nonce_token} =
+                 Siwa.Nonce.verify_nonce_token(bad, nonce_secret: @nonce_secret)
+      end
+    end
+
+    test "rejects tokens with empty segments" do
+      token = issued_token()
+      [encoded_body, mac] = String.split(token, ".")
+
+      for bad <- ["." <> mac, encoded_body <> ".", ".", "", encoded_body] do
+        assert {:error, :invalid_nonce_token} =
+                 Siwa.Nonce.verify_nonce_token(bad, nonce_secret: @nonce_secret)
+      end
+    end
+
+    test "rejects tokens with a tampered MAC" do
+      token = issued_token()
+      [encoded_body, mac] = String.split(token, ".")
+
+      flipped =
+        case mac do
+          "A" <> rest -> "B" <> rest
+          <<_first, rest::binary>> -> "A" <> rest
+        end
+
+      assert {:error, :invalid_nonce_token} =
+               Siwa.Nonce.verify_nonce_token(encoded_body <> "." <> flipped,
+                 nonce_secret: @nonce_secret
+               )
+    end
+
+    test "rejects tokens signed with a different secret" do
+      token = issued_token()
+
+      assert {:error, :invalid_nonce_token} =
+               Siwa.Nonce.verify_nonce_token(token, nonce_secret: "other-secret")
+    end
+
+    test "rejects expired tokens" do
+      token = issued_token()
+      future = DateTime.add(DateTime.utc_now(), 6 * 60, :second)
+
+      assert {:error, :invalid_nonce_token} =
+               Siwa.Nonce.verify_nonce_token(token, nonce_secret: @nonce_secret, now: future)
+    end
+
+    test "rejects tokens without an integer exp claim" do
+      for payload <- [%{"nonce" => "n"}, %{"nonce" => "n", "exp" => "9999999999999"}] do
+        {:ok, token} = Siwa.Nonce.create_nonce_token(payload, nonce_secret: @nonce_secret)
+
+        assert {:error, :invalid_nonce_token} =
+                 Siwa.Nonce.verify_nonce_token(token, nonce_secret: @nonce_secret)
+      end
+    end
+
+    test "rejects tokens whose body is not base64-encoded JSON" do
+      mac_for = fn encoded_body ->
+        :crypto.mac(:hmac, :sha256, @nonce_secret, encoded_body)
+        |> Base.url_encode64(padding: false)
+      end
+
+      not_base64 = "!!!not-base64!!!"
+      not_json = Base.url_encode64("not json", padding: false)
+      not_map = Base.url_encode64(Jason.encode!([1, 2, 3]), padding: false)
+
+      for encoded_body <- [not_base64, not_json, not_map] do
+        token = encoded_body <> "." <> mac_for.(encoded_body)
+
+        assert {:error, :invalid_nonce_token} =
+                 Siwa.Nonce.verify_nonce_token(token, nonce_secret: @nonce_secret)
+      end
+    end
+
+    test "rejects non-binary tokens" do
+      assert {:error, :invalid_nonce_token} =
+               Siwa.Nonce.verify_nonce_token(nil, nonce_secret: @nonce_secret)
+
+      assert {:error, :invalid_nonce_token} =
+               Siwa.Nonce.verify_nonce_token(123, nonce_secret: @nonce_secret)
+    end
+  end
+
   test "audience scopes stored nonces" do
     {:ok, first} =
       Siwa.Nonce.issue(%{

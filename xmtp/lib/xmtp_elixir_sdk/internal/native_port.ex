@@ -3,9 +3,13 @@ defmodule XmtpElixirSdk.Internal.NativePort do
 
   use GenServer
 
+  require Logger
+
   alias XmtpElixirSdk.Error
 
   @default_timeout 30_000
+  @initial_backoff_ms 200
+  @max_backoff_ms 5_000
   @native_manifest Path.expand("../../../native/xmtp_native/Cargo.toml", __DIR__)
   @debug_executable Path.expand("../../../native/xmtp_native/target/debug/xmtp_native", __DIR__)
   @release_executable Path.expand(
@@ -29,15 +33,14 @@ defmodule XmtpElixirSdk.Internal.NativePort do
 
     case File.exists?(executable) do
       true ->
-        port =
-          Port.open({:spawn_executable, executable}, [
-            :binary,
-            :exit_status,
-            line: 65_536,
-            args: []
-          ])
-
-        {:ok, %{port: port, requests: %{}, next_id: 0}}
+        {:ok,
+         %{
+           executable: executable,
+           port: open_port(executable),
+           requests: %{},
+           next_id: 0,
+           backoff_ms: @initial_backoff_ms
+         }}
 
       false ->
         {:stop,
@@ -47,23 +50,26 @@ defmodule XmtpElixirSdk.Internal.NativePort do
   end
 
   @impl true
+  def handle_call({:request, _op, _params, _timeout}, _from, %{port: nil} = state) do
+    {:reply, {:error, :bridge_down}, state}
+  end
+
   def handle_call({:request, op, params, timeout}, from, state) do
     id = Integer.to_string(state.next_id + 1)
     payload = Jason.encode!(%{id: id, op: op, params: params}) <> "\n"
 
-    case Port.command(state.port, payload) do
-      true ->
-        timer = Process.send_after(self(), {:request_timeout, id}, timeout)
+    try do
+      true = Port.command(state.port, payload)
+      timer = Process.send_after(self(), {:request_timeout, id}, timeout)
 
-        {:noreply,
-         %{
-           state
-           | next_id: state.next_id + 1,
-             requests: Map.put(state.requests, id, {from, timer})
-         }}
-
-      false ->
-        {:reply, {:error, Error.internal("native bridge is not available", %{})}, state}
+      {:noreply,
+       %{
+         state
+         | next_id: state.next_id + 1,
+           requests: Map.put(state.requests, id, {from, timer})
+       }}
+    rescue
+      ArgumentError -> {:reply, {:error, :bridge_down}, state}
     end
   end
 
@@ -77,13 +83,30 @@ defmodule XmtpElixirSdk.Internal.NativePort do
   end
 
   def handle_info({_port, {:exit_status, status}}, state) do
+    Logger.warning(
+      "xmtp native bridge exited with status #{status}; reopening in #{state.backoff_ms}ms"
+    )
+
     Enum.each(state.requests, fn {_id, {from, timer}} ->
       Process.cancel_timer(timer)
-      GenServer.reply(from, {:error, Error.internal("native bridge exited", %{status: status})})
+      GenServer.reply(from, {:error, :bridge_down})
     end)
 
-    {:stop, {:native_bridge_exited, status}, %{state | requests: %{}}}
+    Process.send_after(self(), :reopen_port, state.backoff_ms)
+
+    {:noreply, %{state | port: nil, requests: %{}, backoff_ms: next_backoff(state.backoff_ms)}}
   end
+
+  def handle_info(:reopen_port, %{port: nil} = state) do
+    if File.exists?(state.executable) do
+      {:noreply, %{state | port: open_port(state.executable)}}
+    else
+      Process.send_after(self(), :reopen_port, state.backoff_ms)
+      {:noreply, %{state | backoff_ms: next_backoff(state.backoff_ms)}}
+    end
+  end
+
+  def handle_info(:reopen_port, state), do: {:noreply, state}
 
   def handle_info({:request_timeout, id}, state) do
     case Map.pop(state.requests, id) do
@@ -115,11 +138,22 @@ defmodule XmtpElixirSdk.Internal.NativePort do
         end
 
       GenServer.reply(from, reply)
-      {:noreply, %{state | requests: requests}}
+      {:noreply, %{state | requests: requests, backoff_ms: @initial_backoff_ms}}
     else
       _error -> {:noreply, state}
     end
   end
+
+  defp open_port(executable) do
+    Port.open({:spawn_executable, executable}, [
+      :binary,
+      :exit_status,
+      line: 65_536,
+      args: []
+    ])
+  end
+
+  defp next_backoff(backoff_ms), do: min(backoff_ms * 2, @max_backoff_ms)
 
   defp configured_executable do
     cond do

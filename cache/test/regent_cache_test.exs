@@ -28,6 +28,15 @@ defmodule RegentCacheTest do
     assert {:ok, %{value: 4}} = RegentCache.fetch(@cache, "subject:test", 15, value_fun(4))
   end
 
+  test "loader errors are not cached" do
+    assert {:error, :boom} =
+             RegentCache.fetch(@cache, "subject:test", 15, fn -> {:error, :boom} end)
+
+    assert :miss = RegentCache.get_json(@cache, "subject:test")
+
+    assert {:ok, %{value: 6}} = RegentCache.fetch(@cache, "subject:test", 15, value_fun(6))
+  end
+
   test "cache errors compute a fresh value" do
     assert {:ok, %{value: 5}} =
              RegentCache.fetch(:missing_cache, "subject:test", 15, value_fun(5))

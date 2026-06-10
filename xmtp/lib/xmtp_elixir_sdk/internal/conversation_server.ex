@@ -335,6 +335,7 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
        conversations: %{},
        dm_index: %{},
        message_index: %{},
+       next_expiry: %{},
        next_conversation_id: 1,
        next_message_id: 1
      }}
@@ -348,6 +349,7 @@ defmodule XmtpElixirSdk.Internal.ConversationServer do
        | conversations: %{},
          dm_index: %{},
          message_index: %{},
+         next_expiry: %{},
          next_conversation_id: 1,
          next_message_id: 1
      }}

@@ -18,6 +18,7 @@ defmodule Xmtp.Identity do
 
   @signature_cache_table :xmtp_identity_signature_requests
   @signature_request_ttl_ms :timer.minutes(5)
+  @signature_cache_max_entries 10_000
 
   @type status ::
           :ready
@@ -231,7 +232,8 @@ defmodule Xmtp.Identity do
   defp cache_signature_request(runtime, wallet_address, state) do
     ensure_signature_cache!()
 
-    expires_at = System.monotonic_time(:millisecond) + @signature_request_ttl_ms
+    now = System.monotonic_time(:millisecond)
+    expires_at = now + @signature_request_ttl_ms
 
     true =
       :ets.insert(
@@ -239,7 +241,29 @@ defmodule Xmtp.Identity do
         {signature_cache_key(runtime, wallet_address), %{expires_at: expires_at, state: state}}
       )
 
+    enforce_signature_cache_bound(now)
     :ok
+  end
+
+  # Keep the cache bounded: drop already-expired entries, and if it is still
+  # over the cap, evict the entries closest to expiry first. Without this the
+  # table only shrinks when a stale key happens to be read again.
+  defp enforce_signature_cache_bound(now) do
+    if :ets.info(@signature_cache_table, :size) > @signature_cache_max_entries do
+      :ets.select_delete(@signature_cache_table, [
+        {{:_, %{expires_at: :"$1"}}, [{:"=<", :"$1", now}], [true]}
+      ])
+
+      over = :ets.info(@signature_cache_table, :size) - @signature_cache_max_entries
+
+      if over > 0 do
+        @signature_cache_table
+        |> :ets.tab2list()
+        |> Enum.sort_by(fn {_key, %{expires_at: expires_at}} -> expires_at end)
+        |> Enum.take(over)
+        |> Enum.each(fn {key, _entry} -> :ets.delete(@signature_cache_table, key) end)
+      end
+    end
   end
 
   defp delete_cached_signature_request(runtime, wallet_address) do

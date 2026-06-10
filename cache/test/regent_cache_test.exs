@@ -63,6 +63,24 @@ defmodule RegentCacheTest do
              RegentCache.fetch(:missing_cache, "subject:test", 15, value_fun(5))
   end
 
+  test "write-back failure warns but still returns the fresh value" do
+    # Loader runs after the (successful) cache read returned :miss, then takes
+    # the cache down so the write-back fails while the fresh value is returned.
+    loader = fn ->
+      :ok = stop_supervised(Cachex)
+      {:ok, %{value: 7}}
+    end
+
+    log =
+      capture_log([level: :warning], fn ->
+        assert {:ok, %{value: 7}} = RegentCache.fetch(@cache, "subject:test", 15, loader)
+      end)
+
+    assert log =~ "cache write-back failed"
+    assert log =~ "key_hash=#{RegentCache.digest("subject:test")}"
+    refute log =~ "subject:test\""
+  end
+
   test "cache write failures do not log raw keys" do
     sensitive_key = "siwa:request:v1:0xabc0000000000000000000000000000000000001:rate"
 

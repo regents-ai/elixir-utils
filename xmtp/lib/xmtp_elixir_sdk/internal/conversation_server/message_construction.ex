@@ -209,12 +209,27 @@ defmodule XmtpElixirSdk.Internal.ConversationServer.MessageConstruction do
     build_group_update_message(client, conversation.id, [], [], [change])
   end
 
-  def expired?(%Message{expires_at_ns: nil}, _now_ns), do: false
+  def expired?(message, now_ns) do
+    case effective_expiry(message) do
+      nil -> false
+      expires_at_ns -> now_ns >= expires_at_ns
+    end
+  end
 
-  def expired?(%Message{content_type: %Types.ContentTypeId{type_id: "groupUpdated"}}, _now_ns),
-    do: false
+  @doc """
+  Returns the timestamp at which a message becomes expired, or `nil` when it
+  can never expire.
 
-  def expired?(%Message{expires_at_ns: expires_at_ns}, now_ns), do: now_ns >= expires_at_ns
+  Mirrors `expired?/2`: `groupUpdated` messages and messages without an expiry
+  never disappear. Callers use this to track the earliest upcoming expiry
+  without re-encoding the exemption rules.
+  """
+  def effective_expiry(%Message{expires_at_ns: nil}), do: nil
+
+  def effective_expiry(%Message{content_type: %Types.ContentTypeId{type_id: "groupUpdated"}}),
+    do: nil
+
+  def effective_expiry(%Message{expires_at_ns: expires_at_ns}), do: expires_at_ns
 
   defp build_hmac_entry(group_id) do
     %HmacKeyEntry{

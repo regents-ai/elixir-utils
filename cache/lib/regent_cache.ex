@@ -53,7 +53,17 @@ defmodule RegentCache do
 
       :miss ->
         with {:ok, value} <- fun.() do
-          _ = put_json(cache_name, key, value, ttl_seconds)
+          case put_json(cache_name, key, value, ttl_seconds) do
+            :ok ->
+              :ok
+
+            {:error, reason} ->
+              Logger.warning(
+                "cache write-back failed cache=#{cache_name} key_hash=#{digest(key)}: " <>
+                  "#{inspect(reason)}; returning fresh value"
+              )
+          end
+
           {:ok, value}
         end
 

@@ -184,36 +184,66 @@ defmodule XmtpElixirSdk.Internal.ConversationServer.Messaging do
   end
 
   def prune_expired(state, client_id, conversation_id) do
-    case Map.fetch(state.conversations, conversation_id) do
-      {:ok, conversation} ->
-        now = System.system_time(:nanosecond)
+    now = System.system_time(:nanosecond)
 
-        {expired, kept} =
-          Enum.split_with(conversation.messages, &MessageConstruction.expired?(&1, now))
-
-        if expired == [] do
-          state
-        else
-          updated = %{conversation | messages: kept}
-          next_state = put_in(state.conversations[conversation_id], updated)
-
-          next_state =
-            Enum.reduce(expired, next_state, fn message, acc ->
-              put_in(acc.message_index[message.id], nil)
-            end)
-
-          event = %Events.MessageDeleted{
-            messages: expired,
-            message_ids: Enum.map(expired, & &1.id)
-          }
-
-          Events.emit(next_state.runtime, {:deleted_messages, client_id}, event)
-          next_state
-        end
-
-      :error ->
+    cond do
+      # No conversation: nothing to prune.
+      not Map.has_key?(state.conversations, conversation_id) ->
         state
+
+      # Amortized fast path: the earliest message expiry is still in the
+      # future, so no message can be expired and the O(n) scan is skipped.
+      now < Map.get(state.next_expiry, conversation_id, 0) ->
+        state
+
+      true ->
+        do_prune_expired(state, client_id, conversation_id, now)
     end
+  end
+
+  defp do_prune_expired(state, client_id, conversation_id, now) do
+    conversation = Map.fetch!(state.conversations, conversation_id)
+
+    {expired, kept} =
+      Enum.split_with(conversation.messages, &MessageConstruction.expired?(&1, now))
+
+    # Recompute the next expiry checkpoint from the surviving messages so the
+    # fast path above can short-circuit subsequent calls.
+    state = put_in(state.next_expiry[conversation_id], earliest_expiry(kept))
+
+    if expired == [] do
+      state
+    else
+      updated = %{conversation | messages: kept}
+      next_state = put_in(state.conversations[conversation_id], updated)
+
+      next_state =
+        Enum.reduce(expired, next_state, fn message, acc ->
+          put_in(acc.message_index[message.id], nil)
+        end)
+
+      event = %Events.MessageDeleted{
+        messages: expired,
+        message_ids: Enum.map(expired, & &1.id)
+      }
+
+      Events.emit(next_state.runtime, {:deleted_messages, client_id}, event)
+      next_state
+    end
+  end
+
+  # Earliest expiry across messages that can actually expire, used as the prune
+  # checkpoint. `0` means "nothing expirable", which disables the fast path so a
+  # newly indexed expiring message is still scanned on the next call.
+  defp earliest_expiry(messages) do
+    messages
+    |> Enum.reduce(nil, fn message, acc ->
+      case MessageConstruction.effective_expiry(message) do
+        nil -> acc
+        ns -> min(ns, acc || ns)
+      end
+    end)
+    |> Kernel.||(0)
   end
 
   defp store_message(state, conversation_id, message) do
@@ -225,8 +255,26 @@ defmodule XmtpElixirSdk.Internal.ConversationServer.Messaging do
         last_activity_ns: message.sent_at_ns
     }
 
-    state = put_in(state.conversations[conversation_id], updated)
-    put_in(state.message_index[message.id], message)
+    state
+    |> put_in([Access.key(:conversations), conversation_id], updated)
+    |> put_in([Access.key(:message_index), message.id], message)
+    |> track_expiry(conversation_id, message)
+  end
+
+  # Pull the conversation's prune checkpoint earlier when an expiring message
+  # is added, so `prune_expired/3`'s fast path never skips past its expiry.
+  defp track_expiry(state, conversation_id, message) do
+    case MessageConstruction.effective_expiry(message) do
+      nil ->
+        state
+
+      ns ->
+        update_in(state.next_expiry[conversation_id], fn
+          nil -> ns
+          0 -> ns
+          current -> min(current, ns)
+        end)
+    end
   end
 
   defp attach_reply_and_reaction_state(

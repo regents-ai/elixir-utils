@@ -188,4 +188,37 @@ defmodule XmtpElixirSdk.ConversationsGroupsTest do
     assert {:ok, cleared} = Groups.remove_message_disappearing_settings(pending)
     assert {:ok, false} = Groups.is_message_disappearing_enabled(cleared)
   end
+
+  test "expired messages are never listed across repeated reads" do
+    assert {:ok, alice} = create_client("alice")
+    assert {:ok, _bob} = create_client("bob")
+    assert {:ok, group} = create_group(alice, ["bob"])
+
+    # from_ns: 0, in_ns: 1 => every message expires one nanosecond after it is
+    # sent, so by the time we list it must already be pruned.
+    assert {:ok, expiring_group} = Groups.update_message_disappearing_settings(group, 0, 1)
+
+    assert {:ok, _id} = Messages.send_text(expiring_group, "vanishing")
+
+    # The amortized fast path must not let an already-expired text message leak,
+    # and repeated reads must stay consistent. (Group-update system messages are
+    # exempt from expiry, so we only assert on disappearing text content.)
+    refute_listed_text(expiring_group, "vanishing")
+    refute_listed_text(expiring_group, "vanishing")
+    assert {:ok, count} = Messages.count(expiring_group)
+    assert is_integer(count)
+
+    # A non-expiring conversation still returns its messages across reads.
+    assert {:ok, keep_group} = create_group(alice, ["bob"])
+    assert {:ok, _id} = Messages.send_text(keep_group, "stays")
+    assert listed_text?(keep_group, "stays")
+    assert listed_text?(keep_group, "stays")
+  end
+
+  defp refute_listed_text(conversation, text), do: refute(listed_text?(conversation, text))
+
+  defp listed_text?(conversation, text) do
+    assert {:ok, messages} = Messages.list(conversation)
+    Enum.any?(messages, &match?(%{content: %{text: ^text}}, &1))
+  end
 end

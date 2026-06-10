@@ -140,7 +140,20 @@ defmodule XmtpElixirSdk.Internal.NativePort do
       GenServer.reply(from, reply)
       {:noreply, %{state | requests: requests, backoff_ms: @initial_backoff_ms}}
     else
-      _error -> {:noreply, state}
+      {:error, reason} ->
+        Logger.warning(
+          "xmtp native bridge sent malformed JSON: #{inspect(reason)}; line=#{inspect(line)}"
+        )
+
+        {:noreply, state}
+
+      %{} = payload ->
+        Logger.warning("xmtp native bridge sent an unexpected payload shape: #{inspect(payload)}")
+
+        {:noreply, state}
+
+      _unmatched_id ->
+        {:noreply, state}
     end
   end
 

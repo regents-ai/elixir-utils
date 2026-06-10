@@ -2,6 +2,8 @@ defmodule SiwaKeyring.Auth do
   @drift_ms 30_000
   @request_id_pattern ~r/^[A-Za-z0-9._:-]{16,128}$/
   @signature_pattern ~r/^[a-f0-9]{64}$/
+  @max_method_bytes 16
+  @max_path_bytes 4_096
 
   def compute_hmac(secret, method, path, body, opts \\ []) do
     timestamp =
@@ -24,7 +26,9 @@ defmodule SiwaKeyring.Auth do
   end
 
   def verify_hmac(secret, method, path, body, request_id, timestamp, signature) do
-    with :ok <- validate_request_id(request_id),
+    with :ok <- validate_method(method),
+         :ok <- validate_path(path),
+         :ok <- validate_request_id(request_id),
          :ok <- validate_signature(signature),
          {:ok, _ts} <- fresh_timestamp(timestamp) do
       expected =
@@ -49,6 +53,42 @@ defmodule SiwaKeyring.Auth do
 
   def request_id do
     "kr-" <> Base.url_encode64(:crypto.strong_rand_bytes(24), padding: false)
+  end
+
+  defp validate_method(method) when is_binary(method) do
+    if method != "" and byte_size(method) <= @max_method_bytes and printable_ascii?(method) do
+      :ok
+    else
+      {:error, :invalid_method}
+    end
+  end
+
+  defp validate_method(_method), do: {:error, :invalid_method}
+
+  defp validate_path(path) when is_binary(path) do
+    if path != "" and byte_size(path) <= @max_path_bytes and no_control_chars?(path) do
+      :ok
+    else
+      {:error, :invalid_path}
+    end
+  end
+
+  defp validate_path(_path), do: {:error, :invalid_path}
+
+  # Methods are uppercased into the signing string, so restrict them to the
+  # printable-ASCII range a real HTTP verb occupies.
+  defp printable_ascii?(value) do
+    value
+    |> :binary.bin_to_list()
+    |> Enum.all?(&(&1 in 0x21..0x7E))
+  end
+
+  # Paths may contain a wide range of bytes, but newline/NUL-style control
+  # characters would corrupt the newline-delimited signing string.
+  defp no_control_chars?(value) do
+    value
+    |> :binary.bin_to_list()
+    |> Enum.all?(&(&1 >= 0x20 and &1 != 0x7F))
   end
 
   defp validate_request_id(request_id) when is_binary(request_id) do

@@ -229,6 +229,10 @@ defmodule XmtpElixirSdk.Internal.ConversationServer.Conversations do
   defp resolve_inbox_id(_state, inbox_id) when is_binary(inbox_id), do: inbox_id
 
   defp index_messages(state, conversation) do
+    # Reset the conversation's prune checkpoint so Messaging.prune_expired/3
+    # rescans (rather than fast-skips) once after a bulk import.
+    state = put_in(state.next_expiry[conversation.id], 0)
+
     Enum.reduce(conversation.messages, state, fn message, acc ->
       put_in(acc.message_index[message.id], message)
     end)

@@ -32,7 +32,6 @@ defmodule AgentEns.Tx do
   @uint32_max 4_294_967_295
   @uint64_max 18_446_744_073_709_551_615
   @prepared_request_ttl_seconds 15 * 60
-  @address_pattern ~r/^0x[0-9a-fA-F]{40}$/
 
   @spec build_set_text_tx(map()) :: {:ok, TxRequest.t()} | {:error, Error.t()}
   def build_set_text_tx(params) when is_map(params) do
@@ -645,12 +644,9 @@ defmodule AgentEns.Tx do
   end
 
   defp normalize_address(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    if Regex.match?(@address_pattern, trimmed) do
-      {:ok, String.downcase(trimmed)}
-    else
-      {:error, Error.new({:invalid_address, value})}
+    case AgentEns.Address.normalize(value) do
+      nil -> {:error, Error.new({:invalid_address, value})}
+      normalized -> {:ok, normalized}
     end
   end
 

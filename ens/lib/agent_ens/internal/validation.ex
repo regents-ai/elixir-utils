@@ -52,11 +52,10 @@ defmodule AgentEns.Internal.Validation do
     end
   end
 
-  # Lenient address normalization for optional inputs: trims and downcases
-  # binaries and maps everything else to nil.
+  # Address normalization for optional inputs: well-formed addresses come back
+  # trimmed and lowercased, everything else maps to nil.
   @spec normalize_address(term()) :: String.t() | nil
-  def normalize_address(value) when is_binary(value), do: String.downcase(String.trim(value))
-  def normalize_address(_value), do: nil
+  def normalize_address(value), do: AgentEns.Address.normalize(value)
 
   defp fetch(params, key) do
     case Map.get(params, key) do

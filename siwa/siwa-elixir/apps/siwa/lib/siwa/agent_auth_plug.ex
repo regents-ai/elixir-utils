@@ -91,7 +91,7 @@ defmodule Siwa.AgentAuthPlug do
       {:ok,
        %{
          status: 200,
-         body: %{"ok" => true, "code" => "http_envelope_valid", "data" => data}
+         body: %{"code" => "http_envelope_valid", "data" => data}
        }}
       when is_map(data) ->
         {:ok, data}
@@ -140,8 +140,11 @@ defmodule Siwa.AgentAuthPlug do
     metadata = %{reason: :"siwa_http_#{status}", source: :siwa_http, siwa_status: status}
 
     case body do
-      %{"code" => code} when is_binary(code) and code != "" -> Map.put(metadata, :siwa_code, code)
-      _body -> metadata
+      %{"error" => %{"code" => code}} when is_binary(code) and code != "" ->
+        Map.put(metadata, :siwa_code, code)
+
+      _body ->
+        metadata
     end
   end
 

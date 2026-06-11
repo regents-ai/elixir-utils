@@ -19,7 +19,6 @@ defmodule Siwa.AgentAuthPlugTest do
       %{
         status: 200,
         body: %{
-          "ok" => true,
           "code" => "http_envelope_valid",
           "data" => %{"agent_claims" => %{"token_id" => "77"}}
         }
@@ -118,7 +117,7 @@ defmodule Siwa.AgentAuthPlugTest do
   test "non-200 broker responses deny with status and code metadata" do
     Process.put(
       :client_response,
-      {:ok, %{status: 401, body: %{"ok" => false, "code" => "receipt_invalid"}}}
+      {:ok, %{status: 401, body: %{"error" => %{"code" => "receipt_invalid"}}}}
     )
 
     conn = :post |> conn("/v1/things", "{}") |> call()

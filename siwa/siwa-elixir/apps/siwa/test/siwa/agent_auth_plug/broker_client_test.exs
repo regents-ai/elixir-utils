@@ -6,14 +6,14 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
   defmodule RecordingHttp do
     def request(opts) do
       send(self(), {:request, opts})
-      Process.get(:http_response, {:ok, %{status: 200, body: %{"ok" => true}}})
+      Process.get(:http_response, {:ok, %{status: 200, body: %{"code" => "http_envelope_valid"}}})
     end
   end
 
   @payload %{"method" => "POST", "path" => "/x", "headers" => %{}}
 
   test "posts the payload to the broker http-verify endpoint with the audience header" do
-    assert {:ok, %{status: 200, body: %{"ok" => true}}} =
+    assert {:ok, %{status: 200, body: %{"code" => "http_envelope_valid"}}} =
              BrokerClient.verify_http_request(@payload,
                http: RecordingHttp,
                base_url: "http://siwa.internal:4100/",

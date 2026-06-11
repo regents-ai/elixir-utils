@@ -160,6 +160,50 @@ defmodule Xmtp.RoomServer.Membership do
     )
   end
 
+  @doc """
+  Resolves the inbox id for a principal whose XMTP identity lives outside this
+  server (for example an agent running its own client). Uses the principal's
+  `inbox_id` when present, otherwise resolves the wallet via the relay client.
+  """
+  def resolve_remote_inbox_id(_state, %Principal{inbox_id: inbox_id})
+      when is_binary(inbox_id) and inbox_id != "" do
+    {:ok, inbox_id}
+  end
+
+  def resolve_remote_inbox_id(%{relay_client: relay_client}, %Principal{} = principal) do
+    with {:ok, wallet_address} <- fetch_wallet_address(principal) do
+      case XmtpElixirSdk.Native.inbox_id_for(relay_client, wallet_address) do
+        {:ok, inbox_id} when is_binary(inbox_id) and inbox_id != "" -> {:ok, inbox_id}
+        {:ok, _missing} -> {:error, :no_xmtp_identity}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
+  Adds a member that owns its XMTP identity remotely: the relay adds the inbox to
+  the group and records the membership. No server-side client is created or cached
+  for the member; the member sends messages from its own runtime.
+  """
+  def add_remote_joined_member(
+        %{public_room: public_room, room: room, repo: repo} = state,
+        principal,
+        inbox_id
+      ) do
+    with {:ok, updated_room} <- Groups.add_members(public_room, [inbox_id]),
+         {:ok, _membership} <- upsert_membership(repo, room, principal, inbox_id, "joined") do
+      next_state =
+        state
+        |> Map.put(:public_room, updated_room)
+        |> Map.put(:room, repo.preload(room, :memberships, force: true))
+        |> touch_membership_presence(principal, Principal.wallet(principal), inbox_id)
+        |> Mirror.persist_room_snapshot(updated_room)
+
+      Mirror.broadcast_refresh!(next_state)
+      {:ok, Panel.build(next_state, principal), next_state}
+    end
+  end
+
   def invite_joined_member(
         %{public_room: public_room, room: room, repo: repo} = state,
         principal,

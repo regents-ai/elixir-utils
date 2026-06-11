@@ -49,6 +49,18 @@ defmodule Xmtp.RoomServerTest do
     assert Process.alive?(pid)
   end
 
+  test "add_remote_member fails cleanly when the room is not ready" do
+    private_key = "0x" <> String.duplicate("11", 32)
+    pid = start_room!(definition(agent_private_key: private_key))
+
+    target = Xmtp.Principal.agent(%{wallet_address: "0x" <> String.duplicate("22", 20)})
+
+    assert {:error, :room_unavailable} =
+             GenServer.call(pid, {:add_remote_member, target, %{}})
+
+    assert Process.alive?(pid)
+  end
+
   test "starts degraded when the room record is not bootstrapped" do
     private_key = "0x" <> String.duplicate("11", 32)
     pid = start_room!(definition(agent_private_key: private_key))

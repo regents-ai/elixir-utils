@@ -215,6 +215,24 @@ defmodule Xmtp.RoomServer do
     end
   end
 
+  def handle_call({:add_remote_member, target, claims}, _from, state) do
+    state = refresh_definition(state)
+
+    with {:ok, ready_state} <- require_ready(state),
+         {:ok, principal} <- Membership.resolve_target_principal(target),
+         {:ok, _wallet_address} <- Membership.fetch_wallet_address(principal),
+         :ok <- Membership.authorize_join(ready_state, principal, claims),
+         false <- Membership.room_full?(ready_state, principal),
+         {:ok, inbox_id} <- Membership.resolve_remote_inbox_id(ready_state, principal),
+         {:ok, panel, updated_state} <-
+           Membership.add_remote_joined_member(ready_state, principal, inbox_id) do
+      {:reply, {:ok, panel}, updated_state}
+    else
+      true -> {:reply, {:error, :room_full}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
   def handle_call({:kick_user, actor, target}, _from, state) do
     state = refresh_definition(state)
 

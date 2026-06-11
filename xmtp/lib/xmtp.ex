@@ -65,6 +65,11 @@ defmodule Xmtp do
     )
   end
 
+  @spec add_remote_member(manager(), room_key(), principal(), map()) :: panel_result()
+  def add_remote_member(manager, room_key, target, claims \\ %{}) do
+    call(manager, room_key, {:add_remote_member, Principal.from(target), claims})
+  end
+
   @spec kick_user(manager(), room_key(), principal() | :system, principal() | String.t()) ::
           panel_result()
   def kick_user(manager, room_key, actor, target) do

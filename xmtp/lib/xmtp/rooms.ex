@@ -42,6 +42,12 @@ defmodule Xmtp.Rooms do
     Xmtp.invite_user(manager, room_key, inviter, target, claims)
   end
 
+  @spec add_remote_member(module(), String.t(), Principal.t() | map(), map()) ::
+          {:ok, Xmtp.RoomPanel.t()} | {:error, term()}
+  def add_remote_member(manager, room_key, target, claims \\ %{}) do
+    Xmtp.add_remote_member(manager, room_key, target, claims)
+  end
+
   @spec kick(module(), String.t(), Principal.t() | map(), Principal.t() | map() | String.t()) ::
           {:ok, Xmtp.RoomPanel.t()} | {:error, term()}
   def kick(manager, room_key, moderator, target) do

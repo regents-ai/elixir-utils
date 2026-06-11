@@ -4,6 +4,14 @@ All notable changes to `xmtp_elixir_sdk` should be recorded here.
 
 ## Unreleased
 
+### Added
+
+- `Xmtp.add_remote_member/4` (and `Xmtp.Rooms.add_remote_member/4`): the room relay adds
+  a member that owns its XMTP identity remotely (for example a CLI agent). The member's
+  inbox id is taken from the principal or resolved from its wallet via the relay client;
+  no server-side client is created for the member. Policy `allow_join` and capacity
+  checks apply, and the membership row is recorded as joined.
+
 ## 0.1.2 - 2026-05-06
 
 ### Added

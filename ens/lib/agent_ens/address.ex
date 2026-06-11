@@ -4,7 +4,7 @@ defmodule AgentEns.Address do
   and EIP-55 checksum encoding.
   """
 
-  @address_regex ~r/^0x[a-fA-F0-9]{40}$/
+  @address_regex ~r/^0[xX][a-fA-F0-9]{40}$/
 
   @doc """
   Normalizes an address to trimmed, lowercase `0x`-hex form.

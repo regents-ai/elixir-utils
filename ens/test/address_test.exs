@@ -7,6 +7,9 @@ defmodule AgentEns.AddressTest do
     assert Address.normalize("  0x52908400098527886E0F7030069857D2E4169EE7  ") ==
              "0x52908400098527886e0f7030069857d2e4169ee7"
 
+    assert Address.normalize("0X52908400098527886E0F7030069857D2E4169EE7") ==
+             "0x52908400098527886e0f7030069857d2e4169ee7"
+
     assert Address.normalize("0x123") == nil
     assert Address.normalize("not-an-address") == nil
     assert Address.normalize(nil) == nil

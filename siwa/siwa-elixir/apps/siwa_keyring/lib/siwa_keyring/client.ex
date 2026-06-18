@@ -3,7 +3,7 @@ defmodule SiwaKeyring.Client do
 
   defstruct [:base_url, :secret, :finch, timeout_ms: 5_000]
 
-  @prefix "/internal/keyring"
+  @prefix "/api/shared/keyring"
 
   def new(opts) do
     %__MODULE__{

@@ -5,7 +5,7 @@ defmodule SiwaKeyring.AuthTest do
 
   @secret "auth-test-secret"
   @method "POST"
-  @path "/internal/keyring/sign-message"
+  @path "/api/shared/keyring/sign-message"
   @body ~s({"message":"Sign in to Regent"})
 
   defp signed_headers(opts \\ []) do

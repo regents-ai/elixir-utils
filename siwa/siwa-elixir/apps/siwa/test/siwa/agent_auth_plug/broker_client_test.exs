@@ -22,7 +22,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
 
     assert_received {:request, opts}
     assert opts[:method] == :post
-    assert opts[:url] == "http://siwa.internal:4100/v1/agent/siwa/http-verify"
+    assert opts[:url] == "http://siwa.internal:4100/api/shared/siwa/http-verify"
     assert opts[:json] == @payload
     assert opts[:headers] == [{"x-siwa-audience", "testapp"}]
     refute Keyword.has_key?(opts, :connect_options)

@@ -3,7 +3,7 @@ defmodule Siwa.AgentAuthPlug do
   Shared agent-auth plug for Regent Phoenix apps backed by the SIWA broker.
 
   The plug downcases the request headers, builds the canonical
-  `POST /v1/agent/siwa/http-verify` payload, sends it through the
+  `POST /api/shared/siwa/http-verify` payload, sends it through the
   app-provided client, and hands every app-specific decision to the app's
   hooks module:
 
@@ -60,7 +60,7 @@ defmodule Siwa.AgentAuthPlug do
     @callback deny(conn :: Plug.Conn.t(), deny_meta :: map()) :: Plug.Conn.t()
   end
 
-  @http_verify_path "/v1/agent/siwa/http-verify"
+  @http_verify_path "/api/shared/siwa/http-verify"
 
   @impl Plug
   def init(opts), do: opts

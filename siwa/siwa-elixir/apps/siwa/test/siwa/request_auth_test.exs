@@ -281,6 +281,26 @@ defmodule Siwa.RequestAuthTest do
              )
   end
 
+  test "rejects a signed request created beyond the clock-skew tolerance" do
+    {:ok, signer} = Siwa.LocalSigner.new()
+    {:ok, receipt} = receipt_for(signer)
+    created_at = ~U[2026-04-20 00:10:00Z]
+
+    assert {:ok, signed_request} =
+             Siwa.RequestAuth.sign_authenticated_request(
+               request(),
+               receipt.token,
+               signer,
+               Keyword.merge(@request_auth_opts, created_at: created_at)
+             )
+
+    assert {:error, :request_not_yet_valid} =
+             Siwa.RequestAuth.verify_authenticated_request(
+               signed_request,
+               Keyword.merge(@request_auth_opts, now: ~U[2026-04-20 00:00:00Z])
+             )
+  end
+
   defp receipt_for(signer) do
     Siwa.Receipt.create(
       %{

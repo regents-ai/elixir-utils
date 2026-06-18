@@ -73,14 +73,14 @@ Run `SiwaKeyring.Router` at an internal service root.
 
 Available routes:
 
-- `GET /internal/keyring/health`
-- `POST /internal/keyring/create-wallet`
-- `POST /internal/keyring/has-wallet`
-- `POST /internal/keyring/get-address`
-- `POST /internal/keyring/sign-message`
-- `POST /internal/keyring/sign-raw-message`
-- `POST /internal/keyring/sign-transaction`
-- `POST /internal/keyring/sign-authorization`
+- `GET /api/shared/keyring/health`
+- `POST /api/shared/keyring/create-wallet`
+- `POST /api/shared/keyring/has-wallet`
+- `POST /api/shared/keyring/get-address`
+- `POST /api/shared/keyring/sign-message`
+- `POST /api/shared/keyring/sign-raw-message`
+- `POST /api/shared/keyring/sign-transaction`
+- `POST /api/shared/keyring/sign-authorization`
 
 Every non-health route requires:
 
@@ -97,7 +97,7 @@ headers =
   SiwaKeyring.Auth.compute_hmac(
     "proxy-secret",
     "POST",
-    "/internal/keyring/sign-message",
+    "/api/shared/keyring/sign-message",
     body
   )
 ```

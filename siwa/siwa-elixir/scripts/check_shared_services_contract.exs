@@ -28,20 +28,20 @@ defmodule SharedServicesContractCheck do
   ]
 
   @siwa_operations %{
-    {"post", "/v1/agent/siwa/nonce"} => "createSharedAgentSiwaNonce",
-    {"post", "/v1/agent/siwa/verify"} => "verifySharedAgentSiwaSession",
-    {"post", "/v1/agent/siwa/http-verify"} => "verifySharedSiwaHttpEnvelope"
+    {"post", "/api/shared/siwa/nonce"} => "createSharedAgentSiwaNonce",
+    {"post", "/api/shared/siwa/verify"} => "verifySharedAgentSiwaSession",
+    {"post", "/api/shared/siwa/http-verify"} => "verifySharedSiwaHttpEnvelope"
   }
 
   @keyring_operations %{
-    {"get", "/internal/keyring/health"} => "siwaKeyringHealth",
-    {"post", "/internal/keyring/create-wallet"} => "siwaKeyringCreateWallet",
-    {"post", "/internal/keyring/has-wallet"} => "siwaKeyringHasWallet",
-    {"post", "/internal/keyring/get-address"} => "siwaKeyringGetAddress",
-    {"post", "/internal/keyring/sign-message"} => "siwaKeyringSignMessage",
-    {"post", "/internal/keyring/sign-raw-message"} => "siwaKeyringSignRawMessage",
-    {"post", "/internal/keyring/sign-transaction"} => "siwaKeyringSignTransaction",
-    {"post", "/internal/keyring/sign-authorization"} => "siwaKeyringSignAuthorization"
+    {"get", "/api/shared/keyring/health"} => "siwaKeyringHealth",
+    {"post", "/api/shared/keyring/create-wallet"} => "siwaKeyringCreateWallet",
+    {"post", "/api/shared/keyring/has-wallet"} => "siwaKeyringHasWallet",
+    {"post", "/api/shared/keyring/get-address"} => "siwaKeyringGetAddress",
+    {"post", "/api/shared/keyring/sign-message"} => "siwaKeyringSignMessage",
+    {"post", "/api/shared/keyring/sign-raw-message"} => "siwaKeyringSignRawMessage",
+    {"post", "/api/shared/keyring/sign-transaction"} => "siwaKeyringSignTransaction",
+    {"post", "/api/shared/keyring/sign-authorization"} => "siwaKeyringSignAuthorization"
   }
 
   @required_schemas [
@@ -98,7 +98,7 @@ defmodule SharedServicesContractCheck do
     missing_keyring_request_id_paths =
       @keyring_operations
       |> Enum.reject(fn
-        {{"get", "/internal/keyring/health"}, _operation_id} ->
+        {{"get", "/api/shared/keyring/health"}, _operation_id} ->
           true
 
         {{_method, path}, _operation_id} ->
@@ -302,7 +302,7 @@ defmodule SharedServicesContractCheck do
   end
 
   defp keyring_contract_paths(contract) do
-    ~r/^\s{2}(\/internal\/keyring\/[^:]+):/m
+    ~r/^\s{2}(\/api\/shared\/keyring\/[^:]+):/m
     |> Regex.scan(contract)
     |> Enum.map(fn [_match, path] -> path end)
   end

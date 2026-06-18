@@ -51,7 +51,7 @@ message =
   Siwa.build_message(%{
     domain: "regent.cx",
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    uri: "https://regent.cx/v1/agent/siwa/verify",
+    uri: "https://regent.cx/api/shared/siwa/verify",
     agent_id: 77,
     agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
     chain_id: 8453,

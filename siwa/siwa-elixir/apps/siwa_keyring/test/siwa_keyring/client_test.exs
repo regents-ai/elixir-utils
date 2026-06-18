@@ -18,7 +18,7 @@ defmodule SiwaKeyring.ClientTest do
            {:ok, body, conn} = Plug.Conn.read_body(conn)
 
            assert conn.method == "POST"
-           assert conn.request_path == "/internal/keyring/create-wallet"
+           assert conn.request_path == "/api/shared/keyring/create-wallet"
            assert get_req_header(conn, "content-type") == ["application/json"]
 
            assert :ok =

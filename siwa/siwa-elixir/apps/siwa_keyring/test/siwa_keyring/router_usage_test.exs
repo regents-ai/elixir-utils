@@ -4,7 +4,7 @@ defmodule SiwaKeyring.RouterUsageTest do
   import Plug.Conn
   import Plug.Test
 
-  @prefix "/internal/keyring"
+  @prefix "/api/shared/keyring"
 
   defp call_router(conn) do
     SiwaKeyring.Router.call(conn, SiwaKeyring.Router.init([]))

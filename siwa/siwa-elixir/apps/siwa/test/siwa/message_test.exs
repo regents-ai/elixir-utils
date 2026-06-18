@@ -43,7 +43,7 @@ defmodule Siwa.MessageTest do
       domain: "regent.cx",
       address: "0x1111111111111111111111111111111111111111",
       statement: "Sign in to platform.",
-      uri: "https://regent.cx/v1/agent/siwa/verify",
+      uri: "https://regent.cx/api/shared/siwa/verify",
       agent_id: 77,
       agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
       chain_id: 8453,

@@ -21,7 +21,7 @@ defmodule SiwaKeyring.Router do
   plug(:authorize)
   plug(:dispatch)
 
-  @prefix "/internal/keyring"
+  @prefix "/api/shared/keyring"
 
   def max_body_bytes, do: @max_body_bytes
 
@@ -105,7 +105,7 @@ defmodule SiwaKeyring.Router do
     send_json(conn, 404, %{error: "not_found"})
   end
 
-  defp authorize(%Plug.Conn{request_path: "/internal/keyring/health"} = conn, _opts), do: conn
+  defp authorize(%Plug.Conn{request_path: "/api/shared/keyring/health"} = conn, _opts), do: conn
 
   defp authorize(conn, _opts) do
     secret = Application.fetch_env!(:siwa_keyring, :secret)

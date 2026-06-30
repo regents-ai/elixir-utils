@@ -1,0 +1,41 @@
+version: 1
+repo: elixir-utils
+owner: elixir-utils
+path: elixir-utils
+release_group: public_beta
+stack_contract: ../meta/stack.yaml
+owns:
+  - siwa_library
+  - ens_library
+  - xmtp_library
+  - agentbook_helpers
+source_of_truth:
+  repo_contract: repo.yaml
+  http_contracts: []
+  cli_contracts: []
+  shared_contracts: []
+  runtime_contracts: []
+  chain_contracts: []
+code_map:
+  - path: cache
+    owns: cache
+  - path: ens
+    owns: ens
+  - path: siwa/siwa-elixir
+    owns: siwa-elixir
+  - path: world/agentbook
+    owns: agentbook
+  - path: xmtp
+    owns: xmtp
+local_path_dependencies: []
+acceptance_commands:
+  - cwd: elixir-utils/cache
+    command: mix test
+  - cwd: elixir-utils/ens
+    command: mix test
+  - cwd: elixir-utils/siwa/siwa-elixir
+    command: mix test
+  - cwd: elixir-utils/world/agentbook
+    command: mix test
+  - cwd: elixir-utils/xmtp
+    command: mix test

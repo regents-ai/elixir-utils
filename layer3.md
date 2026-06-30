@@ -1,3 +1,17 @@
+<!-- BEGIN REGENT META GENERATED -->
+## Layer 3 Generated View
+
+Generated from `meta/stack.yaml` and repo `repo.yaml` files. Local notes may live outside this block.
+
+- Repo contract: `elixir-utils/repo.yaml`
+
+Code map:
+- `cache`: cache
+- `ens`: ens
+- `siwa/siwa-elixir`: siwa-elixir
+- `world/agentbook`: agentbook
+- `xmtp`: xmtp
+<!-- END REGENT META GENERATED -->
 # Elixir Utilities Layer 3
 
 This file is the finished repo-local code atlas for `elixir-utils`. It covers the shared SIWA umbrella, the isolated keyring service, the ENS helper package, the XMTP Elixir SDK, and the AgentBook and AgentWorld helpers under `world/agentbook`. It also points at the tests and committed package docs that prove each package behavior.

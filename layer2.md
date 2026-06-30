@@ -1,3 +1,23 @@
+<!-- BEGIN REGENT META GENERATED -->
+## Layer 2 Generated View
+
+Generated from `meta/stack.yaml` and repo `repo.yaml` files. Local notes may live outside this block.
+
+- Owner: `elixir-utils`
+- Release group: `public_beta`
+- Required for public beta: `true`
+- Owned areas: `siwa_library`, `ens_library`, `xmtp_library`, `agentbook_helpers`.
+
+Contracts:
+- No contracts listed.
+
+Acceptance checks:
+- `elixir-utils/cache`: `mix test`
+- `elixir-utils/ens`: `mix test`
+- `elixir-utils/siwa/siwa-elixir`: `mix test`
+- `elixir-utils/world/agentbook`: `mix test`
+- `elixir-utils/xmtp`: `mix test`
+<!-- END REGENT META GENERATED -->
 # Elixir Utilities Layer 2
 
 This file is the machine contract for `elixir-utils`.

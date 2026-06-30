@@ -11,13 +11,14 @@ defmodule KohakuPlugins.AssetAmount do
   @type t :: %__MODULE__{
           asset: Asset.t(),
           amount: non_neg_integer(),
-          tag: atom() | nil
+          tag: String.t() | nil
         }
 
-  @spec new(Asset.t(), non_neg_integer(), atom() | nil) :: {:ok, t()} | {:error, Error.t()}
+  @spec new(Asset.t(), non_neg_integer(), String.t() | nil) :: {:ok, t()} | {:error, Error.t()}
   def new(asset, amount, tag \\ nil)
 
-  def new(%Asset{} = asset, amount, tag) when is_integer(amount) and amount >= 0 do
+  def new(%Asset{} = asset, amount, tag)
+      when is_integer(amount) and amount >= 0 and (is_binary(tag) or is_nil(tag)) do
     {:ok, %__MODULE__{asset: asset, amount: amount, tag: tag}}
   end
 
@@ -38,7 +39,7 @@ defmodule KohakuPlugins.AssetAmount do
     %{
       "asset" => Asset.to_native_map(asset),
       "amount" => Integer.to_string(amount),
-      "tag" => Atom.to_string(tag)
+      "tag" => tag
     }
   end
 
@@ -48,7 +49,7 @@ defmodule KohakuPlugins.AssetAmount do
          {amount, ""} <- Integer.parse(to_string(amount)) do
       tag =
         case Map.get(input, "tag") do
-          value when is_binary(value) and value != "" -> String.to_existing_atom(value)
+          value when is_binary(value) and value != "" -> value
           _value -> nil
         end
 

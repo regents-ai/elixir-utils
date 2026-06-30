@@ -17,6 +17,16 @@ defmodule KohakuPluginsTest do
            }
   end
 
+  test "preserves balance tags as upstream status values" do
+    assert {:ok, asset} = Asset.erc20("0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14")
+    assert {:ok, amount} = AssetAmount.new(asset, 5_000, "Valid")
+
+    native = AssetAmount.to_native_map(amount)
+    assert native["tag"] == "Valid"
+    assert {:ok, restored} = AssetAmount.from_native_map(native)
+    assert restored.tag == "Valid"
+  end
+
   test "rejects invalid asset values" do
     assert {:error, error} = Asset.erc20("bad")
     assert error.kind == :invalid_argument

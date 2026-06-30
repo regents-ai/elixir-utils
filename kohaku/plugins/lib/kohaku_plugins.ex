@@ -24,7 +24,7 @@ defmodule KohakuPlugins do
   @doc """
   Builds an asset amount.
   """
-  @spec asset_amount(Asset.t(), non_neg_integer(), atom() | nil) ::
+  @spec asset_amount(Asset.t(), non_neg_integer(), String.t() | nil) ::
           {:ok, AssetAmount.t()} | {:error, KohakuPlugins.Error.t()}
   def asset_amount(asset, amount, tag \\ nil), do: AssetAmount.new(asset, amount, tag)
 end

@@ -15,6 +15,9 @@ defmodule RailgunElixirTest do
     assert {:ok, chain} = RailgunElixir.chain_config(runtime, 11_155_111)
     assert chain.id == 11_155_111
     assert chain.wrapped_base_token == "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+    assert chain.unshield_fee_bps == 25
+    assert chain.privacy_paymaster == "0xBb9D6507B5dE027dEb0196c83A7DC6Eef325bEe4"
+    assert chain.railgun_fee_adapter == "0xeBabF510f824a349a9Be7F40cad3486B7249b1e0"
   end
 
   test "unsupported chain returns a structured native error", %{runtime: runtime} do

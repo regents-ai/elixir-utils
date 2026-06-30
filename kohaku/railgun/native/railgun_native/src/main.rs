@@ -28,7 +28,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use userop_kit::{
     bundler::{Bundler, pimlico::PimlicoBundler},
-    railgun::TailCall,
+    smart_account::simple_smart_account::{Call, SimpleSmartAccount},
 };
 
 #[derive(Debug, Deserialize)]
@@ -129,6 +129,7 @@ impl Runtime {
             "provider_register" => self.provider_register(&request.params).await,
             "provider_sync" => self.provider_sync(&request.params).await,
             "provider_balance" => self.provider_balance(&request.params).await,
+            "provider_notes" => self.provider_notes(&request.params).await,
             "shield_build" => self.shield_build(&request.params),
             "transaction_build" => self.transaction_build(&request.params).await,
             "broadcast" => self.broadcast(&request.params).await,
@@ -226,9 +227,39 @@ impl Runtime {
         let balances = provider.balance(address).await;
         let balances: Vec<Value> = balances
             .into_iter()
-            .map(|(asset, amount)| json!({"asset": asset_record(&asset), "amount": amount.to_string()}))
+            .map(|entry| {
+                json!({
+                    "asset": asset_record(&entry.asset),
+                    "amount": entry.amount.to_string(),
+                    "poi_status": entry.poi_status.map(|status| status.to_string()),
+                })
+            })
             .collect();
         Ok(json!({"balances": balances}))
+    }
+
+    async fn provider_notes(&mut self, params: &Value) -> Result<Value, String> {
+        let provider_id = required_string(params, "provider_id")?;
+        let address = RailgunAddress::from_str(&required_string(params, "address")?)
+            .map_err(|error| format!("invalid railgun address: {error}"))?;
+        let provider = self.provider_mut(&provider_id)?;
+        let notes = provider.notes(address).await;
+        let notes: Vec<Value> = notes
+            .into_iter()
+            .map(|entry| {
+                json!({
+                    "asset": asset_record(&entry.asset),
+                    "amount": entry.amount.to_string(),
+                    "poi_status": entry.poi_status.map(|status| status.to_string()),
+                    "tree_number": entry.tree_number,
+                    "leaf_index": entry.leaf_index,
+                    "blinded_commitment": entry.blinded_commitment,
+                    "commitment_type": entry.commitment_type,
+                    "memo": entry.memo,
+                })
+            })
+            .collect();
+        Ok(json!({"notes": notes}))
     }
 
     fn shield_build(&mut self, params: &Value) -> Result<Value, String> {
@@ -274,7 +305,9 @@ impl Runtime {
         let provider_id = required_string(params, "provider_id")?;
         let operations = required_array(params, "operations")?.to_vec();
         let bundler_url = required_string(params, "bundler_url")?;
-        let delegating_private_key = required_string(params, "delegating_private_key")?;
+        let smart_account_signer_private_key = required_string(params, "smart_account_signer_private_key")?;
+        let chain_id = required_u64(params, "chain_id")?;
+        let rpc_url = required_string(params, "rpc_url")?;
         let fee_payer_signer_id = required_string(params, "fee_payer_signer_id")?;
         let fee_token = parse_address(&required_string(params, "fee_token")?)?;
         let native_amount = optional_u128(params, "native_amount").unwrap_or(0);
@@ -287,10 +320,12 @@ impl Runtime {
             .parse()
             .map_err(|error| format!("invalid bundler url: {error}"))?;
         let bundler = PimlicoBundler::new(bundler_url);
-        let delegating_signer = EvmPrivateKeySigner::from_str(&delegating_private_key)
-            .map_err(|error| format!("invalid delegating signer: {error}"))?;
+        let smart_account_signer = EvmPrivateKeySigner::from_str(&smart_account_signer_private_key)
+            .map_err(|error| format!("invalid smart account signer: {error}"))?;
+        let smart_account_provider = Arc::new(JsonRpcProvider::new(rpc_url));
+        let smart_account = SimpleSmartAccount::new(smart_account_signer.address(), chain_id, smart_account_provider);
         let fee_payer = self.signer(&fee_payer_signer_id)?;
-        let tail_calls = native_unwrap_tail_calls(fee_token, native_amount, to)?;
+        let calls = native_unwrap_calls(fee_token, native_amount, to)?;
 
         let provider = self.provider_mut(&provider_id)?;
         let mut rng = rand::rng();
@@ -298,15 +333,15 @@ impl Runtime {
             .prepare_userop(
                 builder,
                 &bundler,
-                delegating_signer.address(),
+                &smart_account,
                 fee_payer,
                 fee_token,
-                tail_calls,
+                calls,
                 &mut rng,
             )
             .await
             .map_err(|error| error.to_string())?;
-        let signed = signable.sign(&delegating_signer).await.map_err(|error| error.to_string())?;
+        let signed = signable.sign(&smart_account_signer).await.map_err(|error| error.to_string())?;
         let hash = bundler
             .send_user_operation(&signed)
             .await
@@ -497,6 +532,7 @@ fn chain_record(chain: &ChainConfig) -> Value {
     json!({
         "id": chain.id,
         "railgun_smart_wallet": chain.railgun_smart_wallet.to_string(),
+        "unshield_fee_bps": chain.unshield_fee_bps,
         "relay_adapt_contract": chain.relay_adapt_contract.to_string(),
         "wrapped_base_token": chain.wrapped_base_token.to_string(),
         "deployment_block": chain.deployment_block,
@@ -504,6 +540,8 @@ fn chain_record(chain: &ChainConfig) -> Value {
         "subsquid_endpoint": chain.subsquid_endpoint,
         "poi_endpoint": chain.poi_endpoint,
         "list_keys": chain.list_keys,
+        "privacy_paymaster": chain.privacy_paymaster.map(|address| address.to_string()),
+        "railgun_fee_adapter": chain.railgun_fee_adapter.map(|address| address.to_string()),
     })
 }
 
@@ -593,7 +631,7 @@ fn raw_log_from_rpc(value: Value) -> Result<RawLog, String> {
     })
 }
 
-fn native_unwrap_tail_calls(fee_token: Address, native_amount: u128, to: Option<String>) -> Result<Vec<TailCall>, String> {
+fn native_unwrap_calls(fee_token: Address, native_amount: u128, to: Option<String>) -> Result<Vec<Call>, String> {
     if native_amount == 0 {
         return Ok(vec![]);
     }
@@ -607,7 +645,11 @@ fn native_unwrap_tail_calls(fee_token: Address, native_amount: u128, to: Option<
     });
     data.extend_from_slice(&amount);
 
-    Ok(vec![TailCall::new(fee_token, Bytes::from(data))])
+    Ok(vec![Call {
+        target: fee_token,
+        value: U256::ZERO,
+        data: Bytes::from(data),
+    }])
 }
 
 fn optional_chain_id(params: &Value) -> Result<ChainId, String> {

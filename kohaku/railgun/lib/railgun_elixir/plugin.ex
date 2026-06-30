@@ -19,14 +19,14 @@ defmodule RailgunElixir.Plugin do
   }
 
   @enforce_keys [:chain, :provider, :pool]
-  defstruct [:chain, :provider, :pool, :bundler_url, :delegating_private_key]
+  defstruct [:chain, :provider, :pool, :bundler_url, :smart_account_signer_private_key]
 
   @type t :: %__MODULE__{
           chain: RailgunElixir.ChainConfig.t(),
           provider: Provider.t(),
           pool: SignerPool.t(),
           bundler_url: String.t() | nil,
-          delegating_private_key: String.t() | nil
+          smart_account_signer_private_key: String.t() | nil
         }
 
   @spec create(Host.t(), keyword()) :: {:ok, t()} | {:error, Error.t()}
@@ -69,9 +69,9 @@ defmodule RailgunElixir.Plugin do
   def put_bundler(%__MODULE__{} = plugin, bundler_url) when is_binary(bundler_url),
     do: %{plugin | bundler_url: bundler_url}
 
-  @spec put_delegating_signer(t(), String.t()) :: t()
-  def put_delegating_signer(%__MODULE__{} = plugin, private_key) when is_binary(private_key),
-    do: %{plugin | delegating_private_key: private_key}
+  @spec put_smart_account_signer(t(), String.t()) :: t()
+  def put_smart_account_signer(%__MODULE__{} = plugin, private_key) when is_binary(private_key),
+    do: %{plugin | smart_account_signer_private_key: private_key}
 
   @spec add_internal_signer(t(), String.t(), String.t()) :: {:ok, t()} | {:error, Error.t()}
   def add_internal_signer(%__MODULE__{} = plugin, spending_key, viewing_key) do
@@ -100,6 +100,28 @@ defmodule RailgunElixir.Plugin do
         {:ok, balances} -> {:ok, Map.values(balances)}
         {:error, error} -> {:error, error}
       end
+    end
+  end
+
+  @spec notes(t(), [Asset.t()]) :: {:ok, [RailgunElixir.Note.t()]} | {:error, Error.t()}
+  def notes(%__MODULE__{} = plugin, assets \\ []) when is_list(assets) do
+    with :ok <- Provider.sync(plugin.provider) do
+      plugin.pool
+      |> SignerPool.all()
+      |> Enum.reduce_while({:ok, []}, fn signer, {:ok, acc} ->
+        case Provider.notes(plugin.provider, signer.address) do
+          {:ok, notes} ->
+            notes =
+              notes
+              |> Enum.filter(&match?(%Asset{type: :erc20}, &1.asset))
+              |> filter_notes(assets)
+
+            {:cont, {:ok, acc ++ notes}}
+
+          {:error, error} ->
+            {:halt, {:error, error}}
+        end
+      end)
     end
   end
 
@@ -166,8 +188,8 @@ defmodule RailgunElixir.Plugin do
   def broadcast(%__MODULE__{bundler_url: nil}, _op),
     do: {:error, Error.invalid_argument("bundler is required", %{})}
 
-  def broadcast(%__MODULE__{delegating_private_key: nil}, _op),
-    do: {:error, Error.invalid_argument("delegating signer is required", %{})}
+  def broadcast(%__MODULE__{smart_account_signer_private_key: nil}, _op),
+    do: {:error, Error.invalid_argument("smart account signer is required", %{})}
 
   def broadcast(%__MODULE__{} = plugin, %PrivateOperation{} = op) do
     with {:ok, _result} <-
@@ -178,14 +200,17 @@ defmodule RailgunElixir.Plugin do
                provider_id: plugin.provider.id,
                operations: TransactionBuilder.to_native_operations(op.builder),
                bundler_url: plugin.bundler_url,
-               delegating_private_key: plugin.delegating_private_key,
+               smart_account_signer_private_key: plugin.smart_account_signer_private_key,
+               chain_id: plugin.chain.id,
+               rpc_url: plugin.provider.rpc_url,
                fee_payer_signer_id: SignerPool.primary(plugin.pool).id,
                fee_token: plugin.chain.wrapped_base_token,
                native_amount: op.native_amount || 0,
                to: op.to
              },
              900_000
-           ) do
+           ),
+         :ok <- Provider.sync(plugin.provider) do
       :ok
     end
   end
@@ -214,12 +239,19 @@ defmodule RailgunElixir.Plugin do
 
   defp merge_balances(acc, balances, :all) do
     Enum.reduce(balances, acc, fn %AssetAmount{} = balance, acc ->
-      key = asset_key(balance.asset)
+      key = {asset_key(balance.asset), balance.tag}
 
       Map.update(acc, key, balance, fn existing ->
         %{existing | amount: existing.amount + balance.amount}
       end)
     end)
+  end
+
+  defp filter_notes(notes, []), do: notes
+
+  defp filter_notes(notes, assets) do
+    allowed = MapSet.new(Enum.map(assets, &asset_key/1))
+    Enum.filter(notes, &(asset_key(&1.asset) in allowed))
   end
 
   defp require_erc20(tokens) do
@@ -231,15 +263,23 @@ defmodule RailgunElixir.Plugin do
   end
 
   defp normalize_unshield_tokens(plugin, tokens) do
+    fee_bps = plugin.chain.unshield_fee_bps
+
     Enum.reduce(tokens, {[], 0}, fn
       %AssetAmount{asset: %Asset{type: :erc20}} = token, {tokens, native_amount} ->
-        {[token | tokens], native_amount}
+        {[add_unshield_fee(token, fee_bps) | tokens], native_amount}
 
       %AssetAmount{asset: %Asset{type: :native}, amount: amount}, {tokens, native_amount} ->
         {:ok, wrapped} = Asset.erc20(plugin.chain.wrapped_base_token)
-        {[%AssetAmount{asset: wrapped, amount: amount} | tokens], native_amount + amount}
+        token = add_unshield_fee(%AssetAmount{asset: wrapped, amount: amount}, fee_bps)
+        {[token | tokens], native_amount + amount}
     end)
     |> then(fn {tokens, native_amount} -> {Enum.reverse(tokens), native_amount} end)
+  end
+
+  defp add_unshield_fee(%AssetAmount{amount: amount} = token, fee_bps) do
+    denominator = 10_000 - fee_bps
+    %{token | amount: div(amount * 10_000, denominator)}
   end
 
   defp asset_key(%Asset{type: :native}), do: {:native}

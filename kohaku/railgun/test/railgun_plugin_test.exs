@@ -5,7 +5,7 @@ defmodule RailgunPluginTest do
   alias RailgunElixir.{Builder, Plugin, Provider, Signer, SignerPool, UtxoSyncer}
 
   @wallet_address "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
-  @delegator_pk "0xd01165bc18d3f0d0b2114a42930164f729ae8310f447b4dd2e96124c02bbe151"
+  @smart_account_signer_pk "0xd01165bc18d3f0d0b2114a42930164f729ae8310f447b4dd2e96124c02bbe151"
   @alto_executor "0x8dee56a37d5d7e6dedcbf09865b42d4e8c4ae74a"
   @alto_utility "0xe567a07c0a9d289a26b20582b3c3c05b97e07492"
   @entry_point_08 "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108"
@@ -30,6 +30,8 @@ defmodule RailgunPluginTest do
       assert {:ok, plugin} = Plugin.create(host, runtime: runtime, rpc_batch_size: 10_000)
       assert {:ok, balances} = Plugin.balance(plugin, nil)
       assert is_list(balances)
+      assert {:ok, notes} = Plugin.notes(plugin)
+      assert is_list(notes)
     end)
   end
 
@@ -107,7 +109,7 @@ defmodule RailgunPluginTest do
         plugin1 =
           %Plugin{chain: chain, provider: railgun, pool: SignerPool.new(signer1)}
           |> Plugin.put_bundler(alto_url)
-          |> Plugin.put_delegating_signer(@delegator_pk)
+          |> Plugin.put_smart_account_signer(@smart_account_signer_pk)
 
         plugin2 = %Plugin{chain: chain, provider: railgun, pool: SignerPool.new(signer2)}
 

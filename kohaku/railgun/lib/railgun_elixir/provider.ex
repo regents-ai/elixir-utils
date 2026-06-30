@@ -4,7 +4,7 @@ defmodule RailgunElixir.Provider do
   """
 
   alias KohakuPlugins.{Asset, AssetAmount}
-  alias RailgunElixir.{Error, Native, Runtime, ShieldBuilder, Signer, TransactionBuilder}
+  alias RailgunElixir.{Error, Native, Note, Runtime, ShieldBuilder, Signer, TransactionBuilder}
 
   @enforce_keys [:runtime, :id, :chain, :rpc_url]
   defstruct [:runtime, :id, :chain, :rpc_url]
@@ -48,6 +48,19 @@ defmodule RailgunElixir.Provider do
     end
   end
 
+  @spec notes(t(), String.t()) :: {:ok, [Note.t()]} | {:error, Error.t()}
+  def notes(%__MODULE__{} = provider, address) when is_binary(address) do
+    with {:ok, %{"notes" => notes}} <-
+           Native.request(provider.runtime, "provider_notes", %{
+             provider_id: provider.id,
+             address: address
+           }) do
+      notes
+      |> Enum.map(&Note.from_native(&1, address))
+      |> collect()
+    end
+  end
+
   @spec shield(t()) :: ShieldBuilder.t()
   def shield(%__MODULE__{} = provider), do: ShieldBuilder.new(provider)
 
@@ -74,10 +87,10 @@ defmodule RailgunElixir.Provider do
     end
   end
 
-  defp asset_amount_from_native(%{"asset" => asset, "amount" => amount}) do
+  defp asset_amount_from_native(%{"asset" => asset, "amount" => amount} = record) do
     with {:ok, asset} <- Asset.from_native_map(asset),
          {amount, ""} <- Integer.parse(to_string(amount)) do
-      AssetAmount.new(asset, amount)
+      AssetAmount.new(asset, amount, record["poi_status"])
     else
       {:error, error} ->
         {:error, Error.from(error)}

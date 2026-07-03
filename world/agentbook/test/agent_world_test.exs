@@ -102,6 +102,36 @@ defmodule AgentWorldTest do
     end
   end
 
+  test "ABI encoding reports invalid bytes32 values" do
+    assert {:error,
+            %AgentWorld.Error{
+              kind: :invalid_argument,
+              details: %{reason: {:expected_bytes32, "short"}}
+            }} =
+             ABI.encode_call("isValidSignature(bytes32,bytes)", [
+               {:bytes32, "short"},
+               {:bytes, "signature"}
+             ])
+  end
+
+  test "ABI encoding reports invalid address values" do
+    assert {:error,
+            %AgentWorld.Error{
+              kind: :invalid_argument,
+              details: %{value: "\"0x123\""}
+            }} = ABI.encode_call("lookupHuman(address)", [{:address, "0x123"}])
+  end
+
+  test "ABI encoding reports unsupported argument shapes" do
+    for invalid <- [{:bool, true}, :not_an_abi_arg] do
+      assert {:error,
+              %AgentWorld.Error{
+                kind: :invalid_argument,
+                details: %{reason: {:unsupported_arg, ^invalid}}
+              }} = ABI.encode_call("unsupported(bytes)", [invalid])
+    end
+  end
+
   test "create_session returns the request shape the browser flow expects" do
     assert {:ok, session} =
              Registration.create_session(%{

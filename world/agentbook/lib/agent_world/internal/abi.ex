@@ -70,41 +70,46 @@ defmodule AgentWorld.Internal.ABI do
   end
 
   defp encode_args(args) do
-    {head, tail, _dynamic_words} =
-      Enum.reduce(args, {"", "", length(args)}, fn
-        {:uint256, value}, {head, tail, dynamic_words} ->
-          {head <> uint256_word(value), tail, dynamic_words}
+    case Enum.reduce_while(args, {:ok, {"", "", length(args)}}, &encode_arg/2) do
+      {:ok, {head, tail, _dynamic_words}} -> {:ok, head <> tail}
+      {:error, %Error{} = error} -> {:error, error}
+    end
+  end
 
-        {:bytes32, value}, {head, tail, dynamic_words} ->
-          case bytes32_word(value) do
-            {:ok, word} -> {head <> word, tail, dynamic_words}
-            {:error, error} -> throw({:error, error})
-          end
+  defp encode_arg({:uint256, value}, {:ok, {head, tail, dynamic_words}}) do
+    {:cont, {:ok, {head <> uint256_word(value), tail, dynamic_words}}}
+  end
 
-        {:address, value}, {head, tail, dynamic_words} ->
-          case address_word(value) do
-            {:ok, word} -> {head <> word, tail, dynamic_words}
-            {:error, error} -> throw({:error, error})
-          end
+  defp encode_arg({:bytes32, value}, {:ok, {head, tail, dynamic_words}}) do
+    case bytes32_word(value) do
+      {:ok, word} -> {:cont, {:ok, {head <> word, tail, dynamic_words}}}
+      {:error, error} -> {:halt, {:error, error}}
+    end
+  end
 
-        {:string, value}, {head, tail, dynamic_words} ->
-          encoded_tail = string_tail(value)
-          offset_bytes = dynamic_words * 32
-          new_words = dynamic_words + div(byte_size(encoded_tail), 64)
-          {head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words}
+  defp encode_arg({:address, value}, {:ok, {head, tail, dynamic_words}}) do
+    case address_word(value) do
+      {:ok, word} -> {:cont, {:ok, {head <> word, tail, dynamic_words}}}
+      {:error, error} -> {:halt, {:error, error}}
+    end
+  end
 
-        {:bytes, value}, {head, tail, dynamic_words} when is_binary(value) ->
-          encoded_tail = bytes_tail(value)
-          offset_bytes = dynamic_words * 32
-          new_words = dynamic_words + div(byte_size(encoded_tail), 64)
-          {head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words}
+  defp encode_arg({:string, value}, {:ok, {head, tail, dynamic_words}}) do
+    {:cont, {:ok, encode_dynamic_arg(string_tail(value), head, tail, dynamic_words)}}
+  end
 
-        invalid, _acc ->
-          throw({:error, Error.new({:abi_error, {:unsupported_arg, invalid}})})
-      end)
+  defp encode_arg({:bytes, value}, {:ok, {head, tail, dynamic_words}}) when is_binary(value) do
+    {:cont, {:ok, encode_dynamic_arg(bytes_tail(value), head, tail, dynamic_words)}}
+  end
 
-    {:ok, head <> tail}
-  catch
-    {:error, %Error{} = error} -> {:error, error}
+  defp encode_arg(invalid, {:ok, _acc}) do
+    {:halt, {:error, Error.new({:abi_error, {:unsupported_arg, invalid}})}}
+  end
+
+  defp encode_dynamic_arg(encoded_tail, head, tail, dynamic_words) do
+    offset_bytes = dynamic_words * 32
+    new_words = dynamic_words + div(byte_size(encoded_tail), 64)
+
+    {head <> uint256_word(offset_bytes), tail <> encoded_tail, new_words}
   end
 end

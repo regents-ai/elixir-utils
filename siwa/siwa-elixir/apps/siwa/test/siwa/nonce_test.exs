@@ -175,6 +175,44 @@ defmodule Siwa.NonceTest do
     assert Enum.count(results, &match?({:error, :nonce_already_used}, &1)) == 19
   end
 
+  test "token replay consume stays one-time use with many stale entries present" do
+    now_ms = System.system_time(:millisecond)
+    stale_expires_at_ms = now_ms - 60_000
+    fresh_expires_at_ms = now_ms + 60_000
+    table = Siwa.Nonce.TokenReplayStore
+    expiry_table = Module.concat(Siwa.Nonce.TokenReplayStore, Expiry)
+
+    stale_keys =
+      for index <- 1..10_000 do
+        :crypto.hash(:sha256, "stale-token-#{System.unique_integer([:positive])}-#{index}")
+      end
+
+    :ets.insert(table, Enum.map(stale_keys, &{&1, stale_expires_at_ms}))
+    :ets.insert(expiry_table, Enum.map(stale_keys, &{{stale_expires_at_ms, &1}, true}))
+
+    fresh_key =
+      :crypto.hash(:sha256, "fresh-token-#{System.unique_integer([:positive])}")
+
+    on_exit(fn ->
+      Enum.each(stale_keys, fn key ->
+        :ets.delete(table, key)
+        :ets.delete(expiry_table, {stale_expires_at_ms, key})
+      end)
+
+      :ets.delete(table, fresh_key)
+      :ets.delete(expiry_table, {fresh_expires_at_ms, fresh_key})
+    end)
+
+    {elapsed_us, result} =
+      :timer.tc(fn -> Siwa.Nonce.TokenReplayStore.consume(fresh_key, fresh_expires_at_ms) end)
+
+    assert result == :ok
+    assert elapsed_us < 250_000
+
+    assert {:error, :nonce_already_used} =
+             Siwa.Nonce.TokenReplayStore.consume(fresh_key, fresh_expires_at_ms)
+  end
+
   describe "verify_nonce_token/2" do
     @nonce_secret "nonce-secret"
 

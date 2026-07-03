@@ -4,10 +4,26 @@ defmodule SiwaKeyring.RouterUsageTest do
   import Plug.Conn
   import Plug.Test
 
+  defmodule RaisingKeyring do
+    def sign_message(_message), do: raise(RuntimeError, "secret signer raise")
+  end
+
+  defmodule ThrowingKeyring do
+    def sign_message(_message), do: throw({:secret_signer_throw, "secret signer throw"})
+  end
+
+  defmodule ExitingKeyring do
+    def sign_message(_message), do: exit({:secret_signer_exit, "secret signer exit"})
+  end
+
   @prefix "/api/shared/keyring"
 
   defp call_router(conn) do
     SiwaKeyring.Router.call(conn, SiwaKeyring.Router.init([]))
+  end
+
+  def handle_keyring_failure(_event, measurements, metadata, test_pid) do
+    send(test_pid, {:keyring_failure, measurements, metadata})
   end
 
   defp signed_conn(method, path, body, secret, opts \\ []) do
@@ -18,6 +34,26 @@ defmodule SiwaKeyring.RouterUsageTest do
     |> put_req_header("x-keyring-timestamp", headers["x-keyring-timestamp"])
     |> put_req_header("x-keyring-request-id", headers["x-keyring-request-id"])
     |> put_req_header("x-keyring-signature", headers["x-keyring-signature"])
+  end
+
+  defp call_router_with_failure(conn) do
+    test_pid = self()
+    handler_id = attach_keyring_failure_handler(test_pid)
+
+    log =
+      try do
+        capture_log(fn ->
+          response = call_router(conn)
+          send(test_pid, {:keyring_response, response})
+        end)
+      after
+        :telemetry.detach(handler_id)
+      end
+
+    assert_receive {:keyring_response, response}
+    assert_receive {:keyring_failure, %{count: 1}, metadata}
+
+    {response, log, metadata}
   end
 
   defp wallet_action(overrides) do
@@ -47,8 +83,8 @@ defmodule SiwaKeyring.RouterUsageTest do
     try do
       fun.(path)
     after
-      File.rm(path)
-      Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
+      File.rm_rf(path)
+      restore_keyring_env(old_env)
     end
   end
 
@@ -322,50 +358,210 @@ defmodule SiwaKeyring.RouterUsageTest do
     end)
   end
 
-  test "router returns stable error codes when a wallet is missing" do
-    path = Path.join(System.tmp_dir!(), "siwa-keyring-#{System.unique_integer([:positive])}.json")
-    old_env = Application.get_all_env(:siwa_keyring)
+  test "router returns a tagged redacted response when a wallet is missing" do
+    with_keyring_env(fn path ->
+      {response, log, metadata} =
+        signed_conn("POST", @prefix <> "/get-address", "{}", "router-secret")
+        |> call_router_with_failure()
 
-    Application.put_env(:siwa_keyring, :path, path)
-    Application.put_env(:siwa_keyring, :password, "router-password")
-    Application.put_env(:siwa_keyring, :secret, "router-secret")
-
-    on_exit(fn ->
-      File.rm(path)
-      Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
+      assert response.status == 404
+      assert Jason.decode!(response.resp_body) == %{"error" => "wallet_not_found"}
+      assert %{action: :get_address, error_class: "wallet_missing"} = metadata
+      assert log =~ "keyring request failed action=get_address error_class=wallet_missing"
+      refute log =~ path
     end)
-
-    response =
-      signed_conn("POST", @prefix <> "/get-address", "{}", "router-secret")
-      |> call_router()
-
-    assert response.status == 404
-    assert Jason.decode!(response.resp_body) == %{"error" => "wallet_not_found"}
   end
 
-  test "router redacts signer failure details from logs" do
+  test "router returns a tagged redacted response when a wallet already exists" do
+    with_keyring_env(fn _path ->
+      create_response =
+        signed_conn("POST", @prefix <> "/create-wallet", "{}", "router-secret")
+        |> call_router()
+
+      assert create_response.status == 200
+
+      {response, log, metadata} =
+        signed_conn("POST", @prefix <> "/create-wallet", "{}", "router-secret")
+        |> call_router_with_failure()
+
+      assert response.status == 422
+      assert Jason.decode!(response.resp_body) == %{"error" => "wallet_create_failed"}
+      assert %{action: :create_wallet, error_class: "wallet_already_exists"} = metadata
+
+      assert log =~
+               "keyring request failed action=create_wallet error_class=wallet_already_exists"
+    end)
+  end
+
+  test "router returns a tagged redacted response for keyring file IO failures" do
+    with_keyring_env(fn path ->
+      File.mkdir_p!(path)
+
+      {response, log, metadata} =
+        signed_conn("POST", @prefix <> "/get-address", "{}", "router-secret")
+        |> call_router_with_failure()
+
+      assert response.status == 422
+      assert Jason.decode!(response.resp_body) == %{"error" => "wallet_lookup_failed"}
+      assert %{action: :get_address, error_class: "file_io_error"} = metadata
+      assert log =~ "keyring request failed action=get_address error_class=file_io_error"
+      refute log =~ path
+    end)
+  end
+
+  test "router returns a tagged redacted response for malformed keystore JSON" do
     with_keyring_env(fn path ->
       File.write!(path, "secret-signing-payload")
 
-      log =
-        capture_log(fn ->
-          response =
-            signed_conn(
-              "POST",
-              @prefix <> "/sign-message",
-              Jason.encode!(%{message: "secret-message"}),
-              "router-secret"
-            )
-            |> call_router()
+      {response, log, metadata} =
+        signed_conn(
+          "POST",
+          @prefix <> "/sign-message",
+          Jason.encode!(%{message: "secret-message"}),
+          "router-secret"
+        )
+        |> call_router_with_failure()
 
-          assert response.status == 422
-          assert Jason.decode!(response.resp_body) == %{"error" => "message_sign_failed"}
-        end)
+      assert response.status == 422
+      assert Jason.decode!(response.resp_body) == %{"error" => "message_sign_failed"}
+      assert %{action: :sign_message, error_class: "keystore_decrypt_failed"} = metadata
 
-      assert log =~ "keyring sign_message failed: redacted"
+      assert log =~
+               "keyring request failed action=sign_message error_class=keystore_decrypt_failed"
+
       refute log =~ "secret-message"
       refute log =~ "secret-signing-payload"
-      refute log =~ "keystore_decrypt_failed"
+    end)
+  end
+
+  test "router returns a tagged redacted response for crypto signing failures" do
+    with_keyring_env(fn path ->
+      :ok =
+        SiwaKeyring.Keystore.persist_wallet(
+          %{path: path, password: "router-password"},
+          %{
+            private_key: "secret-private-key-marker",
+            public_key: "0x04",
+            address: "0x1111111111111111111111111111111111111111",
+            signer_type: "eoa"
+          }
+        )
+
+      {response, log, metadata} =
+        signed_conn(
+          "POST",
+          @prefix <> "/sign-message",
+          Jason.encode!(%{message: "secret-message"}),
+          "router-secret"
+        )
+        |> call_router_with_failure()
+
+      assert response.status == 422
+      assert Jason.decode!(response.resp_body) == %{"error" => "message_sign_failed"}
+      assert %{action: :sign_message, error_class: "crypto_error"} = metadata
+      assert log =~ "keyring request failed action=sign_message error_class=crypto_error"
+      refute response.resp_body =~ "secret-private-key-marker"
+      refute log =~ "secret-private-key-marker"
+      refute log =~ "secret-message"
+    end)
+  end
+
+  test "router returns a tagged redacted response for invalid signing parameters" do
+    with_keyring_env(fn _path ->
+      create_response =
+        signed_conn("POST", @prefix <> "/create-wallet", "{}", "router-secret")
+        |> call_router()
+
+      assert create_response.status == 200
+
+      body =
+        %{
+          "transaction" =>
+            wallet_action(%{"expected_signer" => "0x2222222222222222222222222222222222222222"})
+        }
+        |> Jason.encode!()
+
+      {response, log, metadata} =
+        signed_conn("POST", @prefix <> "/sign-transaction", body, "router-secret")
+        |> call_router_with_failure()
+
+      assert response.status == 422
+      assert Jason.decode!(response.resp_body) == %{"error" => "transaction_sign_failed"}
+      assert %{action: :sign_transaction, error_class: "invalid_params"} = metadata
+      assert log =~ "keyring request failed action=sign_transaction error_class=invalid_params"
+      refute log =~ "0x2222222222222222222222222222222222222222"
+    end)
+  end
+
+  test "router redacts signer raises and records the failure class" do
+    with_keyring_env(fn _path ->
+      Application.put_env(:siwa_keyring, :router_keyring_module, RaisingKeyring)
+
+      {response, log, metadata} =
+        signed_conn(
+          "POST",
+          @prefix <> "/sign-message",
+          Jason.encode!(%{message: "secret-message"}),
+          "router-secret"
+        )
+        |> call_router_with_failure()
+
+      assert response.status == 500
+      assert Jason.decode!(response.resp_body) == %{"error" => "keyring_request_failed"}
+      assert %{action: :sign_message, error_class: "RuntimeError"} = metadata
+      assert log =~ "keyring request failed action=sign_message error_class=RuntimeError"
+      assert log =~ "reason=redacted"
+      refute response.resp_body =~ "secret signer raise"
+      refute log =~ "secret-message"
+      refute log =~ "secret signer raise"
+    end)
+  end
+
+  test "router redacts signer throws and records the failure class" do
+    with_keyring_env(fn _path ->
+      Application.put_env(:siwa_keyring, :router_keyring_module, ThrowingKeyring)
+
+      {response, log, metadata} =
+        signed_conn(
+          "POST",
+          @prefix <> "/sign-message",
+          Jason.encode!(%{message: "secret-message"}),
+          "router-secret"
+        )
+        |> call_router_with_failure()
+
+      assert response.status == 500
+      assert Jason.decode!(response.resp_body) == %{"error" => "keyring_request_failed"}
+      assert %{action: :sign_message, error_class: "throw"} = metadata
+      assert log =~ "keyring request failed action=sign_message error_class=throw"
+      assert log =~ "reason=redacted"
+      refute response.resp_body =~ "secret signer throw"
+      refute log =~ "secret-message"
+      refute log =~ "secret signer throw"
+    end)
+  end
+
+  test "router redacts signer exits and records the failure class" do
+    with_keyring_env(fn _path ->
+      Application.put_env(:siwa_keyring, :router_keyring_module, ExitingKeyring)
+
+      {response, log, metadata} =
+        signed_conn(
+          "POST",
+          @prefix <> "/sign-message",
+          Jason.encode!(%{message: "secret-message"}),
+          "router-secret"
+        )
+        |> call_router_with_failure()
+
+      assert response.status == 500
+      assert Jason.decode!(response.resp_body) == %{"error" => "keyring_request_failed"}
+      assert %{action: :sign_message, error_class: "exit"} = metadata
+      assert log =~ "keyring request failed action=sign_message error_class=exit"
+      assert log =~ "reason=redacted"
+      refute response.resp_body =~ "secret signer exit"
+      refute log =~ "secret-message"
+      refute log =~ "secret signer exit"
     end)
   end
 
@@ -430,5 +626,26 @@ defmodule SiwaKeyring.RouterUsageTest do
 
     assert {:ok, "aaaaa", conn} = SiwaKeyring.Router.read_body(conn, length: 5)
     assert conn.private[:raw_body] == raw_body
+  end
+
+  defp attach_keyring_failure_handler(test_pid) do
+    handler_id = "router-keyring-failure-#{System.unique_integer([:positive])}"
+
+    :telemetry.attach(
+      handler_id,
+      [:siwa_keyring, :router, :keyring_request, :failure],
+      &__MODULE__.handle_keyring_failure/4,
+      test_pid
+    )
+
+    handler_id
+  end
+
+  defp restore_keyring_env(old_env) do
+    :siwa_keyring
+    |> Application.get_all_env()
+    |> Enum.each(fn {key, _value} -> Application.delete_env(:siwa_keyring, key) end)
+
+    Enum.each(old_env, fn {key, value} -> Application.put_env(:siwa_keyring, key, value) end)
   end
 end

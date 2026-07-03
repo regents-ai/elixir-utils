@@ -5,6 +5,52 @@ defmodule SiwaKeyring.Router do
   @max_body_bytes 65_536
   @read_length 8_192
   @read_timeout 5_000
+  @boundary_error :keyring_boundary_failure
+  @file_io_errors [
+    :eacces,
+    :eagain,
+    :ebadf,
+    :edeadlk,
+    :edquot,
+    :eexist,
+    :efault,
+    :efbig,
+    :eintr,
+    :einval,
+    :eio,
+    :eisdir,
+    :eloop,
+    :emfile,
+    :emlink,
+    :enametoolong,
+    :enfile,
+    :enobufs,
+    :enodev,
+    :enoent,
+    :enomem,
+    :enospc,
+    :enotblk,
+    :enotdir,
+    :enotsup,
+    :enxio,
+    :eperm,
+    :epipe,
+    :erofs,
+    :espipe,
+    :esrch,
+    :estale,
+    :exdev
+  ]
+  @crypto_errors [
+    :invalid_hex,
+    :invalid_message,
+    :invalid_payload,
+    :invalid_public_key,
+    :invalid_recovery_id,
+    :invalid_signature,
+    :invalid_signature_encoding,
+    :missing_public_key
+  ]
   @parser_options Plug.Parsers.init(
                     parsers: [:json],
                     pass: ["application/json"],
@@ -30,74 +76,88 @@ defmodule SiwaKeyring.Router do
   end
 
   post @prefix <> "/create-wallet" do
-    case run_keyring_request(:create_wallet, fn -> SiwaKeyring.create_wallet() end) do
+    keyring = keyring_module()
+
+    case run_keyring_request(:create_wallet, fn -> keyring.create_wallet() end) do
       {:ok, wallet} -> send_json(conn, 200, wallet)
-      {:error, _reason} -> send_error(conn, 422, "wallet_create_failed")
+      {:error, reason} -> send_keyring_error(conn, reason, 422, "wallet_create_failed")
     end
   end
 
   post @prefix <> "/has-wallet" do
-    case run_keyring_request(:has_wallet, fn -> SiwaKeyring.has_wallet?() end) do
+    keyring = keyring_module()
+
+    case run_keyring_request(:has_wallet, fn -> keyring.has_wallet?() end) do
       {:ok, result} -> send_json(conn, 200, result)
-      {:error, _reason} -> send_error(conn, 422, "wallet_check_failed")
+      {:error, reason} -> send_keyring_error(conn, reason, 422, "wallet_check_failed")
     end
   end
 
   post @prefix <> "/get-address" do
-    case run_keyring_request(:get_address, fn -> SiwaKeyring.get_address() end) do
+    keyring = keyring_module()
+
+    case run_keyring_request(:get_address, fn -> keyring.get_address() end) do
       {:ok, address} -> send_json(conn, 200, %{address: address})
       {:error, :wallet_missing} -> send_error(conn, 404, "wallet_not_found")
-      {:error, _reason} -> send_error(conn, 422, "wallet_lookup_failed")
+      {:error, reason} -> send_keyring_error(conn, reason, 422, "wallet_lookup_failed")
     end
   end
 
   post @prefix <> "/sign-message" do
+    keyring = keyring_module()
+
     with {:ok, message} <- required_text(conn.body_params, "message", :message_required),
          {:ok, signature} <-
-           run_keyring_request(:sign_message, fn -> SiwaKeyring.sign_message(message) end) do
+           run_keyring_request(:sign_message, fn -> keyring.sign_message(message) end) do
       send_json(conn, 200, %{signature: signature})
     else
       {:error, :message_required} -> send_error(conn, 400, "message_required")
-      {:error, _reason} -> send_error(conn, 422, "message_sign_failed")
+      {:error, reason} -> send_keyring_error(conn, reason, 422, "message_sign_failed")
     end
   end
 
   post @prefix <> "/sign-raw-message" do
+    keyring = keyring_module()
+
     with {:ok, payload} <- required_text(conn.body_params, "payload", :payload_required),
          {:ok, signature} <-
-           run_keyring_request(:sign_raw_message, fn -> SiwaKeyring.sign_raw_message(payload) end) do
+           run_keyring_request(:sign_raw_message, fn -> keyring.sign_raw_message(payload) end) do
       send_json(conn, 200, %{signature: signature})
     else
       {:error, :payload_required} -> send_error(conn, 400, "payload_required")
-      {:error, _reason} -> send_error(conn, 422, "raw_message_sign_failed")
+      {:error, reason} -> send_keyring_error(conn, reason, 422, "raw_message_sign_failed")
     end
   end
 
   post @prefix <> "/sign-transaction" do
+    keyring = keyring_module()
+
     with {:ok, transaction} <-
            required_wallet_action(conn.body_params, "transaction", :transaction_required),
          {:ok, signed} <-
            run_keyring_request(:sign_transaction, fn ->
-             SiwaKeyring.sign_transaction(transaction)
+             keyring.sign_transaction(transaction)
            end) do
       send_json(conn, 200, signed)
     else
       {:error, :transaction_required} -> send_error(conn, 400, "transaction_required")
-      {:error, _reason} -> send_error(conn, 422, "transaction_sign_failed")
+      {:error, reason} -> send_keyring_error(conn, reason, 422, "transaction_sign_failed")
     end
   end
 
   post @prefix <> "/sign-authorization" do
+    keyring = keyring_module()
+
     with {:ok, authorization} <-
            required_wallet_action(conn.body_params, "authorization", :authorization_required),
          {:ok, signed} <-
            run_keyring_request(:sign_authorization, fn ->
-             SiwaKeyring.sign_authorization(authorization)
+             keyring.sign_authorization(authorization)
            end) do
       send_json(conn, 200, signed)
     else
       {:error, :authorization_required} -> send_error(conn, 400, "authorization_required")
-      {:error, _reason} -> send_error(conn, 422, "authorization_sign_failed")
+      {:error, reason} -> send_keyring_error(conn, reason, 422, "authorization_sign_failed")
     end
   end
 
@@ -254,27 +314,105 @@ defmodule SiwaKeyring.Router do
   end
 
   defp run_keyring_request(action, fun) do
-    fun.()
+    result = fun.()
+
+    handle_keyring_result(action, result)
   rescue
-    _error ->
-      Logger.error("keyring #{action} crashed")
-
-      {:error, :internal_failure}
+    exception ->
+      keyring_unexpected_exception(action, exception)
   catch
-    _kind, _reason ->
-      Logger.error("keyring #{action} exited")
-      {:error, :internal_failure}
-  else
-    {:ok, result} ->
-      {:ok, result}
+    :throw, reason ->
+      keyring_unexpected_control_flow(action, "throw", reason)
 
-    {:error, reason} = error ->
-      Logger.warning("keyring #{action} failed: #{redacted_reason(reason)}")
-      error
+    :exit, reason ->
+      keyring_unexpected_control_flow(action, "exit", reason)
 
-    other ->
-      Logger.error("keyring #{action} returned an unexpected response: #{redacted_reason(other)}")
-      {:error, :internal_failure}
+    kind, reason ->
+      keyring_unexpected_control_flow(action, Atom.to_string(kind), reason)
+  end
+
+  defp handle_keyring_result(action, result) do
+    case result do
+      {:ok, _result} = ok ->
+        ok
+
+      {:error, reason} = error ->
+        case expected_keyring_error_class(reason) do
+          {:ok, error_class} ->
+            log_keyring_failure(:warning, action, error_class, redacted_reason(reason))
+            error
+
+          :error ->
+            log_keyring_failure(:error, action, "unexpected_error", "redacted")
+            {:error, @boundary_error}
+        end
+
+      other ->
+        log_keyring_failure(:error, action, "unexpected_return", redacted_reason(other))
+        {:error, @boundary_error}
+    end
+  end
+
+  defp keyring_unexpected_exception(action, exception) do
+    error_class = exception.__struct__ |> Module.split() |> List.last()
+
+    log_keyring_failure(
+      :error,
+      action,
+      error_class,
+      sanitized_exception_message(exception)
+    )
+
+    {:error, @boundary_error}
+  end
+
+  defp keyring_unexpected_control_flow(action, error_class, _reason) do
+    log_keyring_failure(:error, action, error_class, "redacted")
+    {:error, @boundary_error}
+  end
+
+  defp expected_keyring_error_class(:wallet_missing), do: {:ok, "wallet_missing"}
+  defp expected_keyring_error_class(:wallet_already_exists), do: {:ok, "wallet_already_exists"}
+
+  defp expected_keyring_error_class(:keystore_decrypt_failed),
+    do: {:ok, "keystore_decrypt_failed"}
+
+  defp expected_keyring_error_class(:invalid_wallet_action), do: {:ok, "invalid_params"}
+  defp expected_keyring_error_class(:unexpected_signer), do: {:ok, "invalid_params"}
+
+  defp expected_keyring_error_class(reason) when reason in @file_io_errors,
+    do: {:ok, "file_io_error"}
+
+  defp expected_keyring_error_class(reason) when reason in @crypto_errors,
+    do: {:ok, "crypto_error"}
+
+  defp expected_keyring_error_class(_reason), do: :error
+
+  defp sanitized_exception_message(_exception), do: "redacted"
+
+  defp send_keyring_error(conn, @boundary_error, _status, _error) do
+    send_error(conn, 500, "keyring_request_failed")
+  end
+
+  defp send_keyring_error(conn, _reason, status, error) do
+    send_error(conn, status, error)
+  end
+
+  defp log_keyring_failure(level, action, error_class, reason) do
+    :telemetry.execute(
+      [:siwa_keyring, :router, :keyring_request, :failure],
+      %{count: 1},
+      %{action: action, error_class: error_class}
+    )
+
+    Logger.log(
+      level,
+      "keyring request failed action=#{action} error_class=#{error_class} reason=#{reason}"
+    )
+  end
+
+  defp keyring_module do
+    Application.get_env(:siwa_keyring, :router_keyring_module, SiwaKeyring)
   end
 
   defp redacted_reason(reason) when reason in [:wallet_missing, :wallet_already_exists],

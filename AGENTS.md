@@ -6,7 +6,7 @@ Generated from `meta/stack.yaml` and repo `repo.yaml` files. Local notes may liv
 - Repo contract: `elixir-utils/repo.yaml`
 - Owner: `elixir-utils`
 - Release group: `public_beta`
-- Owned areas: `siwa_library`, `ens_library`, `xmtp_library`, `agentbook_helpers`.
+- Owned areas: `siwa_library`, `ens_library`, `xmtp_library`, `agentbook_helpers`, `chatgpt_connector_primitives`.
 - Change API or CLI behavior in the owning YAML contract before changing code.
 - Use `bd` only for execution state: tickets, claims, blockers, dependencies, and closure evidence.
 <!-- END REGENT META GENERATED -->

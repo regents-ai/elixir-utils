@@ -21,6 +21,7 @@ benchmark proof status or Fold reward eligibility.
 | `xmtp/` | `xmtp_elixir_sdk` | XMTP client lifecycle, conversations, groups, messages, sync helpers, product-scoped room panels, identity setup, resolver caching, and room metadata. | Platform Regent rooms, Autolaunch launch or subject rooms, Techtree public/review/research rooms, server-owned room workers. |
 | `world/agentbook/` | `agent_world` | AgentKit header parsing, AgentBook lookup, World proof registration sessions, and wallet-ready AgentBook registration requests. | Product trust sessions, Autolaunch trust summaries, Platform identity checks, CLI trust-link commands. |
 | `cache/` | `regent_cache` | Cachex-backed JSON values, strings, counters, sets, health checks, and cache child specs. | Short-lived read projections in Platform, Autolaunch, Techtree, SIWA, and shared workers. |
+| `chatgpt/` | `regent_chatgpt` | ChatGPT account OAuth/device-code primitives, token refresh, Codex model and responses request helpers, and redaction. | Platform-hosted connected-account flows where Privy remains the Regent login and product apps own storage, routes, and spend policy. |
 | `kohaku/plugins/` | `kohaku_plugins` | Kohaku host, storage, keystore, asset, balance, and broadcaster primitives. | Shared Kohaku protocol package foundations. |
 | `kohaku/provider/` | `kohaku_provider` | Ethereum JSON-RPC reads, calls, receipts, transaction submission, and Anvil test helpers. | Kohaku protocol packages and forked-chain tests. |
 | `kohaku/railgun/` | `railgun_elixir` | Railgun chain config, signers, syncing, balances, shield, transfer, unshield, and broadcast helpers. | Server-owned Railgun flows and Kohaku privacy-provider tests. |
@@ -45,6 +46,10 @@ package returns evidence; the product decides what that evidence allows.
 
 Use `regent_cache` for bounded, safe read caches. Do not use it as the owner of
 workflow state, permissions, balances, ownership, or revenue data.
+
+Use `regent_chatgpt` when a product needs server-side ChatGPT connected-account
+primitives. Product apps still own Privy login, authorization, encrypted token
+storage, rate limits, billing policy, and user-facing copy.
 
 Use `railgun_elixir` when a server process needs Railgun shield, private
 transfer, unshield, balance, or broadcast behavior. Use `kohaku_provider` for
@@ -124,6 +129,9 @@ SIWA_HEX_PUBLISH=1 mix hex.publish package
 cd /Users/sean/Documents/regent/elixir-utils/cache
 mix hex.publish package
 
+cd /Users/sean/Documents/regent/elixir-utils/chatgpt
+mix hex.publish package
+
 cd /Users/sean/Documents/regent/elixir-utils/xmtp
 mix hex.publish package
 ```
@@ -137,6 +145,7 @@ for d in \
   ens \
   world/agentbook \
   cache \
+  chatgpt \
   xmtp \
   kohaku/plugins \
   kohaku/provider \

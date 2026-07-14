@@ -3,12 +3,13 @@ repo: elixir-utils
 owner: elixir-utils
 path: elixir-utils
 release_group: public_beta
-stack_contract: ../meta/stack.yaml
+stack_contract: ../metaprogramming/stack.yaml
 owns:
   - siwa_library
   - ens_library
   - xmtp_library
   - agentbook_helpers
+  - chatgpt_connector_primitives
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []
@@ -19,6 +20,8 @@ source_of_truth:
 code_map:
   - path: cache
     owns: cache
+  - path: chatgpt
+    owns: chatgpt_connector_primitives
   - path: ens
     owns: ens
   - path: siwa/siwa-elixir
@@ -29,6 +32,8 @@ code_map:
     owns: xmtp
 local_path_dependencies: []
 acceptance_commands:
+  - cwd: elixir-utils/chatgpt
+    command: mix test
   - cwd: elixir-utils/cache
     command: mix test
   - cwd: elixir-utils/ens

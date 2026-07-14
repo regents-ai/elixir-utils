@@ -1,7 +1,7 @@
 <!-- BEGIN REGENT META GENERATED -->
 ## Repo Contract
 
-Generated from `meta/stack.yaml` and repo `repo.yaml` files. Local notes may live outside this block.
+Generated from `metaprogramming/stack.yaml` and repo `repo.yaml` files. Local notes may live outside this block.
 
 - Repo contract: `elixir-utils/repo.yaml`
 - Owner: `elixir-utils`

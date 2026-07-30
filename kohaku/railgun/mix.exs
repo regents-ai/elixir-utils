@@ -45,9 +45,9 @@ defmodule RailgunElixir.MixProject do
       check: [
         "cmd cargo build --manifest-path native/railgun_native/Cargo.toml",
         "compile --warnings-as-errors",
-        "deps.unlock --unused",
+        "deps.unlock --check-unused",
         "format --check-formatted",
-        "test"
+        "test --warnings-as-errors"
       ],
       "native.build": [
         "cmd cargo build --release --manifest-path native/railgun_native/Cargo.toml"

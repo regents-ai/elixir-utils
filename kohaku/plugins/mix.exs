@@ -39,10 +39,10 @@ defmodule KohakuPlugins.MixProject do
   defp aliases do
     [
       check: [
+        "deps.unlock --check-unused",
         "compile --warnings-as-errors",
-        "cmd mix deps.unlock --unused",
         "format --check-formatted",
-        "test"
+        "test --warnings-as-errors"
       ],
       precommit: ["check"]
     ]

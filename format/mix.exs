@@ -57,9 +57,9 @@ defmodule RegentFormat.MixProject do
     [
       check: [
         "compile --warnings-as-errors",
-        "deps.unlock --unused",
+        "deps.unlock --check-unused",
         "format --check-formatted",
-        "test"
+        "test --warnings-as-errors"
       ],
       precommit: ["check"]
     ]

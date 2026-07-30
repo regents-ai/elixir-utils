@@ -50,9 +50,9 @@ defmodule XmtpElixirSdk.MixProject do
         "cmd npm --prefix browser_shim test -- --run",
         "cmd npm --prefix browser_shim run typecheck",
         "compile --warnings-as-errors",
-        "deps.unlock --unused",
+        "deps.unlock --check-unused",
         "format --check-formatted",
-        "test"
+        "test --warnings-as-errors"
       ],
       "native.build": ["cmd cargo build --release --manifest-path native/xmtp_native/Cargo.toml"],
       precommit: ["check"]

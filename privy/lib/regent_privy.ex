@@ -13,12 +13,23 @@ defmodule RegentPrivy do
   per call; this library holds no configuration or secrets.
   """
 
-  alias RegentPrivy.VerifiedPrivyIdentity
-
   @wallet_address_pattern ~r/\A0x[0-9a-fA-F]{40}\z/u
   @issued_at_leeway_seconds 60
 
-  @type verified :: VerifiedPrivyIdentity.t()
+  @type linked_social :: %{
+          provider: :x | :github | :farcaster,
+          subject: String.t(),
+          username: String.t() | nil,
+          display_name: String.t() | nil
+        }
+
+  @type verified :: %{
+          claims: map(),
+          privy_user_id: String.t(),
+          wallet_address: String.t() | nil,
+          wallet_addresses: [String.t()],
+          linked_socials: [linked_social()]
+        }
 
   @doc """
   Verifies a Privy identity token.
@@ -47,10 +58,11 @@ defmodule RegentPrivy do
          :ok <- validate_audience(claims, app_id),
          :ok <- validate_time_claims(claims, now),
          {:ok, privy_user_id} <- fetch_subject(claims),
-         {:ok, wallet_addresses} <- fetch_wallet_addresses(claims),
-         {:ok, linked_socials} <- fetch_linked_socials(claims) do
+         {:ok, linked_accounts} <- fetch_linked_accounts(claims),
+         {:ok, wallet_addresses} <- fetch_wallet_addresses(linked_accounts),
+         {:ok, linked_socials} <- fetch_linked_socials(linked_accounts) do
       {:ok,
-       %VerifiedPrivyIdentity{
+       %{
          claims: claims,
          privy_user_id: privy_user_id,
          wallet_address: List.first(wallet_addresses),
@@ -133,68 +145,36 @@ defmodule RegentPrivy do
 
   defp fetch_subject(_claims), do: {:error, :invalid_subject}
 
-  defp fetch_wallet_addresses(%{"linked_accounts" => linked_accounts})
+  defp fetch_linked_accounts(%{"linked_accounts" => linked_accounts})
        when is_binary(linked_accounts) do
     with {:ok, decoded} <- Jason.decode(linked_accounts),
          true <- is_list(decoded) do
-      {:ok,
-       decoded
-       |> Enum.flat_map(&linked_account_addresses/1)
-       |> Enum.uniq()}
+      {:ok, decoded}
     else
       _other -> {:error, :invalid_linked_accounts}
     end
   end
 
-  defp fetch_wallet_addresses(_claims), do: {:ok, []}
+  defp fetch_linked_accounts(_claims), do: {:ok, []}
 
-  defp fetch_linked_socials(%{"linked_accounts" => linked_accounts})
-       when is_binary(linked_accounts) do
-    case Jason.decode(linked_accounts) do
-      {:ok, decoded} when is_list(decoded) ->
-        {:ok, Enum.flat_map(decoded, &linked_account_social/1)}
-
-      _other ->
-        {:ok, []}
-    end
+  defp fetch_wallet_addresses(linked_accounts) do
+    {:ok,
+     linked_accounts
+     |> Enum.flat_map(&linked_account_addresses/1)
+     |> Enum.uniq()}
   end
 
-  defp fetch_linked_socials(_claims), do: {:ok, []}
+  defp fetch_linked_socials(linked_accounts) do
+    {:ok, Enum.flat_map(linked_accounts, &linked_account_social/1)}
+  end
 
   defp linked_account_social(%{"type" => "twitter_oauth"} = linked_account) do
-    oauth_social(linked_account, :x)
-  end
-
-  defp linked_account_social(%{"type" => "github_oauth"} = linked_account) do
-    oauth_social(linked_account, :github)
-  end
-
-  defp linked_account_social(%{"type" => "farcaster", "fid" => fid} = linked_account)
-       when is_integer(fid) and fid > 0 do
-    with {:ok, username} <- optional_string(linked_account, "username"),
-         {:ok, display_name} <- optional_string(linked_account, "display_name") do
-      [
-        %{
-          provider: :farcaster,
-          subject: Integer.to_string(fid),
-          username: username,
-          display_name: display_name
-        }
-      ]
-    else
-      _other -> []
-    end
-  end
-
-  defp linked_account_social(_linked_account), do: []
-
-  defp oauth_social(linked_account, provider) do
     with {:ok, subject} <- required_string(linked_account, "subject"),
          {:ok, username} <- optional_string(linked_account, "username"),
          {:ok, display_name} <- optional_string(linked_account, "name") do
       [
         %{
-          provider: provider,
+          provider: :x,
           subject: subject,
           username: username,
           display_name: display_name
@@ -204,6 +184,40 @@ defmodule RegentPrivy do
       _other -> []
     end
   end
+
+  defp linked_account_social(%{"type" => "github_oauth"} = linked_account) do
+    with {:ok, subject} <- required_string(linked_account, "subject"),
+         {:ok, username} <- optional_string(linked_account, "username") do
+      [
+        %{
+          provider: :github,
+          subject: subject,
+          username: username,
+          display_name: nil
+        }
+      ]
+    else
+      _other -> []
+    end
+  end
+
+  defp linked_account_social(%{"type" => "farcaster", "fid" => fid} = linked_account)
+       when is_integer(fid) and fid > 0 do
+    with {:ok, username} <- optional_string(linked_account, "username") do
+      [
+        %{
+          provider: :farcaster,
+          subject: Integer.to_string(fid),
+          username: username,
+          display_name: nil
+        }
+      ]
+    else
+      _other -> []
+    end
+  end
+
+  defp linked_account_social(_linked_account), do: []
 
   defp required_string(map, key) do
     case Map.fetch(map, key) do

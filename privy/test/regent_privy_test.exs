@@ -173,8 +173,7 @@ defmodule RegentPrivyTest do
         %{
           "type" => "github_oauth",
           "subject" => "github-user-7",
-          "username" => "regents-ai",
-          "name" => "Regents"
+          "username" => "regents-ai"
         }
       ])
 
@@ -190,7 +189,7 @@ defmodule RegentPrivyTest do
                   provider: :github,
                   subject: "github-user-7",
                   username: "regents-ai",
-                  display_name: "Regents"
+                  display_name: nil
                 }
               ]
             }} = verify(token, ctx)
@@ -202,8 +201,7 @@ defmodule RegentPrivyTest do
         %{
           "type" => "farcaster",
           "fid" => 12_345,
-          "username" => "regent",
-          "display_name" => "Regent FC"
+          "username" => "regent"
         }
       ])
 
@@ -219,7 +217,7 @@ defmodule RegentPrivyTest do
                   provider: :farcaster,
                   subject: "12345",
                   username: "regent",
-                  display_name: "Regent FC"
+                  display_name: nil
                 }
               ]
             }} = verify(token, ctx)
@@ -288,6 +286,13 @@ defmodule RegentPrivyTest do
   test "returns an empty social list when linked_accounts is absent", ctx do
     token = sign(base_claims(), ctx.private_pem)
 
-    assert {:ok, %RegentPrivy.VerifiedPrivyIdentity{linked_socials: []}} = verify(token, ctx)
+    assert {:ok,
+            %{
+              wallet_address: nil,
+              wallet_addresses: [],
+              linked_socials: []
+            } = verified} = verify(token, ctx)
+
+    refute Map.has_key?(verified, :__struct__)
   end
 end

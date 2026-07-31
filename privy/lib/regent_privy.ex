@@ -13,15 +13,12 @@ defmodule RegentPrivy do
   per call; this library holds no configuration or secrets.
   """
 
+  alias RegentPrivy.VerifiedPrivyIdentity
+
   @wallet_address_pattern ~r/\A0x[0-9a-fA-F]{40}\z/u
   @issued_at_leeway_seconds 60
 
-  @type verified :: %{
-          claims: map(),
-          privy_user_id: String.t(),
-          wallet_address: String.t() | nil,
-          wallet_addresses: [String.t()]
-        }
+  @type verified :: VerifiedPrivyIdentity.t()
 
   @doc """
   Verifies a Privy identity token.
@@ -50,13 +47,15 @@ defmodule RegentPrivy do
          :ok <- validate_audience(claims, app_id),
          :ok <- validate_time_claims(claims, now),
          {:ok, privy_user_id} <- fetch_subject(claims),
-         {:ok, wallet_addresses} <- fetch_wallet_addresses(claims) do
+         {:ok, wallet_addresses} <- fetch_wallet_addresses(claims),
+         {:ok, linked_socials} <- fetch_linked_socials(claims) do
       {:ok,
-       %{
+       %VerifiedPrivyIdentity{
          claims: claims,
          privy_user_id: privy_user_id,
          wallet_address: List.first(wallet_addresses),
-         wallet_addresses: wallet_addresses
+         wallet_addresses: wallet_addresses,
+         linked_socials: linked_socials
        }}
     else
       {:error, reason} -> {:error, reason}
@@ -148,6 +147,79 @@ defmodule RegentPrivy do
   end
 
   defp fetch_wallet_addresses(_claims), do: {:ok, []}
+
+  defp fetch_linked_socials(%{"linked_accounts" => linked_accounts})
+       when is_binary(linked_accounts) do
+    case Jason.decode(linked_accounts) do
+      {:ok, decoded} when is_list(decoded) ->
+        {:ok, Enum.flat_map(decoded, &linked_account_social/1)}
+
+      _other ->
+        {:ok, []}
+    end
+  end
+
+  defp fetch_linked_socials(_claims), do: {:ok, []}
+
+  defp linked_account_social(%{"type" => "twitter_oauth"} = linked_account) do
+    oauth_social(linked_account, :x)
+  end
+
+  defp linked_account_social(%{"type" => "github_oauth"} = linked_account) do
+    oauth_social(linked_account, :github)
+  end
+
+  defp linked_account_social(%{"type" => "farcaster", "fid" => fid} = linked_account)
+       when is_integer(fid) and fid > 0 do
+    with {:ok, username} <- optional_string(linked_account, "username"),
+         {:ok, display_name} <- optional_string(linked_account, "display_name") do
+      [
+        %{
+          provider: :farcaster,
+          subject: Integer.to_string(fid),
+          username: username,
+          display_name: display_name
+        }
+      ]
+    else
+      _other -> []
+    end
+  end
+
+  defp linked_account_social(_linked_account), do: []
+
+  defp oauth_social(linked_account, provider) do
+    with {:ok, subject} <- required_string(linked_account, "subject"),
+         {:ok, username} <- optional_string(linked_account, "username"),
+         {:ok, display_name} <- optional_string(linked_account, "name") do
+      [
+        %{
+          provider: provider,
+          subject: subject,
+          username: username,
+          display_name: display_name
+        }
+      ]
+    else
+      _other -> []
+    end
+  end
+
+  defp required_string(map, key) do
+    case Map.fetch(map, key) do
+      {:ok, value} when is_binary(value) and value != "" -> {:ok, value}
+      _other -> :error
+    end
+  end
+
+  defp optional_string(map, key) do
+    case Map.fetch(map, key) do
+      :error -> {:ok, nil}
+      {:ok, nil} -> {:ok, nil}
+      {:ok, value} when is_binary(value) -> {:ok, value}
+      _other -> :error
+    end
+  end
 
   defp linked_account_addresses(%{"address" => address}) when is_binary(address) do
     case normalize_wallet_address(address) do

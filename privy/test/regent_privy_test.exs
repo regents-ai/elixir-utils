@@ -137,4 +137,157 @@ defmodule RegentPrivyTest do
     assert {:error, :invalid_token} =
              RegentPrivy.verify_token(nil, app_id: "x", verification_key: "y")
   end
+
+  test "extracts a typed X account", ctx do
+    linked_accounts =
+      Jason.encode!([
+        %{
+          "type" => "twitter_oauth",
+          "subject" => "twitter-user-42",
+          "username" => "regent",
+          "name" => "Regent"
+        }
+      ])
+
+    token =
+      base_claims()
+      |> Map.put("linked_accounts", linked_accounts)
+      |> sign(ctx.private_pem)
+
+    assert {:ok,
+            %{
+              linked_socials: [
+                %{
+                  provider: :x,
+                  subject: "twitter-user-42",
+                  username: "regent",
+                  display_name: "Regent"
+                }
+              ]
+            }} = verify(token, ctx)
+  end
+
+  test "extracts a typed GitHub account", ctx do
+    linked_accounts =
+      Jason.encode!([
+        %{
+          "type" => "github_oauth",
+          "subject" => "github-user-7",
+          "username" => "regents-ai",
+          "name" => "Regents"
+        }
+      ])
+
+    token =
+      base_claims()
+      |> Map.put("linked_accounts", linked_accounts)
+      |> sign(ctx.private_pem)
+
+    assert {:ok,
+            %{
+              linked_socials: [
+                %{
+                  provider: :github,
+                  subject: "github-user-7",
+                  username: "regents-ai",
+                  display_name: "Regents"
+                }
+              ]
+            }} = verify(token, ctx)
+  end
+
+  test "extracts a typed Farcaster account", ctx do
+    linked_accounts =
+      Jason.encode!([
+        %{
+          "type" => "farcaster",
+          "fid" => 12_345,
+          "username" => "regent",
+          "display_name" => "Regent FC"
+        }
+      ])
+
+    token =
+      base_claims()
+      |> Map.put("linked_accounts", linked_accounts)
+      |> sign(ctx.private_pem)
+
+    assert {:ok,
+            %{
+              linked_socials: [
+                %{
+                  provider: :farcaster,
+                  subject: "12345",
+                  username: "regent",
+                  display_name: "Regent FC"
+                }
+              ]
+            }} = verify(token, ctx)
+  end
+
+  test "returns wallet and social accounts from the same token", ctx do
+    linked_accounts =
+      Jason.encode!([
+        %{"type" => "wallet", "address" => "0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266"},
+        %{
+          "type" => "github_oauth",
+          "subject" => "github-user-7",
+          "username" => "regents-ai"
+        }
+      ])
+
+    token =
+      base_claims()
+      |> Map.put("linked_accounts", linked_accounts)
+      |> sign(ctx.private_pem)
+
+    assert {:ok,
+            %{
+              wallet_address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+              wallet_addresses: ["0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"],
+              linked_socials: [
+                %{
+                  provider: :github,
+                  subject: "github-user-7",
+                  username: "regents-ai",
+                  display_name: nil
+                }
+              ]
+            }} = verify(token, ctx)
+  end
+
+  test "skips malformed and unsupported social accounts", ctx do
+    linked_accounts =
+      Jason.encode!([
+        %{"type" => "twitter_oauth", "username" => "missing-subject"},
+        %{"type" => "github_oauth", "subject" => 7, "username" => "wrong-subject-type"},
+        %{"type" => "farcaster", "fid" => "123", "username" => "wrong-fid-type"},
+        %{"type" => "twitter_oauth", "subject" => "x-1", "username" => 123},
+        %{"type" => "email", "subject" => "ignored"},
+        %{"type" => "github_oauth", "subject" => "github-user-8"}
+      ])
+
+    token =
+      base_claims()
+      |> Map.put("linked_accounts", linked_accounts)
+      |> sign(ctx.private_pem)
+
+    assert {:ok,
+            %{
+              linked_socials: [
+                %{
+                  provider: :github,
+                  subject: "github-user-8",
+                  username: nil,
+                  display_name: nil
+                }
+              ]
+            }} = verify(token, ctx)
+  end
+
+  test "returns an empty social list when linked_accounts is absent", ctx do
+    token = sign(base_claims(), ctx.private_pem)
+
+    assert {:ok, %RegentPrivy.VerifiedPrivyIdentity{linked_socials: []}} = verify(token, ctx)
+  end
 end

@@ -189,6 +189,33 @@ defmodule CredoAsh.QueryAndActorTest do
       |> assert_issue()
     end
 
+    test "accepts a bare query with no preparation step to blame" do
+      """
+        def one(actor, id) do
+          MyApp.Blog.Post
+          |> Ash.Query.new(domain: MyApp.Blog)
+          |> Ash.Query.filter(id == ^id)
+          |> Ash.read_one!(actor: actor)
+        end
+      """
+      |> module()
+      |> run_check(ActorOnExecution)
+      |> refute_issues()
+    end
+
+    test "accepts a record updated through a pipe with params and the actor" do
+      """
+        def retire(post, actor) do
+          post
+          |> Ash.update!(%{}, action: :retire, actor: actor)
+          |> then(& &1.id)
+        end
+      """
+      |> module()
+      |> run_check(ActorOnExecution)
+      |> refute_issues()
+    end
+
     test "accepts an actor passed during preparation" do
       """
         def feed(actor) do
@@ -207,6 +234,50 @@ defmodule CredoAsh.QueryAndActorTest do
     test "reports a bulk insert that skips Ash" do
       """
         def seed(rows) do
+          MyApp.Repo.insert_all(MyApp.Blog.Post, rows)
+        end
+      """
+      |> module()
+      |> run_check(DirectRepoCall)
+      |> assert_issue()
+    end
+
+    test "accepts a documented bypass" do
+      """
+        def seed(rows) do
+          # The unique index settles duplicate races and nothing stored is rewritten,
+          # so there is no change or notification for an action to run.
+          MyApp.Repo.insert_all(MyApp.Blog.Post, rows, on_conflict: :nothing)
+        end
+      """
+      |> module()
+      |> run_check(DirectRepoCall)
+      |> refute_issues()
+    end
+
+    test "accepts a block of bypasses under one explanation" do
+      """
+        # Teardown runs outside the sandbox and no resource here has a destroy
+        # action, so these clear the tables directly.
+        defp clear do
+          MyApp.Repo.delete_all(MyApp.Blog.Post)
+
+          MyApp.Repo.delete_all(MyApp.Blog.Comment)
+        end
+      """
+      |> module()
+      |> run_check(DirectRepoCall)
+      |> refute_issues()
+    end
+
+    test "still reports an undocumented bypass in a different function" do
+      """
+        # Teardown clears its own tables directly; no destroy action exists.
+        defp clear do
+          MyApp.Repo.delete_all(MyApp.Blog.Post)
+        end
+
+        defp seed(rows) do
           MyApp.Repo.insert_all(MyApp.Blog.Post, rows)
         end
       """

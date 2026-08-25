@@ -21,7 +21,7 @@ in a calculation — stay with a reviewer.
 | `Warning.UnprotectedResource` | A persisted resource with neither (embedded resources are exempt) |
 | `Warning.AshCallInLoop` | `Ash.*` reads, writes or loads inside `Enum` traversals and `for` comprehensions — the Ash-shaped N+1 |
 | `Warning.ActorOnExecution` | `actor:` passed to the executing call instead of `for_read/3` or `for_action/4` |
-| `Warning.DirectRepoCall` | `Repo` calls that bypass policies, changes and notifications (raw SQL is exempt) |
+| `Warning.DirectRepoCall` | `Repo` calls that bypass policies, changes and notifications (raw SQL is exempt; a comment explaining the bypass clears it) |
 | `Warning.UnjustifiedAuthorizeFalse` | `authorize?: false` with no comment saying why |
 | `Design.WildcardAccept` | `accept :*` |
 

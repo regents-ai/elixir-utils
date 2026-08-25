@@ -18,6 +18,11 @@ defmodule CredoAsh.Check.Warning.DirectRepoCall do
 
       Raw SQL (`Repo.query/2`, used for advisory locks and the like) touches no
       resource and is not flagged.
+
+      Sometimes the bypass is the point — an idempotent insert leaning on a
+      unique index, or a teardown deleting rows for a resource with no destroy
+      action. Say so in a comment above the call and the finding clears; what
+      matters is that a reader can tell the deliberate case from the accident.
       """
     ]
 
@@ -45,25 +50,30 @@ defmodule CredoAsh.Check.Warning.DirectRepoCall do
   def run(%SourceFile{} = source_file, params) do
     issue_meta = IssueMeta.for(source_file, params)
 
-    Credo.Code.prewalk(source_file, &traverse(&1, &2, issue_meta))
+    Credo.Code.prewalk(source_file, &traverse(&1, &2, {issue_meta, source_file}))
   end
 
-  defp traverse({{:., _, [{:__aliases__, _, parts}, fun]}, meta, _args} = ast, issues, issue_meta)
+  defp traverse(
+         {{:., _, [{:__aliases__, _, parts}, fun]}, meta, _args} = ast,
+         issues,
+         {issue_meta, source_file}
+       )
        when fun in @calls do
-    if List.last(parts) == :Repo do
+    if List.last(parts) == :Repo and
+         not CredoAsh.Justification.justified?(source_file, meta[:line]) do
       {ast, issues ++ [issue_for(issue_meta, meta[:line], fun)]}
     else
       {ast, issues}
     end
   end
 
-  defp traverse(ast, issues, _issue_meta), do: {ast, issues}
+  defp traverse(ast, issues, _context), do: {ast, issues}
 
   defp issue_for(issue_meta, line_no, fun) do
     format_issue(issue_meta,
       message:
         "`Repo.#{fun}` bypasses Ash — policies, changes and notifications never run. " <>
-          "Use an action or a bulk action.",
+          "Use an action or a bulk action, or say in a comment why this one goes around it.",
       trigger: "Repo.#{fun}",
       line_no: line_no
     )

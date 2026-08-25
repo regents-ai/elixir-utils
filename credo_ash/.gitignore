@@ -1,0 +1,6 @@
+ash_platform-*
+_build/
+deps/
+doc/
+*.ez
+*.tar

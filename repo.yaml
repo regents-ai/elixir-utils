@@ -9,6 +9,7 @@ owns:
   - ens_library
   - xmtp_library
   - agentbook_helpers
+  - ash_lint_checks
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []
@@ -19,6 +20,8 @@ source_of_truth:
 code_map:
   - path: cache
     owns: cache
+  - path: credo_ash
+    owns: ash_lint_checks
   - path: ens
     owns: ens
   - path: siwa/siwa-elixir
@@ -31,6 +34,8 @@ local_path_dependencies: []
 acceptance_commands:
   - cwd: elixir-utils/cache
     command: mix test
+  - cwd: elixir-utils/credo_ash
+    command: mix check
   - cwd: elixir-utils/ens
     command: mix test
   - cwd: elixir-utils/siwa/siwa-elixir

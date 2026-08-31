@@ -124,7 +124,7 @@ root.
 ```bash
 cd xmtp
 mix deps.get
-mix test
+mix check
 ```
 
 The SIWA umbrella is tested as a whole:
@@ -149,15 +149,19 @@ These must pass before a change is proposed. Run the one for the package you tou
 
 | Package folder | Command |
 | --- | --- |
-| `cache` | `mix test` |
+| `cache` | `mix check` |
 | `credo_ash` | `mix check` |
-| `ens` | `mix test` |
+| `ens` | `mix check` |
+| `format` | `mix check` |
+| `http` | `mix check` |
+| `kohaku/plugins` | `mix check` |
+| `kohaku/provider` | `mix check` |
+| `kohaku/railgun` | `mix check` |
 | `siwa/siwa-elixir` | `mix test` |
-| `world/agentbook` | `mix test` |
-| `xmtp` | `mix test` |
+| `world/agentbook` | `mix check` |
+| `xmtp` | `mix check` |
 
-CI runs the `cache`, `ens`, `world/agentbook`, and `xmtp` package checks on every push to
-`main` and on every pull request.
+CI runs the non-protected package checks on every push to `main` and on every pull request.
 
 ## Publishing
 

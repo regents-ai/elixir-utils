@@ -1,4 +1,6 @@
 defmodule CredoAsh.Check.Warning.AuthorizerWithoutPolicies do
+  @moduledoc "Reports Ash resources that declare an authorizer without policies."
+
   use Credo.Check,
     id: "CRA1002",
     base_priority: :higher,

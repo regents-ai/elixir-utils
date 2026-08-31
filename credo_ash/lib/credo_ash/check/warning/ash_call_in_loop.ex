@@ -1,4 +1,6 @@
 defmodule CredoAsh.Check.Warning.AshCallInLoop do
+  @moduledoc "Reports direct Ash calls inside collection traversals."
+
   use Credo.Check,
     id: "CRA1004",
     base_priority: :high,

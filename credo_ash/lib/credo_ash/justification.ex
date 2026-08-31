@@ -21,22 +21,29 @@ defmodule CredoAsh.Justification do
   @spec justified?(Credo.SourceFile.t(), pos_integer()) :: boolean()
   def justified?(source_file, line_no) do
     lines = Credo.SourceFile.lines(source_file)
+    comments = comments(source_file)
 
     case Enum.find(lines, fn {no, _line} -> no == line_no end) do
-      nil -> false
-      {_no, line} -> trailing_comment?(line) or explained_above?(line_no, lines)
+      nil ->
+        false
+
+      {_no, line} ->
+        trailing_comment?(comments, line_no, line) or
+          explained_above?(line_no, lines, comments)
     end
   end
 
-  defp explained_above?(line_no, lines) do
-    lines
-    |> Enum.slice((scope_start(line_no, lines) - 1)..(line_no - 2)//1)
-    |> Enum.any?(fn {_no, line} -> comment?(line) end)
+  defp explained_above?(line_no, lines, comments) do
+    start_line = scope_start(line_no, lines, comments)
+
+    Enum.any?(comments, fn %{line: comment_line} ->
+      comment_line >= start_line and comment_line < line_no
+    end)
   end
 
   # The first line of the region a comment can speak for: the enclosing function
   # head, extended up through any comment block sitting directly on top of it.
-  defp scope_start(line_no, lines) do
+  defp scope_start(line_no, lines, comments) do
     head =
       lines
       |> Enum.take(line_no - 1)
@@ -45,27 +52,58 @@ defmodule CredoAsh.Justification do
 
     case head do
       nil -> 1
-      {no, _line} -> climb_comments(no, lines)
+      {no, _line} -> climb_comments(no, comment_only_lines(lines, comments))
     end
   end
 
-  defp climb_comments(no, lines) when no > 1 do
-    case Enum.find(lines, fn {n, _line} -> n == no - 1 end) do
-      {_n, line} -> if comment?(line), do: climb_comments(no - 1, lines), else: no
-      nil -> no
+  defp comment_only_lines(lines, comments) do
+    lines_by_number = Map.new(lines)
+
+    comments
+    |> Enum.filter(fn
+      %{line: line_no, column: column} ->
+        code_before_comment =
+          lines_by_number
+          |> Map.get(line_no, "")
+          |> String.slice(0, column - 1)
+
+        String.trim(code_before_comment) == ""
+
+      _comment ->
+        false
+    end)
+    |> MapSet.new(& &1.line)
+  end
+
+  defp climb_comments(no, comment_lines) when no > 1 do
+    if MapSet.member?(comment_lines, no - 1) do
+      climb_comments(no - 1, comment_lines)
+    else
+      no
     end
   end
 
-  defp climb_comments(no, _lines), do: no
+  defp climb_comments(no, _comment_lines), do: no
 
   defp function_head?(line), do: Regex.match?(~r/^\s*defp?\s/, line)
 
-  defp comment?(line), do: String.starts_with?(String.trim(line), "#")
-
-  defp trailing_comment?(line) do
-    case String.split(line, "#", parts: 2) do
-      [_code, comment] -> String.trim(comment) != ""
-      _ -> false
+  defp comments(source_file) do
+    case source_file
+         |> Credo.SourceFile.source()
+         |> Code.string_to_quoted_with_comments(columns: true) do
+      {:ok, _ast, comments} -> comments
+      {:error, _error} -> []
     end
+  end
+
+  defp trailing_comment?(comments, line_no, line) do
+    Enum.any?(comments, fn
+      %{line: ^line_no, column: column} ->
+        code_before_comment = String.slice(line, 0, column - 1)
+        String.trim(code_before_comment) != ""
+
+      _comment ->
+        false
+    end)
   end
 end

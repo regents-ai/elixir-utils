@@ -101,7 +101,8 @@ defmodule RegentCacheTest do
   test "set helpers use local cache state" do
     assert :ok = RegentCache.set_add(@cache, "watch:online:1", "sess-1", 15)
     assert :ok = RegentCache.set_add(@cache, "watch:online:1", "sess-2", 15)
-    assert {:ok, ["sess-1", "sess-2"]} = RegentCache.set_members(@cache, "watch:online:1")
+    assert {:ok, members} = RegentCache.set_members(@cache, "watch:online:1")
+    assert Enum.sort(members) == ["sess-1", "sess-2"]
     assert :ok = RegentCache.set_remove(@cache, "watch:online:1", "sess-1", 15)
     assert {:ok, ["sess-2"]} = RegentCache.set_members(@cache, "watch:online:1")
   end

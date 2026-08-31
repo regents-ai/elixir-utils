@@ -394,14 +394,8 @@ browser-owned storage. Server-only apps can ignore it.
 
 ```bash
 mix deps.get
-mix test
-mix docs
-```
-
-The broader package check also builds the native bridge and browser shim tests:
-
-```bash
 mix check
+mix docs
 ```
 
 ## Phoenix Frontend Guide

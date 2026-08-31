@@ -286,6 +286,33 @@ defmodule CredoAsh.QueryAndActorTest do
       |> assert_issue()
     end
 
+    test "does not treat a trailing comment before the function as a justification" do
+      """
+        @note :ok # unrelated metadata
+        def seed(rows) do
+          MyApp.Repo.insert_all(MyApp.Blog.Post, rows)
+        end
+      """
+      |> module()
+      |> run_check(DirectRepoCall)
+      |> assert_issue()
+    end
+
+    test "does not treat a hash inside a sigil heredoc as a justification" do
+      """
+        def seed(rows) do
+          _note = ~S\"\"\"
+          # example content, not a justification
+          \"\"\"
+
+          MyApp.Repo.insert_all(MyApp.Blog.Post, rows)
+        end
+      """
+      |> module()
+      |> run_check(DirectRepoCall)
+      |> assert_issue()
+    end
+
     test "accepts raw SQL" do
       """
         def lock(id) do
@@ -331,6 +358,44 @@ defmodule CredoAsh.QueryAndActorTest do
       |> module()
       |> run_check(UnjustifiedAuthorizeFalse)
       |> refute_issues()
+    end
+
+    test "does not treat a trailing comment before the function as a justification" do
+      """
+        @note :ok # unrelated metadata
+        def all do
+          Ash.read!(MyApp.Blog.Post, authorize?: false)
+        end
+      """
+      |> module()
+      |> run_check(UnjustifiedAuthorizeFalse)
+      |> assert_issue()
+    end
+
+    test "does not mistake a hash inside a string for a trailing comment" do
+      """
+        def all do
+          Ash.read!(MyApp.Blog.Post, authorize?: false, tenant: "public#archive")
+        end
+      """
+      |> module()
+      |> run_check(UnjustifiedAuthorizeFalse)
+      |> assert_issue()
+    end
+
+    test "does not treat a hash inside a heredoc as a justification" do
+      """
+        def all do
+          _note = \"\"\"
+          # example content, not a justification
+          \"\"\"
+
+          Ash.read!(MyApp.Blog.Post, authorize?: false)
+        end
+      """
+      |> module()
+      |> run_check(UnjustifiedAuthorizeFalse)
+      |> assert_issue()
     end
   end
 

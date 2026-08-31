@@ -43,6 +43,7 @@ defmodule RegentCache.MixProject do
       files: [
         ".formatter.exs",
         "CHANGELOG.md",
+        "LICENSE",
         "README.md",
         "lib",
         "mix.exs"

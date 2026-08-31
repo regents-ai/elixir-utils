@@ -15,7 +15,13 @@ jobs:
       matrix:
         package:
           - cache
+          - credo_ash
           - ens
+          - format
+          - http
+          - kohaku/plugins
+          - kohaku/provider
+          - kohaku/railgun
           - world/agentbook
           - xmtp
 
@@ -39,7 +45,7 @@ jobs:
 
       - name: Fetch dependencies
         working-directory: ${{ matrix.package }}
-        run: mix deps.get
+        run: mix deps.get --check-locked
 
       - name: Run package check
         working-directory: ${{ matrix.package }}

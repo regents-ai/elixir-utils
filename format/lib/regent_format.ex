@@ -18,6 +18,9 @@ defmodule RegentFormat do
     short: "%b %-d"
   }
 
+  @typedoc "A shared date and time presentation style."
+  @type datetime_style :: :date | :time | :datetime | :datetime_seconds | :short
+
   @doc """
   Converts blank values to `nil`, passing everything else through.
 
@@ -27,6 +30,7 @@ defmodule RegentFormat do
       iex> RegentFormat.blank_to_nil("ok")
       "ok"
   """
+  @spec blank_to_nil(term()) :: term() | nil
   def blank_to_nil(nil), do: nil
   def blank_to_nil(""), do: nil
   def blank_to_nil(value), do: value
@@ -40,6 +44,7 @@ defmodule RegentFormat do
       iex> RegentFormat.display(42, "n/a")
       "42"
   """
+  @spec display(term(), String.t()) :: String.t()
   def display(value, empty \\ "-")
 
   def display(nil, empty), do: empty
@@ -48,14 +53,17 @@ defmodule RegentFormat do
   def display(value, _empty), do: to_string(value)
 
   @doc "Renders an unsigned integer value, with `\"n/a\"` for `nil`/blank."
+  @spec display_uint(term()) :: String.t()
   def display_uint(value), do: display(value, "n/a")
 
   @doc "Renders an integer value, with `\"n/a\"` for `nil`/blank."
+  @spec display_int(term()) :: String.t()
   def display_int(value), do: display(value, "n/a")
 
   @doc """
   Renders a duration in seconds, e.g. `"90 seconds"`, with `"n/a"` for `nil`.
   """
+  @spec display_seconds(term()) :: String.t()
   def display_seconds(nil), do: "n/a"
   def display_seconds(value) when is_integer(value), do: Integer.to_string(value) <> " seconds"
   def display_seconds(value), do: to_string(value)
@@ -66,6 +74,7 @@ defmodule RegentFormat do
       iex> RegentFormat.display_bps_percent(250)
       "2.5%"
   """
+  @spec display_bps_percent(term()) :: String.t()
   def display_bps_percent(nil), do: "n/a"
   def display_bps_percent(0), do: "n/a"
 
@@ -84,6 +93,7 @@ defmodule RegentFormat do
   Renders a unix timestamp as `"YYYY-MM-DD HH:MM:SS UTC"`, with `"n/a"` for
   `nil` or `0`.
   """
+  @spec display_unix_timestamp(term()) :: String.t()
   def display_unix_timestamp(nil), do: "n/a"
   def display_unix_timestamp(0), do: "n/a"
 
@@ -101,6 +111,7 @@ defmodule RegentFormat do
   Renders an ISO8601 string as `"Jan 5, 2026 at 3:04 PM UTC"`, passing the
   input through when it cannot be parsed and returning `nil` for `nil`.
   """
+  @spec display_datetime(String.t() | nil) :: String.t() | nil
   def display_datetime(nil), do: nil
 
   def display_datetime(value) when is_binary(value) do
@@ -114,6 +125,7 @@ defmodule RegentFormat do
   Renders a chart axis date as `"Jan 5, 2026"`, with `"Scheduled date"` for
   `nil` and pass-through for unparseable strings.
   """
+  @spec display_chart_date(DateTime.t() | String.t() | nil) :: String.t()
   def display_chart_date(%DateTime{} = value), do: Calendar.strftime(value, "%b %-d, %Y")
   def display_chart_date(nil), do: "Scheduled date"
 
@@ -128,6 +140,7 @@ defmodule RegentFormat do
   Parses an ISO8601 binary or passes through a `DateTime`; anything else
   (including unparseable strings) returns `nil`.
   """
+  @spec parse_datetime(term()) :: DateTime.t() | nil
   def parse_datetime(%DateTime{} = value), do: value
 
   def parse_datetime(value) when is_binary(value) do
@@ -153,6 +166,8 @@ defmodule RegentFormat do
       iex> RegentFormat.format_datetime("not a date", :time, "Unknown")
       "Unknown"
   """
+  @spec format_datetime(DateTime.t() | String.t() | nil, datetime_style(), String.t() | nil) ::
+          String.t() | nil
   def format_datetime(value, style, fallback \\ nil) when is_map_key(@datetime_styles, style) do
     case parse_datetime(value) do
       nil -> fallback
@@ -163,6 +178,7 @@ defmodule RegentFormat do
   @doc """
   Renders booleans as `"yes"`/`"no"`, with `"n/a"` for `nil`.
   """
+  @spec yes_no(boolean() | nil) :: String.t()
   def yes_no(true), do: "yes"
   def yes_no(false), do: "no"
   def yes_no(nil), do: "n/a"
@@ -173,6 +189,7 @@ defmodule RegentFormat do
       iex> RegentFormat.humanize_key(:minimum_raise_quote)
       "Minimum Raise Quote"
   """
+  @spec humanize_key(String.t() | atom()) :: String.t()
   def humanize_key(key) do
     key
     |> to_string()
@@ -191,6 +208,7 @@ defmodule RegentFormat do
       iex> RegentFormat.monogram(nil, "AL")
       "AL"
   """
+  @spec monogram(term(), String.t()) :: String.t()
   def monogram(name, fallback) when is_binary(name) do
     name
     |> String.split(~r/[\s-]+/, trim: true)
@@ -211,6 +229,7 @@ defmodule RegentFormat do
   Truncates a `0x` address to `"0x123456...abcd"`, substituting `empty` for
   `nil` and passing through values that are not long `0x` strings.
   """
+  @spec short_address(term(), String.t()) :: String.t()
   def short_address(value, empty \\ "n/a")
 
   def short_address(nil, empty), do: empty
@@ -225,6 +244,7 @@ defmodule RegentFormat do
   Truncates a wallet address to `"0x1234...abcd"`. Returns `nil` for anything
   that is not a binary.
   """
+  @spec short_wallet(term()) :: String.t() | nil
   def short_wallet(nil), do: nil
 
   def short_wallet(wallet) when is_binary(wallet) do
@@ -245,6 +265,7 @@ defmodule RegentFormat do
   Truncates a `0x` hash to `"0x12345678...abcdef"`, substituting `empty` for
   `nil` and passing through values that are not long `0x` strings.
   """
+  @spec short_hash(term(), String.t()) :: String.t()
   def short_hash(value, empty \\ "none")
 
   def short_hash(nil, empty), do: empty
@@ -265,6 +286,7 @@ defmodule RegentFormat do
       iex> RegentFormat.parse_decimal("not a number")
       nil
   """
+  @spec parse_decimal(term()) :: Decimal.t() | nil
   def parse_decimal(nil), do: nil
   def parse_decimal(""), do: nil
   def parse_decimal(value) when is_integer(value), do: D.new(value)
@@ -284,6 +306,7 @@ defmodule RegentFormat do
   number of decimal places, e.g. `"$1,234.50"`. Returns `"Unavailable"` for
   values that cannot be parsed.
   """
+  @spec format_currency(term(), non_neg_integer()) :: String.t()
   def format_currency(nil, _places), do: "Unavailable"
 
   def format_currency(value, places) do
@@ -304,6 +327,7 @@ defmodule RegentFormat do
   Renders a `Decimal` in plain notation padded or truncated to `places`
   decimal places.
   """
+  @spec decimal_to_string(Decimal.t(), non_neg_integer()) :: String.t()
   def decimal_to_string(decimal, 0), do: decimal |> D.round(0) |> D.to_string(:normal)
 
   def decimal_to_string(decimal, places) do
@@ -329,6 +353,7 @@ defmodule RegentFormat do
       iex> RegentFormat.add_delimiters("1234567.89")
       "1,234,567.89"
   """
+  @spec add_delimiters(String.t()) :: String.t()
   def add_delimiters("-" <> rest), do: "-" <> add_delimiters(rest)
 
   def add_delimiters(value) do

@@ -80,7 +80,8 @@ defmodule XmtpElixirSdk.MixProject do
       ],
       links: %{
         "XMTP" => "https://xmtp.org",
-        "Upstream Browser SDK" => "https://github.com/xmtp/xmtp-js/tree/main/sdks/browser-sdk"
+        "Upstream Browser SDK" => "https://github.com/xmtp/xmtp-js/tree/main/sdks/browser-sdk",
+        "Source" => "https://github.com/regents-ai/elixir-utils/tree/main/xmtp"
       }
     ]
   end

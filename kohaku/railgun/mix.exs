@@ -63,8 +63,10 @@ defmodule RailgunElixir.MixProject do
       files: [
         ".formatter.exs",
         "CHANGELOG.md",
+        "LICENSE",
         "README.md",
         "lib",
+        "native/railgun_native/Cargo.lock",
         "native/railgun_native/Cargo.toml",
         "native/railgun_native/src",
         "mix.exs"

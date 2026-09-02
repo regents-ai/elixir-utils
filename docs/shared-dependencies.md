@@ -1,18 +1,16 @@
 # Shared Elixir Utility Dependencies
 
-Updated: 2026-04-30
-
-This file maps the shared Elixir utility packages to the Regent dependency skills that should be opened before changing them.
+This file records what each shared Elixir utility package owns, and where its boundary stops.
 
 ## Package Map
 
-| Package | Skill | Boundary |
-| --- | --- | --- |
-| `siwa/siwa-elixir` | `shared-siwa` | Owns reusable SIWA parsing, verification, receipt, signed-envelope, and keyring behavior. It does not own product authorization. |
-| `ens/` | `ens-agent-identity` | Owns ENS reads, name normalization, ENSIP-25 support, ERC-8004 identity helpers, and unsigned wallet-ready actions. It does not submit wallet transactions. |
-| `xmtp/` | `xmtp-rooms` | Owns reusable XMTP client behavior. Product rooms, moderation, retention, and workflow state stay in the product repos. |
-| `world/agentbook` | `agentbook-agentworld` | Owns AgentKit header parsing, AgentBook lookup/registration helpers, and World ID evidence handling. Product trust sessions stay product-owned. |
-| `cache/` | `cachex-regent-cache` | Owns shared cache helpers. Cache is downstream of product DB state and chain truth. |
+| Package | Boundary |
+| --- | --- |
+| `siwa/siwa-elixir` | Owns reusable SIWA parsing, verification, receipt, signed-envelope, and keyring behavior. It does not own product authorization. |
+| `ens/` | Owns ENS reads, name normalization, ENSIP-25 support, ERC-8004 identity helpers, and unsigned wallet-ready actions. It does not submit wallet transactions. |
+| `xmtp/` | Owns reusable XMTP client behavior. Product rooms, moderation, retention, and workflow state stay in the product repos. |
+| `world/agentbook` | Owns AgentKit header parsing, AgentBook lookup/registration helpers, and World ID evidence handling. Product trust sessions stay product-owned. |
+| `cache/` | Owns shared cache helpers. Cache is downstream of product DB state and chain truth. |
 
 ## Rules
 

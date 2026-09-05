@@ -1,7 +1,10 @@
 defmodule SharedServicesContractCheck do
-  @contract_path Path.expand(
-                   "../../../../regents-cli/docs/regent-services-contract.openapiv3.yaml",
-                   __DIR__
+  @contract_path Path.join(
+                   System.get_env(
+                     "REGENT_CLI_ROOT",
+                     Path.expand("../../../../regents/cli", __DIR__)
+                   ),
+                   "docs/regent-services-contract.openapiv3.yaml"
                  )
   @keyring_router_path Path.expand(
                          "../apps/siwa_keyring/lib/siwa_keyring/router.ex",

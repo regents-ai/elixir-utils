@@ -295,4 +295,97 @@ defmodule RegentPrivyTest do
 
     refute Map.has_key?(verified, :__struct__)
   end
+
+  test "only Ethereum wallet accounts provide wallet evidence", ctx do
+    address = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+
+    for account <- [
+          %{"type" => "email", "address" => address},
+          %{"address" => address},
+          %{"type" => "wallet", "chain_type" => "solana", "address" => address}
+        ] do
+      token =
+        base_claims()
+        |> Map.put("linked_accounts", Jason.encode!([account]))
+        |> sign(ctx.private_pem)
+
+      assert {:ok, %{wallet_addresses: [], wallet_address: nil}} = verify(token, ctx)
+    end
+  end
+
+  test "a present non-string linked_accounts claim is malformed", ctx do
+    for invalid <- [nil, [], %{}, 42] do
+      token = base_claims() |> Map.put("linked_accounts", invalid) |> sign(ctx.private_pem)
+      assert {:error, :invalid_linked_accounts} = verify(token, ctx)
+    end
+  end
+
+  test "paired proof keeps signed X identity without requiring a wallet", ctx do
+    identity =
+      Map.put(
+        base_claims(),
+        "linked_accounts",
+        Jason.encode!([
+          %{"type" => "twitter_oauth", "subject" => "x-42", "username" => "changed_handle"}
+        ])
+      )
+
+    access = Map.put(base_claims(), "sid", "session-1")
+
+    assert {:ok,
+            %RegentPrivy.Session{
+              app_id: @app_id,
+              session_id: "session-1",
+              wallet_addresses: [],
+              linked_socials: [%{subject: "x-42", username: "changed_handle"}],
+              expires_at: expires
+            }} = verify_pair(access, identity, ctx)
+
+    assert expires == @now + 3600
+    assert {:ok, _} = verify_pair(access, Map.put(identity, "sid", "session-1"), ctx)
+  end
+
+  test "pair binding rejects substitution and confused roles", ctx do
+    access = Map.put(base_claims(), "sid", "session-1")
+    identity = Map.put(base_claims(), "linked_accounts", "[]")
+
+    assert {:error, {:pair_binding, :subject_mismatch}} =
+             verify_pair(access, Map.put(identity, "sub", "other-person"), ctx)
+
+    assert {:error, {:pair_binding, :session_mismatch}} =
+             verify_pair(access, Map.put(identity, "sid", "other-session"), ctx)
+
+    assert {:error, {:pair_binding, :session_mismatch}} =
+             verify_pair(access, Map.put(identity, "sid", nil), ctx)
+
+    assert {:error, {:access_verification, :missing_session_id}} =
+             verify_pair(Map.delete(access, "sid"), identity, ctx)
+
+    assert {:error, {:pair_binding, :access_role_confused}} =
+             verify_pair(Map.put(access, "linked_accounts", "[]"), identity, ctx)
+
+    assert {:error, {:pair_binding, :identity_accounts_missing}} =
+             verify_pair(access, Map.delete(identity, "linked_accounts"), ctx)
+
+    assert {:error, {:identity_verification, :invalid_audience}} =
+             verify_pair(access, Map.put(identity, "aud", "other-app"), ctx)
+
+    assert {:error, {:identity_verification, :token_expired}} =
+             verify_pair(access, Map.put(identity, "exp", @now), ctx)
+
+    assert {:error, {:access_verification, :token_expired}} =
+             verify_pair(Map.put(access, "exp", @now), identity, ctx)
+
+    assert {:error, {:configuration, :missing_privy_config}} =
+             RegentPrivy.Session.verify(%{access: "unused", identity: "unused"}, [])
+  end
+
+  defp verify_pair(access, identity, ctx) do
+    RegentPrivy.Session.verify(
+      %{access: sign(access, ctx.private_pem), identity: sign(identity, ctx.private_pem)},
+      app_id: @app_id,
+      verification_key: ctx.public_pem,
+      now: @now
+    )
+  end
 end

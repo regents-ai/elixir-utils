@@ -153,6 +153,38 @@ receipt, and exact body digest.
 Verify the signature before consuming replay state, and keep product permission
 checks outside this package.
 
+## Wallet Principals
+
+Registered-agent receipts remain the default. An EOA wallet receipt is a separate
+`siwa_wallet_receipt` with `verified: "wallet_signature"`, Base chain `8453`, address,
+key ID, nonce, audience and receipt ID. It must have no registry or token claims.
+The shared service issues these receipts after wallet proof; payment alone is not proof.
+
+Only trusted server configuration may opt a product audience into wallet requests:
+
+```elixir
+Siwa.verify_authenticated_request(signed_request,
+  audience: "patchbay",
+  wallet_audiences: ["patchbay"],
+  replay_store: MyDurableReplayStore
+)
+```
+
+Apply the same opt-in when signing through this library. Never derive it from request
+parameters. A missing registry field in an agent receipt is still an error. Products
+must inspect the authenticated receipt type before granting their narrow wallet-author
+permissions; wallet proof grants neither a human profile nor registered-agent authority.
+
+Wallet envelopes retain the existing signature grammar and `x-agent-wallet-address`
+and `x-agent-chain-id` headers, but omit registry/token headers. The authenticated
+receipt selects this shape. `required_authenticated_request_headers/2` and
+`required_authenticated_request_components/3` accept `:wallet` for describing it;
+their existing arities describe registered agents. Replay keys separate wallet
+principals by chain and audience; legacy agent replay keys are unchanged.
+
+Use a durable replay store in the deployed broker. The bundled in-memory store is
+for local/library use. Contract-wallet signature schemes are outside this EOA path.
+
 ## Wallet Actions
 
 `Siwa.WalletAction` validates wallet-ready action envelopes for transaction and

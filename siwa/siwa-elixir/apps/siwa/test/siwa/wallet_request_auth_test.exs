@@ -160,6 +160,30 @@ defmodule Siwa.WalletRequestAuthTest do
     assert {:ok, _} = RequestAuth.verify_authenticated_request(signed, @opts)
   end
 
+  test "requests which passed an earlier clock check cannot consume expired replay entries",
+       ctx do
+    earlier = DateTime.utc_now() |> DateTime.add(-10) |> DateTime.truncate(:second)
+
+    opts =
+      Keyword.merge(@opts,
+        now: earlier,
+        created_at: earlier,
+        expires_at: DateTime.add(earlier, 1)
+      )
+
+    {:ok, signed} =
+      RequestAuth.sign_authenticated_request(request(), ctx.receipt.token, ctx.signer, opts)
+
+    # The verifier sees the earlier clock, as if it paused after its initial check.
+    # The atomic store sees the real later clock and must refuse every copy.
+    results =
+      1..4
+      |> Task.async_stream(fn _ -> RequestAuth.verify_authenticated_request(signed, opts) end)
+      |> Enum.to_list()
+
+    assert results == List.duplicate({:ok, {:error, :request_expired}}, 4)
+  end
+
   test "simultaneous identical wallet envelopes have one replay winner", ctx do
     signed = sign(ctx)
 

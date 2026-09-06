@@ -182,7 +182,9 @@ receipt selects this shape. `required_authenticated_request_headers/2` and
 their existing arities describe registered agents. Replay keys separate wallet
 principals by chain and audience; legacy agent replay keys are unchanged.
 
-Use a durable replay store in the deployed broker. The bundled in-memory store is
+Use a durable replay store in the deployed broker. Its atomic consume must reject
+expired entries against the storage clock, even if verification passed before a
+pause or delay. Never extend the signed expiration when recording a replay key. The bundled in-memory store is
 for local/library use. Contract-wallet signature schemes are outside this EOA path.
 
 ## Wallet Actions

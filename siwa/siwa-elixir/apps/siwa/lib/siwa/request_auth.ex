@@ -625,13 +625,6 @@ defmodule Siwa.RequestAuth do
          expires,
          opts
        ) do
-    now =
-      opts
-      |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
-      |> DateTime.to_unix(:second)
-
-    replay_expires_at = max(now, expires)
-
     wallet_address = receipt_payload["sub"]
 
     replay_key =
@@ -664,13 +657,13 @@ defmodule Siwa.RequestAuth do
 
     case Keyword.get(opts, :replay_store) do
       nil ->
-        Siwa.RequestAuth.ReplayStore.consume(replay_key, replay_expires_at)
+        Siwa.RequestAuth.ReplayStore.consume(replay_key, expires)
 
       fun when is_function(fun, 2) ->
-        fun.(replay_key, replay_expires_at)
+        fun.(replay_key, expires)
 
       module when is_atom(module) ->
-        module.consume(replay_key, replay_expires_at)
+        module.consume(replay_key, expires)
     end
   end
 

@@ -43,13 +43,14 @@ defmodule RegentCache.MixProject do
       files: [
         ".formatter.exs",
         "CHANGELOG.md",
+        "LICENSE",
         "README.md",
         "lib",
         "mix.exs"
       ],
       licenses: ["MIT"],
       links: %{
-        "Source" => "https://github.com/regents-ai/regent/tree/main/elixir-utils/cache"
+        "Source" => "https://github.com/regents-ai/elixir-utils/tree/main/cache"
       }
     ]
   end

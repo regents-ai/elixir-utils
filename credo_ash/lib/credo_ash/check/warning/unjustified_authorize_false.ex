@@ -1,4 +1,6 @@
 defmodule CredoAsh.Check.Warning.UnjustifiedAuthorizeFalse do
+  @moduledoc "Reports Ash calls that disable authorization without an explanatory comment."
+
   use Credo.Check,
     id: "CRA1007",
     base_priority: :high,

@@ -1,4 +1,6 @@
 defmodule CredoAsh.Check.Warning.DirectRepoCall do
+  @moduledoc "Reports undocumented repository calls that bypass Ash actions."
+
   use Credo.Check,
     id: "CRA1006",
     base_priority: :high,

@@ -10,6 +10,29 @@ defmodule RailgunPluginTest do
   @alto_utility "0xe567a07c0a9d289a26b20582b3c3c05b97e07492"
   @entry_point_08 "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108"
 
+  @integration_skip_reason (cond do
+                              System.get_env("INTEGRATION") != "1" ->
+                                "set INTEGRATION=1 to run Railgun integration tests"
+
+                              is_nil(System.get_env("RPC_URL_SEPOLIA")) ->
+                                "set RPC_URL_SEPOLIA to run Railgun integration tests"
+
+                              is_nil(System.find_executable("anvil")) ->
+                                "install Foundry anvil to run Railgun integration tests"
+
+                              true ->
+                                nil
+                            end)
+
+  @alto_skip_reason (if is_nil(System.get_env("ALTO_BINARY")) and
+                          is_nil(System.find_executable("alto")) do
+                       "set ALTO_BINARY or install Alto to run the broadcast integration test"
+                     end)
+
+  if @integration_skip_reason do
+    @moduletag skip: @integration_skip_reason
+  end
+
   setup do
     runtime = :"railgun_integration_#{System.unique_integer([:positive])}"
     start_supervised!({RailgunElixir.Runtime, name: runtime})
@@ -91,10 +114,14 @@ defmodule RailgunPluginTest do
     end)
   end
 
+  if @alto_skip_reason do
+    @tag skip: @alto_skip_reason
+  end
+
   test "plugin-transact-broadcast flow mirrors upstream test", %{runtime: runtime} do
     with_integration(runtime, fn context ->
       if is_nil(context[:alto_url]) do
-        assert true
+        flunk("Alto became unavailable after the integration test was selected")
       else
         %{provider: eth_provider, chain: chain, alto_url: alto_url} = context
 
@@ -142,26 +169,13 @@ defmodule RailgunPluginTest do
   end
 
   defp with_integration(runtime, fun) do
-    case integration_context(runtime) do
-      {:ok, context} ->
-        try do
-          fun.(context)
-        after
-          stop_port(context[:alto])
-          stop_port(context[:anvil])
-        end
+    {:ok, context} = start_integration_context(runtime)
 
-      :skip ->
-        assert true
-    end
-  end
-
-  defp integration_context(runtime) do
-    cond do
-      System.get_env("INTEGRATION") != "1" -> :skip
-      is_nil(System.get_env("RPC_URL_SEPOLIA")) -> :skip
-      is_nil(System.find_executable("anvil")) -> :skip
-      true -> start_integration_context(runtime)
+    try do
+      fun.(context)
+    after
+      stop_port(context[:alto])
+      stop_port(context[:anvil])
     end
   end
 

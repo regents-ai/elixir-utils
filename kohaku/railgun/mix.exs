@@ -63,15 +63,17 @@ defmodule RailgunElixir.MixProject do
       files: [
         ".formatter.exs",
         "CHANGELOG.md",
+        "LICENSE",
         "README.md",
         "lib",
+        "native/railgun_native/Cargo.lock",
         "native/railgun_native/Cargo.toml",
         "native/railgun_native/src",
         "mix.exs"
       ],
       links: %{
         "Upstream" => "https://github.com/ethereum/kohaku/tree/master/crates/railgun-ts",
-        "Source" => "https://github.com/regents-ai/regent/tree/main/elixir-utils/kohaku/railgun"
+        "Source" => "https://github.com/regents-ai/elixir-utils/tree/main/kohaku/railgun"
       }
     ]
   end

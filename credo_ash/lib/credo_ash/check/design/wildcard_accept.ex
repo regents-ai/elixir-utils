@@ -1,4 +1,6 @@
 defmodule CredoAsh.Check.Design.WildcardAccept do
+  @moduledoc "Reports wildcard attribute acceptance in Ash actions."
+
   use Credo.Check,
     id: "CRA2001",
     base_priority: :normal,

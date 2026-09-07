@@ -35,5 +35,5 @@ Format.format_datetime("2026-01-05T15:04:05Z", :date, "Unknown")
 
 ```sh
 mix deps.get
-mix precommit
+mix check
 ```

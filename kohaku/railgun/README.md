@@ -8,8 +8,9 @@ bridge performs the protocol-heavy Railgun work.
 Run checks from this folder:
 
 ```bash
-mix test
+mix check
 ```
 
-Integration tests require `RPC_URL_SEPOLIA`, Foundry `anvil`, and an Alto
-executable.
+Integration tests are reported as skipped unless `INTEGRATION=1`,
+`RPC_URL_SEPOLIA`, and Foundry `anvil` are available. The broadcast flow also
+requires an Alto executable.

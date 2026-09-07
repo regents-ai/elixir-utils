@@ -15,7 +15,14 @@ jobs:
       matrix:
         package:
           - cache
+          - credo_ash
           - ens
+          - format
+          - http
+          - kohaku/plugins
+          - kohaku/provider
+          - kohaku/railgun
+          - privy
           - world/agentbook
           - xmtp
 

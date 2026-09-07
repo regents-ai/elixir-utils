@@ -26,6 +26,15 @@ defmodule RailgunElixirTest do
     assert error.message =~ "unsupported chain id"
   end
 
+  test "package includes its license and native dependency lock" do
+    package_files = Mix.Project.config() |> Keyword.fetch!(:package) |> Keyword.fetch!(:files)
+
+    for path <- ["LICENSE", "native/railgun_native/Cargo.lock"] do
+      assert path in package_files
+      assert File.regular?(path)
+    end
+  end
+
   test "signer paths match upstream Railgun derivation paths" do
     assert Signer.spending_key_path(2) == "m/44'/1984'/0'/0'/2'"
     assert Signer.viewing_key_path(2) == "m/420'/1984'/0'/0'/2'"

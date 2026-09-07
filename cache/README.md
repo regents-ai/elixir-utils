@@ -129,6 +129,6 @@ what a person sees or can do.
 
 ```bash
 mix deps.get
-mix test
+mix check
 mix docs
 ```

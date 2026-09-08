@@ -155,6 +155,9 @@ defmodule RegentPrivy do
     end
   end
 
+  defp fetch_linked_accounts(%{"linked_accounts" => _invalid}),
+    do: {:error, :invalid_linked_accounts}
+
   defp fetch_linked_accounts(_claims), do: {:ok, []}
 
   defp fetch_wallet_addresses(linked_accounts) do
@@ -235,14 +238,23 @@ defmodule RegentPrivy do
     end
   end
 
-  defp linked_account_addresses(%{"address" => address}) when is_binary(address) do
+  defp linked_account_addresses(%{"type" => "wallet", "address" => address} = account)
+       when is_binary(address) do
+    if Map.get(account, "chain_type", "ethereum") == "ethereum" do
+      wallet_address(address)
+    else
+      []
+    end
+  end
+
+  defp linked_account_addresses(_linked_account), do: []
+
+  defp wallet_address(address) do
     case normalize_wallet_address(address) do
       nil -> []
       normalized -> [normalized]
     end
   end
-
-  defp linked_account_addresses(_linked_account), do: []
 
   defp normalize_wallet_address(value) when is_binary(value) do
     trimmed = String.trim(value)

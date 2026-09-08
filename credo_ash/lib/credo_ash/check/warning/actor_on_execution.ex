@@ -1,4 +1,6 @@
 defmodule CredoAsh.Check.Warning.ActorOnExecution do
+  @moduledoc "Reports actors supplied after an Ash query or changeset was prepared."
+
   use Credo.Check,
     id: "CRA1005",
     base_priority: :normal,

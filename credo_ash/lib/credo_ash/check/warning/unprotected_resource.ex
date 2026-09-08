@@ -1,4 +1,6 @@
 defmodule CredoAsh.Check.Warning.UnprotectedResource do
+  @moduledoc "Reports persisted Ash resources that declare no authorization boundary."
+
   use Credo.Check,
     id: "CRA1003",
     base_priority: :high,

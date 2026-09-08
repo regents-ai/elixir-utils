@@ -58,7 +58,6 @@ defmodule RegentPrivy.MixProject do
     [
       check: [
         "compile --warnings-as-errors",
-        "deps.unlock --unused",
         "format --check-formatted",
         "test"
       ],

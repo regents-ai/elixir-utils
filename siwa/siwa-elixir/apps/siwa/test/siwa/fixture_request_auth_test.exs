@@ -17,7 +17,12 @@ defmodule Siwa.FixtureRequestAuthTest do
                },
                secret: "fixture-secret",
                audience: data["receiptPayload"]["aud"],
-               now: DateTime.from_unix!(data["fixedNowMs"], :millisecond)
+               now: DateTime.from_unix!(data["fixedNowMs"], :millisecond),
+               # This is a historical signature vector; its replay clock must also be frozen.
+               replay_store: fn _key, expires ->
+                 assert expires > div(data["fixedNowMs"], 1_000)
+                 :ok
+               end
              )
 
     assert verified.claims["sub"] == data["verified"]["agent"]["wallet_address"]

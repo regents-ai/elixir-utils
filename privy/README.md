@@ -17,3 +17,20 @@ RegentPrivy.verify_token(token,
 ```
 
 This library holds no configuration or secrets and never logs token contents.
+
+## Paired authentication evidence
+
+Use `RegentPrivy.Session.verify(%{access: access_token, identity: identity_token},
+app_id: app_id, verification_key: public_key)` at server authentication boundaries.
+It verifies both signatures and audiences, then binds the subject and session and
+rejects confused token roles. Identity tokens may omit `sid`; access tokens may not.
+The returned struct retains signed linked X identity and token expiry without raw
+claims. It authenticates social-only users without granting payment permissions.
+
+All four sites must use the same configured Privy application to identify the same
+subject. Products still own their sessions, authorization and persistence. Never
+merge old users across different Privy applications by wallet or X handle. Wallet
+list order is evidence order, **not** an instruction to change a stored payout
+address; preserve explicit verified wallet selection in the owning profile.
+
+`mix check` compiles, checks formatting and runs tests without changing lockfiles.

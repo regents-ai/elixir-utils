@@ -37,7 +37,9 @@ defmodule RegentPrivy do
   Options:
 
     * `:app_id` — Privy app id the token audience must match (required)
-    * `:verification_key` — PEM-encoded ES256 verification key (required)
+    * `:verification_key` — PEM-encoded ES256 verification key
+    * `:verification_keys` — one to four configured PEM keys during rotation;
+      when supplied, replaces `:verification_key` (an invalid set never falls back)
     * `:now` — unix seconds used for time-claim validation (defaults to
       `System.system_time(:second)`)
 
@@ -50,10 +52,10 @@ defmodule RegentPrivy do
   @spec verify_token(String.t(), keyword()) :: {:ok, verified()} | {:error, term()}
   def verify_token(token, opts) when is_binary(token) do
     app_id = Keyword.fetch!(opts, :app_id)
-    verification_key = Keyword.fetch!(opts, :verification_key)
     now = Keyword.get_lazy(opts, :now, fn -> System.system_time(:second) end)
 
-    with {:ok, claims} <- verify_claims(token, verification_key),
+    with {:ok, keys} <- verification_keys(opts),
+         {:ok, claims} <- verify_configured_keys(token, keys),
          :ok <- validate_issuer(claims),
          :ok <- validate_audience(claims, app_id),
          :ok <- validate_time_claims(claims, now),
@@ -78,6 +80,41 @@ defmodule RegentPrivy do
   end
 
   def verify_token(_token, _opts), do: {:error, :invalid_token}
+
+  @doc false
+  def verification_keys(opts) do
+    keys =
+      case Keyword.fetch(opts, :verification_keys) do
+        {:ok, configured} -> configured
+        :error -> [Keyword.get(opts, :verification_key)]
+      end
+
+    case keys do
+      [_ | _] when is_list(keys) and length(keys) <= 4 ->
+        if Enum.all?(keys, &(is_binary(&1) and byte_size(&1) in 1..8192)),
+          do: {:ok, keys},
+          else: {:error, :invalid_verification_key}
+
+      _ ->
+        {:error, :invalid_verification_key}
+    end
+  end
+
+  # Only signatures are tried against the bounded, caller-configured set.
+  # Claims are validated once after a signature succeeds. Tokens cannot name
+  # an additional key or relax the fixed ES256 algorithm.
+  defp verify_configured_keys(token, keys) do
+    Enum.reduce_while(keys, {:error, :token_verification_failed}, fn key, _last ->
+      case verify_claims(token, key) do
+        {:error, reason} = error
+        when reason in [:invalid_verification_key, :token_verification_failed] ->
+          {:cont, error}
+
+        result ->
+          {:halt, result}
+      end
+    end)
+  end
 
   defp verify_claims(token, verification_key) do
     signer = Joken.Signer.create("ES256", %{"pem" => verification_key})
@@ -154,6 +191,9 @@ defmodule RegentPrivy do
       _other -> {:error, :invalid_linked_accounts}
     end
   end
+
+  defp fetch_linked_accounts(%{"linked_accounts" => _invalid}),
+    do: {:error, :invalid_linked_accounts}
 
   defp fetch_linked_accounts(_claims), do: {:ok, []}
 
@@ -235,14 +275,23 @@ defmodule RegentPrivy do
     end
   end
 
-  defp linked_account_addresses(%{"address" => address}) when is_binary(address) do
+  defp linked_account_addresses(%{"type" => "wallet", "address" => address} = account)
+       when is_binary(address) do
+    if Map.get(account, "chain_type", "ethereum") == "ethereum" do
+      wallet_address(address)
+    else
+      []
+    end
+  end
+
+  defp linked_account_addresses(_linked_account), do: []
+
+  defp wallet_address(address) do
     case normalize_wallet_address(address) do
       nil -> []
       normalized -> [normalized]
     end
   end
-
-  defp linked_account_addresses(_linked_account), do: []
 
   defp normalize_wallet_address(value) when is_binary(value) do
     trimmed = String.trim(value)

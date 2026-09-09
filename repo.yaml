@@ -10,14 +10,18 @@ owns:
   - xmtp_library
   - agentbook_helpers
   - ash_lint_checks
+  - markdown_blog_catalogs
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []
   cli_contracts: []
-  shared_contracts: []
+  shared_contracts:
+    - blog/contract.yaml
   runtime_contracts: []
   chain_contracts: []
 code_map:
+  - path: blog
+    owns: markdown_blog_catalogs
   - path: cache
     owns: cache
   - path: credo_ash
@@ -32,6 +36,8 @@ code_map:
     owns: xmtp
 local_path_dependencies: []
 acceptance_commands:
+  - cwd: elixir-utils/blog
+    command: mix check
   - cwd: elixir-utils/cache
     command: mix test
   - cwd: elixir-utils/credo_ash

@@ -53,6 +53,7 @@ those features.
 | `siwa/siwa-elixir/apps/siwa` | `siwa` | `0.1.1` | Agent sign-in messages, nonces, receipts, signed request checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
 | `siwa/siwa-elixir/apps/siwa_keyring` | `siwa_keyring` | `0.1.1` | Isolated local wallet creation and signing behind an internal HMAC-protected service. |
 | `ens` | `ens_elixir` | `0.1.1` | ENS name reads, ENSIP-25 verification, ERC-8004 registration helpers, link planning, and wallet-ready unsigned ENS requests. |
+| [`blog`](blog/README.md) | `regent_blog` | not published | Repository-owned Markdown catalogs, safe HTML, stable contents links and local LaTeX assets. Presentation lives in `Regent.Blog` in the design system. |
 | `xmtp` | `xmtp_elixir_sdk` | `0.1.2` | XMTP client lifecycle, conversations, groups, messages, sync helpers, product-scoped room panels, identity setup, resolver caching, and room metadata. |
 | `world/agentbook` | `agent_world` | `0.1.0` | AgentKit header parsing, AgentBook lookup, World proof registration sessions, and wallet-ready AgentBook registration requests. |
 | `cache` | `regent_cache` | `0.1.0` | Cachex-backed JSON values, strings, counters, sets, health checks, and cache child specs. |

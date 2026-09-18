@@ -52,13 +52,27 @@ defmodule RegentPrivyTest do
             }} = verify(token, ctx)
   end
 
-  test "extracts normalized wallet addresses from linked_accounts", ctx do
+  test "extracts normalized wallets and names the most recently verified one", ctx do
     linked_accounts =
       Jason.encode!([
-        %{"type" => "wallet", "address" => " 0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266 "},
-        %{"type" => "wallet", "address" => "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"},
-        %{"type" => "email", "value" => "a@b.c"},
-        %{"type" => "wallet", "address" => "not-a-wallet"}
+        %{
+          "type" => "wallet",
+          "address" => " 0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266 ",
+          "lv" => 1_700_000_000
+        },
+        %{
+          "type" => "wallet",
+          "address" => "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "lv" => 1_700_000_100
+        },
+        %{
+          "type" => "wallet",
+          "address" => "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "lv" => 1_700_000_200
+        },
+        %{"type" => "email", "value" => "a@b.c", "lv" => 1_700_000_300},
+        %{"type" => "wallet", "address" => "not-a-wallet", "lv" => 1_700_000_400},
+        %{"type" => "wallet", "address" => "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"}
       ])
 
     token =
@@ -68,8 +82,11 @@ defmodule RegentPrivyTest do
 
     assert {:ok,
             %{
-              wallet_address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-              wallet_addresses: ["0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"]
+              wallet_address: "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+              wallet_addresses: [
+                "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+                "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+              ]
             }} = verify(token, ctx)
   end
 
@@ -226,7 +243,11 @@ defmodule RegentPrivyTest do
   test "returns wallet and social accounts from the same token", ctx do
     linked_accounts =
       Jason.encode!([
-        %{"type" => "wallet", "address" => "0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266"},
+        %{
+          "type" => "wallet",
+          "address" => "0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "lv" => 1_700_000_000
+        },
         %{
           "type" => "github_oauth",
           "subject" => "github-user-7",
@@ -302,7 +323,7 @@ defmodule RegentPrivyTest do
     for account <- [
           %{"type" => "email", "address" => address},
           %{"address" => address},
-          %{"type" => "wallet", "chain_type" => "solana", "address" => address}
+          %{"type" => "wallet", "chain_type" => "solana", "address" => address, "lv" => 1}
         ] do
       token =
         base_claims()

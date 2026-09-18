@@ -7,7 +7,9 @@ defmodule RegentPrivy do
   contain the app id, `exp` must be in the future, optional `nbf` must not be
   in the future, and optional `iat` may be at most 60 seconds in the future.
   Wallet addresses are extracted from the `linked_accounts` claim when
-  present, normalized to trimmed lowercase `0x` hex.
+  present, normalized to trimmed lowercase `0x` hex. Every wallet entry carries
+  Privy's verification time (`lv`); `wallet_address` is the wallet Privy verified
+  most recently, which is the wallet the person signed in with.
 
   Apps own their Privy configuration (app id, verification key) and pass it
   per call; this library holds no configuration or secrets.
@@ -61,14 +63,14 @@ defmodule RegentPrivy do
          :ok <- validate_time_claims(claims, now),
          {:ok, privy_user_id} <- fetch_subject(claims),
          {:ok, linked_accounts} <- fetch_linked_accounts(claims),
-         {:ok, wallet_addresses} <- fetch_wallet_addresses(linked_accounts),
+         {:ok, wallets} <- fetch_wallets(linked_accounts),
          {:ok, linked_socials} <- fetch_linked_socials(linked_accounts) do
       {:ok,
        %{
          claims: claims,
          privy_user_id: privy_user_id,
-         wallet_address: List.first(wallet_addresses),
-         wallet_addresses: wallet_addresses,
+         wallet_address: signed_in_wallet(wallets),
+         wallet_addresses: wallets |> Enum.map(&elem(&1, 0)) |> Enum.uniq(),
          linked_socials: linked_socials
        }}
     else
@@ -197,11 +199,14 @@ defmodule RegentPrivy do
 
   defp fetch_linked_accounts(_claims), do: {:ok, []}
 
-  defp fetch_wallet_addresses(linked_accounts) do
-    {:ok,
-     linked_accounts
-     |> Enum.flat_map(&linked_account_addresses/1)
-     |> Enum.uniq()}
+  defp fetch_wallets(linked_accounts),
+    do: {:ok, Enum.flat_map(linked_accounts, &linked_account_wallet/1)}
+
+  defp signed_in_wallet([]), do: nil
+
+  defp signed_in_wallet(wallets) do
+    {address, _verified_at} = Enum.max_by(wallets, &elem(&1, 1))
+    address
   end
 
   defp fetch_linked_socials(linked_accounts) do
@@ -275,23 +280,19 @@ defmodule RegentPrivy do
     end
   end
 
-  defp linked_account_addresses(%{"type" => "wallet", "address" => address} = account)
-       when is_binary(address) do
-    if Map.get(account, "chain_type", "ethereum") == "ethereum" do
-      wallet_address(address)
+  defp linked_account_wallet(
+         %{"type" => "wallet", "address" => address, "lv" => verified_at} = account
+       )
+       when is_binary(address) and is_integer(verified_at) and verified_at > 0 do
+    with "ethereum" <- Map.get(account, "chain_type", "ethereum"),
+         normalized when is_binary(normalized) <- normalize_wallet_address(address) do
+      [{normalized, verified_at}]
     else
-      []
+      _other -> []
     end
   end
 
-  defp linked_account_addresses(_linked_account), do: []
-
-  defp wallet_address(address) do
-    case normalize_wallet_address(address) do
-      nil -> []
-      normalized -> [normalized]
-    end
-  end
+  defp linked_account_wallet(_linked_account), do: []
 
   defp normalize_wallet_address(value) when is_binary(value) do
     trimmed = String.trim(value)

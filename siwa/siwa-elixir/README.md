@@ -13,6 +13,14 @@ fresh. Product apps still decide what the verified identity may do.
 | `apps/siwa` | `siwa` | Build and verify SIWA messages, issue and consume nonces, create and verify receipts, sign and verify authenticated requests, validate wallet action envelopes, and provide Ethereum helper functions. |
 | `apps/siwa_keyring` | `siwa_keyring` | Keep signing wallets behind an internal service. It can create a wallet, report its address, and sign messages, raw payloads, transaction payloads, and authorization payloads without exposing the private key to callers. |
 
+## Joining With A Self-Generated Key
+
+Agents that have a shell but no wallet, no funds and no on-chain registration
+join a SIWA audience with a key they generate themselves. The tested Python and
+Node clients and the agent-facing join guide live in [`agent/`](agent/README.md).
+They sign the wallet challenge and every later request exactly as `apps/siwa`
+verifies them; the server side enables each audience with `SIWA_WALLET_ORIGINS`.
+
 ## When To Use This Workspace
 
 Use this workspace when working on:

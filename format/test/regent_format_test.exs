@@ -137,7 +137,7 @@ defmodule RegentFormatTest do
   describe "short_address/2" do
     test "truncates long 0x addresses" do
       assert RegentFormat.short_address("0x1234567890abcdef1234567890abcdef12345678") ==
-               "0x123456...5678"
+               "0x123456…5678"
     end
 
     test "substitutes the empty marker and passes short values through" do
@@ -151,7 +151,7 @@ defmodule RegentFormatTest do
   describe "short_wallet/1" do
     test "truncates wallets and trims whitespace" do
       assert RegentFormat.short_wallet(" 0x1234567890abcdef1234567890abcdef12345678 ") ==
-               "0x1234...5678"
+               "0x1234…5678"
     end
 
     test "returns nil for non-binaries and passes short values through" do
@@ -164,7 +164,7 @@ defmodule RegentFormatTest do
   describe "short_hash/2" do
     test "truncates long 0x hashes" do
       hash = "0x" <> String.duplicate("ab", 32)
-      assert RegentFormat.short_hash(hash) == "0xabababab...ababab"
+      assert RegentFormat.short_hash(hash) == "0xabababab…ababab"
     end
 
     test "substitutes the empty marker and passes short values through" do

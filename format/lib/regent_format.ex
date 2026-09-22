@@ -226,7 +226,7 @@ defmodule RegentFormat do
   def monogram(_name, fallback), do: fallback
 
   @doc """
-  Truncates a `0x` address to `"0x123456...abcd"`, substituting `empty` for
+  Truncates a `0x` address to `"0x123456…abcd"`, substituting `empty` for
   `nil` and passing through values that are not long `0x` strings.
   """
   @spec short_address(term(), String.t()) :: String.t()
@@ -235,13 +235,13 @@ defmodule RegentFormat do
   def short_address(nil, empty), do: empty
 
   def short_address("0x" <> _rest = value, _empty) when byte_size(value) > 12 do
-    String.slice(value, 0, 8) <> "..." <> String.slice(value, -4, 4)
+    String.slice(value, 0, 8) <> "…" <> String.slice(value, -4, 4)
   end
 
   def short_address(value, _empty), do: to_string(value)
 
   @doc """
-  Truncates a wallet address to `"0x1234...abcd"`. Returns `nil` for anything
+  Truncates a wallet address to `"0x1234…abcd"`. Returns `nil` for anything
   that is not a binary.
   """
   @spec short_wallet(term()) :: String.t() | nil
@@ -256,13 +256,13 @@ defmodule RegentFormat do
   def short_wallet(_wallet), do: nil
 
   defp do_short_wallet("0x" <> rest = wallet) when byte_size(rest) > 10 do
-    String.slice(wallet, 0, 6) <> "..." <> String.slice(wallet, -4, 4)
+    String.slice(wallet, 0, 6) <> "…" <> String.slice(wallet, -4, 4)
   end
 
   defp do_short_wallet(wallet), do: wallet
 
   @doc """
-  Truncates a `0x` hash to `"0x12345678...abcdef"`, substituting `empty` for
+  Truncates a `0x` hash to `"0x12345678…abcdef"`, substituting `empty` for
   `nil` and passing through values that are not long `0x` strings.
   """
   @spec short_hash(term(), String.t()) :: String.t()
@@ -271,7 +271,7 @@ defmodule RegentFormat do
   def short_hash(nil, empty), do: empty
 
   def short_hash("0x" <> _rest = value, _empty) when byte_size(value) > 14 do
-    String.slice(value, 0, 10) <> "..." <> String.slice(value, -6, 6)
+    String.slice(value, 0, 10) <> "…" <> String.slice(value, -6, 6)
   end
 
   def short_hash(value, _empty), do: to_string(value)

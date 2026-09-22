@@ -32,7 +32,7 @@ defmodule RegentFormat.MixProject do
 
   defp deps do
     [
-      {:decimal, "~> 2.0"},
+      {:decimal, "~> 3.1"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end

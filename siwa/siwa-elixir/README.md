@@ -8,7 +8,7 @@ fresh. Product apps still decide what the verified identity may do.
 
 ## Apps
 
-| App | Hex package | Purpose |
+| App | Package | Purpose |
 | --- | --- | --- |
 | `apps/siwa` | `siwa` | Build and verify SIWA messages, issue and consume nonces, create and verify receipts, sign and verify authenticated requests, validate wallet action envelopes, and provide Ethereum helper functions. |
 | `apps/siwa_keyring` | `siwa_keyring` | Keep signing wallets behind an internal service. It can create a wallet, report its address, and sign messages, raw payloads, transaction payloads, and authorization payloads without exposing the private key to callers. |
@@ -54,14 +54,4 @@ key:
 mix deps.get
 mix test
 mix docs
-```
-
-Run package commands from the package app folder when publishing:
-
-```bash
-cd apps/siwa
-mix hex.publish package
-
-cd ../siwa_keyring
-SIWA_HEX_PUBLISH=1 mix hex.publish package
 ```

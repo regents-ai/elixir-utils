@@ -1,7 +1,5 @@
 # SiwaKeyring
 
-[Hex package](https://hex.pm/packages/siwa_keyring)
-[Docs](https://hexdocs.pm/siwa_keyring)
 [Changelog](CHANGELOG.md)
 
 `siwa_keyring` is Regent’s isolated signing service and Elixir client for SIWA
@@ -15,16 +13,10 @@ receive or store the private key itself.
 ```elixir
 def deps do
   [
-    {:siwa_keyring, "~> 0.1.1"}
+    {:siwa_keyring,
+     path: Path.join(shared, "elixir-utils/siwa/siwa-elixir/apps/siwa_keyring")}
   ]
 end
-```
-
-When building this package from this repository against the published SIWA Hex
-package:
-
-```bash
-SIWA_HEX_PUBLISH=1 mix deps.get
 ```
 
 ## Configure The Wallet Store

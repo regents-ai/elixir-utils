@@ -20,24 +20,6 @@ defmodule Siwa.MessageTest do
     assert parsed.statement == fields.statement
   end
 
-  test "build accepts canonical string-key fields" do
-    message =
-      Siwa.Message.build(%{
-        "domain" => "api.example.com",
-        "address" => "0x123",
-        "statement" => "Authenticate as a registered agent.",
-        "uri" => "https://api.example.com/siwa",
-        "agent_id" => 7,
-        "agent_registry" => "eip155:8453:0xregistry",
-        "chain_id" => 8453,
-        "nonce" => "abc12345",
-        "issued_at" => "2026-04-17T00:00:00Z"
-      })
-
-    assert message =~ "api.example.com wants you to sign in"
-    assert message =~ "Agent ID: 7"
-  end
-
   test "validates the canonical message against expected claims" do
     fields = %{
       domain: "regent.cx",
@@ -57,13 +39,6 @@ defmodule Siwa.MessageTest do
 
     assert {:error, :invalid_canonical_message} =
              Siwa.Message.validate_canonical(message, %{fields | nonce: "different"})
-  end
-
-  test "unknown string keys stay as strings during normalization" do
-    normalized = Siwa.Message.normalize_fields(%{"customField" => "value"})
-
-    assert normalized["customField"] == "value"
-    refute Map.has_key?(normalized, :customField)
   end
 
   test "rejects duplicate message fields" do

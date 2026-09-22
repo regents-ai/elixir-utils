@@ -14,17 +14,13 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - cache
+          - agent_access
+          - blog
           - credo_ash
           - ens
           - format
           - http
-          - kohaku/plugins
-          - kohaku/provider
-          - kohaku/railgun
           - privy
-          - world/agentbook
-          - xmtp
 
     steps:
       - name: Check out elixir-utils
@@ -35,14 +31,6 @@ jobs:
         with:
           elixir-version: "1.19.5"
           otp-version: "28.2"
-
-      - name: Set up Node
-        if: matrix.package == 'xmtp'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: xmtp/browser_shim/package-lock.json
 
       - name: Fetch dependencies
         working-directory: ${{ matrix.package }}

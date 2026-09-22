@@ -140,7 +140,6 @@ defmodule Siwa.RequestAuth do
     %{
       method: request[:method] || request["method"] || "GET",
       path: path,
-      host: request[:host] || request["host"] || "localhost",
       body: request[:body] || request["body"],
       headers: lowercase_headers(request[:headers] || request["headers"] || %{})
     }

@@ -16,19 +16,14 @@ jobs:
         with:
           path: elixir-utils
 
-      - name: Check out contract owner
+      - name: Check out the services contract
         uses: actions/checkout@v4
         with:
-          repository: regents-ai/regent
-          path: contract-owner
+          repository: regents-ai/regents
+          path: regents
           sparse-checkout: |
-            regents-cli/docs/regent-services-contract.openapiv3.yaml
+            cli/docs/regent-services-contract.openapiv3.yaml
           sparse-checkout-cone-mode: false
-
-      - name: Expose shared services contract
-        run: |
-          ln -s "$GITHUB_WORKSPACE/contract-owner/regents-cli" "$GITHUB_WORKSPACE/regents-cli"
-          test -f "$GITHUB_WORKSPACE/regents-cli/docs/regent-services-contract.openapiv3.yaml"
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1

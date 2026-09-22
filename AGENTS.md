@@ -1,18 +1,8 @@
-<!-- BEGIN REGENT META GENERATED -->
-## Repo Contract
-
-Generated from `/Users/sean/Documents/regent/control/stack.yaml` and this repo's `repo.yaml`. Local notes may live outside this block.
-
-- Repo contract: `elixir-utils/repo.yaml`
-- Owner: `elixir-utils`
-- Release group: `public_beta`
-- Owned areas: `siwa_library`, `ens_library`, `xmtp_library`, `agentbook_helpers`.
-- Change API or CLI behavior in the owning YAML contract before changing code.
-- Use `bd` only for execution state: tickets, claims, blockers, dependencies, and closure evidence.
-<!-- END REGENT META GENERATED -->
 # Regent Elixir Utilities Agent Guide
 
-This repo owns shared Elixir utilities used by Regent products. Each package keeps its own `mix.exs`, version, tests, and release path.
+Follow the workspace `regent-workflow` (Pairing or Claude-only mode); no ticket tracker.
+
+This repo owns shared Elixir utilities used by Regent products. Each package keeps its own `mix.exs`, version, and checks. Apps use the packages from a local checkout as path dependencies.
 
 ## Core Rules
 

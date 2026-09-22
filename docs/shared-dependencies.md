@@ -6,11 +6,14 @@ This file records what each shared Elixir utility package owns, and where its bo
 
 | Package | Boundary |
 | --- | --- |
+| `agent_access/` | Owns `Accept` negotiation, `Vary` merging, and recovery response formatting. Product routes and the documents they serve stay in the product repos. |
+| `blog/` | Owns Markdown metadata validation, safe HTML, and compile-time catalogs. Blog routes stay in the products; presentation lives in `Regent.Blog` in the design system. |
+| `credo_ash/` | Owns Credo checks for Ash anti-patterns. It runs in dev and test only and never ships in a release. |
+| `ens/` | Owns ENS reads, name normalization, ENSIP-25 support, ERC-8004 identity helpers, verified primary names, and unsigned wallet-ready actions. It does not submit wallet transactions. |
+| `format/` | Owns display formatting helpers. Product copy, CSS tone classes, and domain labels stay in the consuming app. |
+| `http/` | Owns shared Req client conventions: timeouts, telemetry, and secret redaction. Endpoints and credentials stay in the consuming app. |
+| `privy/` | Owns Privy identity-token verification. Each app passes its own Privy configuration; sessions and accounts stay product-owned. |
 | `siwa/siwa-elixir` | Owns reusable SIWA parsing, verification, receipt, signed-envelope, and keyring behavior. It does not own product authorization. |
-| `ens/` | Owns ENS reads, name normalization, ENSIP-25 support, ERC-8004 identity helpers, and unsigned wallet-ready actions. It does not submit wallet transactions. |
-| `xmtp/` | Owns reusable XMTP client behavior. Product rooms, moderation, retention, and workflow state stay in the product repos. |
-| `world/agentbook` | Owns AgentKit header parsing, AgentBook lookup/registration helpers, and World ID evidence handling. Product trust sessions stay product-owned. |
-| `cache/` | Owns shared cache helpers. Cache is downstream of product DB state and chain truth. |
 
 ## Rules
 

@@ -203,8 +203,8 @@ defmodule AgentEns.Plan do
   @doc """
   Builds a read-only `LinkPlan` for linking an ENS name to an ERC-8004 agent.
 
-  Accepts an `Input` struct or a params map (atom or string keys) with the
-  `Input` fields. The function only reads chain state; it never prepares or
+  Accepts an `Input` struct or a params map keyed by the
+  `Input` field atoms. The function only reads chain state; it never prepares or
   sends a transaction.
 
   The returned plan contains one `Action` per possible next step
@@ -362,19 +362,15 @@ defmodule AgentEns.Plan do
          registry_rpc_url: registry_rpc_url,
          registry_address: String.downcase(registry_address),
          agent_id: agent_id,
-         rpc_module: Map.get(params, :rpc_module) || Map.get(params, "rpc_module"),
-         signer_address: Map.get(params, :signer_address) || Map.get(params, "signer_address"),
-         include_reverse?:
-           truthy?(Map.get(params, :include_reverse?) || Map.get(params, "include_reverse?")),
-         ens_registry: Map.get(params, :ens_registry) || Map.get(params, "ens_registry"),
-         name_wrapper: Map.get(params, :name_wrapper) || Map.get(params, "name_wrapper"),
-         reverse_registrar:
-           Map.get(params, :reverse_registrar) || Map.get(params, "reverse_registrar"),
-         erc8004_fetcher: Map.get(params, :erc8004_fetcher) || Map.get(params, "erc8004_fetcher"),
-         erc8004_fetch_opts:
-           Map.get(params, :erc8004_fetch_opts) || Map.get(params, "erc8004_fetch_opts"),
-         current_agent_uri:
-           Map.get(params, :current_agent_uri) || Map.get(params, "current_agent_uri")
+         rpc_module: Map.get(params, :rpc_module),
+         signer_address: Map.get(params, :signer_address),
+         include_reverse?: truthy?(Map.get(params, :include_reverse?)),
+         ens_registry: Map.get(params, :ens_registry),
+         name_wrapper: Map.get(params, :name_wrapper),
+         reverse_registrar: Map.get(params, :reverse_registrar),
+         erc8004_fetcher: Map.get(params, :erc8004_fetcher),
+         erc8004_fetch_opts: Map.get(params, :erc8004_fetch_opts),
+         current_agent_uri: Map.get(params, :current_agent_uri)
        }}
     end
   end

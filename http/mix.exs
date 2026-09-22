@@ -32,7 +32,7 @@ defmodule RegentHttp.MixProject do
 
   defp deps do
     [
-      {:req, "~> 0.5"},
+      {:req, "~> 0.7"},
       {:plug, "~> 1.16"},
       {:telemetry, "~> 1.0"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
@@ -50,7 +50,7 @@ defmodule RegentHttp.MixProject do
       ],
       licenses: ["MIT"],
       links: %{
-        "Source" => "https://github.com/regents-ai/regent/tree/main/elixir-utils/http"
+        "Source" => "https://github.com/regents-ai/elixir-utils/tree/main/http"
       }
     ]
   end

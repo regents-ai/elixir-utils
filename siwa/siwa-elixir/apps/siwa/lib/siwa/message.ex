@@ -15,48 +15,32 @@ defmodule Siwa.Message do
     {"Not Before", :not_before},
     {"Request ID", :request_id}
   ]
-  @normalized_string_keys %{
-    "domain" => :domain,
-    "address" => :address,
-    "statement" => :statement,
-    "uri" => :uri,
-    "version" => :version,
-    "agent_id" => :agent_id,
-    "agent_registry" => :agent_registry,
-    "chain_id" => :chain_id,
-    "nonce" => :nonce,
-    "issued_at" => :issued_at,
-    "expiration_time" => :expiration_time,
-    "not_before" => :not_before,
-    "request_id" => :request_id
-  }
 
   def build(fields) do
-    normalized = normalize_fields(fields)
-    Enum.each(@required, &ensure_present!(normalized, &1))
+    Enum.each(@required, &ensure_present!(fields, &1))
 
     statement_lines =
-      case normalized[:statement] do
+      case fields[:statement] do
         nil -> [""]
         statement -> [statement, ""]
       end
 
     ([
-       "#{normalized[:domain]} wants you to sign in with your Agent account:",
-       normalized[:address],
+       "#{fields[:domain]} wants you to sign in with your Agent account:",
+       fields[:address],
        ""
      ] ++
        statement_lines ++
        [
-         "URI: #{normalized[:uri]}",
-         "Version: #{normalized[:version] || "1"}",
-         "Agent ID: #{normalized[:agent_id]}",
-         "Agent Registry: #{normalized[:agent_registry]}",
-         "Chain ID: #{normalized[:chain_id]}",
-         "Nonce: #{normalized[:nonce]}",
-         "Issued At: #{normalized[:issued_at]}"
+         "URI: #{fields[:uri]}",
+         "Version: #{fields[:version] || "1"}",
+         "Agent ID: #{fields[:agent_id]}",
+         "Agent Registry: #{fields[:agent_registry]}",
+         "Chain ID: #{fields[:chain_id]}",
+         "Nonce: #{fields[:nonce]}",
+         "Issued At: #{fields[:issued_at]}"
        ] ++
-       optional_lines(normalized))
+       optional_lines(fields))
     |> Enum.join("\n")
   end
 
@@ -78,8 +62,6 @@ defmodule Siwa.Message do
   end
 
   def validate_canonical(message, expected) when is_binary(message) and is_map(expected) do
-    expected = normalize_fields(expected)
-
     with {:ok, parsed} <- parse(String.trim(message)),
          true <- parsed.domain == expected[:domain],
          true <-
@@ -102,16 +84,6 @@ defmodule Siwa.Message do
   end
 
   def validate_canonical(_message, _expected), do: {:error, :invalid_canonical_message}
-
-  def normalize_fields(fields) when is_map(fields), do: Enum.into(fields, %{}, &normalize_pair/1)
-
-  def normalize_fields(fields) when is_list(fields),
-    do: fields |> Enum.into(%{}) |> normalize_fields()
-
-  defp normalize_pair({key, value}) when is_binary(key), do: {normalize_key(key), value}
-  defp normalize_pair({key, value}), do: {key, value}
-
-  defp normalize_key(other), do: Map.get(@normalized_string_keys, other, other)
 
   defp ensure_present!(fields, key) do
     case Map.get(fields, key) do

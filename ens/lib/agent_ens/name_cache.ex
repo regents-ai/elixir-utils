@@ -6,14 +6,16 @@ defmodule AgentEns.NameCache do
   render paths (chat feeds, profiles) can resolve display names in bulk
   without blocking on JSON-RPC for every wallet.
 
-  The cache backend is injected (`:cache_module`, defaulting to `RegentCache`
-  from the sibling `regent_cache` package) and addressed by name
-  (`:cache`), so this package carries no compile-time cache dependency and
-  apps decide which supervised cache to use:
+  The cache backend is injected: `:cache` names the cache and `:cache_module`
+  is the module that reads and writes it (`get_json/2` and `put_json/4`), so
+  this package carries no cache dependency and apps decide which supervised
+  cache to use:
 
-      children = [RegentCache.child_spec(:ens_names), ...]
-
-      AgentEns.NameCache.resolve(wallet, cache: :ens_names, rpc_url: rpc_url)
+      AgentEns.NameCache.resolve(wallet,
+        cache: :ens_names,
+        cache_module: MyApp.Cache,
+        rpc_url: rpc_url
+      )
 
   Verified names cache for `:positive_ttl` (default 6 hours), wallets without
   a name for `:negative_ttl` (default 15 minutes), and resolver failures for
@@ -159,7 +161,7 @@ defmodule AgentEns.NameCache do
   defp cache_backend(opts) do
     case Keyword.get(opts, :cache) do
       nil -> nil
-      cache when is_atom(cache) -> {Keyword.get(opts, :cache_module, RegentCache), cache}
+      cache when is_atom(cache) -> {Keyword.fetch!(opts, :cache_module), cache}
     end
   end
 

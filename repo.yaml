@@ -3,15 +3,15 @@ repo: elixir-utils
 owner: elixir-utils
 path: elixir-utils
 release_group: public_beta
-stack_contract: ../meta/stack.yaml
 owns:
-  - siwa_library
-  - ens_library
-  - xmtp_library
-  - agentbook_helpers
-  - ash_lint_checks
-  - markdown_blog_catalogs
   - agent_access_negotiation
+  - markdown_blog_catalogs
+  - ash_lint_checks
+  - ens_library
+  - display_formatting
+  - http_client_conventions
+  - privy_token_verification
+  - siwa_library
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []
@@ -25,33 +25,33 @@ code_map:
     owns: agent_access_negotiation
   - path: blog
     owns: markdown_blog_catalogs
-  - path: cache
-    owns: cache
   - path: credo_ash
     owns: ash_lint_checks
   - path: ens
-    owns: ens
+    owns: ens_library
+  - path: format
+    owns: display_formatting
+  - path: http
+    owns: http_client_conventions
+  - path: privy
+    owns: privy_token_verification
   - path: siwa/siwa-elixir
-    owns: siwa-elixir
-  - path: world/agentbook
-    owns: agentbook
-  - path: xmtp
-    owns: xmtp
+    owns: siwa_library
 local_path_dependencies: []
 acceptance_commands:
   - cwd: elixir-utils/agent_access
     command: mix check
   - cwd: elixir-utils/blog
     command: mix check
-  - cwd: elixir-utils/cache
-    command: mix test
   - cwd: elixir-utils/credo_ash
     command: mix check
   - cwd: elixir-utils/ens
-    command: mix test
+    command: mix check
+  - cwd: elixir-utils/format
+    command: mix check
+  - cwd: elixir-utils/http
+    command: mix check
+  - cwd: elixir-utils/privy
+    command: mix check
   - cwd: elixir-utils/siwa/siwa-elixir
-    command: mix test
-  - cwd: elixir-utils/world/agentbook
-    command: mix test
-  - cwd: elixir-utils/xmtp
-    command: mix test
+    command: mix check

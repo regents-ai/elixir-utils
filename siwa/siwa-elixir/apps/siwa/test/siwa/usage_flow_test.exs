@@ -89,7 +89,6 @@ defmodule Siwa.UsageFlowTest do
     request = %{
       method: "POST",
       path: "/protected?mode=test",
-      host: "api.example.com",
       body: ~s({"hello":"world"}),
       headers: %{"content-type" => "application/json"}
     }

@@ -10,6 +10,7 @@ defmodule AgentEns.PrimaryName do
   alias AgentEns.Address
   alias AgentEns.Internal.Contract
   alias AgentEns.Internal.RPC
+  alias AgentEns.Internal.Validation
   alias AgentEns.Verify
 
   @ethereum_chain_id 1
@@ -21,7 +22,7 @@ defmodule AgentEns.PrimaryName do
   Options:
 
     * `:rpc_url` — Ethereum mainnet JSON-RPC URL (required; a blank or
-      missing value yields `{:ok, nil}`)
+      missing value returns `{:error, %AgentEns.Error{}}`)
     * `:ens_registry` — ENS registry address (defaults to the canonical
       mainnet registry)
     * `:rpc_module` — RPC module used for `eth_call` (defaults to
@@ -30,12 +31,11 @@ defmodule AgentEns.PrimaryName do
   @spec verified_primary_name(String.t() | nil, keyword()) ::
           {:ok, String.t() | nil} | {:error, term()}
   def verified_primary_name(wallet_address, opts \\ []) do
-    rpc_url = Keyword.get(opts, :rpc_url)
     ens_registry = Keyword.get(opts, :ens_registry, @default_ens_registry)
     rpc_module = Keyword.get(opts, :rpc_module, RPC)
 
-    with wallet when is_binary(wallet) <- Address.normalize(wallet_address),
-         true <- is_binary(rpc_url) and rpc_url != "",
+    with {:ok, rpc_url} <- Validation.required_binary(Map.new(opts), :rpc_url),
+         wallet when is_binary(wallet) <- Address.normalize(wallet_address),
          {:ok, reverse_name} <- reverse_name(wallet, rpc_url, ens_registry, rpc_module),
          true <- reverse_name != "",
          {:ok, %{eth_address: ^wallet, normalized_name: normalized_name}} <-

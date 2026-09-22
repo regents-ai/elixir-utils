@@ -8,7 +8,6 @@ defmodule Siwa.Plug do
     request = %{
       method: conn.method,
       path: signed_path(conn),
-      host: conn.host,
       body: conn.private[:raw_body] || conn.assigns[:raw_body] || "",
       headers: Map.new(conn.req_headers)
     }

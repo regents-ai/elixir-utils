@@ -226,12 +226,12 @@ defmodule AgentEns.Read do
          ens_name: ens_name,
          chain_id: chain_id,
          rpc_url: rpc_url,
-         rpc_module: Map.get(params, :rpc_module) || Map.get(params, "rpc_module"),
-         ens_registry: Map.get(params, :ens_registry) || Map.get(params, "ens_registry"),
-         name_wrapper: Map.get(params, :name_wrapper) || Map.get(params, "name_wrapper"),
+         rpc_module: Map.get(params, :rpc_module),
+         ens_registry: Map.get(params, :ens_registry),
+         name_wrapper: Map.get(params, :name_wrapper),
          text_keys: text_keys,
-         include_address?: truthy(fetch_param(params, :include_address?), true),
-         include_contenthash?: truthy(fetch_param(params, :include_contenthash?), true)
+         include_address?: truthy(Map.get(params, :include_address?), true),
+         include_contenthash?: truthy(Map.get(params, :include_contenthash?), true)
        }}
     end
   end
@@ -353,7 +353,7 @@ defmodule AgentEns.Read do
     do: {:error, Error.new({:missing_required_input, name})}
 
   defp text_keys(params) do
-    values = fetch_param(params, :text_keys) || []
+    values = Map.get(params, :text_keys) || []
 
     if is_list(values) and Enum.all?(values, &is_binary/1) do
       {:ok, values}
@@ -366,11 +366,4 @@ defmodule AgentEns.Read do
   defp truthy(value, _default) when value in [true, "true", 1, "1"], do: true
   defp truthy(value, _default) when value in [false, "false", 0, "0"], do: false
   defp truthy(_value, default), do: default
-
-  defp fetch_param(params, key) do
-    case Map.fetch(params, key) do
-      {:ok, value} -> value
-      :error -> Map.get(params, Atom.to_string(key))
-    end
-  end
 end

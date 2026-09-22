@@ -230,7 +230,6 @@ defmodule Siwa.RequestAuthTest do
     request = %{
       method: "POST",
       path: "/protected?mode=test",
-      host: "www.example.com",
       body: body,
       headers: %{}
     }
@@ -247,7 +246,6 @@ defmodule Siwa.RequestAuthTest do
       Enum.reduce(
         signed_request.headers,
         conn("POST", "/protected?mode=test", body)
-        |> Map.put(:host, "www.example.com")
         |> put_private(:raw_body, body),
         fn {key, value}, acc -> put_req_header(acc, key, value) end
       )
@@ -322,7 +320,6 @@ defmodule Siwa.RequestAuthTest do
     %{
       method: "POST",
       path: "/protected",
-      host: "api.example.com",
       body: "{}",
       headers: %{}
     }

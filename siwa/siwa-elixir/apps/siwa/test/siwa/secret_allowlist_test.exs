@@ -11,7 +11,6 @@ defmodule Siwa.SecretAllowlistTest do
       SIWA_NONCE_SECRET
       KEYRING_PROXY_SECRET
       KEYSTORE_PASSWORD
-      XMTP_AGENT_PRIVATE_KEY
     ) do
       assert allowlist =~ "  - #{name}"
     end

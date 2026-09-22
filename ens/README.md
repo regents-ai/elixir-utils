@@ -1,7 +1,5 @@
 # ens-elixir
 
-[Hex package](https://hex.pm/packages/ens_elixir)
-[Docs](https://hexdocs.pm/ens_elixir)
 [Changelog](CHANGELOG.md)
 [Guide](USAGE.md)
 
@@ -20,16 +18,9 @@ permissions.
 ```elixir
 def deps do
   [
-    {:ens_elixir, "~> 0.1.1"}
+    {:ens_elixir, path: Path.join(shared, "elixir-utils/ens")}
   ]
 end
-```
-
-If you are publishing or building docs from this repository, use the published
-SIWA dependency:
-
-```bash
-SIWA_HEX_PUBLISH=1 mix deps.get
 ```
 
 ## When To Use It

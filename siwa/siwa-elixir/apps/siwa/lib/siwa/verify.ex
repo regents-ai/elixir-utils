@@ -4,7 +4,7 @@ defmodule Siwa.Verify do
   def sign_message(fields, signer) do
     with {:ok, address} <- signer_module(signer).get_address(signer) do
       fields =
-        case Map.get(fields, :address) || Map.get(fields, "address") do
+        case Map.get(fields, :address) do
           nil -> Map.put(fields, :address, address)
           _ -> fields
         end
@@ -110,8 +110,7 @@ defmodule Siwa.Verify do
   end
 
   defp normalize_message(fields) when is_map(fields) do
-    normalized = Message.normalize_fields(fields)
-    {:ok, normalized, Message.build(normalized)}
+    {:ok, fields, Message.build(fields)}
   end
 
   defp validate_domain(fields, opts) do

@@ -1,7 +1,5 @@
 # Siwa
 
-[Hex package](https://hex.pm/packages/siwa)
-[Docs](https://hexdocs.pm/siwa)
 [Changelog](CHANGELOG.md)
 
 `siwa` is Regent’s shared Elixir package for agent sign-in, receipts, and signed
@@ -19,7 +17,7 @@ decides whether the verified identity may perform the product action.
 ```elixir
 def deps do
   [
-    {:siwa, "~> 0.1.1"}
+    {:siwa, path: Path.join(shared, "elixir-utils/siwa/siwa-elixir/apps/siwa")}
   ]
 end
 ```
@@ -28,8 +26,8 @@ end
 
 | Job | Function |
 | --- | --- |
-| Build the message to sign | `Siwa.build_message/1` |
-| Parse a signed message | `Siwa.parse_message/1` |
+| Build the message to sign | `Siwa.Message.build/1` |
+| Parse a signed message | `Siwa.Message.parse/1` |
 | Issue a nonce | `Siwa.create_nonce/2` |
 | Consume a nonce | `Siwa.verify_nonce/2` |
 | Verify a signed sign-in | `Siwa.verify/3` |
@@ -48,7 +46,7 @@ issued_at =
   |> DateTime.to_iso8601()
 
 message =
-  Siwa.build_message(%{
+  Siwa.Message.build(%{
     domain: "regent.cx",
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     uri: "https://regent.cx/api/shared/siwa/verify",

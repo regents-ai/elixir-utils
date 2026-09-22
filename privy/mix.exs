@@ -49,7 +49,7 @@ defmodule RegentPrivy.MixProject do
       ],
       licenses: ["MIT"],
       links: %{
-        "Source" => "https://github.com/regents-ai/regent/tree/main/elixir-utils/privy"
+        "Source" => "https://github.com/regents-ai/elixir-utils/tree/main/privy"
       }
     ]
   end

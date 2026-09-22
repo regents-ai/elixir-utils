@@ -80,7 +80,7 @@ defmodule SiwaKeyring.Client do
   end
 
   defp maybe_put_finch(opts, nil), do: opts
-  defp maybe_put_finch(opts, finch), do: Keyword.put(opts, :finch, finch)
+  defp maybe_put_finch(opts, finch), do: Keyword.put(opts, :finch, name: finch)
 
   defp decode_body(body) when is_map(body), do: {:ok, body}
   defp decode_body(body) when is_binary(body), do: Jason.decode(body)

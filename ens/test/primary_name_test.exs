@@ -119,10 +119,14 @@ defmodule AgentEns.PrimaryNameTest do
              )
   end
 
-  test "returns nil for invalid wallets or missing rpc url" do
+  test "returns nil for invalid wallets and an error for a blank or missing rpc url" do
     assert {:ok, nil} = PrimaryName.verified_primary_name("not-a-wallet", rpc_url: @rpc_url)
     assert {:ok, nil} = PrimaryName.verified_primary_name(nil, rpc_url: @rpc_url)
-    assert {:ok, nil} = PrimaryName.verified_primary_name(@wallet, rpc_url: "")
-    assert {:ok, nil} = PrimaryName.verified_primary_name(@wallet, [])
+
+    assert {:error, %AgentEns.Error{kind: :invalid_argument}} =
+             PrimaryName.verified_primary_name(@wallet, rpc_url: "")
+
+    assert {:error, %AgentEns.Error{kind: :invalid_argument}} =
+             PrimaryName.verified_primary_name(@wallet, [])
   end
 end

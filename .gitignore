@@ -1,11 +1,4 @@
 /siwa/siwa-js/
-/world/**/_build/
-/world/**/deps/
-/world/**/doc/
-/cache/_build/
-/cache/deps/
-/cache/doc/
-/xmtp/browser_shim/node_modules/
 /output/
 .codex/
 .claude/

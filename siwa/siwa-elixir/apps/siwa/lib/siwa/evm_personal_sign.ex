@@ -17,7 +17,7 @@ defmodule Siwa.EvmPersonalSign do
   @spec personal_hash(binary()) :: binary()
   def personal_hash(message) when is_binary(message) do
     (@personal_prefix <> Integer.to_string(byte_size(message)) <> message)
-    |> KeccakEx.hash_256()
+    |> ExKeccak.hash_256()
   end
 
   @spec personal_hash(term()) :: {:error, :invalid_message}
@@ -99,7 +99,7 @@ defmodule Siwa.EvmPersonalSign do
   @spec public_key_to_address(binary()) :: address()
   def public_key_to_address(<<4, raw::binary-size(64)>>) do
     raw
-    |> KeccakEx.hash_256()
+    |> ExKeccak.hash_256()
     |> binary_part(12, 20)
     |> then(&("0x" <> Base.encode16(&1, case: :lower)))
   end

@@ -60,7 +60,7 @@ defmodule Siwa.Crypto do
 
   def raw_hash(payload) when is_binary(payload) do
     payload
-    |> KeccakEx.hash_256()
+    |> ExKeccak.hash_256()
     |> encode_hex()
   end
 
@@ -71,7 +71,7 @@ defmodule Siwa.Crypto do
         other -> other
       end
 
-    digest = KeccakEx.hash_256(stripped)
+    digest = ExKeccak.hash_256(stripped)
     <<_::binary-size(12), address::binary-size(20)>> = digest
     "0x" <> Base.encode16(address, case: :lower)
   end

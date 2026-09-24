@@ -42,7 +42,7 @@ defmodule AgentEns.Address do
   defp checksum_chars(address) do
     hash =
       address
-      |> KeccakEx.hash_256()
+      |> ExKeccak.hash_256()
       |> Base.encode16(case: :lower)
 
     address

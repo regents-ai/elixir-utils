@@ -7,7 +7,7 @@ defmodule AgentEns.Internal.ABI do
   def selector(signature) when is_binary(signature) do
     "0x" <>
       (signature
-       |> KeccakEx.hash_256()
+       |> ExKeccak.hash_256()
        |> binary_part(0, 4)
        |> Base.encode16(case: :lower))
   end

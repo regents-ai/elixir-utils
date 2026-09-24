@@ -48,7 +48,7 @@ defmodule Siwa.Ethereum do
 
   @spec keccak_hex(binary()) :: {:ok, hex_data()} | {:error, :invalid_payload}
   def keccak_hex(payload) when is_binary(payload) do
-    {:ok, payload |> KeccakEx.hash_256() |> encode_hex()}
+    {:ok, payload |> ExKeccak.hash_256() |> encode_hex()}
   end
 
   def keccak_hex(_payload), do: {:error, :invalid_payload}
@@ -59,7 +59,7 @@ defmodule Siwa.Ethereum do
       labels
       |> Enum.reverse()
       |> Enum.reduce(<<0::256>>, fn label, node ->
-        KeccakEx.hash_256(node <> KeccakEx.hash_256(String.downcase(label)))
+        ExKeccak.hash_256(node <> ExKeccak.hash_256(String.downcase(label)))
       end)
       |> encode_hex()
       |> then(&{:ok, &1})

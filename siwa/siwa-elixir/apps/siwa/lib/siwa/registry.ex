@@ -161,7 +161,7 @@ defmodule Siwa.Registry do
   defp abi_encode_register(agent_uri) do
     selector =
       "register(string)"
-      |> KeccakEx.hash_256()
+      |> ExKeccak.hash_256()
       |> binary_part(0, 4)
 
     body = abi_encode_string(agent_uri)

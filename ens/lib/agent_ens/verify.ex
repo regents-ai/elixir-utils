@@ -68,7 +68,7 @@ defmodule AgentEns.Verify do
         |> String.split(".", trim: true)
         |> Enum.reverse()
         |> Enum.reduce(<<0::256>>, fn label, acc ->
-          KeccakEx.hash_256(acc <> KeccakEx.hash_256(label))
+          ExKeccak.hash_256(acc <> ExKeccak.hash_256(label))
         end)
 
       {:ok, node}

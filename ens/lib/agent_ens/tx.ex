@@ -378,7 +378,7 @@ defmodule AgentEns.Tx do
   end
 
   defp encode_set_subnode_owner(:registry, parent_node, label, owner_address, _params) do
-    labelhash = KeccakEx.hash_256(label)
+    labelhash = ExKeccak.hash_256(label)
 
     ABI.encode_call("setSubnodeOwner(bytes32,bytes32,address)", [
       {:bytes32, parent_node},
@@ -409,7 +409,7 @@ defmodule AgentEns.Tx do
          ttl,
          _params
        ) do
-    labelhash = KeccakEx.hash_256(label)
+    labelhash = ExKeccak.hash_256(label)
 
     ABI.encode_call("setSubnodeRecord(bytes32,bytes32,address,address,uint64)", [
       {:bytes32, parent_node},

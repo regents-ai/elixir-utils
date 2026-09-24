@@ -37,7 +37,7 @@ defmodule AgentEns.MixProject do
       {:idna, "~> 6.1"},
       {:jason, "~> 1.4"},
       {:siwa, path: "../siwa/siwa-elixir/apps/siwa"},
-      {:keccak_ex, "~> 0.4.2"},
+      {:ex_keccak, "~> 0.7.8"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end

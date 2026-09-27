@@ -2,7 +2,7 @@ defmodule SharedServicesContractCheck do
   @contract_path Path.join(
                    System.get_env(
                      "REGENT_CLI_ROOT",
-                     Path.expand("../../../../regents/cli", __DIR__)
+                     Path.expand("../../../../regents-cli", __DIR__)
                    ),
                    "docs/regent-services-contract.openapiv3.yaml"
                  )

@@ -1,0 +1,24 @@
+/* Domain layout only. Load the canonical Regent UI tokens and structural CSS first. */
+.erc8004 { min-inline-size: 0; max-inline-size: 100%; overflow-wrap: anywhere; font-family: var(--font-family-ui, sans-serif); }
+.erc8004-profile { display: grid; gap: 1rem; }
+.erc8004-section { display: grid; gap: .875rem; padding: clamp(1rem, 3vw, 1.5rem); }
+.erc8004-section :is(h1,h2,h3,h4,h5,h6,p,ul,ol,dl) { margin: 0; }
+.erc8004-section :is(h1,h2,h3,h4,h5,h6) { font-family: var(--font-family-title, monospace); font-weight: 400; }
+.erc8004-identity { display: flex; align-items: flex-start; gap: 1rem; }
+.erc8004-identity > div { min-inline-size: 0; }
+.erc8004-fingerprint { display: block; inline-size: 3.5rem; block-size: 3.5rem; flex: 0 0 3.5rem; color: var(--rg-local-ink, currentColor); border: 1px solid currentColor; }
+.erc8004-note { font-size: .9375rem; line-height: 1.5; }
+.erc8004-prose { white-space: pre-wrap; line-height: 1.6; }
+.erc8004-list { list-style: none; padding: 0; }
+.erc8004-list > li { display: grid; gap: .5rem; padding-block: .875rem; border-block-start: 1px solid var(--rg-local-rule, var(--color-border, currentColor)); }
+.erc8004-tags { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; }
+.erc8004-tags > li { border: 1px solid var(--rg-local-rule, var(--color-border, currentColor)); padding: .125rem .5rem; }
+.erc8004 code { white-space: normal; overflow-wrap: anywhere; font-family: var(--font-family-mono, monospace); font-size: 1em; }
+.erc8004-identifiers { display: grid; gap: .5rem; }
+.erc8004-identifiers dd { margin: 0 0 .5rem; }
+.erc8004 summary { cursor: pointer; min-block-size: 44px; padding-block: .625rem; box-sizing: border-box; }
+.erc8004-endpoint { display: block; overflow-wrap: anywhere; }
+.erc8004 a.erc8004-endpoint { min-block-size: 44px; padding-block: .625rem; box-sizing: border-box; color: inherit; text-underline-offset: .2em; }
+.erc8004 :is(a, summary):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.erc8004-actions { display: grid; gap: .5rem; justify-items: start; }
+.erc8004-score { font-size: 1.5rem; font-variant-numeric: tabular-nums; }

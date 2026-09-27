@@ -10,18 +10,26 @@ owns:
   - xmtp_library
   - agentbook_helpers
   - ash_lint_checks
+  - privy_verification
+  - erc8004_evidence_ui
   - markdown_blog_catalogs
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []
   cli_contracts: []
   shared_contracts:
+    - privy/contract.yaml
+    - erc8004/contract.yaml
     - blog/contract.yaml
   runtime_contracts: []
   chain_contracts: []
 code_map:
   - path: blog
     owns: markdown_blog_catalogs
+  - path: erc8004
+    owns: erc8004_evidence_ui
+  - path: privy
+    owns: privy_verification
   - path: cache
     owns: cache
   - path: credo_ash
@@ -37,6 +45,10 @@ code_map:
 local_path_dependencies: []
 acceptance_commands:
   - cwd: elixir-utils/blog
+    command: mix check
+  - cwd: elixir-utils/erc8004
+    command: mix check
+  - cwd: elixir-utils/privy
     command: mix check
   - cwd: elixir-utils/cache
     command: mix test

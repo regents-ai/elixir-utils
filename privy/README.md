@@ -18,6 +18,13 @@ RegentPrivy.verify_token(token,
 
 This library holds no configuration or secrets and never logs token contents.
 
+During signing-key rotation, pass `verification_keys: [public_pem_a, public_pem_b]`
+instead. The explicit set is bounded to four keys and replaces the singular option;
+an empty or malformed set never falls back. Each proof is verified independently
+against these configured keys, so a token pair may span a rotation. Signature,
+claim and pair-binding checks are unchanged. No key or URL supplied by a token is
+trusted, and the library performs no key discovery or network requests.
+
 ## Paired authentication evidence
 
 Use `RegentPrivy.Session.verify(%{access: access_token, identity: identity_token},

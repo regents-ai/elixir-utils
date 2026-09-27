@@ -380,6 +380,58 @@ defmodule RegentPrivyTest do
              RegentPrivy.Session.verify(%{access: "unused", identity: "unused"}, [])
   end
 
+  test "a configured rotation set verifies either signer and cross-key pairs", ctx do
+    other = JOSE.JWK.generate_key({:ec, "P-256"})
+    {_, private} = JOSE.JWK.to_pem(other)
+    {_, public} = other |> JOSE.JWK.to_public() |> JOSE.JWK.to_pem()
+    opts = [app_id: @app_id, verification_keys: [ctx.public_pem, public], now: @now]
+
+    for signing_key <- [ctx.private_pem, private] do
+      assert {:ok, _} = RegentPrivy.verify_token(sign(base_claims(), signing_key), opts)
+    end
+
+    pair = %{
+      access: sign(Map.put(base_claims(), "sid", "session-1"), ctx.private_pem),
+      identity: sign(Map.put(base_claims(), "linked_accounts", "[]"), private)
+    }
+
+    assert {:ok, %RegentPrivy.Session{session_id: "session-1"}} =
+             RegentPrivy.Session.verify(pair, opts)
+
+    bad_identity =
+      sign(base_claims() |> Map.put("linked_accounts", "[]") |> Map.put("sub", "other"), private)
+
+    assert {:error, {:pair_binding, :subject_mismatch}} =
+             RegentPrivy.Session.verify(%{pair | identity: bad_identity}, opts)
+
+    expired = sign(Map.put(base_claims(), "exp", @now), private)
+    assert {:error, :token_expired} = RegentPrivy.verify_token(expired, opts)
+    wrong_app = sign(Map.put(base_claims(), "aud", "other-app"), private)
+    assert {:error, :invalid_audience} = RegentPrivy.verify_token(wrong_app, opts)
+  end
+
+  test "an explicit malformed rotation set cannot fall back to a valid singular key", ctx do
+    token = sign(base_claims(), ctx.private_pem)
+
+    for keys <- [
+          [],
+          nil,
+          "not-a-list",
+          [nil],
+          [ctx.public_pem, ""],
+          List.duplicate(ctx.public_pem, 5)
+        ] do
+      assert {:error, :invalid_verification_key} = verify(token, ctx, verification_keys: keys)
+    end
+
+    assert {:error, :token_verification_failed} =
+             RegentPrivy.verify_token(token,
+               app_id: @app_id,
+               verification_keys: ["not a pem"],
+               now: @now
+             )
+  end
+
   defp verify_pair(access, identity, ctx) do
     RegentPrivy.Session.verify(
       %{access: sign(access, ctx.private_pem), identity: sign(identity, ctx.private_pem)},

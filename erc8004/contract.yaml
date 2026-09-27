@@ -1,0 +1,38 @@
+version: 1
+package: regent_erc8004
+purpose: Small server-read and Phoenix presentation layer for ERC-8004 indexed evidence
+upstream:
+  url: https://github.com/p4nthera115/erc8004-ui
+  revision: 666fb276126e3a2a477e94504c2c8dda1951b8b8
+  license: MIT
+ownership:
+  library: Explicit registry references, bounded indexer reads, decimal summaries, HEEx presentation
+  product: Ash actions, authorization, tenant scope, caching, freshness, routes and signing
+api:
+  RegentERC8004.Ref.new: "(registry, token_id) -> {:ok, ref} | {:error, :invalid_identity}; canonical eip155 registry, uint256 integer/string token ID"
+  RegentERC8004.Client.new: "(registry, https_endpoint, headers: []) -> {:ok, client} | {:error, :invalid_configuration}; endpoint is trusted server configuration bound to exactly one registry"
+  RegentERC8004.Client.load: "(client, token_id, limit: 10, feedback_offset: 0, validation_offset: 0) -> {:ok, snapshot} | {:error, safe_reason}; limit 1..50, offsets 0..5000"
+  RegentERC8004.Snapshot.from_graphql: "(ref, response_data, options) -> {:ok, snapshot} | {:error, :invalid_data | :identity_mismatch | :not_found | :invalid_options}; same validated DTO boundary for Ash adapters"
+  RegentERC8004.Components:
+    - "profile(snapshot): composed agent, endpoints, scores, feedback, validation and loaded-page activity"
+    - "agent_card(agent): registered name/description, deterministic fingerprint, full identity and owner"
+    - "endpoints(services): declared URLs only; no health or ownership claims"
+    - "reputation(summary): unscaled decimal mean and non-revoked count, never an invented percent"
+    - "feedback_list(page): bounded non-revoked entries, tags, text and explicit continuation slot"
+    - "validations(summary, page): pending/completed/expired evidence, no automatic trust tier"
+    - "activity(events): timestamps and evidence in the loaded pages, not a complete chain event log"
+    - "fingerprint(ref): identifier-derived decorative SVG, not proof"
+    - "state(status): loading, error, empty or not_found; caller-owned retry slot"
+  mix.regent_erc8004.assets: "Copy package CSS to assets/vendor/regent_erc8004/erc8004.css in the invoking Mix project"
+invariants:
+  - No React, browser fetch, JavaScript hooks, global provider, Ash resources, supervisors or database
+  - Indexer data and registration metadata are untrusted evidence, not cryptographic verification
+  - Endpoint registry binding is operator configuration, checked against Protocol.identityRegistry and chainId in the reported indexer data; neither is an on-chain proof
+  - Cumulative statistics use only the newest row; reputation uses valueDeltaSum divided by created minus revoked
+  - Missing aggregates remain unknown; zero feedback remains distinct from unavailable; validation pending is never zero
+  - Big integers and signed decimals never pass through floats
+  - Each list fetches limit plus one to report continuation; offset pagination is not snapshot-consistent during updates
+  - No metadata URL is fetched by the server; only HTTPS links are clickable; all text is HEEx escaped
+  - Network errors are safe atoms/status tuples without URLs, credentials or upstream messages
+  - Responses are streamed with a 2 MB cap and no decompression; text fields are capped at 64 KiB, decimal text at 256 bytes without exponents
+  - No blind retries, redirects, writes, wallet actions, live health probes or synthetic verified rankings

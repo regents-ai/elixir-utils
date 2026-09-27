@@ -1,0 +1,5 @@
+Concepts and GraphQL selections adapted from p4nthera115/erc8004-ui (MIT),
+revision 666fb276126e3a2a477e94504c2c8dda1951b8b8.
+Upstream copyright (c) 2026 p4nthera115; license retained in LICENSE.
+This is an independent Elixir/Phoenix implementation, not a byte-compatible React port.
+Regent's existing design-system provides foundational components and tokens.

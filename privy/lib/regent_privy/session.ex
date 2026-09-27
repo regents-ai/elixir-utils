@@ -59,8 +59,8 @@ defmodule RegentPrivy.Session do
   def verify(_pair, _opts), do: {:error, {:pair_binding, :invalid_token_pair}}
 
   defp configuration(opts) do
-    case {opts[:app_id], opts[:verification_key]} do
-      {app, key} when is_binary(app) and app != "" and is_binary(key) and key != "" -> :ok
+    case {opts[:app_id], RegentPrivy.verification_keys(opts)} do
+      {app, {:ok, _keys}} when is_binary(app) and app != "" -> :ok
       _ -> {:error, {:configuration, :missing_privy_config}}
     end
   end

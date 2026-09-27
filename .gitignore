@@ -1,3 +1,5 @@
+local-only-*
+
 /siwa/siwa-js/
 /world/**/_build/
 /world/**/deps/

@@ -1,0 +1,18 @@
+version: 1
+package: regent_privy
+interfaces:
+  - function: RegentPrivy.verify_token/2
+    purpose: Verify ES256 signatures and canonical Privy claims.
+  - function: RegentPrivy.Session.verify/2
+    purpose: Independently verify access and identity proofs and bind their subject, session and roles.
+verification:
+  app_id: Explicit caller-supplied expected audience.
+  verification_key: Existing single PEM verification key remains supported.
+  verification_keys: Optional explicit list of one to four PEM keys; when supplied it replaces the singular key. Invalid or empty sets never fall back.
+  trust: Only configured keys are trusted; no token-directed key URL, key material or algorithm is accepted.
+  rotation: Each token may verify under any configured key. Claim and pair-binding checks are unchanged.
+  state: No global configuration, network lookup, session writes or token logging.
+acceptance:
+  - Single-key compatibility and independent cross-key token-pair verification.
+  - Refusal of untrusted signatures, malformed key sets and invalid claims or pair bindings.
+  - mix check

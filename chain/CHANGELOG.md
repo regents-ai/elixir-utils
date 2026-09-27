@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 (2026-09-27)
+
+Breaking, adopt in one change:
+
+- `Review.new/5` takes the on-screen `inputs` and gives each review an `id` derived
+  from everything in it. The page reports presses by that id.
+- Transaction steps carry `kind: "transaction"`; `Review.signature/2` adds EIP-712
+  signature steps. `Review.find/2` names a step.
+- `Outcome.of/4` takes the review and the step, reads the review's chain, and
+  checks the transaction's chain id too. The client's `transaction/2` and
+  `receipt/2` take the chain first.
+- A review's `rpc_url` may be `http://127.0.0.1:` or `http://localhost:` for a lab
+  chain.
+- New `RegentChain.Presses`: the reviews a page pushed and each sent step, checked
+  against the review it was sent from.
+
 ## 0.1.0
 
 - Initial release: checked addresses, contract calldata, the review pushed to a

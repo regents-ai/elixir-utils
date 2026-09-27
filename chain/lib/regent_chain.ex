@@ -8,7 +8,8 @@ defmodule RegentChain do
 
   - `RegentChain.Address`: one checked address.
   - `RegentChain.Call`: calldata from a function signature.
-  - `RegentChain.Review`: the steps pushed to the page.
+  - `RegentChain.Review`: the steps pushed to the page, fixed and named by an id.
+  - `RegentChain.Presses`: the reviews pushed and what the wallet did with each.
   - `RegentChain.Outcome`: whether a sent step is pending, confirmed or reverted.
   - `RegentChain.Event`: one event read back out of a receipt.
 

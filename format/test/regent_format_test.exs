@@ -104,6 +104,31 @@ defmodule RegentFormatTest do
     end
   end
 
+  describe "relative_time/2" do
+    @now ~U[2026-01-05 15:04:05Z]
+
+    test "says just now within a minute either side" do
+      assert RegentFormat.relative_time(@now, @now) == "just now"
+      assert RegentFormat.relative_time(DateTime.add(@now, -59), @now) == "just now"
+      assert RegentFormat.relative_time(DateTime.add(@now, 59), @now) == "just now"
+    end
+
+    test "counts the past in the largest whole unit" do
+      assert RegentFormat.relative_time(DateTime.add(@now, -60), @now) == "1 minute ago"
+      assert RegentFormat.relative_time(DateTime.add(@now, -3 * 3600 - 59), @now) == "3 hours ago"
+      assert RegentFormat.relative_time(DateTime.add(@now, -86_400), @now) == "1 day ago"
+      assert RegentFormat.relative_time(DateTime.add(@now, -15, :day), @now) == "2 weeks ago"
+      assert RegentFormat.relative_time(DateTime.add(@now, -60, :day), @now) == "2 months ago"
+      assert RegentFormat.relative_time(DateTime.add(@now, -800, :day), @now) == "2 years ago"
+    end
+
+    test "counts the future with in" do
+      assert RegentFormat.relative_time(DateTime.add(@now, 60), @now) == "in 1 minute"
+      assert RegentFormat.relative_time(DateTime.add(@now, 2 * 3600), @now) == "in 2 hours"
+      assert RegentFormat.relative_time(DateTime.add(@now, 3, :day), @now) == "in 3 days"
+    end
+  end
+
   describe "yes_no/1" do
     test "labels booleans" do
       assert RegentFormat.yes_no(true) == "yes"
@@ -134,30 +159,18 @@ defmodule RegentFormatTest do
     end
   end
 
-  describe "short_address/2" do
-    test "truncates long 0x addresses" do
-      assert RegentFormat.short_address("0x1234567890abcdef1234567890abcdef12345678") ==
-               "0x123456…5678"
+  describe "short_address/1" do
+    test "shortens a long 0x address to 0x, four, two full stops, four" do
+      assert RegentFormat.short_address("0x1234567890abcdef1234567890abcdef1234abcd") ==
+               "0x1234..abcd"
+
+      assert RegentFormat.short_address("0x1234abcd9") == "0x1234..bcd9"
     end
 
-    test "substitutes the empty marker and passes short values through" do
-      assert RegentFormat.short_address(nil) == "n/a"
-      assert RegentFormat.short_address(nil, "none") == "none"
-      assert RegentFormat.short_address("0xabc") == "0xabc"
+    test "keeps nil and shows short or non-0x values as they are" do
+      assert RegentFormat.short_address(nil) == nil
+      assert RegentFormat.short_address("0x1234abcd") == "0x1234abcd"
       assert RegentFormat.short_address("vault.eth") == "vault.eth"
-    end
-  end
-
-  describe "short_wallet/1" do
-    test "truncates wallets and trims whitespace" do
-      assert RegentFormat.short_wallet(" 0x1234567890abcdef1234567890abcdef12345678 ") ==
-               "0x1234…5678"
-    end
-
-    test "returns nil for non-binaries and passes short values through" do
-      assert RegentFormat.short_wallet(nil) == nil
-      assert RegentFormat.short_wallet(123) == nil
-      assert RegentFormat.short_wallet("0xabc") == "0xabc"
     end
   end
 

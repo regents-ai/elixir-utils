@@ -1,7 +1,7 @@
 defmodule RegentFormat.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @description "Shared display formatting helpers for Regent Elixir apps."
 
   def project do

@@ -175,6 +175,45 @@ defmodule RegentFormat do
     end
   end
 
+  @minute 60
+  @hour 60 * @minute
+  @day 24 * @hour
+  @relative_units [
+    {365 * @day, "year"},
+    {30 * @day, "month"},
+    {7 * @day, "week"},
+    {@day, "day"},
+    {@hour, "hour"},
+    {@minute, "minute"}
+  ]
+
+  @doc """
+  Says how far `at` is from `now` the way a person would: `"just now"` within
+  a minute either side, then the largest whole unit, `"3 minutes ago"` for the
+  past and `"in 2 hours"` for the future. A month is thirty days and a year
+  365. `now` is always passed in, so the answer depends only on its arguments.
+
+      iex> RegentFormat.relative_time(~U[2026-01-05 15:01:05Z], ~U[2026-01-05 15:04:05Z])
+      "3 minutes ago"
+
+      iex> RegentFormat.relative_time(~U[2026-01-05 17:04:05Z], ~U[2026-01-05 15:04:05Z])
+      "in 2 hours"
+  """
+  @spec relative_time(DateTime.t(), DateTime.t()) :: String.t()
+  def relative_time(%DateTime{} = at, %DateTime{} = now) do
+    seconds = DateTime.diff(at, now)
+
+    case Enum.find(@relative_units, fn {size, _word} -> abs(seconds) >= size end) do
+      nil -> "just now"
+      {size, word} -> relative_words(div(abs(seconds), size), word, seconds < 0)
+    end
+  end
+
+  defp relative_words(count, word, past?) do
+    amount = "#{count} #{word}#{if count == 1, do: "", else: "s"}"
+    if past?, do: amount <> " ago", else: "in " <> amount
+  end
+
   @doc """
   Renders booleans as `"yes"`/`"no"`, with `"n/a"` for `nil`.
   """
@@ -226,40 +265,24 @@ defmodule RegentFormat do
   def monogram(_name, fallback), do: fallback
 
   @doc """
-  Truncates a `0x` address to `"0x123456…abcd"`, substituting `empty` for
-  `nil` and passing through values that are not long `0x` strings.
+  Shortens a `0x` address to the one Regent short form: `0x`, the first four
+  and the last four characters, joined by two full stops. `nil` stays `nil`,
+  so a caller can say what a missing address means; any other value that is
+  not a long `0x` string (an ENS name, a short code) is shown as it is.
+
+      iex> RegentFormat.short_address("0x1234567890abcdef1234567890abcdef1234abcd")
+      "0x1234..abcd"
+
+      iex> RegentFormat.short_address("vault.eth")
+      "vault.eth"
   """
-  @spec short_address(term(), String.t()) :: String.t()
-  def short_address(value, empty \\ "n/a")
+  @spec short_address(String.t() | nil) :: String.t() | nil
+  def short_address(nil), do: nil
 
-  def short_address(nil, empty), do: empty
+  def short_address(<<"0x", head::binary-size(4), rest::binary>>) when byte_size(rest) > 4,
+    do: "0x" <> head <> ".." <> binary_part(rest, byte_size(rest) - 4, 4)
 
-  def short_address("0x" <> _rest = value, _empty) when byte_size(value) > 12 do
-    String.slice(value, 0, 8) <> "…" <> String.slice(value, -4, 4)
-  end
-
-  def short_address(value, _empty), do: to_string(value)
-
-  @doc """
-  Truncates a wallet address to `"0x1234…abcd"`. Returns `nil` for anything
-  that is not a binary.
-  """
-  @spec short_wallet(term()) :: String.t() | nil
-  def short_wallet(nil), do: nil
-
-  def short_wallet(wallet) when is_binary(wallet) do
-    wallet
-    |> String.trim()
-    |> do_short_wallet()
-  end
-
-  def short_wallet(_wallet), do: nil
-
-  defp do_short_wallet("0x" <> rest = wallet) when byte_size(rest) > 10 do
-    String.slice(wallet, 0, 6) <> "…" <> String.slice(wallet, -4, 4)
-  end
-
-  defp do_short_wallet(wallet), do: wallet
+  def short_address(value) when is_binary(value), do: value
 
   @doc """
   Truncates a `0x` hash to `"0x12345678…abcdef"`, substituting `empty` for

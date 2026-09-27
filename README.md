@@ -9,7 +9,7 @@ SIWA service, maintained by Regents Labs. Apps use every package from a local ch
 repository as a path dependency.
 
 Each package has one job. Product apps decide what a feature means for users; these packages
-provide the reusable identity, signing, formatting, HTTP, content, and lint tools behind those
+provide the reusable identity, signing, wallet-step, formatting, HTTP, content, and lint tools behind those
 features.
 
 > [!IMPORTANT]
@@ -40,6 +40,7 @@ features.
 | --- | --- | --- |
 | [`agent_access`](agent_access/README.md) | `regent_agent_access` | `Accept` negotiation, `Vary` merging, and Markdown or JSON recovery responses for public documents served to people and agents. |
 | [`blog`](blog/README.md) | `regent_blog` | Repository-owned Markdown catalogs, safe HTML, stable contents links and local LaTeX assets. Presentation lives in `Regent.Blog` in the design system. |
+| [`chain`](chain/README.md) | `regent_chain` | Wallet steps built on the server: checked addresses, contract calldata, the review a wallet button sends, and the check of a sent step. |
 | [`credo_ash`](credo_ash/README.md) | `credo_ash` | Credo checks for Ash Framework anti-patterns, which generic Elixir linters cannot see. |
 | [`ens`](ens/README.md) | `ens_elixir` | ENS name reads, ENSIP-25 verification, ERC-8004 registration helpers, link planning, verified primary names, and wallet-ready unsigned ENS requests. |
 | [`format`](format/README.md) | `regent_format` | Null-safe display values, `0x` address and hash truncation, decimal and currency rendering, timestamps, identity monograms. |
@@ -54,6 +55,7 @@ features.
 | --- | --- |
 | `regent_agent_access` | regents, ash-template, keyfleet |
 | `regent_blog` | regents, autolaunch, patchbay, techtree |
+| `regent_chain` | not used yet; planned for autolaunch, regents and keyfleet |
 | `credo_ash` | regents, autolaunch, patchbay, ash-template, keyfleet (dev and test only) |
 | `ens_elixir` | regents |
 | `regent_format` | not used yet; planned for the product apps |
@@ -73,6 +75,9 @@ private key.
 Use `ens_elixir` when a product needs to read ENS state, prove that an ENS name points at an
 agent, show a wallet's verified primary name, or prepare the next wallet approval for ENS or
 ERC-8004.
+
+Use `regent_chain` when a wallet button needs its steps built on the server, or the server
+needs to check what a sent transaction did.
 
 Use `regent_privy` when a product signs people in with Privy and needs verified claims and
 linked wallets.
@@ -118,6 +123,7 @@ These must pass before a change is proposed. Run the one for the package you tou
 | --- | --- |
 | `agent_access` | `mix check` |
 | `blog` | `mix check` |
+| `chain` | `mix check` |
 | `credo_ash` | `mix check` |
 | `ens` | `mix check` |
 | `format` | `mix check` |
@@ -136,6 +142,7 @@ To read every version straight from the source rather than from this file:
 for d in \
   agent_access \
   blog \
+  chain \
   credo_ash \
   ens \
   format \

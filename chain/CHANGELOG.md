@@ -8,6 +8,8 @@
 - `RegentChain.Call` encodes the zero address as an argument, so a step can clear
   a delegate. New `Address.argument/1` reads it; a review's signer and a step's
   contract still refuse it.
+- `Presses.failed/1` takes `sign_unconfirmed`: the wallet failed after a signature
+  was asked for, so it may have signed.
 
 ## 0.2.0 (2026-09-27)
 

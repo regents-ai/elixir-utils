@@ -25,7 +25,7 @@ defmodule RegentChain.Presses do
   @review_limit 32
   @shown_limit 8
   @read_limit 90
-  @failures ~w(step_unknown wallet_unavailable network_mismatch wallet_declined insufficient_funds send_unconfirmed)
+  @failures ~w(step_unknown wallet_unavailable network_mismatch wallet_declined insufficient_funds send_unconfirmed sign_unconfirmed)
   @hash ~r/\A0x[0-9a-fA-F]{64}\z/
   @signature ~r/\A0x[0-9a-fA-F]{130}\z/
 
@@ -119,8 +119,10 @@ defmodule RegentChain.Presses do
   def signed(_presses, _params), do: :error
 
   @doc """
-  Nothing was sent, or the wallet may have sent it: `%{"step", "reason"}` from the
-  page. The reason picks the words the page shows.
+  Nothing was sent, or the wallet may have sent or signed it: `%{"step", "reason"}`
+  from the page. The reason picks the words the page shows: `send_unconfirmed`
+  when a transaction may have gone, `sign_unconfirmed` when a signature may have
+  been made.
   """
   @spec failed(map()) :: {:ok, String.t(), String.t()} | :error
   def failed(%{"step" => name, "reason" => reason}) when is_binary(name) and reason in @failures,

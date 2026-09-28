@@ -13,6 +13,7 @@ defmodule RegentChain do
   - `RegentChain.Outcome`: whether a sent step is pending, confirmed or reverted.
   - `RegentChain.Event`: one event read back out of a receipt.
   - `RegentChain.Abi`: contract return data and dynamic event fields, read strictly.
+  - `RegentChain.Typed`: the EIP-712 digest of a signature step, and who signed it.
 
   The chain client (JSON-RPC reads at `latest`) stays in each app.
   """

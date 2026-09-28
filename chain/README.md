@@ -13,6 +13,7 @@ wallet; afterwards the server checks what the sent transaction did. The
 | `RegentChain.Presses` | The reviews a page pushed and each step its wallet sent, checked against the review it was sent from. |
 | `RegentChain.Outcome` | Pending, confirmed or reverted for a sent step, after checking its chain, sender, target, calldata and value. |
 | `RegentChain.Event` | `topic0`, and the one log of an event in a receipt, as words. |
+| `RegentChain.Typed` | The EIP-712 digest of a signature step's typed data, the wallet that signed it, and the signature with `v` as 27 or 28, as contracts take it. |
 | `RegentChain.Abi` | Contract return data and event fields, including `bytes`, `string` and arrays, accepted only in their one canonical encoding; JSON-RPC data, quantities and hashes. |
 
 JSON-RPC reads stay in each app: `Outcome` takes the app's client module, whose
@@ -60,7 +61,16 @@ RegentChain.Outcome.of(MyApp.Chain.Client, entry.review, entry.step, entry.hash)
 ```
 
 A signature step reports `%{"review_id", "step", "signature"}`; `Presses.signed/2`
-returns the server's own typed data with it.
+returns the server's own typed data with it. Check who signed before acting on it:
+
+```elixir
+{:ok, %{review: review, step: step, signature: signature}} = Presses.signed(presses, params)
+{:ok, signer} = RegentChain.Typed.signer(step.typed_data, signature)
+true = RegentChain.Address.equal?(signer, review.signer)
+
+# Hand the signature on with v as 27 or 28:
+{:ok, signature} = RegentChain.Typed.signature(signature)
+```
 
 Read an event from the receipt:
 

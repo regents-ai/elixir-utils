@@ -8,6 +8,10 @@
 - `RegentChain.Call` encodes the zero address as an argument, so a step can clear
   a delegate. New `Address.argument/1` reads it; a review's signer and a step's
   contract still refuse it.
+- New `RegentChain.Typed`: the EIP-712 digest of a signature step's typed data,
+  the wallet that signed it (`v` as 0 or 1 read as 27 or 28), and the signature
+  as contracts take it. Adds the `ex_secp256k1` dependency. From Patchbay's
+  `WalletPayment.payment/3`.
 - `Presses.failed/1` takes `sign_unconfirmed`: the wallet failed after a signature
   was asked for, so it may have signed.
 

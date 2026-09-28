@@ -11,6 +11,11 @@ All notable changes to `ens_elixir` should be recorded here.
   only when the service answers with a picture. The address an avatar record names is never
   fetched.
 
+### Removed
+
+- `AgentEns.Display` and `AgentEns.Identicon`: no Regent product calls them, and every site
+  draws its own labels and pictures.
+
 ## 0.1.1 - 2026-05-06
 
 ### Added

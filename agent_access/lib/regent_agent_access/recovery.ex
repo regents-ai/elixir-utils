@@ -11,13 +11,16 @@ defmodule RegentAgentAccess.Recovery do
       Enum.map_join(links, "\n", fn {label, url} -> "- [#{label}](#{url})" end) <> "\n"
   end
 
-  @doc "A JSON error body: the status `detail`, a code derived from it, and the product's `hint`."
+  @doc """
+  A JSON error body, `%{error: %{code, message, hint}}`: the status `message`, a
+  code derived from it, and the product's `hint` saying what to do next.
+  """
   @spec json(String.t(), String.t()) :: map()
-  def json(detail, hint) do
+  def json(message, hint) do
     %{
-      errors: %{
-        detail: detail,
-        code: detail |> String.downcase() |> String.replace(" ", "_"),
+      error: %{
+        code: message |> String.downcase() |> String.replace(" ", "_"),
+        message: message,
         hint: hint
       }
     }

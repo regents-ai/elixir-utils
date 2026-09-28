@@ -4,7 +4,7 @@ defmodule RegentAgentAccess.MixProject do
   def project do
     [
       app: :regent_agent_access,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.19.5",
       description:
         "Accept negotiation, Vary merging and recovery responses for Regent Phoenix products",

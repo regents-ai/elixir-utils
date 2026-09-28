@@ -38,7 +38,7 @@ features.
 
 | Folder | Package | Use it for |
 | --- | --- | --- |
-| [`agent_access`](agent_access/README.md) | `regent_agent_access` | `Accept` negotiation, `Vary` merging, and Markdown or JSON recovery responses for public documents served to people and agents. |
+| [`agent_access`](agent_access/README.md) | `regent_agent_access` | `Accept` negotiation, `Vary` merging, Markdown or JSON recovery responses for public documents served to people and agents, and IETF rate-limit headers. |
 | [`blog`](blog/README.md) | `regent_blog` | Repository-owned Markdown catalogs, safe HTML, stable contents links and local LaTeX assets. Presentation lives in `Regent.Blog` in the design system. |
 | [`chain`](chain/README.md) | `regent_chain` | Wallet steps built on the server: checked addresses, contract calldata, the review a wallet button sends, and the check of a sent step. |
 | [`credo_ash`](credo_ash/README.md) | `credo_ash` | Credo checks for Ash Framework anti-patterns, which generic Elixir linters cannot see. |

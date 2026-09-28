@@ -10,7 +10,10 @@ agents at the same address, and answer errors in the format the caller asked for
 - `RegentAgentAccess.Plug` serves a public document's Markdown, refuses formats
   it does not have with a 406, and records the error format for `render_errors`.
 - `RegentAgentAccess.Recovery` formats Markdown and JSON error bodies from the
-  product's own links and hint.
+  product's own links and hint. The JSON body is `{"error": {"code", "message", "hint"}}`.
+- `RegentAgentAccess.RateLimit` counts each request against a per-client budget,
+  answers with the IETF `RateLimit-Policy` and `RateLimit` headers, and past the
+  budget sends 429 with `Retry-After` and the JSON error body.
 
 The product keeps its list of public documents, its routes, policies, launch
 gates and its HTML error page. Only explicitly public, database-free content
@@ -47,6 +50,23 @@ defmodule MyAppWeb.ErrorMD do
   end
 end
 ```
+
+```elixir
+# router.ex: one budget per client address, counted by the product's own limiter
+pipeline :rate_limit do
+  plug RegentAgentAccess.RateLimit,
+    policy: "default",
+    limit: 120,
+    window: 60,
+    admit: &MyApp.RequestRateLimiter.admit/3,
+    key: &MyAppWeb.ClientAddress.key/1
+end
+```
+
+`admit` returns `{:ok, budget}` or `{:error, :rate_limited, budget}` with
+`budget = %{limit: _, remaining: _, reset: _, window: _}`. A controller that
+counts its own budget adds the same headers with
+`RegentAgentAccess.RateLimit.put_headers(conn, policy, budget)`.
 
 Regents is the first consumer: `platform/lib/ash_platform_web/endpoint.ex` and
 `platform/lib/ash_platform_web/controllers/error_md.ex` in the Regents monorepo.

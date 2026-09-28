@@ -12,6 +12,7 @@ defmodule RegentChain do
   - `RegentChain.Presses`: the reviews pushed and what the wallet did with each.
   - `RegentChain.Outcome`: whether a sent step is pending, confirmed or reverted.
   - `RegentChain.Event`: one event read back out of a receipt.
+  - `RegentChain.Abi`: contract return data and dynamic event fields, read strictly.
 
   The chain client (JSON-RPC reads at `latest`) stays in each app.
   """

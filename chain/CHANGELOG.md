@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 (2026-09-28)
+
+- New `RegentChain.Abi`: contract return data and event data, `bytes`, `string`
+  and arrays included, read only in their one canonical encoding, plus JSON-RPC
+  data, quantities and hashes. Taken from KeyFleet's `Keyfleet.Chain.Abi`.
+
 ## 0.2.0 (2026-09-27)
 
 Breaking, adopt in one change:

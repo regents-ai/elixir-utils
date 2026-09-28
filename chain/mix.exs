@@ -1,7 +1,7 @@
 defmodule RegentChain.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @description "Server-built wallet steps for Regent Elixir apps: addresses, contract calls, events and the check of a sent step."
 
   def project do

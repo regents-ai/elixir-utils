@@ -13,6 +13,7 @@ wallet; afterwards the server checks what the sent transaction did. The
 | `RegentChain.Presses` | The reviews a page pushed and each step its wallet sent, checked against the review it was sent from. |
 | `RegentChain.Outcome` | Pending, confirmed or reverted for a sent step, after checking its chain, sender, target, calldata and value. |
 | `RegentChain.Event` | `topic0`, and the one log of an event in a receipt, as words. |
+| `RegentChain.Abi` | Contract return data and event fields, including `bytes`, `string` and arrays, accepted only in their one canonical encoding; JSON-RPC data, quantities and hashes. |
 
 JSON-RPC reads stay in each app: `Outcome` takes the app's client module, whose
 `transaction/2` and `receipt/2` take the review's chain and a hash and return
@@ -68,6 +69,13 @@ Read an event from the receipt:
   RegentChain.Event.one(receipt["logs"], "Transfer(address,address,uint256)", token, 2, 1)
 
 {:ok, recipient} = RegentChain.Event.address(to)
+```
+
+Read a call's return data, or an event's data with dynamic fields:
+
+```elixir
+{:ok, returned} = RegentChain.Abi.bytes(result)
+{:ok, [support, token_ids]} = RegentChain.Abi.decode(returned, [:bool, {:array, {:uint, 64}}])
 ```
 
 ## Development

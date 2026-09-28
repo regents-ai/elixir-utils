@@ -52,7 +52,7 @@ defmodule Siwa.MixProject do
       licenses: ["MIT"],
       links: %{
         "Shared SIWA Contract" =>
-          "https://github.com/regents-ai/regents/blob/main/cli/docs/regent-services-contract.openapiv3.yaml",
+          "https://github.com/regents-ai/regents-cli/blob/main/docs/regent-services-contract.openapiv3.yaml",
         "Source" =>
           "https://github.com/regents-ai/elixir-utils/tree/main/siwa/siwa-elixir/apps/siwa"
       }

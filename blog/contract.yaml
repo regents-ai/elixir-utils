@@ -17,6 +17,7 @@ content:
   safety: No HEEx evaluation or raw HTML; no runtime user-supplied filesystem paths; invalid/duplicate posts fail compilation; symlinks refused
 api:
   RegentBlog.Catalog: use with explicit compile-time root; all/0 and get/1 return public posts only
+  post: slug, title, date, author, author_x, image, image_alt, description, draft, markdown (the body after the front matter, trimmed, so a post can answer as Markdown), html, toc
   RegentBlog.load!: Parse a trusted authoring directory and validate the entire catalog
   mix.regent_blog.assets: Stage local math module and blog images from the consuming repo into priv/static/assets/regent-blog and priv/static/images/blog
   mix.regent_blog.stage: Stage a pinned package plus product content for application-only Docker contexts; preserve existing generated versions and refuse unknown destinations

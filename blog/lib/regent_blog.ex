@@ -58,6 +58,7 @@ defmodule RegentBlog do
         image_alt: required!(meta, "image_alt"),
         description: Map.get(meta, "description", "") |> text!(),
         draft: draft,
+        markdown: String.trim(markdown),
         html: html,
         toc: toc
       }

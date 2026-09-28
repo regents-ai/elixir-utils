@@ -12,6 +12,8 @@ Add the path dependency in a consumer's `platform/mix.exs` and define a module w
 `use RegentBlog.Catalog, root: Path.expand("../../../blog", __DIR__)` from
 `platform/lib/<web>/blog.ex`. `all/0` returns public posts newest first; `get/1`
 returns a post or nil. `RegentBlog.load!/1` validates an entire trusted directory.
+Each post keeps its Markdown body in `markdown` beside the safe `html`, so a product
+can answer `/blog/:slug` as Markdown for agents from the same source.
 The catalog bakes content into the BEAM; it never joins a request slug to a file.
 
 See each product's root `blog/README.md` and `example-post.md` for the authoring

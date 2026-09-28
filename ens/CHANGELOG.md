@@ -4,6 +4,13 @@ All notable changes to `ens_elixir` should be recorded here.
 
 ## Unreleased
 
+### Added
+
+- `AgentEns.PrimaryName.verified_primary_identity/2`: a wallet's verified primary name and
+  its avatar, read only through the ENS avatar service (`metadata.ens.domains`) and given
+  only when the service answers with a picture. The address an avatar record names is never
+  fetched.
+
 ## 0.1.1 - 2026-05-06
 
 ### Added

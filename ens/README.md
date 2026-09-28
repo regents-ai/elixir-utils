@@ -54,6 +54,7 @@ Use product code for:
 | `AgentEns.prepare_bidirectional_link/1` | You want the next unsigned ENS, ERC-8004, and optional reverse-name requests. |
 | `AgentEns.Tx` | You already know the exact ENS request to prepare. |
 | `AgentEns.ERC8004.Registration` | You need to read or patch the JSON registration file referenced by an ERC-8004 agent. |
+| `AgentEns.PrimaryName.verified_primary_identity/2` | You need a wallet's verified primary name and its picture. The picture is read only through the ENS avatar service, never from an address the avatar record names. |
 
 ## Common Flow
 

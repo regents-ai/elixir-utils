@@ -51,6 +51,10 @@ defmodule AgentEns.PrimaryNameTest do
 
         to == @resolver and data == selector("addr(bytes32)") <> forward_node ->
           {:ok, address_word(forward_address)}
+
+        to == @resolver and
+            String.starts_with?(data, selector("text(bytes32,string)") <> forward_node) ->
+          {:ok, encode_string(Process.get(:primary_name_avatar_record, ""))}
       end
     end
 
@@ -84,6 +88,13 @@ defmodule AgentEns.PrimaryNameTest do
         String.pad_leading("20", 64, "0") <>
         String.pad_leading(Integer.to_string(byte_size(value), 16), 64, "0") <>
         hex <> String.duplicate("0", padding)
+    end
+  end
+
+  defmodule AvatarServiceStub do
+    def head(url, _options) do
+      send(self(), {:avatar_asked, url})
+      {:ok, %{status: Process.get(:avatar_service_status, 200)}}
     end
   end
 
@@ -128,5 +139,45 @@ defmodule AgentEns.PrimaryNameTest do
 
     assert {:error, %AgentEns.Error{kind: :invalid_argument}} =
              PrimaryName.verified_primary_name(@wallet, [])
+  end
+
+  describe "verified_primary_identity/2" do
+    @service_url "https://metadata.ens.domains/mainnet/avatar/alice.eth"
+
+    setup do
+      Process.put(:primary_name_forward_address, @wallet)
+      [opts: [rpc_url: @rpc_url, rpc_module: RpcStub, http_client: AvatarServiceStub]]
+    end
+
+    test "gives the avatar through the ENS avatar service, never the address a record names",
+         %{opts: opts} do
+      Process.put(:primary_name_avatar_record, "https://pictures.example/alice.png")
+
+      assert {:ok, %{name: "alice.eth", avatar_url: @service_url}} =
+               PrimaryName.verified_primary_identity(@wallet, opts)
+
+      assert_received {:avatar_asked, @service_url}
+      refute_received {:avatar_asked, _other}
+    end
+
+    test "gives no avatar when the name publishes none or the service has no picture",
+         %{opts: opts} do
+      assert {:ok, %{name: "alice.eth", avatar_url: nil}} =
+               PrimaryName.verified_primary_identity(@wallet, opts)
+
+      refute_received {:avatar_asked, _url}
+
+      Process.put(:primary_name_avatar_record, "ipfs://bafy")
+      Process.put(:avatar_service_status, 404)
+
+      assert {:ok, %{name: "alice.eth", avatar_url: nil}} =
+               PrimaryName.verified_primary_identity(@wallet, opts)
+    end
+
+    test "is nil for a wallet without a verified primary name", %{opts: opts} do
+      Process.put(:primary_name_forward_address, @other_wallet)
+
+      assert {:ok, nil} = PrimaryName.verified_primary_identity(@wallet, opts)
+    end
   end
 end

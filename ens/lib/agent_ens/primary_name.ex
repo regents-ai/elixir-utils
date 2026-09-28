@@ -5,9 +5,13 @@ defmodule AgentEns.PrimaryName do
   Looks up the reverse record for a wallet, then forward-resolves the claimed
   name and only returns it when the name resolves back to the same wallet.
   Wallets without a verified primary name yield `{:ok, nil}`.
+
+  `verified_primary_identity/2` adds the name's avatar, read only through the
+  ENS avatar service.
   """
 
   alias AgentEns.Address
+  alias AgentEns.Internal.AvatarHTTP
   alias AgentEns.Internal.Contract
   alias AgentEns.Internal.RPC
   alias AgentEns.Internal.Validation
@@ -15,6 +19,14 @@ defmodule AgentEns.PrimaryName do
 
   @ethereum_chain_id 1
   @default_ens_registry "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
+  @avatar_record "avatar"
+  @avatar_timeout_ms 2_000
+
+  # ENS resolves any name's avatar record (an image address, an `ipfs://` URI or
+  # a reference to the NFT holding the picture) and answers with the image
+  # itself, so a picture is only ever read from this one host, never from an
+  # address a record names.
+  @avatar_service "https://metadata.ens.domains/mainnet/avatar/"
 
   @doc """
   Resolves the verified primary name for `wallet_address`.
@@ -31,6 +43,34 @@ defmodule AgentEns.PrimaryName do
   @spec verified_primary_name(String.t() | nil, keyword()) ::
           {:ok, String.t() | nil} | {:error, term()}
   def verified_primary_name(wallet_address, opts \\ []) do
+    with {:ok, %{normalized_name: name}} <- verified(wallet_address, opts, []), do: {:ok, name}
+  end
+
+  @doc """
+  The verified primary name for `wallet_address` and its avatar, or `{:ok, nil}`
+  when the wallet has no verified primary name.
+
+  `avatar_url` is the ENS avatar service's address for the name, given only when
+  the name publishes an avatar record and the service answers with a picture;
+  otherwise it is `nil`. Nothing is fetched from an address the record names.
+
+  Takes the options of `verified_primary_name/2`, and:
+
+    * `:avatar_timeout_ms` — how long the avatar service may take to answer
+      (defaults to 2000)
+    * `:http_client` — module whose `head(url, options)` asks the avatar service
+      (defaults to `AgentEns.Internal.AvatarHTTP`, through Req)
+  """
+  @spec verified_primary_identity(String.t() | nil, keyword()) ::
+          {:ok, %{name: String.t(), avatar_url: String.t() | nil} | nil} | {:error, term()}
+  def verified_primary_identity(wallet_address, opts \\ []) do
+    with {:ok, %{normalized_name: name, text_records: records}} <-
+           verified(wallet_address, opts, [@avatar_record]) do
+      {:ok, %{name: name, avatar_url: avatar_url(name, records[@avatar_record], opts)}}
+    end
+  end
+
+  defp verified(wallet_address, opts, text_keys) do
     ens_registry = Keyword.get(opts, :ens_registry, @default_ens_registry)
     rpc_module = Keyword.get(opts, :rpc_module, RPC)
 
@@ -38,21 +78,39 @@ defmodule AgentEns.PrimaryName do
          wallet when is_binary(wallet) <- Address.normalize(wallet_address),
          {:ok, reverse_name} <- reverse_name(wallet, rpc_url, ens_registry, rpc_module),
          true <- reverse_name != "",
-         {:ok, %{eth_address: ^wallet, normalized_name: normalized_name}} <-
+         {:ok, %{eth_address: ^wallet} = details} <-
            AgentEns.read_name(%{
              ens_name: reverse_name,
              chain_id: @ethereum_chain_id,
              rpc_url: rpc_url,
              rpc_module: rpc_module,
+             text_keys: text_keys,
              include_contenthash?: false
            }) do
-      {:ok, normalized_name}
+      {:ok, details}
     else
       nil -> {:ok, nil}
       false -> {:ok, nil}
       {:ok, %{eth_address: _other}} -> {:ok, nil}
       {:error, reason} -> {:error, reason}
       _other -> {:ok, nil}
+    end
+  end
+
+  defp avatar_url(name, record, opts) when is_binary(record) do
+    if String.trim(record) != "",
+      do: served(@avatar_service <> URI.encode(name, &URI.char_unreserved?/1), opts)
+  end
+
+  defp avatar_url(_name, _absent, _opts), do: nil
+
+  defp served(url, opts) do
+    client = Keyword.get(opts, :http_client, AvatarHTTP)
+    timeout = Keyword.get(opts, :avatar_timeout_ms, @avatar_timeout_ms)
+
+    case client.head(url, receive_timeout: timeout, retry: false) do
+      {:ok, %{status: 200}} -> url
+      _unserved -> nil
     end
   end
 

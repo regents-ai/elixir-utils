@@ -5,7 +5,8 @@ defmodule RegentChain.Call do
       RegentChain.Call.encode("approve(address,uint256)", [spender, 1_000_000])
       #=> "0x095ea7b3…"
 
-  Addresses are `0x` strings, checked by `RegentChain.Address`; `bytes` and
+  Addresses are `0x` strings, checked by `RegentChain.Address.argument/1`, so the
+  zero address can be passed where a contract reads it as "none"; `bytes` and
   `bytesN` are `0x` hex strings; integers, booleans and strings are themselves;
   a tuple is an Elixir tuple and an array a list. Anything else raises
   `ArgumentError`, so a step that cannot be built never reaches a page.
@@ -38,7 +39,7 @@ defmodule RegentChain.Call do
   end
 
   defp value(:address, value) do
-    case Address.decode(value) do
+    case Address.argument(value) do
       {:ok, decoded} -> decoded
       :error -> raise ArgumentError, "not an address: #{inspect(value)}"
     end

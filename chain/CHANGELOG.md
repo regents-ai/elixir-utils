@@ -5,6 +5,9 @@
 - New `RegentChain.Abi`: contract return data and event data, `bytes`, `string`
   and arrays included, read only in their one canonical encoding, plus JSON-RPC
   data, quantities and hashes. Taken from KeyFleet's `Keyfleet.Chain.Abi`.
+- `RegentChain.Call` encodes the zero address as an argument, so a step can clear
+  a delegate. New `Address.argument/1` reads it; a review's signer and a step's
+  contract still refuse it.
 
 ## 0.2.0 (2026-09-27)
 

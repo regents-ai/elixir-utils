@@ -4,7 +4,9 @@ defmodule RegentChain.Address do
 
   Mixed-case hex is an EIP-55 checksum and is verified as one, so a transposed or
   mistyped address fails here rather than reaching a wallet. All-lowercase and
-  all-uppercase hex assert no checksum. The zero address is never an answer.
+  all-uppercase hex assert no checksum. The zero address names no one, so it is
+  never a signer or a step's contract; only `argument/1`, for the arguments of a
+  call, accepts it.
 
   Steps and RPC parameters carry `normalize/1`'s lowercase form, comparisons go
   through `equal?/2`, and `checksum/1` is for display.
@@ -17,9 +19,21 @@ defmodule RegentChain.Address do
 
   @doc "The twenty bytes `value` names, or `:error` for anything that is not one address."
   @spec decode(term()) :: {:ok, t()} | :error
-  def decode("0x" <> hex) when byte_size(hex) == 2 * @bytes do
+  def decode(value) do
+    case argument(value) do
+      {:ok, @zero} -> :error
+      decoded -> decoded
+    end
+  end
+
+  @doc """
+  The twenty bytes of an address a contract call takes as an argument, where the
+  zero address is one too: contracts read it as "none", to clear a delegate for
+  example.
+  """
+  @spec argument(term()) :: {:ok, t()} | :error
+  def argument("0x" <> hex) when byte_size(hex) == 2 * @bytes do
     with {:ok, decoded} <- Base.decode16(hex, case: :mixed),
-         false <- decoded == @zero,
          true <- checksummed?(hex) do
       {:ok, decoded}
     else
@@ -27,7 +41,7 @@ defmodule RegentChain.Address do
     end
   end
 
-  def decode(_value), do: :error
+  def argument(_value), do: :error
 
   @doc "The lowercase form every step and RPC parameter carries."
   @spec normalize(term()) :: {:ok, String.t()} | :error

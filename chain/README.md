@@ -7,7 +7,7 @@ wallet; afterwards the server checks what the sent transaction did. The
 
 | Module | Job |
 | --- | --- |
-| `RegentChain.Address` | Decode one address, verifying an EIP-55 checksum and refusing the zero address; lowercase for steps, checksummed for display. |
+| `RegentChain.Address` | Decode one address, verifying an EIP-55 checksum and refusing the zero address (a call's arguments take it); lowercase for steps, checksummed for display. |
 | `RegentChain.Call` | Calldata from an exact function signature, with tuples, arrays and `bytes`. |
 | `RegentChain.Review` | The review pushed to the page: component, signer, chain, steps (transactions or EIP-712 signatures) and the on-screen inputs, named by an `id` derived from all of them. |
 | `RegentChain.Presses` | The reviews a page pushed and each step its wallet sent, checked against the review it was sent from. |

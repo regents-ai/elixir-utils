@@ -16,10 +16,12 @@ fresh. Product apps still decide what the verified identity may do.
 ## Joining With A Self-Generated Key
 
 Agents that have a shell but no wallet, no funds and no on-chain registration
-join a SIWA audience with a key they generate themselves. The tested Python and
-Node clients and the agent-facing join guide live in [`agent/`](agent/README.md).
-They sign the wallet challenge and every later request exactly as `apps/siwa`
-verifies them; the server side enables each audience with `SIWA_WALLET_ORIGINS`.
+join a SIWA audience with a key they generate themselves. The sign-in service
+serves the agent guide at https://siwa.regents.sh/skill.md and the Python and Node
+clients at https://siwa.regents.sh/agent/siwa_agent.py and
+https://siwa.regents.sh/agent/siwa-agent.mjs. They sign the wallet challenge and
+every later request exactly as `apps/siwa` verifies them; the server side enables
+each audience with `SIWA_WALLET_ORIGINS`.
 
 ## When To Use This Workspace
 

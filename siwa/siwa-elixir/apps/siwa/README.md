@@ -144,16 +144,25 @@ receipt, and exact body digest.
 {:ok, verified} =
   Siwa.verify_authenticated_request(signed_request,
     audience: "platform",
-    replay_store: Siwa.RequestAuth.ReplayStore
+    replay_store: Siwa.RequestAuth.ReplayStore,
+    base_rpc_url: System.fetch_env!("BASE_RPC_URL")
   )
 ```
 
 Verify the signature before consuming replay state, and keep product permission
 checks outside this package.
 
+An ordinary wallet's signature is checked here with no network call. A smart
+wallet (a Safe, a Coinbase Smart Wallet) signs with its own scheme, so any other
+signature is checked on Base at `base_rpc_url`: ERC-1271 for a deployed wallet,
+ERC-6492 for one not deployed yet. `Siwa.WalletSignature` does both, for sign-in
+and for every request after it. A signature Base could not be asked about
+answers `{:error, :signature_lookup_failed}` and leaves the replay window
+unused. Signatures are at most `Siwa.WalletSignature.max_bytes()` bytes.
+
 ## Wallet Principals
 
-Registered-agent receipts remain the default. An EOA wallet receipt is a separate
+Registered-agent receipts remain the default. A wallet receipt is a separate
 `siwa_wallet_receipt` with `verified: "wallet_signature"`, Base chain `8453`, address,
 key ID, nonce, audience and receipt ID. It must have no registry or token claims.
 The shared service issues these receipts after wallet proof; payment alone is not proof.
@@ -183,7 +192,7 @@ principals by chain and audience; legacy agent replay keys are unchanged.
 Use a durable replay store in the deployed broker. Its atomic consume must reject
 expired entries against the storage clock, even if verification passed before a
 pause or delay. Never extend the signed expiration when recording a replay key. The bundled in-memory store is
-for local/library use. Contract-wallet signature schemes are outside this EOA path.
+for local/library use.
 
 ## Wallet Actions
 

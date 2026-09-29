@@ -1,5 +1,5 @@
 defmodule Siwa.RequestAuth do
-  alias Siwa.{EvmPersonalSign, Nonce, Receipt}
+  alias Siwa.{Nonce, Receipt, WalletSignature}
 
   @default_expires_in_seconds 120
   @default_signature_tolerance_seconds 300
@@ -112,7 +112,8 @@ defmodule Siwa.RequestAuth do
              request.headers,
              parsed_signature_input
            ),
-         :ok <- verify_wallet_signature(signing_message, signature, receipt_payload["sub"]),
+         :ok <-
+           verify_wallet_signature(signing_message, signature, receipt_payload["sub"], opts),
          :ok <-
            consume_replay_window(
              receipt_payload,
@@ -574,7 +575,8 @@ defmodule Siwa.RequestAuth do
   defp decode_signature(signature_header) when is_binary(signature_header) do
     with %{"payload" => payload} <-
            Regex.named_captures(@signature_regex, String.trim(signature_header)),
-         {:ok, <<_::binary-size(65)>> = bytes} <- Base.decode64(payload) do
+         {:ok, bytes} <- Base.decode64(payload),
+         true <- byte_size(bytes) in 1..WalletSignature.max_bytes() do
       {:ok, "0x" <> Base.encode16(bytes, case: :lower)}
     else
       _ -> {:error, :invalid_signature_header}
@@ -583,9 +585,11 @@ defmodule Siwa.RequestAuth do
 
   defp decode_signature(_signature_header), do: {:error, :invalid_signature_header}
 
-  defp encode_signature_header("0x" <> hex) when byte_size(hex) == 130 do
-    case Base.decode16(hex, case: :mixed) do
-      {:ok, <<_::binary-size(65)>> = bytes} -> {:ok, "sig1=:#{Base.encode64(bytes)}:"}
+  defp encode_signature_header("0x" <> hex) do
+    with {:ok, bytes} <- Base.decode16(hex, case: :mixed),
+         true <- byte_size(bytes) in 1..WalletSignature.max_bytes() do
+      {:ok, "sig1=:#{Base.encode64(bytes)}:"}
+    else
       _ -> {:error, :invalid_signature}
     end
   end
@@ -688,10 +692,15 @@ defmodule Siwa.RequestAuth do
   defp normalize_address(value) when is_binary(value), do: String.downcase(value)
   defp normalize_address(_value), do: nil
 
-  defp verify_wallet_signature(message, signature, address) do
-    case EvmPersonalSign.verify_personal_signature(message, signature, address) do
+  # An ordinary wallet's signature is checked here; a smart wallet's is asked
+  # of Base at the `:base_rpc_url` opt.
+  defp verify_wallet_signature(message, signature, address, opts) do
+    case WalletSignature.verify(address, message, signature,
+           rpc_url: Keyword.get(opts, :base_rpc_url, "")
+         ) do
       :ok -> :ok
-      {:error, _reason} -> {:error, :signature_invalid}
+      {:error, :signature_invalid} -> {:error, :signature_invalid}
+      {:error, {:lookup_failed, _reason}} -> {:error, :signature_lookup_failed}
     end
   end
 

@@ -139,8 +139,14 @@ defmodule Siwa.RequestAuthTest do
                @request_auth_opts
              )
 
+    # Another key's signature could be a smart wallet's; Base says no wallet approves it.
+    no_wallet = Siwa.RpcStub.start(Siwa.RpcStub.wallet_answers({true, <<>>}))
+
     assert {:error, :signature_invalid} =
-             Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
+             Siwa.RequestAuth.verify_authenticated_request(
+               signed_request,
+               Keyword.put(@request_auth_opts, :base_rpc_url, no_wallet)
+             )
   end
 
   test "failed receipt matching does not consume the replay window for the valid request" do

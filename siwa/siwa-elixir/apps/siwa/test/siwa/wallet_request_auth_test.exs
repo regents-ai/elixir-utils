@@ -1,7 +1,17 @@
+defmodule Siwa.WalletRequestAuthTest.SmartWalletSigner do
+  @moduledoc false
+  # A smart wallet's signer: its signature is whatever the wallet makes, and
+  # only Base can say whether the wallet approves it.
+  defstruct [:address, :signature]
+
+  def sign_message(%__MODULE__{signature: signature}, _message), do: {:ok, signature}
+end
+
 defmodule Siwa.WalletRequestAuthTest do
   use ExUnit.Case, async: true
 
   alias Siwa.{LocalSigner, Receipt, RequestAuth}
+  alias Siwa.WalletRequestAuthTest.SmartWalletSigner
 
   @now DateTime.utc_now() |> DateTime.truncate(:second)
   @opts [
@@ -110,8 +120,42 @@ defmodule Siwa.WalletRequestAuthTest do
     {:ok, other} = LocalSigner.new()
     wrong = sign(%{ctx | signer: other}, nonce: "same-nonce")
     valid = sign(ctx, nonce: "same-nonce")
-    assert {:error, :signature_invalid} = RequestAuth.verify_authenticated_request(wrong, @opts)
+    # Another key's signature could be a smart wallet's; Base says no wallet approves it.
+    no_wallet = Siwa.RpcStub.start(Siwa.RpcStub.wallet_answers({true, <<>>}))
+
+    assert {:error, :signature_invalid} =
+             RequestAuth.verify_authenticated_request(
+               wrong,
+               Keyword.put(@opts, :base_rpc_url, no_wallet)
+             )
+
     assert {:ok, _} = RequestAuth.verify_authenticated_request(valid, @opts)
+  end
+
+  test "a smart wallet's request is its answer on Base, and a failed lookup keeps the request",
+       ctx do
+    smart = %SmartWalletSigner{
+      address: "0x452f678f6e588069d1aef38d3d519567aa1014a4",
+      signature: "0x" <> String.duplicate("ab", 224)
+    }
+
+    {:ok, receipt} = wallet_receipt(smart)
+    signed = sign(%{ctx | signer: smart, receipt: receipt})
+    assert byte_size(signed.headers["signature"]) > 90
+
+    assert {:error, :signature_lookup_failed} =
+             RequestAuth.verify_authenticated_request(signed, @opts)
+
+    approves =
+      Siwa.RpcStub.start(Siwa.RpcStub.wallet_answers({true, Siwa.RpcStub.erc1271_approval()}))
+
+    assert {:ok, verified} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :base_rpc_url, approves)
+             )
+
+    assert verified.address == smart.address
   end
 
   test "expired receipts and request windows are rejected", ctx do

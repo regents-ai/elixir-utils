@@ -25,8 +25,8 @@ defmodule Siwa.AgentAuthPlug do
       body was captured) or `:always` (send the captured raw body or `""`)
 
   Deny metadata is a map with `:reason` and `:source` plus optional detail
-  keys (`:siwa_status`, `:siwa_code`, `:transport_error`, `:missing_headers`,
-  `:invalid_header`).
+  keys (`:siwa_status`, `:siwa_code`, `:siwa_message`, `:siwa_hint`,
+  `:transport_error`, `:missing_headers`, `:invalid_header`).
   """
 
   @behaviour Plug
@@ -140,8 +140,20 @@ defmodule Siwa.AgentAuthPlug do
     metadata = %{reason: :"siwa_http_#{status}", source: :siwa_http, siwa_status: status}
 
     case body do
-      %{"error" => %{"code" => code}} when is_binary(code) and code != "" ->
-        Map.put(metadata, :siwa_code, code)
+      %{"error" => %{} = error} ->
+        Enum.reduce(
+          [siwa_code: "code", siwa_message: "message", siwa_hint: "hint"],
+          metadata,
+          fn {key, field}, metadata ->
+            case error do
+              %{^field => value} when is_binary(value) and value != "" ->
+                Map.put(metadata, key, value)
+
+              _error ->
+                metadata
+            end
+          end
+        )
 
       _body ->
         metadata

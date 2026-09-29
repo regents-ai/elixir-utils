@@ -114,10 +114,20 @@ defmodule Siwa.AgentAuthPlugTest do
     refute_received {:verify_http_request, _payload, _opts}
   end
 
-  test "non-200 broker responses deny with status and code metadata" do
+  test "non-200 broker responses deny with the broker's status, code, message and hint" do
     Process.put(
       :client_response,
-      {:ok, %{status: 401, body: %{"error" => %{"code" => "receipt_invalid"}}}}
+      {:ok,
+       %{
+         status: 401,
+         body: %{
+           "error" => %{
+             "code" => "receipt_invalid",
+             "message" => "Your sign-in has ended.",
+             "hint" => "Sign in again."
+           }
+         }
+       }}
     )
 
     conn = :post |> conn("/v1/things", "{}") |> call()
@@ -129,7 +139,9 @@ defmodule Siwa.AgentAuthPlugTest do
                        reason: :siwa_http_401,
                        source: :siwa_http,
                        siwa_status: 401,
-                       siwa_code: "receipt_invalid"
+                       siwa_code: "receipt_invalid",
+                       siwa_message: "Your sign-in has ended.",
+                       siwa_hint: "Sign in again."
                      }}
   end
 

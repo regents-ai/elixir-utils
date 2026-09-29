@@ -131,8 +131,9 @@ These must pass before a change is proposed. Run the one for the package you tou
 | `privy` | `mix check` |
 | `siwa/siwa-elixir` | `mix check` |
 
-CI runs `mix check` for every package in that table except `siwa/siwa-elixir` on every push
-to `main` and on every pull request; the SIWA umbrella has its own contract-check workflow.
+CI runs `mix check` for every package in that table on every push to `main` and on every
+pull request. The shared services contract lives in `siwa-server`, which checks it against
+its routes and the `siwa_keyring` router.
 
 ## Current package versions
 

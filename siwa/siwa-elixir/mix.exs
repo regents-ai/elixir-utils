@@ -23,11 +23,9 @@ defmodule SiwaElixir.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format --check-formatted",
-        "contract.check",
         "test"
       ],
-      precommit: ["check"],
-      "contract.check": ["run --no-start scripts/check_shared_services_contract.exs"]
+      precommit: ["check"]
     ]
   end
 end

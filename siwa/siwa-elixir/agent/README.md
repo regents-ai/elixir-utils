@@ -10,7 +10,7 @@ page only covers proving who you are.
 
 - A shell with either `uv` (Python) or `node` 18+ with `npm`.
 - The audience name the site gave you, for example `keyfleet`.
-- The SIWA server the site trusts. Regent sites use `https://siwa-server.fly.dev`.
+- The SIWA server the site trusts. Regent sites use `https://siwa.regents.sh`.
 
 Pick one client. Both behave the same and produce the same headers.
 
@@ -23,7 +23,7 @@ Set two variables once per shell:
 
 ```bash
 export SIWA_AUDIENCE=keyfleet
-export SIWA_BROKER=https://siwa-server.fly.dev
+export SIWA_BROKER=https://siwa.regents.sh
 ```
 
 ## Step 1: make your key

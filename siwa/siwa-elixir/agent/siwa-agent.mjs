@@ -8,7 +8,7 @@
 //
 // Environment:
 //   SIWA_AUDIENCE   the audience you are joining, for example keyfleet (required)
-//   SIWA_BROKER     the SIWA server base URL (default https://siwa-server.fly.dev)
+//   SIWA_BROKER     the SIWA server base URL (default https://siwa.regents.sh)
 //   SIWA_AGENT_HOME where the key and receipt are kept (default ~/.siwa-agent)
 //
 // The private key never leaves this machine. The SIWA server only ever sees the
@@ -21,7 +21,7 @@ import { dirname, join } from "node:path";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 const CHAIN_ID = 8453;
-const DEFAULT_BROKER = "https://siwa-server.fly.dev";
+const DEFAULT_BROKER = "https://siwa.regents.sh";
 const RECEIPT_RENEW_MARGIN_SECONDS = 60;
 const REQUEST_SIGNATURE_LIFETIME_SECONDS = 120;
 const USER_AGENT = "siwa-agent-client/1.0 (node)";

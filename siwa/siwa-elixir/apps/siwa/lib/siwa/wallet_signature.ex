@@ -39,8 +39,9 @@ defmodule Siwa.WalletSignature do
   @doc """
   `:ok` when the wallet at `address` signed `message`; `:signature_invalid`
   when it did not; `{:lookup_failed, reason}` when a smart wallet's answer
-  could not be read from Base. `opts` takes the Base `:rpc_url`, needed only
-  for a smart wallet.
+  could not be read from Base. `opts` says how to read Base, needed only for
+  a smart wallet: `:rpc_url`, and optionally the `:finch` pool and
+  `:timeout_ms` that `Siwa.RPCClient` takes.
   """
   @spec verify(String.t(), String.t(), String.t(), keyword()) :: :ok | {:error, error()}
   def verify(address, message, signature, opts \\ []) do
@@ -132,7 +133,12 @@ defmodule Siwa.WalletSignature do
     call = %{"to" => @multicall3, "data" => hex(data)}
 
     with {:ok, result} <-
-           RPCClient.call(Keyword.get(opts, :rpc_url, ""), "eth_call", [call, "latest"]),
+           RPCClient.call(
+             Keyword.get(opts, :rpc_url, ""),
+             "eth_call",
+             [call, "latest"],
+             Keyword.take(opts, [:finch, :timeout_ms])
+           ),
          {:ok, answer} <- wallet_answer(result) do
       if answer == {1, @erc1271_magic}, do: :ok, else: {:error, :signature_invalid}
     else

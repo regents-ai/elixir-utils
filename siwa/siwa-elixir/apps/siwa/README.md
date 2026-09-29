@@ -145,7 +145,7 @@ receipt, and exact body digest.
   Siwa.verify_authenticated_request(signed_request,
     audience: "platform",
     replay_store: Siwa.RequestAuth.ReplayStore,
-    base_rpc_url: System.fetch_env!("BASE_RPC_URL")
+    base_rpc: [rpc_url: base_rpc_url]
   )
 ```
 
@@ -154,10 +154,11 @@ checks outside this package.
 
 An ordinary wallet's signature is checked here with no network call. A smart
 wallet (a Safe, a Coinbase Smart Wallet) signs with its own scheme, so any other
-signature is checked on Base at `base_rpc_url`: ERC-1271 for a deployed wallet,
-ERC-6492 for one not deployed yet. `Siwa.WalletSignature` does both, for sign-in
-and for every request after it. A signature Base could not be asked about
-answers `{:error, :signature_lookup_failed}` and leaves the replay window
+signature is checked on Base as `base_rpc` says: the site's Base `rpc_url`, and
+optionally the `finch` pool and `timeout_ms`. That is ERC-1271 for a deployed
+wallet and ERC-6492 for one not deployed yet. `Siwa.WalletSignature` does both,
+for sign-in and for every request after it. A signature Base could not be asked
+about answers `{:error, :signature_lookup_failed}` and leaves the replay window
 unused. Signatures are at most `Siwa.WalletSignature.max_bytes()` bytes.
 
 ## Wallet Principals

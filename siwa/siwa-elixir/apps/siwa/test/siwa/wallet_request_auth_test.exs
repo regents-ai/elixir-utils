@@ -126,7 +126,7 @@ defmodule Siwa.WalletRequestAuthTest do
     assert {:error, :signature_invalid} =
              RequestAuth.verify_authenticated_request(
                wrong,
-               Keyword.put(@opts, :base_rpc_url, no_wallet)
+               Keyword.put(@opts, :base_rpc, rpc_url: no_wallet)
              )
 
     assert {:ok, _} = RequestAuth.verify_authenticated_request(valid, @opts)
@@ -152,7 +152,7 @@ defmodule Siwa.WalletRequestAuthTest do
     assert {:ok, verified} =
              RequestAuth.verify_authenticated_request(
                signed,
-               Keyword.put(@opts, :base_rpc_url, approves)
+               Keyword.put(@opts, :base_rpc, rpc_url: approves)
              )
 
     assert verified.address == smart.address

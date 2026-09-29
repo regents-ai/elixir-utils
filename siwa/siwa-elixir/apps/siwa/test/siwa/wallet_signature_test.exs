@@ -120,6 +120,27 @@ defmodule Siwa.WalletSignatureTest do
              {:error, {:lookup_failed, :rpc_url_required}}
   end
 
+  test "Base is read through the given pool and gives up at the given timeout" do
+    pool = :"wallet_signature_test_#{System.unique_integer([:positive])}"
+    start_supervised!({Finch, name: pool})
+    base = RpcStub.start(RpcStub.wallet_answers({true, RpcStub.erc1271_approval()}))
+
+    assert WalletSignature.verify(@deployed_wallet, @message, @deployed_signature,
+             rpc_url: base,
+             finch: pool
+           ) == :ok
+
+    # Takes the connection and never answers.
+    {:ok, silent} = :gen_tcp.listen(0, [:binary, active: false])
+    on_exit(fn -> :gen_tcp.close(silent) end)
+    {:ok, port} = :inet.port(silent)
+
+    assert WalletSignature.verify(@deployed_wallet, @message, @deployed_signature,
+             rpc_url: "http://127.0.0.1:#{port}",
+             timeout_ms: 50
+           ) == {:error, {:lookup_failed, :rpc_request_timed_out}}
+  end
+
   defp aggregate3_calls("0x" <> hex) do
     <<0x82AD56CB::32, 32::256, count::256, rest::binary>> = decode("0x" <> hex)
 

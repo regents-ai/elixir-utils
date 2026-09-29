@@ -693,11 +693,9 @@ defmodule Siwa.RequestAuth do
   defp normalize_address(_value), do: nil
 
   # An ordinary wallet's signature is checked here; a smart wallet's is asked
-  # of Base at the `:base_rpc_url` opt.
+  # of Base as the `:base_rpc` opt says (`Siwa.WalletSignature.verify/4`).
   defp verify_wallet_signature(message, signature, address, opts) do
-    case WalletSignature.verify(address, message, signature,
-           rpc_url: Keyword.get(opts, :base_rpc_url, "")
-         ) do
+    case WalletSignature.verify(address, message, signature, Keyword.get(opts, :base_rpc, [])) do
       :ok -> :ok
       {:error, :signature_invalid} -> {:error, :signature_invalid}
       {:error, {:lookup_failed, _reason}} -> {:error, :signature_lookup_failed}

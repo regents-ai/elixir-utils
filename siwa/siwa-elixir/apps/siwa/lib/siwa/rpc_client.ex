@@ -52,7 +52,7 @@ defmodule Siwa.RPCClient do
 
     case Keyword.get(opts, :finch) do
       nil -> Keyword.put(request_opts, :connect_options, timeout: timeout_ms)
-      finch -> Keyword.put(request_opts, :finch, finch)
+      finch -> Keyword.put(request_opts, :finch, name: finch)
     end
   end
 

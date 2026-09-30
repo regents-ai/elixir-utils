@@ -10,6 +10,7 @@ owns:
   - ens_library
   - display_formatting
   - http_client_conventions
+  - openai_calls
   - privy_token_verification
   - siwa_library
 source_of_truth:
@@ -33,6 +34,8 @@ code_map:
     owns: display_formatting
   - path: http
     owns: http_client_conventions
+  - path: openai
+    owns: openai_calls
   - path: privy
     owns: privy_token_verification
   - path: siwa/siwa-elixir
@@ -50,6 +53,8 @@ acceptance_commands:
   - cwd: elixir-utils/format
     command: mix check
   - cwd: elixir-utils/http
+    command: mix check
+  - cwd: elixir-utils/openai
     command: mix check
   - cwd: elixir-utils/privy
     command: mix check

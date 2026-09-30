@@ -45,6 +45,7 @@ features.
 | [`ens`](ens/README.md) | `ens_elixir` | ENS name reads, ENSIP-25 verification, ERC-8004 registration helpers, link planning, verified primary names, and wallet-ready unsigned ENS requests. |
 | [`format`](format/README.md) | `regent_format` | Null-safe display values, `0x` address and hash truncation, decimal and currency rendering, timestamps, identity monograms. |
 | [`http`](http/README.md) | `regent_http` | Shared Req client conventions: default timeouts, request telemetry, and secret redaction in formatted errors. |
+| [`openai`](openai/README.md) | `regent_openai` | OpenAI text and screenshot replies, push-to-talk transcription and speech, each with the tokens it used and its cost in US dollars. |
 | [`privy`](privy/README.md) | `regent_privy` | Privy identity-token verification: ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses. |
 | [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Agent sign-in messages, nonces, receipts, signed request checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
 | [`siwa/siwa-elixir/apps/siwa_keyring`](siwa/siwa-elixir/apps/siwa_keyring/README.md) | `siwa_keyring` | Isolated local wallet creation and signing behind an internal HMAC-protected service. |
@@ -60,6 +61,7 @@ features.
 | `ens_elixir` | regents |
 | `regent_format` | not used yet; planned for the product apps |
 | `regent_http` | not used yet; planned for the product apps |
+| `regent_openai` | not used yet; planned for patchbay |
 | `regent_privy` | regents (platform and identity), autolaunch, patchbay, techtree, ash-template, keyfleet |
 | `siwa` | siwa-server, patchbay, keyfleet, and `ens_elixir` in this repository |
 | `siwa_keyring` | siwa-server |
@@ -78,6 +80,9 @@ ERC-8004.
 
 Use `regent_chain` when a wallet button needs its steps built on the server, or the server
 needs to check what a sent transaction did.
+
+Use `regent_openai` when a product asks an OpenAI model for a reply, a transcript or speech and
+needs to know what each call cost.
 
 Use `regent_privy` when a product signs people in with Privy and needs verified claims and
 linked wallets.
@@ -128,11 +133,11 @@ These must pass before a change is proposed. Run the one for the package you tou
 | `ens` | `mix check` |
 | `format` | `mix check` |
 | `http` | `mix check` |
+| `openai` | `mix check` |
 | `privy` | `mix check` |
 | `siwa/siwa-elixir` | `mix check` |
 
-CI runs `mix check` for every package in that table on every push to `main` and on every
-pull request. The shared services contract lives in `siwa-server`, which checks it against
+There are no GitHub Actions; run `mix check` locally for every package you touched. The shared services contract lives in `siwa-server`, which checks it against
 its routes and the `siwa_keyring` router.
 
 ## Current package versions
@@ -148,6 +153,7 @@ for d in \
   ens \
   format \
   http \
+  openai \
   privy \
   siwa/siwa-elixir/apps/siwa \
   siwa/siwa-elixir/apps/siwa_keyring

@@ -1,9 +1,9 @@
 # Regent MCP Events
 
 Shared helpers for the [OpenAI MCP Events contract](https://developers.openai.com/plugins/build/mcp-events),
-protocol `2026-07-28`. Products own their event definitions, access rules, subscriptions
-and durable event records. This package owns identity, signed callback verification,
-safe delivery and a supervised delivery worker.
+protocol `2026-07-28`. Products own their event definitions, access rules, subscriptions,
+durable event records and the Oban job that delivers them. This package owns identity,
+signed callback verification and one safe, signed delivery attempt.
 
 ```elixir
 {:regent_mcp_events, path: "../../elixir-utils/mcp_events"}
@@ -49,49 +49,25 @@ not send HTTP callbacks from that transaction.
 Cursors must be serialized and commit-safe per stream. Allocating a sequence before
 commit is insufficient: a later transaction can commit first and cause the earlier
 event to be skipped. Hold a stream lock through commit, or consume an existing
-durable feed with that guarantee. Persist the stable event ID, occurrence timestamp,
-payload and cursor. A unique subscription/event queue key prevents duplicate capture.
+durable feed with that guarantee.
 
-Implement `Regent.MCPEvents.Adapter` in the product:
+Delivery is the product's Oban job; this package ships no queue, worker or lease.
+Follow the ordered-delivery recipe in the `elixir-stack` skill
+(`ash-template/skills/elixir-stack/references/oban.md`): one job per subscription
+(an AshOban trigger, or a worker unique on the subscription id), queued in the same
+transaction as each new event and swept on a schedule. The job reloads the
+subscription, rechecks its owner's access and filters, and calls `deliver/2` outside
+any transaction. `deliver/2` answers:
 
-```elixir
-claim_next(now, lease_ms)
-# :empty | {:ok, %{token: lease_token, subscription: subscription,
-#                 event: envelope, attempt: persisted_attempt}} | {:error, reason}
+- `:ok`: the receiver acknowledged; advance the cursor with a compare-and-set from
+  the value the job read.
+- `{:retry, reason}`: return an error so Oban retries the same event with backoff.
+  When attempts run out, stop the subscription and keep its cursor.
+- `{:stop, reason}`: stop the subscription and keep its cursor for explicit recovery.
 
-authorize_delivery(delivery, now)
-# {:ok, current_subscription} | {:stop, reason} | {:error, reason}
-
-finish(delivery, outcome, now)
-# :ok | {:error, reason}
-```
-
-Claim atomically with a fenced lease, increment the persisted attempt, and select
-only the earliest outstanding occurrence per subscription. A scheduled retry or
-retained failure blocks later occurrences. Recover abandoned leases after crashes;
-their duration must exceed the network deadline plus storage and authorization work.
-Reload the subscription and recheck its owner's access and filters before each attempt.
-The worker also checks activation, expiration and identity changes.
-
-Finish atomically only while holding the same lease:
-
-- `{:delivered, cursor}` acknowledges the occurrence and advances its cursor.
-- `{:retry, reason, next_at}` retains the occurrence and schedules another attempt.
-- `{:stop, reason}` retains the failed occurrence and its cursor for explicit recovery.
-
-Expiration, revocation, unsubscribe and HTTP 410 stop the subscription. HTTP 413,
-invalid envelopes and exhausted attempts block the occurrence. Never advance past
-a failure. A crash after acknowledgement but before the database update may repeat
-delivery; the unchanged event ID permits deduplication. Retain failed occurrences
-and attempt history under the product's retention policy.
-
-Add `{Regent.MCPEvents.Worker, adapter: MyApp.MCPEvents.Adapter}` after the database
-in the product supervisor, or call `Worker.run_once(adapter)` from a durable product
-job. Use one mechanism. Defaults are `poll_interval_ms: 1000`, `lease_ms: 60_000`,
-`max_attempts: 8`; retry delays grow exponentially up to one hour. Attempts survive
-restarts. Attempts are bounded to 1–32, leases to 30 seconds–one hour, and polling to
-1–60,000 milliseconds. The optional `:deliver` function is a transient local verification seam;
-production uses the default protected transport.
+Expiration, revocation, unsubscribe and HTTP 410 stop the subscription. HTTP 413 and
+invalid envelopes stop it too. Never advance past a failure. A job can run twice, so
+the event ID stays the same on every attempt and the receiver can drop a repeat.
 
 ## Data and transport
 

@@ -6,7 +6,7 @@ defmodule RegentMCPEvents.MixProject do
       app: :regent_mcp_events,
       version: "0.1.0",
       elixir: "~> 1.19.5",
-      description: "Durable MCP event delivery and safe signed callbacks for Regent products",
+      description: "MCP events identity, signed callbacks and safe delivery for Regent products",
       deps: [{:jason, "~> 1.4"}, {:mint, "~> 1.11"}],
       aliases: [check: ["compile --warnings-as-errors", "format --check-formatted"]]
     ]

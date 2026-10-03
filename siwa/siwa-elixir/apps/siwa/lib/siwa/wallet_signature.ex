@@ -1,11 +1,11 @@
 defmodule Siwa.WalletSignature do
   @moduledoc """
   Whether the wallet at an address signed a personal message (ERC-191), for
-  ordinary and smart wallets on Base.
+  ordinary wallets and for smart wallets on the chain the caller reads.
 
-  An ordinary wallet's signature is recovered here, with no network call. Any
-  other signature is a smart wallet's, and Base is asked whether the wallet
-  approves it: ERC-1271 `isValidSignature` on the wallet, read through
+  An ordinary wallet's signature is recovered here, with no network call, and
+  holds on every chain. Any other signature is a smart wallet's, and the chain
+  the caller names is asked whether the wallet approves it: ERC-1271 `isValidSignature` on the wallet, read through
   Multicall3. A wallet not deployed yet wraps its signature with ERC-6492; its
   factory call runs first in the same read, so nothing is deployed, and is
   allowed to fail, so a wallet deployed since it signed still answers.
@@ -26,10 +26,17 @@ defmodule Siwa.WalletSignature do
   @aggregate3 binary_part(ExKeccak.hash_256("aggregate3((address,bool,bytes)[])"), 0, 4)
   # ERC-6492: a wallet not deployed yet appends this to its wrapped signature.
   @erc6492_suffix :binary.copy(<<0x64, 0x92>>, 16)
-  # Multicall3, at the same address on Base and every other chain.
+  # Multicall3, at the same address on every chain.
   @multicall3 "0xca11bde05977b3631167028862be2a173976ca11"
   @address ~r/\A0x[0-9a-fA-F]{40}\z/
 
+  @typedoc """
+  How the signature was proven: recovered from an ordinary wallet's key, with
+  no network call (`:eoa_recovery`), or approved by a smart wallet on the
+  chain `opts` reads, deployed (`:erc1271`) or not yet deployed (`:erc6492`).
+  A key's proof holds on every chain; a smart wallet's only on that chain.
+  """
+  @type method :: :eoa_recovery | :erc1271 | :erc6492
   @type error :: :signature_invalid | {:lookup_failed, term()}
 
   @doc "The largest signature, in bytes, that sign-in and signed requests take."
@@ -37,13 +44,14 @@ defmodule Siwa.WalletSignature do
   def max_bytes, do: @max_bytes
 
   @doc """
-  `:ok` when the wallet at `address` signed `message`; `:signature_invalid`
-  when it did not; `{:lookup_failed, reason}` when a smart wallet's answer
-  could not be read from Base. `opts` says how to read Base, needed only for
-  a smart wallet: `:rpc_url`, and optionally the `:finch` pool and
-  `:timeout_ms` that `Siwa.RPCClient` takes.
+  `{:ok, method}` when the wallet at `address` signed `message`;
+  `:signature_invalid` when it did not; `{:lookup_failed, reason}` when a smart
+  wallet's answer could not be read from the chain. `opts` says how to read the
+  chain the smart wallet signed for, needed only for a smart wallet: `:rpc_url`,
+  and optionally the `:finch` pool and `:timeout_ms` that `Siwa.RPCClient` takes.
   """
-  @spec verify(String.t(), String.t(), String.t(), keyword()) :: :ok | {:error, error()}
+  @spec verify(String.t(), String.t(), String.t(), keyword()) ::
+          {:ok, method()} | {:error, error()}
   def verify(address, message, signature, opts \\ []) do
     with {:ok, wallet} <- wallet(address),
          true <- is_binary(message),
@@ -73,7 +81,7 @@ defmodule Siwa.WalletSignature do
 
   defp check(wallet, digest, bytes, opts) do
     case erc6492_unwrap(bytes) do
-      {:ok, deployment, inner} -> ask_wallet(wallet, digest, inner, [deployment], opts)
+      {:ok, deployment, inner} -> ask_wallet(wallet, digest, inner, [deployment], :erc6492, opts)
       :not_wrapped -> key_or_wallet(wallet, digest, bytes, opts)
       :error -> {:error, :signature_invalid}
     end
@@ -83,11 +91,11 @@ defmodule Siwa.WalletSignature do
     case EvmPersonalSign.recover_address(digest, hex(bytes)) do
       {:ok, recovered} ->
         if String.downcase(recovered) == hex(wallet),
-          do: :ok,
-          else: ask_wallet(wallet, digest, bytes, [], opts)
+          do: {:ok, :eoa_recovery},
+          else: ask_wallet(wallet, digest, bytes, [], :erc1271, opts)
 
       {:error, _reason} ->
-        ask_wallet(wallet, digest, bytes, [], opts)
+        ask_wallet(wallet, digest, bytes, [], :erc1271, opts)
     end
   end
 
@@ -127,7 +135,7 @@ defmodule Siwa.WalletSignature do
   # One read through Multicall3: any deployment first, then the wallet's own
   # answer. Every call may fail, so a wallet that reverts is an answer, not an
   # error.
-  defp ask_wallet(wallet, digest, signature, deployments, opts) do
+  defp ask_wallet(wallet, digest, signature, deployments, method, opts) do
     check = @is_valid_signature <> digest <> word(64) <> dynamic_bytes(signature)
     data = @aggregate3 <> aggregate3_arguments(deployments ++ [{wallet, check}])
     call = %{"to" => @multicall3, "data" => hex(data)}
@@ -140,7 +148,7 @@ defmodule Siwa.WalletSignature do
              Keyword.take(opts, [:finch, :timeout_ms])
            ),
          {:ok, answer} <- wallet_answer(result) do
-      if answer == {1, @erc1271_magic}, do: :ok, else: {:error, :signature_invalid}
+      if answer == {1, @erc1271_magic}, do: {:ok, method}, else: {:error, :signature_invalid}
     else
       {:error, reason} -> {:error, {:lookup_failed, reason}}
     end

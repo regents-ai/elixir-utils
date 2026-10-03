@@ -145,7 +145,7 @@ defmodule Siwa.RequestAuthTest do
     assert {:error, :signature_invalid} =
              Siwa.RequestAuth.verify_authenticated_request(
                signed_request,
-               Keyword.put(@request_auth_opts, :base_rpc, rpc_url: no_wallet)
+               Keyword.put(@request_auth_opts, :chain_rpcs, %{8453 => [rpc_url: no_wallet]})
              )
   end
 

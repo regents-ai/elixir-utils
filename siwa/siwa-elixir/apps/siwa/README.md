@@ -145,26 +145,29 @@ receipt, and exact body digest.
   Siwa.verify_authenticated_request(signed_request,
     audience: "platform",
     replay_store: Siwa.RequestAuth.ReplayStore,
-    base_rpc: [rpc_url: base_rpc_url]
+    chain_rpcs: %{1 => [rpc_url: ethereum_rpc_url], 8453 => [rpc_url: base_rpc_url]}
   )
 ```
 
 Verify the signature before consuming replay state, and keep product permission
-checks outside this package.
+checks outside this package. `verified.verification_method` says how the wallet
+was proven: `:eoa_recovery` (its key, which holds on every chain), or `:erc1271`
+or `:erc6492` (a smart wallet's own answer, which holds only on the receipt's
+`chain_id`).
 
 An ordinary wallet's signature is checked here with no network call. A smart
 wallet (a Safe, a Coinbase Smart Wallet) signs with its own scheme, so any other
-signature is checked on Base as `base_rpc` says: the site's Base `rpc_url`, and
-optionally the `finch` pool and `timeout_ms`. That is ERC-1271 for a deployed
-wallet and ERC-6492 for one not deployed yet. `Siwa.WalletSignature` does both,
-for sign-in and for every request after it. A signature Base could not be asked
-about answers `{:error, :signature_lookup_failed}` and leaves the replay window
+signature is checked on the receipt's chain as `chain_rpcs` says for that chain
+id: its `rpc_url`, and optionally the `finch` pool and `timeout_ms`. That is
+ERC-1271 for a deployed wallet and ERC-6492 for one not deployed yet.
+`Siwa.WalletSignature` does both, for sign-in and for every request after it. A
+signature the chain could not be asked about answers `{:error, :signature_lookup_failed}` and leaves the replay window
 unused. Signatures are at most `Siwa.WalletSignature.max_bytes()` bytes.
 
 ## Wallet Principals
 
 Registered-agent receipts remain the default. A wallet receipt is a separate
-`siwa_wallet_receipt` with `verified: "wallet_signature"`, Base chain `8453`, address,
+`siwa_wallet_receipt` with `verified: "wallet_signature"`, the chain it signed in on, address,
 key ID, nonce, audience and receipt ID. It must have no registry or token claims.
 The shared service issues these receipts after wallet proof; payment alone is not proof.
 

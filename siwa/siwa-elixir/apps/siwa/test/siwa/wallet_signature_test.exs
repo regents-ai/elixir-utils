@@ -38,14 +38,14 @@ defmodule Siwa.WalletSignatureTest do
     {:ok, signer} = LocalSigner.new()
     {:ok, signature} = EvmPersonalSign.sign_personal_signature(signer.private_key, @message)
 
-    assert WalletSignature.verify(signer.address, @message, signature) == :ok
+    assert WalletSignature.verify(signer.address, @message, signature) == {:ok, :eoa_recovery}
   end
 
   test "a deployed wallet's signature is its own answer on Base" do
     base = RpcStub.start(RpcStub.wallet_answers({true, RpcStub.erc1271_approval()}), self())
 
     assert WalletSignature.verify(@deployed_wallet, @message, @deployed_signature, rpc_url: base) ==
-             :ok
+             {:ok, :erc1271}
 
     assert_received {:rpc_request, %{"method" => "eth_call", "params" => [call, "latest"]}}
     assert call["to"] == @multicall3
@@ -63,7 +63,7 @@ defmodule Siwa.WalletSignatureTest do
 
     assert WalletSignature.verify(@undeployed_wallet, @message, @undeployed_signature,
              rpc_url: base
-           ) == :ok
+           ) == {:ok, :erc6492}
 
     assert_received {:rpc_request, %{"params" => [call, "latest"]}}
     assert [{@undeployed_factory, _deploy}, {wallet, check}] = aggregate3_calls(call["data"])
@@ -128,7 +128,7 @@ defmodule Siwa.WalletSignatureTest do
     assert WalletSignature.verify(@deployed_wallet, @message, @deployed_signature,
              rpc_url: base,
              finch: pool
-           ) == :ok
+           ) == {:ok, :erc1271}
 
     # Takes the connection and never answers.
     {:ok, silent} = :gen_tcp.listen(0, [:binary, active: false])

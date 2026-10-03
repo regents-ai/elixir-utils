@@ -112,8 +112,8 @@ defmodule Siwa.RequestAuth do
              request.headers,
              parsed_signature_input
            ),
-         :ok <-
-           verify_wallet_signature(signing_message, signature, receipt_payload["sub"], opts),
+         {:ok, verification_method} <-
+           verify_wallet_signature(signing_message, signature, receipt_payload, opts),
          :ok <-
            consume_replay_window(
              receipt_payload,
@@ -128,7 +128,8 @@ defmodule Siwa.RequestAuth do
        %{
          address: receipt_payload["sub"],
          claims: receipt_payload,
-         covered_components: parsed_signature_input.components
+         covered_components: parsed_signature_input.components,
+         verification_method: verification_method
        }}
     else
       {:error, reason} -> {:error, reason}
@@ -254,13 +255,14 @@ defmodule Siwa.RequestAuth do
            "jti" => jti,
            "sub" => sub,
            "aud" => aud,
-           "chain_id" => 8453,
+           "chain_id" => chain_id,
            "nonce" => nonce,
            "key_id" => key_id
          } = payload,
          opts
        )
        when is_binary(jti) and byte_size(jti) > 0 and is_binary(sub) and
+              is_integer(chain_id) and chain_id > 0 and
               is_binary(aud) and byte_size(aud) > 0 and is_binary(nonce) and
               byte_size(nonce) > 0 and is_binary(key_id) do
     cond do
@@ -693,10 +695,18 @@ defmodule Siwa.RequestAuth do
   defp normalize_address(_value), do: nil
 
   # An ordinary wallet's signature is checked here; a smart wallet's is asked
-  # of Base as the `:base_rpc` opt says (`Siwa.WalletSignature.verify/4`).
-  defp verify_wallet_signature(message, signature, address, opts) do
-    case WalletSignature.verify(address, message, signature, Keyword.get(opts, :base_rpc, [])) do
-      :ok -> :ok
+  # of the receipt's chain, read as the `:chain_rpcs` opt says for that chain id
+  # (`Siwa.WalletSignature.verify/4`).
+  defp verify_wallet_signature(
+         message,
+         signature,
+         %{"sub" => address, "chain_id" => chain_id},
+         opts
+       ) do
+    rpc = opts |> Keyword.get(:chain_rpcs, %{}) |> Map.get(chain_id, [])
+
+    case WalletSignature.verify(address, message, signature, rpc) do
+      {:ok, method} -> {:ok, method}
       {:error, :signature_invalid} -> {:error, :signature_invalid}
       {:error, {:lookup_failed, _reason}} -> {:error, :signature_lookup_failed}
     end

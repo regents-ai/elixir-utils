@@ -13,6 +13,7 @@ owns:
   - jev_decisions
   - openai_calls
   - privy_token_verification
+  - sprite_machines
   - siwa_library
 source_of_truth:
   repo_contract: repo.yaml
@@ -41,6 +42,8 @@ code_map:
     owns: openai_calls
   - path: privy
     owns: privy_token_verification
+  - path: sprites
+    owns: sprite_machines
   - path: siwa/siwa-elixir
     owns: siwa_library
 local_path_dependencies: []
@@ -62,6 +65,8 @@ acceptance_commands:
   - cwd: elixir-utils/openai
     command: mix check
   - cwd: elixir-utils/privy
+    command: mix check
+  - cwd: elixir-utils/sprites
     command: mix check
   - cwd: elixir-utils/siwa/siwa-elixir
     command: mix check

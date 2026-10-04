@@ -47,6 +47,7 @@ features.
 | [`http`](http/README.md) | `regent_http` | Shared Req client conventions: default timeouts, request telemetry, and secret redaction in formatted errors. |
 | [`jev`](jev/README.md) | `regent_jev` | Typed choice questions to Jev, the decision model on OpenRouter, each answer with the tokens it used and its cost in US dollars. |
 | [`openai`](openai/README.md) | `regent_openai` | OpenAI text and screenshot replies, push-to-talk transcription and speech, each with the tokens it used and its cost in US dollars. |
+| [`sprites`](sprites/README.md) | `regent_sprites` | Fly Sprites machines: create, look up and delete them, checkpoint and restore their disks, run commands, and move files in and out. |
 | [`privy`](privy/README.md) | `regent_privy` | Privy identity-token verification: ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses. |
 | [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Wallet sign-in receipts, signed request checks, wallet signature checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
 | [`siwa/siwa-elixir/apps/siwa_keyring`](siwa/siwa-elixir/apps/siwa_keyring/README.md) | `siwa_keyring` | Isolated local wallet creation and signing behind an internal HMAC-protected service. |
@@ -64,6 +65,7 @@ features.
 | `regent_http` | not used yet; planned for the product apps |
 | `regent_jev` | ash-template (planned for patchbay) |
 | `regent_openai` | not used yet; planned for patchbay |
+| `regent_sprites` | not used yet; planned for regents and techtree |
 | `regent_privy` | regents (platform and identity), autolaunch, patchbay, techtree, ash-template, keyfleet |
 | `siwa` | siwa-server, patchbay, keyfleet, and `ens_elixir` in this repository |
 | `siwa_keyring` | siwa-server |
@@ -88,6 +90,8 @@ content (a label, a kind, a next step) and needs to know what each call cost.
 
 Use `regent_openai` when a product asks an OpenAI model for a reply, a transcript or speech and
 needs to know what each call cost.
+
+Use `regent_sprites` when a product starts, resets or runs commands on Fly Sprites machines.
 
 Use `regent_privy` when a product signs people in with Privy and needs verified claims and
 linked wallets.
@@ -141,6 +145,7 @@ These must pass before a change is proposed. Run the one for the package you tou
 | `jev` | `mix check` |
 | `openai` | `mix check` |
 | `privy` | `mix check` |
+| `sprites` | `mix check` |
 | `siwa/siwa-elixir` | `mix check` |
 
 There are no GitHub Actions; run `mix check` locally for every package you touched. The shared services contract lives in `siwa-server`, which checks it against
@@ -162,6 +167,7 @@ for d in \
   jev \
   openai \
   privy \
+  sprites \
   siwa/siwa-elixir/apps/siwa \
   siwa/siwa-elixir/apps/siwa_keyring
 do

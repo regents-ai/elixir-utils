@@ -15,7 +15,6 @@ defmodule Siwa.Receipt do
     payload =
       payload
       |> Enum.into(%{})
-      |> Map.put_new("verified", "onchain")
       |> Map.put("iat", iat)
       |> Map.put("exp", exp)
 

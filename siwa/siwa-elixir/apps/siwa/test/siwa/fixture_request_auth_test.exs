@@ -17,6 +17,7 @@ defmodule Siwa.FixtureRequestAuthTest do
                },
                secret: "fixture-secret",
                audience: data["receiptPayload"]["aud"],
+               wallet_audiences: [data["receiptPayload"]["aud"]],
                now: DateTime.from_unix!(data["fixedNowMs"], :millisecond),
                # This is a historical signature vector; its replay clock must also be frozen.
                replay_store: fn _key, expires ->
@@ -25,9 +26,8 @@ defmodule Siwa.FixtureRequestAuthTest do
                end
              )
 
-    assert verified.claims["sub"] == data["verified"]["agent"]["wallet_address"]
-    assert verified.claims["chain_id"] == data["verified"]["agent"]["chain_id"]
-    assert verified.claims["registry_address"] == data["verified"]["agent"]["registry_address"]
-    assert verified.claims["token_id"] == data["verified"]["agent"]["token_id"]
+    assert verified.address == data["verified"]["wallet"]["wallet_address"]
+    assert verified.claims["chain_id"] == data["verified"]["wallet"]["chain_id"]
+    assert verified.verification_method == :eoa_recovery
   end
 end

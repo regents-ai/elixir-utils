@@ -1,36 +1,32 @@
 {
-  "source": "@buildersgarden/siwa@0.0.24",
-  "capturedAt": "2026-04-17",
+  "capturedAt": "2026-10-04",
   "case": {
-    "secret": "fixture-secret",
+    "expiresAt": "2026-04-17T23:15:45.649Z",
     "fixedNowMs": 1776465945649,
     "payload": {
-      "typ": "siwa_receipt",
-      "jti": "fixture-receipt",
-      "sub": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
       "aud": "techtree",
       "chain_id": 8453,
-      "nonce": "fixture-nonce",
+      "jti": "fixture-receipt",
       "key_id": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
-      "registry_address": "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
-      "token_id": "42",
-      "verified": "onchain"
+      "nonce": "fixture-nonce",
+      "sub": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+      "typ": "siwa_wallet_receipt",
+      "verified": "wallet_signature"
     },
-    "receipt": "eyJhdWQiOiJ0ZWNodHJlZSIsImNoYWluX2lkIjo4NDUzLCJleHAiOjE3NzY0Njc3NDU2NDksImlhdCI6MTc3NjQ2NTk0NTY0OSwianRpIjoiZml4dHVyZS1yZWNlaXB0Iiwia2V5X2lkIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwibm9uY2UiOiJmaXh0dXJlLW5vbmNlIiwicmVnaXN0cnlfYWRkcmVzcyI6IjB4ODAwNGExNjlmYjRhMzMyNTEzNmViMjlmYTBjZWI2ZDJlNTM5YTQzMiIsInN1YiI6IjB4MTlFN0UzNzZFN0MyMTNCN0U3ZTdlNDZjYzcwQTVkRDA4NkRBZmYyQSIsInRva2VuX2lkIjoiNDIiLCJ0eXAiOiJzaXdhX3JlY2VpcHQiLCJ2ZXJpZmllZCI6Im9uY2hhaW4ifQ.eh1dadLY75JhRqdIQ4UuH4T_YymJYO3DYs-q_vxIfHU",
-    "expiresAt": "2026-04-17T23:15:45.649Z",
+    "receipt": "eyJhdWQiOiJ0ZWNodHJlZSIsImNoYWluX2lkIjo4NDUzLCJleHAiOjE3NzY0Njc3NDU2NDksImlhdCI6MTc3NjQ2NTk0NTY0OSwianRpIjoiZml4dHVyZS1yZWNlaXB0Iiwia2V5X2lkIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwibm9uY2UiOiJmaXh0dXJlLW5vbmNlIiwic3ViIjoiMHgxOUU3RTM3NkU3QzIxM0I3RTdlN2U0NmNjNzBBNWREMDg2REFmZjJBIiwidHlwIjoic2l3YV93YWxsZXRfcmVjZWlwdCIsInZlcmlmaWVkIjoid2FsbGV0X3NpZ25hdHVyZSJ9.JM-naggbkpzdwekkhtCXCqa8bDBzRT9uspRGt56-Tew",
+    "secret": "fixture-secret",
     "verified": {
-      "typ": "siwa_receipt",
-      "jti": "fixture-receipt",
-      "sub": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
       "aud": "techtree",
       "chain_id": 8453,
-      "nonce": "fixture-nonce",
-      "key_id": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
-      "registry_address": "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
-      "token_id": "42",
-      "verified": "onchain",
+      "exp": 1776467745649,
       "iat": 1776465945649,
-      "exp": 1776467745649
+      "jti": "fixture-receipt",
+      "key_id": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+      "nonce": "fixture-nonce",
+      "sub": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+      "typ": "siwa_wallet_receipt",
+      "verified": "wallet_signature"
     }
-  }
+  },
+  "source": "regent-siwa-current"
 }

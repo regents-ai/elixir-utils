@@ -2,12 +2,13 @@
 
 [Changelog](CHANGELOG.md)
 
-`siwa` is Regent’s shared Elixir package for agent sign-in, receipts, and signed
+`siwa` is Regent’s shared Elixir package for wallet sign-in receipts and signed
 service requests.
 
-Use it when a service needs to issue nonces, build SIWA messages, verify signed
-messages, create receipts, verify receipts, sign follow-up requests, or verify
-follow-up requests from agents and operators.
+An agent or operator signs in by proving it controls a wallet. The sign-in
+service checks that proof and issues a wallet receipt. Every later request
+carries the receipt and is signed by the same wallet; this package creates and
+verifies those receipts and signs and verifies those requests.
 
 The package verifies identity and request freshness. The consuming product still
 decides whether the verified identity may perform the product action.
@@ -26,90 +27,29 @@ end
 
 | Job | Function |
 | --- | --- |
-| Build the message to sign | `Siwa.Message.build/1` |
-| Parse a signed message | `Siwa.Message.parse/1` |
-| Issue a nonce | `Siwa.create_nonce/2` |
-| Consume a nonce | `Siwa.verify_nonce/2` |
-| Verify a signed sign-in | `Siwa.verify/3` |
 | Create a receipt | `Siwa.create_receipt/2` |
 | Verify a receipt | `Siwa.verify_receipt/2` |
 | Sign a protected request | `Siwa.sign_authenticated_request/4` |
 | Verify a protected request | `Siwa.verify_authenticated_request/2` |
 | Compute body digest headers | `Siwa.content_digest_for_body/1` |
-
-## Build A Message
-
-```elixir
-issued_at =
-  DateTime.utc_now()
-  |> DateTime.truncate(:second)
-  |> DateTime.to_iso8601()
-
-message =
-  Siwa.Message.build(%{
-    domain: "regent.cx",
-    address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    uri: "https://regent.cx/api/shared/siwa/verify",
-    agent_id: 77,
-    agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
-    chain_id: 8453,
-    nonce: "nonce1234",
-    issued_at: issued_at,
-    audience: "platform"
-  })
-```
-
-## Issue And Consume A Nonce
-
-```elixir
-{:ok, nonce} =
-  Siwa.create_nonce(%{
-    address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    agent_id: 77,
-    agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
-    audience: "platform"
-  })
-
-{:ok, _stored_nonce} =
-  Siwa.verify_nonce(%{
-    address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    agent_id: 77,
-    agent_registry: "eip155:8453:0x3333333333333333333333333333333333333333",
-    audience: "platform",
-    nonce: nonce.nonce
-  })
-```
-
-Nonces are audience-bound and single use.
-
-## Verify Sign-In
-
-```elixir
-{:ok, result} =
-  Siwa.verify(message, signature,
-    audience: "platform",
-    domain: "regent.cx",
-    required_services: ["MCP"],
-    required_trust_models: ["reputation"]
-  )
-
-case result.status do
-  "authenticated" -> {:ok, result.receipt}
-  "not_registered" -> {:error, result.action}
-  "rejected" -> {:error, result.reason}
-end
-```
+| List the headers a request must carry | `Siwa.required_authenticated_request_headers/1` |
+| List the parts a request signature must cover | `Siwa.required_authenticated_request_components/2` |
+| Check a wallet signature | `Siwa.WalletSignature.verify/4` |
 
 ## Create And Verify A Receipt
+
+The sign-in service issues a receipt once it has checked the wallet's proof:
 
 ```elixir
 {:ok, receipt} =
   Siwa.create_receipt(%{
-    "typ" => "siwa_receipt",
+    "typ" => "siwa_wallet_receipt",
+    "verified" => "wallet_signature",
+    "jti" => receipt_id,
     "sub" => "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "key_id" => "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     "chain_id" => 8453,
-    "registry_address" => "0x3333333333333333333333333333333333333333",
-    "token_id" => "77",
+    "nonce" => challenge_nonce,
     "aud" => "platform"
   })
 
@@ -117,7 +57,10 @@ end
   Siwa.verify_receipt(receipt.token, audience: "platform")
 ```
 
-Always verify the receipt against the audience that owns the request.
+The receipt names the wallet (`sub`, with the same address as `key_id`), the
+chain it signed in on, the challenge nonce it signed, the audience and a receipt
+ID. `create_receipt/2` adds `iat` and `exp`. Always verify the receipt against
+the audience that owns the request.
 
 ## Sign A Protected Request
 
@@ -131,7 +74,8 @@ request = %{
 
 {:ok, signed_request} =
   Siwa.sign_authenticated_request(request, receipt.token, signer,
-    audience: "platform"
+    audience: "platform",
+    wallet_audiences: ["platform"]
   )
 ```
 
@@ -144,6 +88,7 @@ receipt, and exact body digest.
 {:ok, verified} =
   Siwa.verify_authenticated_request(signed_request,
     audience: "platform",
+    wallet_audiences: ["platform"],
     replay_store: Siwa.RequestAuth.ReplayStore,
     chain_rpcs: %{1 => [rpc_url: ethereum_rpc_url], 8453 => [rpc_url: base_rpc_url]}
   )
@@ -164,14 +109,10 @@ ERC-1271 for a deployed wallet and ERC-6492 for one not deployed yet.
 signature the chain could not be asked about answers `{:error, :signature_lookup_failed}` and leaves the replay window
 unused. Signatures are at most `Siwa.WalletSignature.max_bytes()` bytes.
 
-## Wallet Principals
+## Audiences That Accept Wallet Requests
 
-Registered-agent receipts remain the default. A wallet receipt is a separate
-`siwa_wallet_receipt` with `verified: "wallet_signature"`, the chain it signed in on, address,
-key ID, nonce, audience and receipt ID. It must have no registry or token claims.
-The shared service issues these receipts after wallet proof; payment alone is not proof.
-
-Only trusted server configuration may opt a product audience into wallet requests:
+Only trusted server configuration may opt a product audience into wallet requests,
+both when verifying and when signing through this library:
 
 ```elixir
 Siwa.verify_authenticated_request(signed_request,
@@ -181,17 +122,15 @@ Siwa.verify_authenticated_request(signed_request,
 )
 ```
 
-Apply the same opt-in when signing through this library. Never derive it from request
-parameters. A missing registry field in an agent receipt is still an error. Products
-must inspect the authenticated receipt type before granting their narrow wallet-author
-permissions; wallet proof grants neither a human profile nor registered-agent authority.
+Never derive `wallet_audiences` from request parameters. Wallet proof grants
+neither a human profile nor any product permission; the product decides what the
+wallet may do.
 
-Wallet envelopes retain the existing signature grammar and `x-agent-wallet-address`
-and `x-agent-chain-id` headers, but omit registry/token headers. The authenticated
-receipt selects this shape. `required_authenticated_request_headers/2` and
-`required_authenticated_request_components/3` accept `:wallet` for describing it;
-their existing arities describe registered agents. Replay keys separate wallet
-principals by chain and audience; legacy agent replay keys are unchanged.
+A request carries the receipt in `x-siwa-receipt` and the wallet in `x-key-id`,
+`x-agent-wallet-address` and `x-agent-chain-id`, with `x-timestamp` and, when it
+has a body, `content-digest`. `Siwa.required_authenticated_request_headers/1` and
+`Siwa.required_authenticated_request_components/2` describe this shape. Replay
+keys separate wallets by chain and audience.
 
 Use a durable replay store in the deployed broker. Its atomic consume must reject
 expired entries against the storage clock, even if verification passed before a
@@ -208,19 +147,13 @@ authorization signing. Use it before handing a prepared action to a signer.
 :ok = Siwa.WalletAction.require_expected_signer(action, signer_address)
 ```
 
-`Siwa.Registry.register_agent/1` can sign and submit an agent registration when
-the host supplies both the signer and the submission client. The consuming
-product still owns wallet approval, chain confirmation, and product record
-updates.
-
 ## What This Package Does Not Do
 
 - It does not own product sessions.
 - It does not decide product permissions.
 - It does not store product workflow state.
 - It does not expose private keys.
-- It does not submit transactions unless the host explicitly provides the signer
-  and submission client for a registration.
+- It does not submit transactions.
 
 ## Development
 

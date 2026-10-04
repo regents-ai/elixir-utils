@@ -8,7 +8,6 @@ defmodule Siwa.SecretAllowlistTest do
 
     for name <- ~w(
       SIWA_RECEIPT_SECRET
-      SIWA_NONCE_SECRET
       KEYRING_PROXY_SECRET
       KEYSTORE_PASSWORD
     ) do

@@ -1,14 +1,8 @@
 # SIWA fixture inventory
 
-This folder is the home for frozen fixture cases used to compare the Elixir port with the JS implementation.
+This folder holds frozen fixture cases the SIWA packages are checked against.
 
-## Planned fixture groups
-
-- `siwa/message.json`
-- `siwa/receipt.json`
-- `siwa/request_auth.json`
-- `siwa/keyring.json`
-- `siwa/captcha.json`
-- `siwa/x402.json`
-- `siwa/registry.json`
-- `siwa/reputation.json`
+- `siwa/receipt.json`: a wallet sign-in receipt and its verified claims.
+- `siwa/request_auth.json`: a signed request carrying a wallet receipt.
+- `siwa/keyring.json`: a keyring proxy request and its HMAC headers.
+- `siwa/x402.json`: x402 payment headers.

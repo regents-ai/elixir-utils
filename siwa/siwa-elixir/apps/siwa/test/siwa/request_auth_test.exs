@@ -1,335 +1,416 @@
+defmodule Siwa.RequestAuthTest.SmartWalletSigner do
+  @moduledoc false
+  # A smart wallet's signer: its signature is whatever the wallet makes, and
+  # only its chain can say whether the wallet approves it.
+  defstruct [:address, :signature]
+
+  def sign_message(%__MODULE__{signature: signature}, _message), do: {:ok, signature}
+end
+
 defmodule Siwa.RequestAuthTest do
   use ExUnit.Case, async: true
   import Plug.Conn
   import Plug.Test
 
-  @request_auth_opts [secret: "secret", audience: "techtree"]
+  alias Siwa.{LocalSigner, Receipt, RequestAuth}
+  alias Siwa.RequestAuthTest.SmartWalletSigner
+
+  @now DateTime.utc_now() |> DateTime.truncate(:second)
+  @opts [
+    secret: "wallet-test-only",
+    audience: "patchbay",
+    wallet_audiences: ["patchbay"],
+    now: @now
+  ]
+
+  setup do
+    {:ok, signer} = LocalSigner.new()
+    {:ok, receipt} = wallet_receipt(signer)
+    %{signer: signer, receipt: receipt}
+  end
 
   test "exposes the required authenticated request shape" do
-    base_headers = [
-      "x-siwa-receipt",
-      "signature",
-      "signature-input",
-      "x-key-id",
-      "x-timestamp",
-      "x-agent-wallet-address",
-      "x-agent-chain-id",
-      "x-agent-registry-address",
-      "x-agent-token-id"
-    ]
+    headers = ~w(
+      x-siwa-receipt
+      signature
+      signature-input
+      x-key-id
+      x-timestamp
+      x-agent-wallet-address
+      x-agent-chain-id
+    )
 
-    assert Siwa.required_authenticated_request_headers(nil) == base_headers
-    assert Siwa.required_authenticated_request_headers("{}") == base_headers ++ ["content-digest"]
+    components = ~w(
+      @method
+      @path
+      x-siwa-receipt
+      x-key-id
+      x-timestamp
+      x-agent-wallet-address
+      x-agent-chain-id
+    )
 
-    assert Siwa.required_authenticated_request_components(%{}, nil) == [
-             "@method",
-             "@path",
-             "x-siwa-receipt",
-             "x-key-id",
-             "x-timestamp",
-             "x-agent-wallet-address",
-             "x-agent-chain-id",
-             "x-agent-registry-address",
-             "x-agent-token-id"
-           ]
+    assert Siwa.required_authenticated_request_headers(nil) == headers
+    assert Siwa.required_authenticated_request_headers("{}") == headers ++ ["content-digest"]
+    assert Siwa.required_authenticated_request_components(%{}, nil) == components
 
     assert Siwa.required_authenticated_request_components(
              %{"Content-Digest" => "sha-256=:YWJj:"},
              nil
-           ) == [
-             "@method",
-             "@path",
-             "x-siwa-receipt",
-             "x-key-id",
-             "x-timestamp",
-             "x-agent-wallet-address",
-             "x-agent-chain-id",
-             "content-digest",
-             "x-agent-registry-address",
-             "x-agent-token-id"
-           ]
+           ) == components ++ ["content-digest"]
   end
 
-  test "signs and verifies an authenticated request" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
+  test "wallet requests need explicit audience opt-in", ctx do
+    signed = sign(ctx)
 
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               receipt.token,
-               signer,
-               @request_auth_opts
+    assert {:error, :wallet_principal_not_allowed} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.delete(@opts, :wallet_audiences)
              )
 
-    assert signed_request.headers["x-siwa-receipt"] == receipt.token
-    assert signed_request.headers["signature-input"] =~ ~s("content-digest")
-    assert signed_request.headers["signature"] =~ ~r/^sig1=:[A-Za-z0-9+\/=]+:$/
+    assert {:error, :wallet_principal_not_allowed} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :wallet_audiences, ["other"])
+             )
 
-    assert {:ok, verified} =
-             Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
+    assert {:ok, verified} = RequestAuth.verify_authenticated_request(signed, @opts)
+    assert verified.claims["typ"] == "siwa_wallet_receipt"
+    assert verified.claims["verified"] == "wallet_signature"
+    assert verified.claims["sub"] == ctx.signer.address
+    assert verified.verification_method == :eoa_recovery
 
-    assert verified.address == signer.address
-    assert verified.claims["sub"] == signer.address
-    assert verified.claims["registry_address"] == registry_address()
-    assert verified.claims["token_id"] == "1"
+    assert {:error, :replayed_request} = RequestAuth.verify_authenticated_request(signed, @opts)
   end
 
-  test "rejects signed requests without Agent account binding headers" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
-
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
+  test "signing needs the same audience opt-in", ctx do
+    assert {:error, :wallet_principal_not_allowed} =
+             RequestAuth.sign_authenticated_request(
                request(),
-               receipt.token,
-               signer,
-               @request_auth_opts
-             )
-
-    missing_header_request =
-      put_in(signed_request, [:headers], Map.delete(signed_request.headers, "x-agent-token-id"))
-
-    assert {:error, :missing_signed_headers} =
-             Siwa.RequestAuth.verify_authenticated_request(
-               missing_header_request,
-               @request_auth_opts
+               ctx.receipt.token,
+               ctx.signer,
+               Keyword.delete(@opts, :wallet_audiences)
              )
   end
 
-  test "rejects signed requests without Agent account covered components" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
+  test "only a complete wallet sign-in receipt signs or verifies a request", ctx do
+    for changes <- [
+          %{"typ" => "unknown"},
+          %{"verified" => nil},
+          %{"chain_id" => 0},
+          %{"key_id" => "0x" <> String.duplicate("1", 40)},
+          %{"jti" => ""}
+        ] do
+      {:ok, bad} = wallet_receipt(ctx.signer, changes)
 
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               receipt.token,
-               signer,
-               @request_auth_opts
-             )
+      assert {:error, :invalid_receipt} =
+               RequestAuth.sign_authenticated_request(request(), bad.token, ctx.signer, @opts)
+    end
 
-    signature_input =
-      String.replace(
-        signed_request.headers["signature-input"],
-        ~s( "x-agent-token-id"),
-        ""
-      )
+    signed = sign(ctx)
+    [body, mac] = String.split(ctx.receipt.token, ".")
+    forged = body <> "x." <> mac
 
-    missing_component_request =
-      put_in(signed_request, [:headers, "signature-input"], signature_input)
-
-    assert {:error, :missing_covered_components} =
-             Siwa.RequestAuth.verify_authenticated_request(
-               missing_component_request,
-               @request_auth_opts
+    assert {:error, :invalid_receipt} =
+             RequestAuth.verify_authenticated_request(
+               put_in(signed.headers["x-siwa-receipt"], forged),
+               @opts
              )
   end
 
-  test "rejects a request when the signer does not match the receipt" do
-    {:ok, receipt_signer} = Siwa.LocalSigner.new()
-    {:ok, request_signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(receipt_signer)
+  test "audience, wallet, chain, query, method and exact body stay bound without consuming valid replay",
+       ctx do
+    signed = sign(ctx)
 
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               receipt.token,
-               request_signer,
-               @request_auth_opts
+    assert {:error, :receipt_binding_mismatch} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :audience, "other")
              )
 
+    for altered <- [
+          %{signed | method: "DELETE"},
+          %{signed | path: "/api/agent/payment-intents?mode=other"},
+          %{signed | body: "{ \"kind\":\"special_post\"}"},
+          put_in(signed.headers["x-agent-chain-id"], "1"),
+          put_in(signed.headers["x-agent-wallet-address"], "0x" <> String.duplicate("1", 40))
+        ] do
+      assert {:error, _} = RequestAuth.verify_authenticated_request(altered, @opts)
+    end
+
+    assert {:ok, _} = RequestAuth.verify_authenticated_request(signed, @opts)
+  end
+
+  test "invalid signatures cannot burn a wallet's valid request", ctx do
+    {:ok, other} = LocalSigner.new()
+    wrong = sign(%{ctx | signer: other}, nonce: "same-nonce")
+    valid = sign(ctx, nonce: "same-nonce")
     # Another key's signature could be a smart wallet's; Base says no wallet approves it.
     no_wallet = Siwa.RpcStub.start(Siwa.RpcStub.wallet_answers({true, <<>>}))
 
     assert {:error, :signature_invalid} =
-             Siwa.RequestAuth.verify_authenticated_request(
-               signed_request,
-               Keyword.put(@request_auth_opts, :chain_rpcs, %{8453 => [rpc_url: no_wallet]})
+             RequestAuth.verify_authenticated_request(
+               wrong,
+               Keyword.put(@opts, :chain_rpcs, %{8453 => [rpc_url: no_wallet]})
              )
+
+    assert {:ok, _} = RequestAuth.verify_authenticated_request(valid, @opts)
   end
 
-  test "failed receipt matching does not consume the replay window for the valid request" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, other_signer} = Siwa.LocalSigner.new()
-    {:ok, good_receipt} = receipt_for(signer)
-    {:ok, bad_receipt} = receipt_for(other_signer)
-
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               good_receipt.token,
-               signer,
-               @request_auth_opts
-             )
-
-    tampered_request = put_in(signed_request, [:headers, "x-siwa-receipt"], bad_receipt.token)
-
-    assert {:error, :receipt_binding_mismatch} =
-             Siwa.RequestAuth.verify_authenticated_request(tampered_request, @request_auth_opts)
-
-    assert {:ok, verified} =
-             Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
-
-    assert verified.address == signer.address
-  end
-
-  test "can use a caller-provided replay store after signature verification" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
-    parent = self()
-    created_at = ~U[2026-04-20 00:00:00Z]
-    expires_at = ~U[2026-04-20 00:02:00Z]
-
-    replay_store = fn replay_key, expires_at ->
-      send(parent, {:replay_consumed, replay_key, expires_at})
-      :ok
-    end
-
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               receipt.token,
-               signer,
-               Keyword.merge(@request_auth_opts, created_at: created_at, expires_at: expires_at)
-             )
-
-    assert {:ok, verified} =
-             Siwa.RequestAuth.verify_authenticated_request(
-               signed_request,
-               Keyword.merge(@request_auth_opts,
-                 replay_store: replay_store,
-                 now: ~U[2026-04-20 00:01:00Z]
-               )
-             )
-
-    assert verified.address == signer.address
-    assert_receive {:replay_consumed, replay_key, replay_expires_at}
-    assert replay_key =~ signer.address
-    assert replay_expires_at == DateTime.to_unix(expires_at)
-  end
-
-  test "rejects replayed authenticated requests" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
-
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               receipt.token,
-               signer,
-               @request_auth_opts
-             )
-
-    assert {:ok, _verified} =
-             Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
-
-    assert {:error, :replayed_request} =
-             Siwa.RequestAuth.verify_authenticated_request(signed_request, @request_auth_opts)
-  end
-
-  test "plug accepts a request body preserved in conn.private" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
-    body = ~s({"hello":"world"})
-
-    request = %{
-      method: "POST",
-      path: "/protected?mode=test",
-      body: body,
-      headers: %{}
+  test "a smart wallet's request is its answer on its chain, and a failed lookup keeps the request",
+       ctx do
+    smart = %SmartWalletSigner{
+      address: "0x452f678f6e588069d1aef38d3d519567aa1014a4",
+      signature: "0x" <> String.duplicate("ab", 224)
     }
 
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request,
-               receipt.token,
-               signer,
-               @request_auth_opts
+    {:ok, receipt} = wallet_receipt(smart)
+    signed = sign(%{ctx | signer: smart, receipt: receipt})
+    assert byte_size(signed.headers["signature"]) > 90
+
+    assert {:error, :signature_lookup_failed} =
+             RequestAuth.verify_authenticated_request(signed, @opts)
+
+    approves =
+      Siwa.RpcStub.start(Siwa.RpcStub.wallet_answers({true, Siwa.RpcStub.erc1271_approval()}))
+
+    assert {:ok, verified} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :chain_rpcs, %{8453 => [rpc_url: approves]})
              )
+
+    assert verified.address == smart.address
+    assert verified.verification_method == :erc1271
+  end
+
+  # A smart wallet's approval holds only on the chain that gave it: a wallet
+  # signed in on Ethereum is asked on Ethereum, never on Base.
+  test "a smart wallet signed in on Ethereum is asked on Ethereum", ctx do
+    smart = %SmartWalletSigner{
+      address: "0x452f678f6e588069d1aef38d3d519567aa1014a4",
+      signature: "0x" <> String.duplicate("ab", 224)
+    }
+
+    {:ok, receipt} = wallet_receipt(smart, %{"chain_id" => 1})
+    signed = sign(%{ctx | signer: smart, receipt: receipt})
+
+    approves =
+      Siwa.RpcStub.start(Siwa.RpcStub.wallet_answers({true, Siwa.RpcStub.erc1271_approval()}))
+
+    assert {:error, :signature_lookup_failed} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :chain_rpcs, %{8453 => [rpc_url: approves]})
+             )
+
+    assert {:ok, verified} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :chain_rpcs, %{1 => [rpc_url: approves]})
+             )
+
+    assert verified.claims["chain_id"] == 1
+    assert verified.verification_method == :erc1271
+  end
+
+  test "expired receipts and request windows are rejected", ctx do
+    signed = sign(ctx)
+
+    assert {:error, :invalid_receipt} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :now, DateTime.add(@now, 1801))
+             )
+
+    assert {:error, :request_expired} =
+             RequestAuth.verify_authenticated_request(
+               signed,
+               Keyword.put(@opts, :now, DateTime.add(@now, 121))
+             )
+  end
+
+  test "a request older than the freshness window is refused", ctx do
+    assert {:error, :request_too_old} =
+             RequestAuth.verify_authenticated_request(
+               sign(ctx, expires_in_seconds: 600),
+               Keyword.put(@opts, :now, DateTime.add(@now, 360))
+             )
+  end
+
+  test "a request created beyond the clock-skew tolerance is refused", ctx do
+    assert {:error, :request_not_yet_valid} =
+             RequestAuth.verify_authenticated_request(
+               sign(ctx, created_at: DateTime.add(@now, 600)),
+               @opts
+             )
+  end
+
+  test "an envelope is expired at its replay retention boundary", ctx do
+    assert {:error, :request_expired} =
+             RequestAuth.verify_authenticated_request(
+               sign(ctx),
+               Keyword.put(@opts, :now, DateTime.add(@now, 120))
+             )
+  end
+
+  test "missing signature coverage and malformed envelopes fail before replay", ctx do
+    signed = sign(ctx)
+
+    for headers <- [
+          Map.delete(signed.headers, "signature"),
+          Map.delete(signed.headers, "x-key-id"),
+          Map.delete(signed.headers, "content-digest"),
+          Map.put(signed.headers, "signature", "malformed"),
+          Map.update!(
+            signed.headers,
+            "signature-input",
+            &String.replace(&1, ~s( "x-agent-chain-id"), "")
+          ),
+          Map.update!(signed.headers, "signature-input", &(&1 <> ";created=1"))
+        ] do
+      assert {:error, _} =
+               RequestAuth.verify_authenticated_request(%{signed | headers: headers}, @opts)
+    end
+
+    assert {:ok, _} = RequestAuth.verify_authenticated_request(signed, @opts)
+  end
+
+  test "requests which passed an earlier clock check cannot consume expired replay entries",
+       ctx do
+    earlier = DateTime.utc_now() |> DateTime.add(-10) |> DateTime.truncate(:second)
+
+    opts =
+      Keyword.merge(@opts,
+        now: earlier,
+        created_at: earlier,
+        expires_at: DateTime.add(earlier, 1)
+      )
+
+    {:ok, signed} =
+      RequestAuth.sign_authenticated_request(request(), ctx.receipt.token, ctx.signer, opts)
+
+    # The verifier sees the earlier clock, as if it paused after its initial check.
+    # The atomic store sees the real later clock and must refuse every copy.
+    results =
+      1..4
+      |> Task.async_stream(fn _ -> RequestAuth.verify_authenticated_request(signed, opts) end)
+      |> Enum.to_list()
+
+    assert results == List.duplicate({:ok, {:error, :request_expired}}, 4)
+  end
+
+  test "simultaneous identical wallet envelopes have one replay winner", ctx do
+    signed = sign(ctx)
+
+    results =
+      1..8
+      |> Task.async_stream(fn _ -> RequestAuth.verify_authenticated_request(signed, @opts) end)
+      |> Enum.map(fn {:ok, r} -> r end)
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    assert Enum.count(results, &(&1 == {:error, :replayed_request})) == 7
+  end
+
+  test "replay storage failure refuses the request", ctx do
+    parent = self()
+
+    store = fn key, expiry ->
+      send(parent, {:key, key, expiry})
+      {:error, :replay_store_unavailable}
+    end
+
+    assert {:error, :replay_store_unavailable} =
+             RequestAuth.verify_authenticated_request(
+               sign(ctx),
+               Keyword.put(@opts, :replay_store, store)
+             )
+
+    assert_receive {:key, key, expiry}
+    assert expiry == DateTime.to_unix(@now) + 120
+
+    assert [
+             "wallet",
+             address,
+             8453,
+             "patchbay",
+             _,
+             "POST",
+             "/api/agent/payment-intents?mode=create",
+             _
+           ] = Jason.decode!(key)
+
+    assert address == String.downcase(ctx.signer.address)
+  end
+
+  test "the same nonce is independent across wallet audiences", ctx do
+    assert {:ok, _} = RequestAuth.verify_authenticated_request(sign(ctx, nonce: "shared"), @opts)
+
+    {:ok, other} = wallet_receipt(ctx.signer, %{"aud" => "other"})
+    other_opts = Keyword.merge(@opts, audience: "other", wallet_audiences: ["other"])
+    signed = sign(%{ctx | receipt: other}, Keyword.merge(other_opts, nonce: "shared"))
+    assert {:ok, _} = RequestAuth.verify_authenticated_request(signed, other_opts)
+  end
+
+  test "wallet envelopes also support bodyless owner recovery", ctx do
+    {:ok, signed} =
+      RequestAuth.sign_authenticated_request(
+        %{request() | method: "GET", path: "/api/agent/payment-intents/owned-id", body: nil},
+        ctx.receipt.token,
+        ctx.signer,
+        Keyword.put(@opts, :created_at, @now)
+      )
+
+    assert {:ok, _} = RequestAuth.verify_authenticated_request(signed, @opts)
+    refute Map.has_key?(signed.headers, "content-digest")
+  end
+
+  test "the plug accepts a request body preserved in conn.private", ctx do
+    signed = sign(ctx)
 
     conn =
       Enum.reduce(
-        signed_request.headers,
-        conn("POST", "/protected?mode=test", body)
-        |> put_private(:raw_body, body),
+        signed.headers,
+        conn(signed.method, signed.path, signed.body) |> put_private(:raw_body, signed.body),
         fn {key, value}, acc -> put_req_header(acc, key, value) end
       )
 
-    result = Siwa.Plug.call(conn, @request_auth_opts)
+    result = Siwa.Plug.call(conn, @opts)
 
-    assert result.halted == false
-    assert result.assigns.siwa_agent.address == signer.address
+    refute result.halted
+    assert result.assigns.siwa_agent.address == ctx.signer.address
   end
 
-  test "rejects a signed request that is older than the freshness window" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
-    created_at = ~U[2026-04-20 00:00:00Z]
-
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               receipt.token,
-               signer,
-               Keyword.merge(@request_auth_opts,
-                 created_at: created_at,
-                 expires_in_seconds: 600
-               )
-             )
-
-    assert {:error, :request_too_old} =
-             Siwa.RequestAuth.verify_authenticated_request(
-               signed_request,
-               Keyword.merge(@request_auth_opts, now: ~U[2026-04-20 00:06:00Z])
-             )
-  end
-
-  test "rejects a signed request created beyond the clock-skew tolerance" do
-    {:ok, signer} = Siwa.LocalSigner.new()
-    {:ok, receipt} = receipt_for(signer)
-    created_at = ~U[2026-04-20 00:10:00Z]
-
-    assert {:ok, signed_request} =
-             Siwa.RequestAuth.sign_authenticated_request(
-               request(),
-               receipt.token,
-               signer,
-               Keyword.merge(@request_auth_opts, created_at: created_at)
-             )
-
-    assert {:error, :request_not_yet_valid} =
-             Siwa.RequestAuth.verify_authenticated_request(
-               signed_request,
-               Keyword.merge(@request_auth_opts, now: ~U[2026-04-20 00:00:00Z])
-             )
-  end
-
-  defp receipt_for(signer) do
-    Siwa.Receipt.create(
-      %{
-        "typ" => "siwa_receipt",
-        "jti" => "receipt-#{System.unique_integer([:positive])}",
-        "sub" => signer.address,
-        "aud" => "techtree",
-        "chain_id" => 8453,
-        "nonce" => "nonce-#{System.unique_integer([:positive])}",
-        "key_id" => signer.address,
-        "registry_address" => registry_address(),
-        "token_id" => "1"
-      },
-      secret: "secret"
-    )
-  end
-
-  defp request do
-    %{
+  defp request,
+    do: %{
       method: "POST",
-      path: "/protected",
-      body: "{}",
+      path: "/api/agent/payment-intents?mode=create",
+      body: ~s({"kind":"special_post"}),
       headers: %{}
     }
+
+  defp sign(ctx, extra \\ []) do
+    opts = @opts |> Keyword.put(:created_at, @now) |> Keyword.merge(extra)
+
+    {:ok, signed} =
+      RequestAuth.sign_authenticated_request(request(), ctx.receipt.token, ctx.signer, opts)
+
+    signed
   end
 
-  defp registry_address, do: "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432"
+  defp wallet_receipt(signer, changes \\ %{}) do
+    payload = %{
+      "typ" => "siwa_wallet_receipt",
+      "verified" => "wallet_signature",
+      "jti" => "wallet-fixture",
+      "sub" => signer.address,
+      "aud" => "patchbay",
+      "chain_id" => 8453,
+      "nonce" => "fixture-nonce",
+      "key_id" => signer.address
+    }
+
+    Receipt.create(Map.merge(payload, changes), @opts)
+  end
 end

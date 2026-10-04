@@ -3,9 +3,6 @@ defmodule Siwa.EthereumTest do
 
   alias Siwa.Ethereum
 
-  @registry_address "0x3333333333333333333333333333333333333333"
-  @owner_address "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
-
   test "normalizes and validates addresses and hashes" do
     assert {:ok, "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"} =
              Ethereum.normalize_address("  0xF39FD6E51AAD88F6F4CE6AB8827279CFFFB92266  ")
@@ -29,26 +26,6 @@ defmodule Siwa.EthereumTest do
              Ethereum.namehash("foo.eth")
 
     assert {:error, :invalid_ens_name} = Ethereum.namehash("foo..eth")
-  end
-
-  test "builds and decodes ownerOf calls" do
-    assert {:ok, "0x6352211e0000000000000000000000000000000000000000000000000000000000000000"} =
-             Ethereum.owner_of_call_data("0")
-
-    assert {:ok, "0x6352211e000000000000000000000000000000000000000000000000000000000000004d"} =
-             Ethereum.owner_of_call_data("77")
-
-    assert {:ok, @owner_address} =
-             Ethereum.decode_owner_of_result(
-               "0x000000000000000000000000" <> String.trim_leading(@owner_address, "0x")
-             )
-  end
-
-  test "resolves ownerOf through JSON-RPC" do
-    rpc_url = rpc_server(fn _request -> rpc_result(owner_result(@owner_address)) end)
-
-    assert {:ok, @owner_address} =
-             Ethereum.owner_of(@registry_address, "77", rpc_url, timeout_ms: 100)
   end
 
   test "maps JSON-RPC failures" do
@@ -93,11 +70,5 @@ defmodule Siwa.EthereumTest do
       {:error, :closed} ->
         :ok
     end
-  end
-
-  defp rpc_result(result), do: %{"jsonrpc" => "2.0", "id" => 1, "result" => result}
-
-  defp owner_result(address) do
-    "0x000000000000000000000000" <> String.trim_leading(address, "0x")
   end
 end

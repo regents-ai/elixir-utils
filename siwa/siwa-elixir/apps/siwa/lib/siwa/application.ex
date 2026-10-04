@@ -4,8 +4,6 @@ defmodule Siwa.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Siwa.Nonce.MemoryStore, name: Siwa.Nonce.MemoryStore},
-      {Siwa.Nonce.TokenReplayStore, name: Siwa.Nonce.TokenReplayStore},
       {Siwa.RequestAuth.ReplayStore, name: Siwa.RequestAuth.ReplayStore}
     ]
 

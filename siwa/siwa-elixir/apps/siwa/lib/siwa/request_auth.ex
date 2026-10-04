@@ -1,5 +1,5 @@
 defmodule Siwa.RequestAuth do
-  alias Siwa.{Nonce, Receipt, WalletSignature}
+  alias Siwa.{Receipt, WalletSignature}
 
   @default_expires_in_seconds 120
   @default_signature_tolerance_seconds 300
@@ -18,11 +18,7 @@ defmodule Siwa.RequestAuth do
     x-timestamp
     x-agent-wallet-address
     x-agent-chain-id
-    x-agent-registry-address
-    x-agent-token-id
   )
-
-  @wallet_headers @required_headers -- ~w(x-agent-registry-address x-agent-token-id)
 
   @base_components ~w(
     @method
@@ -34,34 +30,27 @@ defmodule Siwa.RequestAuth do
     x-agent-chain-id
   )
 
-  @signature_components @base_components ++
-                          ~w(
-                            x-agent-registry-address
-                            x-agent-token-id
-                            content-digest
-                          )
+  @signature_components @base_components ++ ["content-digest"]
 
   def sign_authenticated_request(request, receipt, signer, opts \\ []) do
     request = normalize_request(request)
 
     with :ok <- ensure_request_body(request),
          {:ok, receipt_payload} <- verify_receipt(receipt, opts),
-         {:ok, principal_kind} <- receipt_kind(receipt_payload, opts),
+         :ok <- ensure_wallet_receipt(receipt_payload, opts),
          {:ok, created} <- created_unix_seconds(opts),
          {:ok, expires} <- expires_unix_seconds(created, opts),
-         {:ok, unsigned_headers} <-
-           unsigned_headers(request, receipt, receipt_payload, created, principal_kind),
+         unsigned_headers <- unsigned_headers(request, receipt, receipt_payload, created),
          signature_input <-
            build_signature_input(%{
              covered_components:
                required_components_for_headers(
                  unsigned_headers,
-                 request_body_digest(request.body),
-                 principal_kind
+                 request_body_digest(request.body)
                ),
              created: created,
              expires: expires,
-             nonce: Keyword.get(opts, :nonce, "sig-nonce-#{Nonce.generate_nonce(16)}"),
+             nonce: Keyword.get_lazy(opts, :nonce, &signature_nonce/0),
              key_id: receipt_payload["key_id"]
            }),
          signing_message <-
@@ -87,11 +76,10 @@ defmodule Siwa.RequestAuth do
     body_digest = request_body_digest(request.body)
 
     with :ok <- ensure_request_body(request),
-         :ok <- ensure_required_headers(request.headers, body_digest, :wallet),
+         :ok <- ensure_required_headers(request.headers, body_digest),
          {:ok, receipt_payload} <-
            verify_receipt(Map.fetch!(request.headers, @receipt_header), opts),
-         {:ok, principal_kind} <- receipt_kind(receipt_payload, opts),
-         :ok <- ensure_required_headers(request.headers, body_digest, principal_kind),
+         :ok <- ensure_wallet_receipt(receipt_payload, opts),
          {:ok, parsed_signature_input} <-
            parse_signature_input(Map.fetch!(request.headers, @signature_input_header)),
          :ok <- ensure_signature_window(parsed_signature_input, request.headers, opts),
@@ -99,11 +87,10 @@ defmodule Siwa.RequestAuth do
            ensure_covered_components(
              parsed_signature_input.components,
              request.headers,
-             body_digest,
-             principal_kind
+             body_digest
            ),
          :ok <- ensure_body_binding(request.headers, body_digest),
-         :ok <- ensure_header_binding(request.headers, receipt_payload, principal_kind),
+         :ok <- ensure_header_binding(request.headers, receipt_payload),
          {:ok, signature} <- decode_signature(Map.fetch!(request.headers, @signature_header)),
          signing_message <-
            build_http_signing_message(
@@ -157,44 +144,36 @@ defmodule Siwa.RequestAuth do
 
   def content_digest_for_body(_body), do: nil
 
-  def required_headers(body, principal_kind \\ :agent) do
+  def required_headers(body) do
     body
     |> request_body_digest()
-    |> required_headers_for_digest(principal_kind)
+    |> required_headers_for_digest()
   end
 
-  def required_covered_components(headers, body, principal_kind \\ :agent) when is_map(headers) do
-    body_digest = request_body_digest(body)
-
+  def required_covered_components(headers, body) when is_map(headers) do
     headers
     |> lowercase_headers()
-    |> required_components_for_headers(body_digest, principal_kind)
+    |> required_components_for_headers(request_body_digest(body))
   end
 
-  defp unsigned_headers(request, receipt, receipt_payload, created, principal_kind) do
-    body_digest = request_body_digest(request.body)
+  defp unsigned_headers(request, receipt, receipt_payload, created) do
+    headers = %{
+      @receipt_header => receipt,
+      "x-key-id" => receipt_payload["key_id"],
+      "x-timestamp" => Integer.to_string(created),
+      "x-agent-wallet-address" => receipt_payload["sub"],
+      "x-agent-chain-id" => Integer.to_string(receipt_payload["chain_id"])
+    }
 
-    headers =
-      %{
-        @receipt_header => receipt,
-        "x-key-id" => receipt_payload["key_id"],
-        "x-timestamp" => Integer.to_string(created),
-        "x-agent-wallet-address" => receipt_payload["sub"],
-        "x-agent-chain-id" => Integer.to_string(receipt_payload["chain_id"]),
-        "x-agent-registry-address" => receipt_payload["registry_address"],
-        "x-agent-token-id" => receipt_payload["token_id"]
-      }
+    case request_body_digest(request.body) do
+      nil -> headers
+      body_digest -> Map.put(headers, "content-digest", body_digest)
+    end
+  end
 
-    headers =
-      if principal_kind == :wallet,
-        do: Map.drop(headers, ["x-agent-registry-address", "x-agent-token-id"]),
-        else: headers
-
-    {:ok,
-     if(is_binary(body_digest),
-       do: Map.put(headers, "content-digest", body_digest),
-       else: headers
-     )}
+  defp signature_nonce do
+    nonce = 16 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
+    "sig-nonce-" <> binary_part(nonce, 0, 16)
   end
 
   defp lowercase_headers(headers),
@@ -229,26 +208,7 @@ defmodule Siwa.RequestAuth do
     end
   end
 
-  defp receipt_kind(
-         %{
-           "typ" => "siwa_receipt",
-           "jti" => jti,
-           "sub" => sub,
-           "aud" => aud,
-           "chain_id" => chain_id,
-           "nonce" => nonce,
-           "key_id" => key_id,
-           "registry_address" => registry_address,
-           "token_id" => token_id
-         },
-         _opts
-       )
-       when is_binary(jti) and is_binary(sub) and is_binary(aud) and is_integer(chain_id) and
-              is_binary(nonce) and is_binary(key_id) and is_binary(registry_address) and
-              is_binary(token_id),
-       do: {:ok, :agent}
-
-  defp receipt_kind(
+  defp ensure_wallet_receipt(
          %{
            "typ" => "siwa_wallet_receipt",
            "verified" => "wallet_signature",
@@ -258,7 +218,7 @@ defmodule Siwa.RequestAuth do
            "chain_id" => chain_id,
            "nonce" => nonce,
            "key_id" => key_id
-         } = payload,
+         },
          opts
        )
        when is_binary(jti) and byte_size(jti) > 0 and is_binary(sub) and
@@ -266,9 +226,6 @@ defmodule Siwa.RequestAuth do
               is_binary(aud) and byte_size(aud) > 0 and is_binary(nonce) and
               byte_size(nonce) > 0 and is_binary(key_id) do
     cond do
-      Map.has_key?(payload, "registry_address") or Map.has_key?(payload, "token_id") ->
-        {:error, :invalid_receipt}
-
       not Regex.match?(~r/^0x[0-9a-fA-F]{40}$/, sub) or
           normalize_address(sub) != normalize_address(key_id) ->
         {:error, :invalid_receipt}
@@ -277,11 +234,11 @@ defmodule Siwa.RequestAuth do
         {:error, :wallet_principal_not_allowed}
 
       true ->
-        {:ok, :wallet}
+        :ok
     end
   end
 
-  defp receipt_kind(_payload, _opts), do: {:error, :invalid_receipt}
+  defp ensure_wallet_receipt(_payload, _opts), do: {:error, :invalid_receipt}
 
   defp created_unix_seconds(opts) do
     opts
@@ -414,18 +371,17 @@ defmodule Siwa.RequestAuth do
     end
   end
 
-  defp ensure_required_headers(headers, body_digest, principal_kind) do
+  defp ensure_required_headers(headers, body_digest) do
     missing =
-      required_headers_for_digest(body_digest, principal_kind)
+      body_digest
+      |> required_headers_for_digest()
       |> Enum.reject(&Map.has_key?(headers, &1))
 
     if missing == [], do: :ok, else: {:error, :missing_signed_headers}
   end
 
-  defp required_headers_for_digest(body_digest, principal_kind) do
-    headers = if principal_kind == :wallet, do: @wallet_headers, else: @required_headers
-    if is_binary(body_digest), do: headers ++ ["content-digest"], else: headers
-  end
+  defp required_headers_for_digest(nil), do: @required_headers
+  defp required_headers_for_digest(_body_digest), do: @required_headers ++ ["content-digest"]
 
   defp ensure_signature_window(parsed_signature_input, headers, opts) do
     now =
@@ -461,8 +417,8 @@ defmodule Siwa.RequestAuth do
     end
   end
 
-  defp ensure_covered_components(components, headers, body_digest, principal_kind) do
-    allowed = required_components_for_headers(headers, body_digest, principal_kind)
+  defp ensure_covered_components(components, headers, body_digest) do
+    allowed = required_components_for_headers(headers, body_digest)
     missing = Enum.reject(allowed, &(&1 in components))
     extras = Enum.reject(components, &(&1 in allowed))
 
@@ -473,19 +429,11 @@ defmodule Siwa.RequestAuth do
     end
   end
 
-  defp required_components_for_headers(headers, body_digest, principal_kind) do
-    components = maybe_append_content_digest(@base_components, headers, body_digest)
-
-    if principal_kind == :wallet,
-      do: components,
-      else: components ++ ["x-agent-registry-address", "x-agent-token-id"]
-  end
-
-  defp maybe_append_content_digest(components, headers, body_digest) do
+  defp required_components_for_headers(headers, body_digest) do
     if is_binary(body_digest) or Map.has_key?(headers, "content-digest") do
-      components ++ ["content-digest"]
+      @base_components ++ ["content-digest"]
     else
-      components
+      @base_components
     end
   end
 
@@ -510,7 +458,7 @@ defmodule Siwa.RequestAuth do
     end
   end
 
-  defp ensure_header_binding(headers, receipt_payload, principal_kind) do
+  defp ensure_header_binding(headers, receipt_payload) do
     checks = [
       fn -> ensure_address_claim_binding(headers, receipt_payload, "x-key-id", "key_id") end,
       fn ->
@@ -519,44 +467,12 @@ defmodule Siwa.RequestAuth do
       fn -> ensure_chain_binding(headers, receipt_payload) end
     ]
 
-    agent_checks = [
-      fn ->
-        ensure_address_claim_binding(
-          headers,
-          receipt_payload,
-          "x-agent-registry-address",
-          "registry_address"
-        )
-      end,
-      fn -> ensure_claim_binding(headers, receipt_payload, "x-agent-token-id", "token_id") end
-    ]
-
-    checks =
-      if principal_kind == :wallet do
-        checks ++ [fn -> reject_registry_headers(headers) end]
-      else
-        checks ++ agent_checks
-      end
-
     Enum.reduce_while(checks, :ok, fn check, :ok ->
       case check.() do
         :ok -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
-  end
-
-  defp reject_registry_headers(headers) do
-    if Map.has_key?(headers, "x-agent-registry-address") or
-         Map.has_key?(headers, "x-agent-token-id"),
-       do: {:error, :receipt_binding_mismatch},
-       else: :ok
-  end
-
-  defp ensure_claim_binding(headers, claims, header_name, claim_name) do
-    if Map.get(headers, header_name) == claims[claim_name],
-      do: :ok,
-      else: {:error, :receipt_binding_mismatch}
   end
 
   defp ensure_address_claim_binding(headers, claims, header_name, claim_name) do
@@ -630,35 +546,17 @@ defmodule Siwa.RequestAuth do
          expires,
          opts
        ) do
-    wallet_address = receipt_payload["sub"]
-
     replay_key =
-      Enum.join(
-        [
-          wallet_address,
-          nonce,
-          String.upcase(method),
-          request_path,
-          body_digest || ""
-        ],
-        "|"
-      )
-
-    replay_key =
-      if receipt_payload["typ"] == "siwa_wallet_receipt" do
-        Jason.encode!([
-          "wallet",
-          normalize_address(wallet_address),
-          receipt_payload["chain_id"],
-          receipt_payload["aud"],
-          nonce,
-          String.upcase(method),
-          request_path,
-          body_digest || ""
-        ])
-      else
-        replay_key
-      end
+      Jason.encode!([
+        "wallet",
+        normalize_address(receipt_payload["sub"]),
+        receipt_payload["chain_id"],
+        receipt_payload["aud"],
+        nonce,
+        String.upcase(method),
+        request_path,
+        body_digest || ""
+      ])
 
     case Keyword.get(opts, :replay_store) do
       nil ->

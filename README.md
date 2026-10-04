@@ -47,7 +47,7 @@ features.
 | [`http`](http/README.md) | `regent_http` | Shared Req client conventions: default timeouts, request telemetry, and secret redaction in formatted errors. |
 | [`openai`](openai/README.md) | `regent_openai` | OpenAI text and screenshot replies, push-to-talk transcription and speech, each with the tokens it used and its cost in US dollars. |
 | [`privy`](privy/README.md) | `regent_privy` | Privy identity-token verification: ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses. |
-| [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Agent sign-in messages, nonces, receipts, signed request checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
+| [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Wallet sign-in receipts, signed request checks, wallet signature checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
 | [`siwa/siwa-elixir/apps/siwa_keyring`](siwa/siwa-elixir/apps/siwa_keyring/README.md) | `siwa_keyring` | Isolated local wallet creation and signing behind an internal HMAC-protected service. |
 
 ## Where each package is used

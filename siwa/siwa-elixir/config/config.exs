@@ -11,9 +11,7 @@ required_prod_env = fn name, default ->
 end
 
 config :siwa,
-  nonce_store: Siwa.Nonce.MemoryStore,
-  receipt_secret: required_prod_env.("SIWA_RECEIPT_SECRET", "siwa-dev-receipt-secret"),
-  nonce_secret: required_prod_env.("SIWA_NONCE_SECRET", "siwa-dev-nonce-secret")
+  receipt_secret: required_prod_env.("SIWA_RECEIPT_SECRET", "siwa-dev-receipt-secret")
 
 config :siwa_keyring,
   secret: required_prod_env.("KEYRING_PROXY_SECRET", "siwa-dev-keyring-secret"),

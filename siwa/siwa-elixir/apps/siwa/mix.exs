@@ -2,7 +2,7 @@ defmodule Siwa.MixProject do
   use Mix.Project
 
   @version "0.1.1"
-  @description "Shared Elixir library for SIWA nonce, message, receipt, and request verification flows."
+  @description "Shared Elixir library for SIWA wallet sign-in receipts and signed request verification."
 
   def project do
     [

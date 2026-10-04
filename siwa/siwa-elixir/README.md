@@ -10,7 +10,7 @@ fresh. Product apps still decide what the verified identity may do.
 
 | App | Package | Purpose |
 | --- | --- | --- |
-| `apps/siwa` | `siwa` | Build and verify SIWA messages, issue and consume nonces, create and verify receipts, sign and verify authenticated requests, validate wallet action envelopes, and provide Ethereum helper functions. |
+| `apps/siwa` | `siwa` | Create and verify wallet sign-in receipts, sign and verify authenticated requests, check wallet signatures (including smart wallets), validate wallet action envelopes, and provide Ethereum helper functions. |
 | `apps/siwa_keyring` | `siwa_keyring` | Keep signing wallets behind an internal service. It can create a wallet, report its address, and sign messages, raw payloads, transaction payloads, and authorization payloads without exposing the private key to callers. |
 
 ## Joining With A Self-Generated Key
@@ -30,7 +30,7 @@ Use this workspace when working on:
 - the shared SIWA library
 - the keyring service/client
 - signed HTTP request envelopes
-- nonce and replay behavior
+- replay behavior
 - wallet action signing
 - receipt creation and verification
 - shared Regent service authentication tests
@@ -40,13 +40,13 @@ product repos that use these packages.
 
 ## Intended Flow
 
-1. A service issues a nonce for an agent, wallet, registry, audience, and expiry.
-2. The signer signs the SIWA message.
-3. The service verifies the message and consumes the nonce.
-4. The service issues a receipt for the verified audience.
-5. Later protected requests carry a signed request envelope bound to method,
+1. The sign-in service gives the wallet a challenge for an audience.
+2. The wallet signs the challenge.
+3. The service checks the wallet's signature and issues a wallet receipt for that
+   audience.
+4. Later protected requests carry a signed request envelope bound to method,
    path, headers, body digest, timestamp, receipt, and audience.
-6. Product code checks product-local permissions after SIWA verification.
+5. Product code checks product-local permissions after SIWA verification.
 
 ## Keyring Flow
 

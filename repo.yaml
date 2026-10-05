@@ -10,6 +10,7 @@ owns:
   - ens_library
   - display_formatting
   - http_client_conventions
+  - jev_decisions
   - openai_calls
   - privy_token_verification
   - siwa_library
@@ -34,6 +35,8 @@ code_map:
     owns: display_formatting
   - path: http
     owns: http_client_conventions
+  - path: jev
+    owns: jev_decisions
   - path: openai
     owns: openai_calls
   - path: privy
@@ -53,6 +56,8 @@ acceptance_commands:
   - cwd: elixir-utils/format
     command: mix check
   - cwd: elixir-utils/http
+    command: mix check
+  - cwd: elixir-utils/jev
     command: mix check
   - cwd: elixir-utils/openai
     command: mix check

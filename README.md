@@ -45,6 +45,7 @@ features.
 | [`ens`](ens/README.md) | `ens_elixir` | ENS name reads, ENSIP-25 verification, ERC-8004 registration helpers, link planning, verified primary names, and wallet-ready unsigned ENS requests. |
 | [`format`](format/README.md) | `regent_format` | Null-safe display values, `0x` address and hash truncation, decimal and currency rendering, timestamps, identity monograms. |
 | [`http`](http/README.md) | `regent_http` | Shared Req client conventions: default timeouts, request telemetry, and secret redaction in formatted errors. |
+| [`jev`](jev/README.md) | `regent_jev` | Typed choice questions to Jev, the decision model on OpenRouter, each answer with the tokens it used and its cost in US dollars. |
 | [`openai`](openai/README.md) | `regent_openai` | OpenAI text and screenshot replies, push-to-talk transcription and speech, each with the tokens it used and its cost in US dollars. |
 | [`privy`](privy/README.md) | `regent_privy` | Privy identity-token verification: ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses. |
 | [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Wallet sign-in receipts, signed request checks, wallet signature checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
@@ -61,6 +62,7 @@ features.
 | `ens_elixir` | regents |
 | `regent_format` | not used yet; planned for the product apps |
 | `regent_http` | not used yet; planned for the product apps |
+| `regent_jev` | ash-template (planned for patchbay) |
 | `regent_openai` | not used yet; planned for patchbay |
 | `regent_privy` | regents (platform and identity), autolaunch, patchbay, techtree, ash-template, keyfleet |
 | `siwa` | siwa-server, patchbay, keyfleet, and `ens_elixir` in this repository |
@@ -80,6 +82,9 @@ ERC-8004.
 
 Use `regent_chain` when a wallet button needs its steps built on the server, or the server
 needs to check what a sent transaction did.
+
+Use `regent_jev` when a product needs a model to pick one of a fixed set of answers about some
+content (a label, a kind, a next step) and needs to know what each call cost.
 
 Use `regent_openai` when a product asks an OpenAI model for a reply, a transcript or speech and
 needs to know what each call cost.
@@ -133,6 +138,7 @@ These must pass before a change is proposed. Run the one for the package you tou
 | `ens` | `mix check` |
 | `format` | `mix check` |
 | `http` | `mix check` |
+| `jev` | `mix check` |
 | `openai` | `mix check` |
 | `privy` | `mix check` |
 | `siwa/siwa-elixir` | `mix check` |
@@ -153,6 +159,7 @@ for d in \
   ens \
   format \
   http \
+  jev \
   openai \
   privy \
   siwa/siwa-elixir/apps/siwa \

@@ -8,21 +8,25 @@ defmodule RegentCredits.Gifts do
   require Ash.Query
 
   alias RegentChain.Address
-  alias RegentCredits.{Amount, Gift, Ledger}
+  alias RegentCredits.{Amount, Gift, Ledger, Wallets}
   alias RegentCredits.Errors.Refused
 
-  @doc "Gives each recipient the amount once per `key`."
+  @doc """
+  Gives each recipient the amount once per `key`. A gift to a wallet an
+  account holds goes straight to that account.
+  """
   def give(%{key: key, to: to, amount: amount} = args, actor) do
     with :ok <- valid_amount(amount),
          {:ok, recipients} <- recipients(to) do
-      recipients |> Enum.flat_map(&accounts_of/1) |> Ledger.open()
+      owners = recipients |> Enum.map(&elem(&1, 1)) |> Wallets.owners()
+      recipients |> Enum.flat_map(&accounts_of(&1, owners)) |> Ledger.open()
       from = Ledger.identifier(:regent_gifts, nil)
-      accounts = Ledger.lock([from | Enum.map(recipients, &account/1)])
+      accounts = Ledger.lock([from | Enum.map(recipients, &account(&1, owners))])
       given = given(key, Enum.map(recipients, &elem(&1, 1)))
       new = Enum.reject(recipients, fn {_kind, to} -> to in given end)
 
       Enum.each(new, fn recipient ->
-        Ledger.move(accounts, {from, account(recipient)}, amount, "gift:#{key}")
+        Ledger.move(accounts, {from, account(recipient, owners)}, amount, "gift:#{key}")
       end)
 
       # Internal: written by the authorized give action.
@@ -39,13 +43,17 @@ defmodule RegentCredits.Gifts do
     end
   end
 
-  @doc "Moves everything waiting under the wallets to the account's given Credits."
+  @doc """
+  Records that the account holds exactly these wallets, and moves everything
+  waiting under them to the account's given Credits.
+  """
   def attach_wallets(%{privy_user_id: owner, wallets: wallets}, _actor) do
     with {:ok, addresses} <- addresses(wallets) do
       Ledger.open(Ledger.person(owner))
       to = Ledger.identifier(:given, owner)
       waiting = Enum.map(addresses, &Ledger.identifier(:address_given, &1))
       accounts = Ledger.lock(Ledger.person(owner) ++ waiting)
+      Wallets.remember(owner, addresses)
 
       moved =
         waiting
@@ -88,11 +96,29 @@ defmodule RegentCredits.Gifts do
       else: {:ok, normalized |> Enum.map(&elem(&1, 1)) |> Enum.uniq()}
   end
 
-  defp account({:person, privy_user_id}), do: Ledger.identifier(:given, privy_user_id)
-  defp account({:address, address}), do: Ledger.identifier(:address_given, address)
+  # A wallet an account holds stands for the account.
+  defp holder({:address, address} = recipient, owners) do
+    case Map.fetch(owners, address) do
+      {:ok, privy_user_id} -> {:person, privy_user_id}
+      :error -> recipient
+    end
+  end
 
-  defp accounts_of({:person, privy_user_id}), do: Ledger.person(privy_user_id)
-  defp accounts_of({:address, _address} = recipient), do: [account(recipient)]
+  defp holder(recipient, _owners), do: recipient
+
+  defp account(recipient, owners) do
+    case holder(recipient, owners) do
+      {:person, privy_user_id} -> Ledger.identifier(:given, privy_user_id)
+      {:address, address} -> Ledger.identifier(:address_given, address)
+    end
+  end
+
+  defp accounts_of(recipient, owners) do
+    case holder(recipient, owners) do
+      {:person, privy_user_id} -> Ledger.person(privy_user_id)
+      {:address, _address} -> [account(recipient, owners)]
+    end
+  end
 
   defp given(key, to) do
     key |> read(to) |> MapSet.new(& &1.to)

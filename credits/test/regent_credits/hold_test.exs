@@ -176,6 +176,17 @@ defmodule RegentCredits.HoldTest do
     assert Decimal.eq?(waiting, d("0.9"))
   end
 
+  test "a bounty for a wallet an account holds is paid to that account" do
+    asker = fund(person(), "0", "1")
+    answerer = person()
+    address = wallet()
+    {:ok, _moved} = RegentCredits.attach_wallets(answerer, [address], actor: site())
+    {:ok, _} = hold(asker, "post-3", "1")
+
+    {:ok, _} = RegentCredits.pay_bounty("post-3", address, actor: site())
+    assert balance(answerer).given == "0.9"
+  end
+
   test "an unanswered bounty comes back to the asker at 90%, as given Credits" do
     asker = fund(person(), "0", "10")
     {:ok, _} = hold(asker, "post-3", "10")

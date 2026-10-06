@@ -33,6 +33,22 @@ defmodule RegentCredits.GiftRefundTest do
              RegentCredits.give(key(), [owner], d(1), actor: actor(owner))
   end
 
+  test "a gift to a wallet an account holds lands at once, and waits again once the account drops it" do
+    owner = person()
+    address = wallet()
+    {:ok, _moved} = RegentCredits.attach_wallets(owner, [address], actor: site())
+
+    {:ok, _gifts} = RegentCredits.give(key(), [address], d(2), actor: admin())
+    assert given(owner) == 2
+
+    {:ok, _moved} = RegentCredits.attach_wallets(owner, [], actor: site())
+    {:ok, _gifts} = RegentCredits.give(key(), [address], d(1), actor: admin())
+    assert given(owner) == 2
+
+    assert {:ok, moved} = RegentCredits.attach_wallets(owner, [address], actor: site())
+    assert Decimal.eq?(moved, 1)
+  end
+
   test "a purchase is refunded only while the account has never used Credits, even a hold given back" do
     owner = person()
     purchase = bought(owner, wallet(), 25)

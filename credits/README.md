@@ -22,6 +22,7 @@ config :ex_money, custom_currencies: [{:XRC, name: "Credits", digits: 6}]
 
 config :regent_credits,
   repo: MySite.Repo,
+  pubsub: MySite.PubSub,
   admins: ["did:privy:..."],
   chain_client: MySite.Chain.Client,
   chains: %{
@@ -30,6 +31,9 @@ config :regent_credits,
   }
 ```
 
+- Start `RegentCredits.Listener` after the repository and PubSub. A page
+  showing a balance subscribes to `RegentCredits.topic(privy_user_id)` and
+  hears `:credits_changed` whenever that balance changes on any site.
 - `chain_client` implements `RegentCredits.ChainClient`: `transaction/2`,
   `receipt/2` and `block_number/1`, all read at `latest`.
 - The site's Oban needs a `:regent_credits` queue, and its AshOban
@@ -89,10 +93,11 @@ purchases once 12 blocks sit on top of theirs and it is still in that block.
 ## Gifts and refunds
 
 - `RegentCredits.give(key, recipients, amount, actor: admin)`: Privy account
-  ids or wallet addresses; one gift per key and recipient.
+  ids or wallet addresses; one gift per key and recipient. A gift to a wallet
+  an account holds goes straight to that account.
 - `RegentCredits.attach_wallets(privy_user_id, wallets, actor: site)`: at
-  sign-in or when a wallet is linked, moves Credits waiting under those
-  wallets to the account.
+  sign-in or when a wallet is linked, records that the account holds exactly
+  those wallets and moves Credits waiting under them to the account.
 - `RegentCredits.start_refund(purchase_id, actor: admin)` takes the Credits
   out while the account has never used Credits;
   `RegentCredits.close_refund(refund_id, tx_hash, actor: admin)` checks the

@@ -3,9 +3,10 @@ defmodule RegentCredits.Gift do
   Credits an admin gave: to a Privy account, or to a wallet address. Given
   Credits never expire and are never refunded.
 
-  A gift to an address waits under that address until a Privy account with
-  that wallet signs in or links it (`attach_wallets`), as does a bounty paid
-  to an agent that is not linked yet.
+  A gift to a wallet address goes straight to the Privy account that last
+  showed that wallet at sign-in (`attach_wallets`). A gift to an address no
+  account has shown waits under it until one does, as does a bounty paid to
+  such an address.
 
   One gift is named by the admin's `key` (one per send) and its recipient,
   so sending the same gift again gives nothing twice.
@@ -61,10 +62,11 @@ defmodule RegentCredits.Gift do
 
     action :attach_wallets, :decimal do
       description """
-      Moves Credits waiting under these wallet addresses to the Privy account
-      they are linked to, and answers with how much moved. The site calls it
-      at sign-in and when a wallet is linked, with the wallets Privy says the
-      account holds.
+      Records that the Privy account holds exactly these wallet addresses,
+      moves Credits waiting under them to it, and answers with how much
+      moved. The site calls it at sign-in and when a wallet is linked, with
+      the wallets Privy says the account holds; Credits later given or paid
+      to those wallets go straight to the account.
       """
 
       transaction? true

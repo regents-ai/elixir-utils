@@ -41,6 +41,8 @@ defmodule RegentCredits.MixProject do
       {:ash_oban, "~> 0.9.0"},
       {:ex_money_sql, "~> 2.1"},
       {:simple_sat, "~> 0.1"},
+      {:postgrex, "~> 0.22"},
+      {:phoenix_pubsub, "~> 2.1"},
       {:regent_chain, path: "../chain"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false},

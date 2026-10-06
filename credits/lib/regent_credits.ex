@@ -10,19 +10,24 @@ defmodule RegentCredits do
   ledger kept in the `regent_credits` schema of the site's own database, so
   a site's change and its Credits commit or fail together.
 
-  A site supplies its repository and admins, declares the Credits currency,
-  and passes an `RegentCredits.Actor` with every call:
+  A site supplies its repository, PubSub and admins, declares the Credits
+  currency, and passes an `RegentCredits.Actor` with every call:
 
       config :ex_money, custom_currencies: [{:XRC, name: "Credits", digits: 6}]
 
       config :regent_credits,
         repo: MySite.Repo,
+        pubsub: MySite.PubSub,
         admins: ["did:privy:..."],
         chain_client: MySite.Chain.Client,
         chains: %{base: %{...}, ethereum: %{...}}
 
   Purchases are checked by the site's Oban (see `RegentCredits.Purchase`)
   and the chain settings are described in `RegentCredits.Chains`.
+
+  Every change to a person's balance, made on any site, reaches pages showing
+  it: a site starts `RegentCredits.Listener` and its pages subscribe to
+  `topic/1`.
 
   The schema is migrated with `RegentCredits.Migrator`: locally by each site,
   and in production only by Regents.
@@ -37,6 +42,7 @@ defmodule RegentCredits do
     resource RegentCredits.Ledger.Transfer
     resource RegentCredits.Ledger.Balance
     resource RegentCredits.FirstUse
+    resource RegentCredits.Wallet
 
     resource RegentCredits.Purchase do
       define :report_purchase,
@@ -78,6 +84,29 @@ defmodule RegentCredits do
 
   @doc false
   def repo(_resource, _operation), do: Application.fetch_env!(:regent_credits, :repo)
+
+  @doc """
+  The PubSub topic that hears `:credits_changed` when a person's balance
+  changes on any Regent site: a purchase, a gift, a hold or its close.
+  """
+  @spec topic(String.t()) :: String.t()
+  def topic(privy_user_id), do: "regent_credits:" <> privy_user_id
+
+  @doc false
+  def channel, do: "regent_credits"
+
+  @doc false
+  # Tells every site through the shared database. Inside a transaction the
+  # notice goes out when it commits, once however often it was sent, and not
+  # at all if it rolls back.
+  def announce(privy_user_id) do
+    Ecto.Adapters.SQL.query!(repo(nil, :mutate), "SELECT pg_notify($1, $2)", [
+      channel(),
+      privy_user_id
+    ])
+
+    :ok
+  end
 
   @doc """
   A person's Credits: what they can spend, split into given and purchased,

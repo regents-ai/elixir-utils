@@ -27,6 +27,7 @@ defmodule RegentCredits.Ledger do
 
   @regent [:regent_purchases, :regent_gifts, :regent_revenue, :regent_refunds]
   @person [:given, :purchased, :held_given, :held_purchased]
+  @person_kinds Enum.map(@person, &Atom.to_string/1)
 
   @doc "The ledger identifier of an account."
   @spec identifier(atom(), String.t() | nil) :: String.t()
@@ -103,7 +104,8 @@ defmodule RegentCredits.Ledger do
 
   @doc """
   Moves `amount` between two locked accounts and returns the accounts with
-  both balances updated. A zero amount moves nothing.
+  both balances updated, and tells pages showing either person's balance. A
+  zero amount moves nothing.
   """
   @spec move(map(), {String.t(), String.t()}, Decimal.t(), String.t()) :: map()
   def move(accounts, {from, to}, amount, operation) do
@@ -127,6 +129,8 @@ defmodule RegentCredits.Ledger do
       )
       |> Ash.create!()
 
+      Enum.each([from, to], &announce/1)
+
       accounts
       |> Map.update!(from, &%{&1 | balance: Decimal.sub(&1.balance, amount)})
       |> Map.update!(to, &%{&1 | balance: Decimal.add(&1.balance, amount)})
@@ -137,6 +141,16 @@ defmodule RegentCredits.Ledger do
   @spec balance_of(map(), String.t()) :: Decimal.t()
   def balance_of(accounts, identifier),
     do: accounts |> Map.fetch!(identifier) |> Map.fetch!(:balance)
+
+  defp announce(identifier) do
+    case String.split(identifier, "/", parts: 2) do
+      [kind, privy_user_id] when kind in @person_kinds ->
+        RegentCredits.announce(privy_user_id)
+
+      _regent_or_address ->
+        :ok
+    end
+  end
 
   defp balance(nil), do: Decimal.new(0)
   defp balance(%Money{amount: amount}), do: amount

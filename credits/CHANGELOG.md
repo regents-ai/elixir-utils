@@ -16,7 +16,10 @@ shared by every Regent site.
   Ethereum (transfer to the Treasury Safe, counted after 12 blocks), checked by
   the page and by the site's Oban through an AshOban trigger. A person reports
   only payments from the wallets the site's sign-in verified for them.
-- Admin gifts to Privy accounts or wallet addresses; address gifts attach when
-  the wallet signs in.
+- Admin gifts to Privy accounts or wallet addresses. A gift or bounty to a
+  wallet an account showed at its last sign-in lands on the account at once;
+  to any other address it waits until a sign-in shows that wallet.
+- Every balance change announces itself through the shared database;
+  `RegentCredits.Listener` passes it to the site's PubSub on `topic/1`.
 - Refunds while an account has never used Credits, closed on the Treasury
   Safe's transfer back to the paying wallet.

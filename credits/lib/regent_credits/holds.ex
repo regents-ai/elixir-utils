@@ -11,7 +11,7 @@ defmodule RegentCredits.Holds do
 
   require Ash.Query
 
-  alias RegentCredits.{AgentSpending, Amount, FirstUse, Hold, Ledger}
+  alias RegentCredits.{AgentSpending, Amount, FirstUse, Hold, Ledger, Wallets}
   alias RegentCredits.Errors.{NotEnoughCredits, Refused}
 
   @bounty_share 90
@@ -152,8 +152,8 @@ defmodule RegentCredits.Holds do
 
   @doc """
   Pays a bounty: 90% to `to` as given Credits, the rest is revenue. `to` is a
-  Privy account id, or a wallet address whose Credits wait until a Privy
-  account with that wallet signs in.
+  Privy account id, or a wallet address: paid to the account holding that
+  wallet, or kept under the address until an account with it signs in.
   """
   def pay_bounty(%{key: key, to: to}, actor) do
     recipient = recipient(to)
@@ -250,7 +250,15 @@ defmodule RegentCredits.Holds do
     )
   end
 
-  defp recipient("0x" <> _rest = address), do: Ledger.identifier(:address_given, address)
+  defp recipient("0x" <> _rest = address) do
+    address = String.downcase(address)
+
+    case Wallets.owners([address]) do
+      %{^address => privy_user_id} -> Ledger.identifier(:given, privy_user_id)
+      %{} -> Ledger.identifier(:address_given, address)
+    end
+  end
+
   defp recipient(privy_user_id), do: Ledger.identifier(:given, privy_user_id)
 
   # The Regent accounts already exist; a recipient's open on first use.

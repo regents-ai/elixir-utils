@@ -39,6 +39,10 @@ defmodule RegentCredits.Chains do
   @spec usdc(:base | :ethereum) :: String.t()
   def usdc(chain), do: Map.fetch!(@usdc, chain)
 
+  @doc "REGENT staking on Base, which the Base approval lets take the USDC."
+  @spec staking() :: String.t()
+  def staking, do: @staking
+
   @doc "The Treasury Safe, the same address on Base and Ethereum. Refunds are sent from it."
   @spec treasury() :: String.t()
   def treasury, do: @treasury

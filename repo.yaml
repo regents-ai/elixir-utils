@@ -7,6 +7,7 @@ owns:
   - agent_access_negotiation
   - markdown_blog_catalogs
   - ash_lint_checks
+  - regent_credits_ledger
   - ens_library
   - display_formatting
   - http_client_conventions
@@ -30,6 +31,8 @@ code_map:
     owns: markdown_blog_catalogs
   - path: credo_ash
     owns: ash_lint_checks
+  - path: credits
+    owns: regent_credits_ledger
   - path: ens
     owns: ens_library
   - path: format
@@ -53,6 +56,8 @@ acceptance_commands:
   - cwd: elixir-utils/blog
     command: mix check
   - cwd: elixir-utils/credo_ash
+    command: mix check
+  - cwd: elixir-utils/credits
     command: mix check
   - cwd: elixir-utils/ens
     command: mix check

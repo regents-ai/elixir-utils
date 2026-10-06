@@ -10,7 +10,8 @@ shared by every Regent site.
   Ledger transfers cannot be changed or deleted.
 - Holds: hold, give back, charge, carry over, settle, bounty payout and
   takeback, given Credits spent first and returned as the same kind.
-- Agent spending limits: on or off, most per spend, daily limit, sites.
+- Agent spending limits: on or off, most per spend, daily limit, sites. The
+  daily limit counts a carried-over bid once, on the day it was first held.
 - Purchases with USDC on Base (approve and deposit into REGENT staking) and
   Ethereum (transfer to the Treasury Safe, counted after 12 blocks), checked by
   the page and by the site's Oban through an AshOban trigger. A person reports

@@ -40,7 +40,8 @@ defmodule RegentCredits.AgentSpending do
 
   @doc """
   What the agent has held or spent in the last 24 hours: every hold it made,
-  less what came back. A carried-over hold counts once, under its new key.
+  less what came back. A carried-over hold counts once, under its new key, at
+  the time it was first held.
   """
   @spec spent_today(Actor.t()) :: Decimal.t()
   def spent_today(%Actor{privy_user_id: owner, agent_address: agent}) do
@@ -49,7 +50,7 @@ defmodule RegentCredits.AgentSpending do
     # Internal: read while authorizing the agent's own hold.
     Hold
     |> Ash.Query.filter(
-      privy_user_id == ^owner and agent_address == ^agent and inserted_at > ^since and
+      privy_user_id == ^owner and agent_address == ^agent and held_at > ^since and
         status != :carried_over
     )
     |> Ash.read!(authorize?: false)

@@ -100,6 +100,39 @@ defmodule RegentCredits.HoldTest do
     assert balance(owner) == %{available: "2", given: "0", purchased: "2", held: "3"}
   end
 
+  test "an agent's bid carried over days later uses its daily room once, on the day it was held" do
+    owner = fund(person(), "0", "20")
+    agent = "0x00000000000000000000000000000000000000b2"
+
+    {:ok, _} =
+      RegentCredits.set_agent_permission(
+        %{
+          privy_user_id: owner,
+          agent_address: agent,
+          enabled: true,
+          max_per_spend: d("5"),
+          daily_limit: d("5"),
+          sites: ["patchbay"]
+        },
+        actor: RegentCredits.Actor.person(owner, [], "regents")
+      )
+
+    as_agent = RegentCredits.Actor.agent(owner, agent, "patchbay")
+    {:ok, first} = hold(owner, "pre-bid", "3", as_agent)
+
+    # Test only: the library never rewrites a hold's time; this stands in for two days passing.
+    RegentCredits.TestRepo.query!(
+      "UPDATE regent_credits.holds SET held_at = held_at - interval '2 days' WHERE id = $1",
+      [Ecto.UUID.dump!(first.id)]
+    )
+
+    {:ok, carried} = RegentCredits.carry_over("pre-bid", "placement", "offer_bid", actor: site())
+    assert DateTime.diff(DateTime.utc_now(), carried.held_at, :hour) >= 47
+
+    assert {:ok, _} = hold(owner, "today", "5", as_agent)
+    assert %Refused{reason: :agent_daily_limit} = reason(hold(owner, "over", "1", as_agent))
+  end
+
   test "carry over onto a key already in use is refused and leaves the first hold open" do
     owner = fund(person(), "0", "5")
     {:ok, _} = hold(owner, "next-2", "3")

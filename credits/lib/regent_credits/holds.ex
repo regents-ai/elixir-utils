@@ -88,7 +88,8 @@ defmodule RegentCredits.Holds do
 
   @doc """
   Moves a hold's Credits, untouched, to a new hold under `to_key`. Nothing is
-  charged and the person's balance does not change.
+  charged, the person's balance does not change, and the new hold keeps the
+  time the Credits were first held.
   """
   def carry_over(%{key: key, to_key: to_key, purpose: purpose}, actor) do
     closing = {%{status: :carried_over, carried_to: to_key}, %{}}
@@ -96,7 +97,7 @@ defmodule RegentCredits.Holds do
     with {:ok, closed} <- close(actor, key, closing, [], fn _hold, _accounts -> {:ok, %{}} end) do
       carried =
         closed
-        |> Map.take([:privy_user_id, :agent_address, :amount, :given, :purchased])
+        |> Map.take([:privy_user_id, :agent_address, :amount, :given, :purchased, :held_at])
         |> Map.put(:purpose, purpose)
 
       # A hold already under `to_key` is this carry made before, or the key is

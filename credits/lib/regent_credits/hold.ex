@@ -81,6 +81,14 @@ defmodule RegentCredits.Hold do
     attribute :reason, :string, public?: true
     attribute :closed_at, :utc_datetime_usec, public?: true
 
+    # When these Credits were first set aside. A carry keeps it, so an agent's
+    # daily limit counts a carried bid once, on the day it was first held.
+    attribute :held_at, :utc_datetime_usec do
+      allow_nil? false
+      default &DateTime.utc_now/0
+      public? true
+    end
+
     create_timestamp :inserted_at
   end
 
@@ -92,7 +100,17 @@ defmodule RegentCredits.Hold do
     defaults [:read]
 
     create :record do
-      accept [:site, :key, :privy_user_id, :purpose, :agent_address, :amount, :given, :purchased]
+      accept [
+        :site,
+        :key,
+        :privy_user_id,
+        :purpose,
+        :agent_address,
+        :amount,
+        :given,
+        :purchased,
+        :held_at
+      ]
     end
 
     update :close do

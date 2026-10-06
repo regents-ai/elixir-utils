@@ -155,6 +155,11 @@ defmodule RegentCredits.Purchase do
   end
 
   policies do
+    # The site's Oban finds open purchases and checks them, with no actor.
+    bypass AshOban.Checks.AshObanInteraction do
+      authorize_if always()
+    end
+
     policy action(:report) do
       authorize_if RegentCredits.Checks.OwnCredits
     end
@@ -164,7 +169,7 @@ defmodule RegentCredits.Purchase do
     end
 
     # Checking reads the chain and credits only what it proves, so anyone may ask.
-    policy action([:check, :check_due]) do
+    policy action(:check) do
       authorize_if always()
     end
 

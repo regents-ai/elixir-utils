@@ -94,23 +94,27 @@ defmodule RegentCredits.Holds do
     closing = {%{status: :carried_over, carried_to: to_key}, %{}}
 
     with {:ok, closed} <- close(actor, key, closing, [], fn _hold, _accounts -> {:ok, %{}} end) do
-      case find(actor.site, to_key) do
-        nil ->
-          # Internal: written by the authorized carry_over action.
-          Hold
-          |> Ash.Changeset.for_create(
-            :record,
-            closed
-            |> Map.take([:privy_user_id, :agent_address, :amount, :given, :purchased])
-            |> Map.merge(%{site: actor.site, key: to_key, purpose: purpose}),
-            authorize?: false
-          )
-          |> Ash.create()
+      carried =
+        closed
+        |> Map.take([:privy_user_id, :agent_address, :amount, :given, :purchased])
+        |> Map.put(:purpose, purpose)
 
-        hold ->
-          {:ok, hold}
+      # A hold already under `to_key` is this carry made before, or the key is
+      # taken; refusing rolls the close back, so no Credits are left unheld.
+      case find(actor.site, to_key) do
+        nil -> carry(carried, actor.site, to_key)
+        hold -> same(hold, carried)
       end
     end
+  end
+
+  defp carry(carried, site, key) do
+    # Internal: written by the authorized carry_over action.
+    Hold
+    |> Ash.Changeset.for_create(:record, Map.merge(carried, %{site: site, key: key}),
+      authorize?: false
+    )
+    |> Ash.create()
   end
 
   @doc """
@@ -125,8 +129,8 @@ defmodule RegentCredits.Holds do
     close(actor, key, closing, [revenue()], fn hold, accounts ->
       kept = Decimal.add(used, forfeited)
 
-      if Decimal.eq?(Decimal.add(returned, kept), hold.amount) and
-           not Enum.any?(Map.values(figures), &Decimal.negative?/1) do
+      if Enum.all?(Map.values(figures), &Amount.part?/1) and
+           Decimal.eq?(Decimal.add(returned, kept), hold.amount) do
         kept_given = Decimal.min(hold.given, kept)
         kept_purchased = Decimal.sub(kept, kept_given)
 

@@ -29,14 +29,14 @@ defmodule RegentCredits.PurchaseTest do
 
     {:ok, again} =
       RegentCredits.report_purchase(owner, payer, :base, 25, purchase.number, purchase.tx_hash,
-        actor: actor(owner)
+        actor: actor(owner, [payer])
       )
 
     assert again.id == purchase.id
     assert purchased(owner) == 25
   end
 
-  test "someone else reporting a person's transaction gets nothing and blocks nothing" do
+  test "only an account holding the paying wallet can claim a payment, and it credits once" do
     owner = person()
     payer = wallet()
     purchase = report(owner, payer, :base, 10)
@@ -49,13 +49,17 @@ defmodule RegentCredits.PurchaseTest do
 
     other = person()
 
-    {:ok, copy} =
-      RegentCredits.report_purchase(other, wallet(), :base, 10, purchase.number, purchase.tx_hash,
-        actor: actor(other)
+    claim =
+      &RegentCredits.report_purchase(other, payer, :base, 10, purchase.number, purchase.tx_hash,
+        actor: &1
       )
 
-    assert %{status: :failed, reason: "not this purchase"} = check(copy)
+    assert {:error, %Ash.Error.Forbidden{}} = claim.(actor(other, [wallet()]))
+
+    # Were two accounts ever both to hold the wallet, the second ends instead of waiting forever.
+    {:ok, copy} = claim.(actor(other, [payer]))
     assert check(purchase).status == :credited
+    assert %{status: :failed, reason: "already credited"} = check(copy)
     assert {purchased(owner), purchased(other)} == {10, 0}
   end
 

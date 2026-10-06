@@ -6,7 +6,7 @@ defmodule RegentCredits.Fixtures do
   def person, do: "did:privy:" <> Ecto.UUID.generate()
   def key, do: "key-" <> Ecto.UUID.generate()
   def site, do: Actor.site("patchbay")
-  def actor(privy_user_id), do: Actor.person(privy_user_id, "patchbay")
+  def actor(privy_user_id, wallets \\ []), do: Actor.person(privy_user_id, wallets, "patchbay")
   def d(value), do: Decimal.new(value)
   def wallet, do: "0x" <> Base.encode16(:crypto.strong_rand_bytes(20), case: :lower)
   def admin, do: Actor.admin("did:privy:admin")
@@ -19,7 +19,7 @@ defmodule RegentCredits.Fixtures do
 
     {:ok, purchase} =
       RegentCredits.report_purchase(owner, wallet, chain, dollars, number, hash,
-        actor: actor(owner)
+        actor: actor(owner, [wallet])
       )
 
     purchase

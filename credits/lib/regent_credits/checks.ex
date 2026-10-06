@@ -38,3 +38,27 @@ defmodule RegentCredits.Checks.OwnCredits do
   defp named(%Ash.Changeset{} = changeset),
     do: Ash.Changeset.get_attribute(changeset, :privy_user_id)
 end
+
+defmodule RegentCredits.Checks.OwnWallet do
+  @moduledoc """
+  A person reporting a payment sent from one of the wallets the site's
+  sign-in verified for them, so nobody can claim another person's payment.
+  """
+  use Ash.Policy.SimpleCheck
+
+  alias RegentChain.Address
+  alias RegentCredits.Actor
+
+  @impl true
+  def describe(_opts), do: "actor's verified wallets include the paying wallet"
+
+  @impl true
+  def match?(%Actor{role: :person, wallets: wallets}, %{subject: input}, _opts) do
+    case Address.normalize(Ash.ActionInput.get_argument(input, :wallet)) do
+      {:ok, wallet} -> wallet in wallets
+      :error -> false
+    end
+  end
+
+  def match?(_actor, _context, _opts), do: false
+end

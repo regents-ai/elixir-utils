@@ -13,7 +13,8 @@ shared by every Regent site.
 - Agent spending limits: on or off, most per spend, daily limit, sites.
 - Purchases with USDC on Base (approve and deposit into REGENT staking) and
   Ethereum (transfer to the Treasury Safe, counted after 12 blocks), checked by
-  the page and by the site's Oban through an AshOban trigger.
+  the page and by the site's Oban through an AshOban trigger. A person reports
+  only payments from the wallets the site's sign-in verified for them.
 - Admin gifts to Privy accounts or wallet addresses; address gifts attach when
   the wallet signs in.
 - Refunds while an account has never used Credits, closed on the Treasury

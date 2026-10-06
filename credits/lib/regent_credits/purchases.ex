@@ -51,13 +51,27 @@ defmodule RegentCredits.Purchases do
     accounts = Ledger.lock([from | Ledger.person(owner)])
 
     case get(id) do
-      %{status: :checking} = purchase ->
-        Ledger.move(accounts, {from, to}, Decimal.new(purchase.amount), "purchase:#{purchase.id}")
-        finish(purchase, %{status: :credited, credited_at: DateTime.utc_now()})
-
-      purchase ->
-        {:ok, purchase}
+      %{status: :checking} = purchase -> credit_once(purchase, accounts, {from, to})
+      purchase -> {:ok, purchase}
     end
+  end
+
+  # Every credit locks regent_purchases, so a second row for the same
+  # transaction sees the first one's credit here.
+  defp credit_once(purchase, accounts, pair) do
+    if credited_elsewhere?(purchase) do
+      finish(purchase, %{status: :failed, reason: "already credited"})
+    else
+      Ledger.move(accounts, pair, Decimal.new(purchase.amount), "purchase:#{purchase.id}")
+      finish(purchase, %{status: :credited, credited_at: DateTime.utc_now()})
+    end
+  end
+
+  defp credited_elsewhere?(%{chain: chain, tx_hash: hash}) do
+    # Internal: read by the authorized credit.
+    Purchase
+    |> Ash.Query.filter(chain == ^chain and tx_hash == ^hash and status == :credited)
+    |> Ash.exists?(authorize?: false)
   end
 
   defp read_chain(purchase) do

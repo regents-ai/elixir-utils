@@ -96,7 +96,7 @@ defmodule RegentCredits.ConcurrencyTest do
           daily_limit: d("5"),
           sites: ["patchbay"]
         },
-        actor: Actor.person(owner, "regents")
+        actor: Actor.person(owner, [], "regents")
       )
 
     as_agent = Actor.agent(owner, agent, "patchbay")

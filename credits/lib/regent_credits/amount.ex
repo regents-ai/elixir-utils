@@ -9,10 +9,16 @@ defmodule RegentCredits.Amount do
 
   @doc "True for a positive amount with at most six decimal places."
   @spec valid?(Decimal.t()) :: boolean()
-  def valid?(%Decimal{} = amount),
-    do: Decimal.gt?(amount, 0) and Decimal.eq?(Decimal.round(amount, @places, :down), amount)
+  def valid?(amount), do: part?(amount) and Decimal.gt?(amount, 0)
 
-  def valid?(_amount), do: false
+  @doc "True for zero or a positive amount with at most six decimal places."
+  @spec part?(Decimal.t()) :: boolean()
+  def part?(%Decimal{} = amount),
+    do:
+      not Decimal.negative?(amount) and
+        Decimal.eq?(Decimal.round(amount, @places, :down), amount)
+
+  def part?(_amount), do: false
 
   @doc "The ledger's money value for an amount."
   @spec money(Decimal.t()) :: Money.t()

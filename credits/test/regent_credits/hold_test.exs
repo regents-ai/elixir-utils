@@ -71,6 +71,14 @@ defmodule RegentCredits.HoldTest do
     assert %Refused{reason: :split_mismatch} =
              reason(RegentCredits.settle("offer-1", d("20"), d("5"), d("4"), actor: site()))
 
+    # These add up to 30, but the ledger keeps nothing finer than a millionth.
+    assert %Refused{reason: :split_mismatch} =
+             reason(
+               RegentCredits.settle("offer-1", d("19.9999995"), d("10.0000005"), d("0"),
+                 actor: site()
+               )
+             )
+
     assert balance(owner).held == "30"
 
     {:ok, settled} = RegentCredits.settle("offer-1", d("20"), d("10"), d("0"), actor: site())
@@ -90,6 +98,19 @@ defmodule RegentCredits.HoldTest do
 
     assert same == carried.id
     assert balance(owner) == %{available: "2", given: "0", purchased: "2", held: "3"}
+  end
+
+  test "carry over onto a key already in use is refused and leaves the first hold open" do
+    owner = fund(person(), "0", "5")
+    {:ok, _} = hold(owner, "next-2", "3")
+    {:ok, _} = hold(owner, "offer-3", "1")
+
+    assert %Refused{reason: :key_reused} =
+             reason(RegentCredits.carry_over("next-2", "offer-3", "offer_bid", actor: site()))
+
+    {:ok, back} = RegentCredits.give_back("next-2", "outbid", actor: site())
+    assert back.status == :given_back
+    assert balance(owner) == %{available: "4", given: "0", purchased: "4", held: "1"}
   end
 
   test "a bounty pays 90% to the answer's owner as given Credits and 10% to revenue" do

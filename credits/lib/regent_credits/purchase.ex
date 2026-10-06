@@ -14,7 +14,9 @@ defmodule RegentCredits.Purchase do
     * Failed when it reverted, is not the purchase it claims to be, or is
       still unknown to the chain a day after it was reported.
 
-  A transaction credits at most once, whoever reports it.
+  A person reports only payments sent from the wallets their sign-in
+  verified (`RegentCredits.Checks.OwnWallet`), and a transaction credits at
+  most once, whoever reports it.
 
   The site runs the checks: its Oban has a `:regent_credits` queue and its
   AshOban configuration lists the `RegentCredits` domain.
@@ -155,6 +157,10 @@ defmodule RegentCredits.Purchase do
   policies do
     policy action(:report) do
       authorize_if RegentCredits.Checks.OwnCredits
+    end
+
+    policy action(:report) do
+      authorize_if RegentCredits.Checks.OwnWallet
     end
 
     # Checking reads the chain and credits only what it proves, so anyone may ask.

@@ -16,7 +16,8 @@ defmodule RegentCredits.Errors.Refused do
     * `:not_found`: no hold has this key on this site.
     * `:agent_off`, `:agent_site`, `:agent_max_per_spend`, `:agent_daily_limit`:
       the person's settings for this agent do not allow the spend.
-    * `:split_mismatch`: returned, used and forfeited do not add up to the hold.
+    * `:split_mismatch`: returned, used and forfeited do not add up to the
+      hold, or one is negative or finer than a millionth.
     * `:invalid_purchase`: the reported wallet or transaction hash is not one.
     * `:invalid_recipient`: a gift's recipient or a wallet is neither a Privy
       account id nor an address.

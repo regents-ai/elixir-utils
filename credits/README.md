@@ -38,7 +38,12 @@ config :regent_credits,
 - Migrations: `RegentCredits.Migrator.up(MySite.Repo)` creates the schema and
   runs the library's migrations. Locally each site runs it; in production
   only Regents does. The ledger's money type is installed database-wide in
-  `public`, so a site's repo does not list `AshMoney.AshPostgresExtension`.
+  `public`, so a site's repo does not list `AshMoney.AshPostgresExtension`;
+  a site that adopts `ash_money` later skips its own install of that type,
+  which already exists.
+- Database rules refuse any edit or delete of a transfer. Balances belong to
+  `ash_double_entry` and are rewritten with each transfer; holds, purchases,
+  gifts and refunds change only through the library's actions.
 
 ## Actors
 
@@ -46,12 +51,12 @@ Every call passes a `RegentCredits.Actor`:
 
 | Actor | May |
 | --- | --- |
-| `Actor.person(privy_user_id, site)` | hold its own Credits, report its own purchases, read its own rows |
+| `Actor.person(privy_user_id, wallets, site)` | hold its own Credits, report purchases sent from `wallets` (the wallets the site's sign-in verified), read its own rows |
 | `Actor.agent(privy_user_id, agent_address, site)` | hold its person's Credits within the person's agent settings |
 | `Actor.site(site)` | close the holds that site placed; attach wallets at sign-in |
 | `Actor.admin(privy_user_id)` | give Credits, start and close refunds, read everything (when `admins` names it) |
 
-Agent settings are saved only by regents.sh (`Actor.person(id, "regents")`).
+Agent settings are saved only by regents.sh (`Actor.person(id, wallets, "regents")`).
 
 ## Spending
 

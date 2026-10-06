@@ -14,6 +14,7 @@ defmodule AgentEns.MixProject do
       description: @description,
       package: package(),
       deps: deps(),
+      usage_rules: usage_rules(),
       aliases: aliases(),
       docs: docs()
     ]
@@ -38,7 +39,8 @@ defmodule AgentEns.MixProject do
       {:jason, "~> 1.4"},
       {:siwa, path: "../siwa/siwa-elixir/apps/siwa"},
       {:ex_keccak, "~> 0.7.8"},
-      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.38", only: :dev, runtime: false},
+      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -48,6 +50,7 @@ defmodule AgentEns.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",
         "format --check-formatted",
+        "usage_rules.sync --check",
         "test --warnings-as-errors"
       ],
       precommit: ["check"]
@@ -86,6 +89,18 @@ defmodule AgentEns.MixProject do
         "Reading and Planning": [AgentEns.Read, AgentEns.Plan, AgentEns.Link],
         "Preparing Updates": [AgentEns.Tx, AgentEns.ERC8004.Registration],
         Support: [AgentEns.Networks, AgentEns.Normalize]
+      ]
+    ]
+  end
+
+  # `mix usage_rules.sync` writes the marked block at the end of AGENTS.md: how to
+  # read the installed version's docs, and links to each package's own rules in deps/.
+  defp usage_rules do
+    [
+      file: "AGENTS.md",
+      usage_rules: [
+        {:usage_rules, sub_rules: []},
+        {:usage_rules, sub_rules: :all, main: false, link: :markdown}
       ]
     ]
   end

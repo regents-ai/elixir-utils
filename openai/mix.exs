@@ -13,6 +13,7 @@ defmodule RegentOpenAI.MixProject do
       description: @description,
       package: package(),
       deps: deps(),
+      usage_rules: usage_rules(),
       aliases: aliases(),
       docs: docs()
     ]
@@ -35,7 +36,8 @@ defmodule RegentOpenAI.MixProject do
       {:regent_http, path: "../http"},
       {:jason, "~> 1.4"},
       {:decimal, "~> 3.1"},
-      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.38", only: :dev, runtime: false},
+      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -62,6 +64,7 @@ defmodule RegentOpenAI.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",
         "format --check-formatted",
+        "usage_rules.sync --check",
         "test --warnings-as-errors"
       ],
       precommit: ["check"]
@@ -72,6 +75,18 @@ defmodule RegentOpenAI.MixProject do
     [
       main: "readme",
       extras: ["README.md", "CHANGELOG.md"]
+    ]
+  end
+
+  # `mix usage_rules.sync` writes the marked block at the end of AGENTS.md: how to
+  # read the installed version's docs, and links to each package's own rules in deps/.
+  defp usage_rules do
+    [
+      file: "AGENTS.md",
+      usage_rules: [
+        {:usage_rules, sub_rules: []},
+        {:usage_rules, sub_rules: :all, main: false, link: :markdown}
+      ]
     ]
   end
 end

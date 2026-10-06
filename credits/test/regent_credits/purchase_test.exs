@@ -63,6 +63,21 @@ defmodule RegentCredits.PurchaseTest do
     assert {purchased(owner), purchased(other)} == {10, 0}
   end
 
+  test "the site's Oban finds an open purchase with nobody signed in and credits it" do
+    owner = person()
+    payer = wallet()
+    purchase = report(owner, payer, :base, 15)
+
+    TestChain.put(
+      purchase.tx_hash,
+      TestChain.buy(:base, payer, 15, purchase.number),
+      TestChain.mined("0x1")
+    )
+
+    AshOban.Test.schedule_and_run_triggers(RegentCredits.Purchase)
+    assert purchased(owner) == 15
+  end
+
   test "a reverted purchase never credits" do
     owner = person()
     payer = wallet()

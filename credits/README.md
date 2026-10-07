@@ -86,7 +86,11 @@ RegentCredits.take_back(post_id, actor: site)
 The panel builds the steps with `RegentCredits.Chains.steps(chain, dollars,
 number)` into a `RegentChain.Review`, reports each sent Buy with
 `RegentCredits.report_purchase/7`, and calls `RegentCredits.check_purchase/2`
-every two seconds while it waits. The site's Oban checks every purchase still
+every two seconds while it waits. A report is saved only once the chain holds
+the transaction as this purchase's Buy from the reported wallet. Until then it
+is refused with `:not_seen_yet`, and the panel reports it again every two
+seconds for about five minutes. Each report reads the chain, so the site calls
+it behind a per-person limit, for example 120 a minute. The site's Oban checks every purchase still
 open once a minute. Base purchases count at the latest block; Ethereum
 purchases once 12 blocks sit on top of theirs and it is still in that block.
 

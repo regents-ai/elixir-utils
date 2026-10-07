@@ -4,10 +4,12 @@
 
 - New `RegentChain.Abi`: contract return data and event data, `bytes`, `string`
   and arrays included, read only in their one canonical encoding, plus JSON-RPC
-  data, quantities and hashes. Taken from KeyFleet's `Keyfleet.Chain.Abi`.
+  data, quantities and hashes. Taken from Keyfleet's `Keyfleet.Chain.Abi`.
 - `RegentChain.Call` encodes the zero address as an argument, so a step can clear
   a delegate. New `Address.argument/1` reads it; a review's signer and a step's
   contract still refuse it.
+- New `Outcome.sent/4`: whether the chain holds a step's transaction yet,
+  without its receipt, so a report can be refused before anything is saved.
 - New `RegentChain.Typed`: the EIP-712 digest of a signature step's typed data,
   the wallet that signed it (`v` as 0 or 1 read as 27 or 28), and the signature
   as contracts take it. Adds the `ex_secp256k1` dependency. From Patchbay's

@@ -19,6 +19,10 @@ defmodule RegentCredits.Errors.Refused do
     * `:split_mismatch`: returned, used and forfeited do not add up to the
       hold, or one is negative or finer than a millionth.
     * `:invalid_purchase`: the reported wallet or transaction hash is not one.
+    * `:not_seen_yet`: the chain does not hold the reported transaction yet;
+      the page reports it again.
+    * `:not_this_purchase`: the transaction is not this purchase's Buy, sent
+      from the reported wallet.
     * `:invalid_recipient`: a gift's recipient or a wallet is neither a Privy
       account id nor an address.
     * `:not_credited`: the purchase has not been credited, so there is nothing

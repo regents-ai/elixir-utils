@@ -16,7 +16,10 @@ defmodule RegentCredits.Purchase do
 
   A person reports only payments sent from the wallets their sign-in
   verified (`RegentCredits.Checks.OwnWallet`), and a transaction credits at
-  most once, whoever reports it.
+  most once, whoever reports it. A report is saved only once the chain holds
+  the transaction and it is this purchase's Buy from that wallet; until then
+  the page reports it again. Each report reads the chain, so the site calls
+  `report` behind a per-person limit on how often it may be called.
 
   The site runs the checks: its Oban has a `:regent_credits` queue and its
   AshOban configuration lists the `RegentCredits` domain.
@@ -117,10 +120,10 @@ defmodule RegentCredits.Purchase do
       accept [:status, :reason, :credited_at]
     end
 
+    # Not in a transaction: the report reads the chain before it saves.
     action :report, :struct do
-      description "Records a purchase the person's wallet sent."
+      description "Records a purchase the person's wallet sent, once the chain holds it."
       constraints instance_of: __MODULE__
-      transaction? true
       argument :privy_user_id, :string, allow_nil?: false
       argument :wallet, :string, allow_nil?: false
       argument :chain, :atom, allow_nil?: false, constraints: [one_of: [:base, :ethereum]]

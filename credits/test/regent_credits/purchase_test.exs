@@ -3,6 +3,7 @@ defmodule RegentCredits.PurchaseTest do
 
   import RegentCredits.Fixtures
 
+  alias RegentCredits.Errors.Refused
   alias RegentCredits.TestChain
 
   setup do
@@ -61,6 +62,32 @@ defmodule RegentCredits.PurchaseTest do
     assert check(purchase).status == :credited
     assert %{status: :failed, reason: "already credited"} = check(copy)
     assert {purchased(owner), purchased(other)} == {10, 0}
+  end
+
+  # A made-up hash must never become a saved purchase the site re-checks for a day.
+  test "a report is saved only once the chain holds it as this purchase from this wallet" do
+    owner = person()
+    payer = wallet()
+    number = Ecto.UUID.generate()
+    hash = TestChain.hash()
+
+    report = fn ->
+      RegentCredits.report_purchase(owner, payer, :base, 25, number, hash,
+        actor: actor(owner, [payer])
+      )
+    end
+
+    assert {:error, %Ash.Error.Invalid{errors: [%Refused{reason: :not_seen_yet}]}} = report.()
+
+    TestChain.put(hash, TestChain.buy(:base, wallet(), 25, number), nil)
+
+    assert {:error, %Ash.Error.Invalid{errors: [%Refused{reason: :not_this_purchase}]}} =
+             report.()
+
+    assert RegentCredits.purchases!(actor: actor(owner)) == []
+
+    TestChain.put(hash, TestChain.buy(:base, payer, 25, number), nil)
+    assert {:ok, %{status: :checking}} = report.()
   end
 
   test "the site's Oban finds an open purchase with nobody signed in and credits it" do

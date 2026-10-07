@@ -19,14 +19,20 @@ defmodule RegentCredits.Purchases do
   @ethereum_blocks 12
   @unknown_after_seconds 24 * 60 * 60
 
-  @doc "Records a reported purchase; reporting the same one again answers with it."
+  @doc """
+  Records a reported purchase once the chain holds its transaction, read
+  outside any database transaction: one the reporting wallet sent as this
+  purchase's Buy. Nothing is saved for a hash the chain does not hold yet,
+  which the page reports again, or for one that is not this purchase.
+  Reporting the same one again answers with it.
+  """
   def report(%{privy_user_id: owner, chain: chain, tx_hash: hash} = args) do
     with {:ok, wallet} <- Address.normalize(args.wallet),
          {:ok, hash} <- Abi.hash(hash) do
       details = %{args | wallet: wallet, tx_hash: hash}
 
       case find(owner, chain, hash) do
-        nil -> record(details)
+        nil -> record_sent(details)
         purchase -> same(purchase, details)
       end
     else
@@ -135,6 +141,18 @@ defmodule RegentCredits.Purchases do
     Purchase
     |> Ash.ActionInput.for_action(:credit, %{id: purchase.id}, authorize?: false)
     |> Ash.run_action()
+  end
+
+  defp record_sent(%{chain: chain, wallet: wallet, amount: amount, number: number} = details) do
+    review = %{chain: Chains.chain(chain), signer: wallet}
+    step = Chains.buy_step(chain, amount, number)
+
+    case Outcome.sent(Chains.client(), review, step, details.tx_hash) do
+      {:ok, :sent} -> record(details)
+      {:ok, :unknown} -> {:error, Refused.exception(reason: :not_seen_yet)}
+      {:error, :not_this_step} -> {:error, Refused.exception(reason: :not_this_purchase)}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp record(details) do

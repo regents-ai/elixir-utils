@@ -30,6 +30,26 @@ defmodule RegentChain.Outcome do
     end
   end
 
+  @doc """
+  Whether the chain holds the step's transaction yet, without reading its
+  receipt: `{:ok, :unknown}` before it does, then `{:ok, :sent}`. A hash whose
+  transaction is not the step's is `{:error, :not_this_step}`.
+  """
+  @spec sent(module(), RegentChain.Review.t(), RegentChain.Review.transaction(), String.t()) ::
+          {:ok, :unknown | :sent} | {:error, term()}
+  def sent(client, %{chain: chain, signer: signer}, %{kind: "transaction"} = step, hash) do
+    case client.transaction(chain, hash) do
+      {:ok, nil} ->
+        {:ok, :unknown}
+
+      {:ok, tx} when is_map(tx) ->
+        if same_step?(tx, chain, signer, step), do: {:ok, :sent}, else: {:error, :not_this_step}
+
+      error ->
+        error
+    end
+  end
+
   defp same_step?(tx, %{chain_id: chain_id}, signer, %{to: to, data: data, value: value}) do
     quantity(tx["chainId"]) == chain_id and Address.equal?(tx["from"], signer) and
       Address.equal?(tx["to"], to) and String.downcase(tx["input"] || "") == data and

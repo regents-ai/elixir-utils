@@ -82,15 +82,22 @@ defmodule RegentPrivy do
   def verify_token(_token, _opts), do: {:error, :invalid_token}
 
   defp verify_claims(token, verification_key) do
-    signer = Joken.Signer.create("ES256", %{"pem" => verification_key})
+    # JOSE reads a PEM it cannot parse as no key at all rather than raising, and
+    # a signer with no key fails every token.
+    case Joken.Signer.create("ES256", %{"pem" => verification_key}) do
+      %Joken.Signer{jwk: %JOSE.JWK{}} = signer -> verify_signature(token, signer)
+      _no_key -> {:error, :invalid_verification_key}
+    end
+  rescue
+    _error -> {:error, :invalid_verification_key}
+  end
 
+  defp verify_signature(token, signer) do
     case Joken.verify(token, signer) do
       {:ok, claims} when is_map(claims) -> {:ok, claims}
       {:error, _reason} -> {:error, :token_verification_failed}
       _other -> {:error, :invalid_token}
     end
-  rescue
-    _error -> {:error, :invalid_verification_key}
   end
 
   defp validate_issuer(%{"iss" => "privy.io"}), do: :ok

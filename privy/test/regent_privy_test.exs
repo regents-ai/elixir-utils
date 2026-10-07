@@ -145,7 +145,7 @@ defmodule RegentPrivyTest do
 
     token = sign(base_claims(), ctx.private_pem)
 
-    assert {:error, :token_verification_failed} =
+    assert {:error, :invalid_verification_key} =
              verify(token, ctx, verification_key: "not a pem")
 
     assert {:error, :invalid_verification_key} =

@@ -215,12 +215,19 @@ defmodule Siwa.AgentAuthPlugTest do
                      }}
   end
 
-  test "a 200 response without a valid envelope denies" do
-    Process.put(:client_response, {:ok, %{status: 200, body: %{"unexpected" => true}}})
+  test "an answer outside 400..599 without a verdict denies as siwa_request_failed" do
+    for response <- [
+          %{status: 200, body: %{"unexpected" => true}},
+          %{status: 302, body: ""},
+          %{status: 103, body: ""}
+        ] do
+      Process.put(:client_response, {:ok, response})
 
-    :post |> conn("/v1/things", "{}") |> call()
+      :post |> conn("/v1/things", "{}") |> call()
 
-    assert_received {:deny, %{reason: :siwa_http_200, source: :siwa_http, siwa_status: 200}}
+      assert_received {:deny, deny_meta}
+      assert deny_meta == %{reason: :siwa_request_failed, source: :siwa_http}
+    end
   end
 
   test "map-shaped client errors pass through as deny metadata" do

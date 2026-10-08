@@ -23,6 +23,11 @@ defmodule Siwa.AgentAuthPlug do
     * `c:Siwa.AgentAuthPlug.Hooks.deny/2` renders the app's deny response
       (and emits app telemetry) for any failure.
 
+  A service refusal (status 400..599) reaches `deny/2` as `:"siwa_http_<status>"`
+  with the service's `:siwa_status`, `:siwa_code`, `:siwa_message` and
+  `:siwa_hint`. Any other answer without a verdict, and a failed request, reach it
+  as `:siwa_request_failed`.
+
   Options (resolved at call time by the app plug):
 
     * `:client` — module implementing `Siwa.AgentAuthPlug.Client` (required)
@@ -185,8 +190,13 @@ defmodule Siwa.AgentAuthPlug do
       when is_map(data) ->
         {:ok, data}
 
-      {:ok, %{status: status, body: body}} when is_integer(status) ->
+      {:ok, %{status: status, body: body}} when status in 400..599 ->
         {:error, status_deny_meta(status, body)}
+
+      # Any other answer, such as a 200 without a verdict or a redirect, is no
+      # verdict at all: the same as not reaching the service.
+      {:ok, %{status: status}} when is_integer(status) ->
+        {:error, %{reason: :siwa_request_failed, source: :siwa_http}}
 
       {:error, deny_meta} when is_non_struct_map(deny_meta) ->
         {:error, deny_meta}

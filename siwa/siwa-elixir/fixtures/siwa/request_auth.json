@@ -25,8 +25,8 @@
     "signedHeaders": {
       "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
       "content-type": "application/json",
-      "signature": "sig1=:EPv9zNLVC3zTA9bJDOgONlSfcc4CEFw+5HA0Eaz8r8hsJHECL6yIqpBXhuiaNV64SJs9ZVwDmFObP9HghpQ3sRw=:",
-      "signature-input": "sig1=(\"@method\" \"@path\" \"x-siwa-receipt\" \"x-key-id\" \"x-timestamp\" \"x-agent-wallet-address\" \"x-agent-chain-id\" \"content-digest\");created=1776465945;expires=1776466065;nonce=\"sig-nonce-fixture\";keyid=\"0x55f6185cb8d904587cfcc2e1aebd5d99c9c2c700\"",
+      "x-siwa-signature": "sig1=:EPv9zNLVC3zTA9bJDOgONlSfcc4CEFw+5HA0Eaz8r8hsJHECL6yIqpBXhuiaNV64SJs9ZVwDmFObP9HghpQ3sRw=:",
+      "x-siwa-signature-input": "sig1=(\"@method\" \"@path\" \"x-siwa-receipt\" \"x-key-id\" \"x-timestamp\" \"x-agent-wallet-address\" \"x-agent-chain-id\" \"content-digest\");created=1776465945;expires=1776466065;nonce=\"sig-nonce-fixture\";keyid=\"0x55f6185cb8d904587cfcc2e1aebd5d99c9c2c700\"",
       "x-agent-chain-id": "8453",
       "x-agent-wallet-address": "0x55f6185cb8d904587cfcc2e1aebd5d99c9c2c700",
       "x-key-id": "0x55f6185cb8d904587cfcc2e1aebd5d99c9c2c700",

@@ -4,16 +4,16 @@ defmodule Siwa.RequestAuth do
   @default_expires_in_seconds 120
   @default_signature_tolerance_seconds 300
   @receipt_header "x-siwa-receipt"
-  @signature_header "signature"
-  @signature_input_header "signature-input"
+  @signature_header "x-siwa-signature"
+  @signature_input_header "x-siwa-signature-input"
   @signature_regex ~r/^sig1=:(?<payload>[A-Za-z0-9+\/=]+):$/
   @content_digest_regex ~r/^sha-256=:(?<payload>[A-Za-z0-9+\/=]+):$/
   @positive_int_regex ~r/^[1-9][0-9]*$/
 
   @required_headers ~w(
     x-siwa-receipt
-    signature
-    signature-input
+    x-siwa-signature
+    x-siwa-signature-input
     x-key-id
     x-timestamp
     x-agent-wallet-address

@@ -35,6 +35,7 @@ defmodule RegentChain.MixProject do
     [
       {:ex_abi, "~> 0.8.4"},
       {:ex_keccak, "~> 0.7.8"},
+      {:ex_rlp, "~> 0.6.0"},
       {:ex_secp256k1, "~> 0.8.0"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- New `RegentChain.Transaction`: `sign/2` signs an EIP-1559 (type 2) transaction
+  with a key the app holds and returns the raw bytes and their hash, which the app
+  keeps before it broadcasts; `address/1` is the key's account. Pure: the app reads
+  the nonce and fees and broadcasts. Adds the `ex_rlp` dependency.
+
 ## 0.3.0 (2026-09-28)
 
 - New `RegentChain.Abi`: contract return data and event data, `bytes`, `string`

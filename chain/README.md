@@ -14,6 +14,7 @@ wallet; afterwards the server checks what the sent transaction did. The
 | `RegentChain.Outcome` | Pending, confirmed or reverted for a sent step, after checking its chain, sender, target, calldata and value. |
 | `RegentChain.Event` | `topic0`, and the one log of an event in a receipt, as words. |
 | `RegentChain.Typed` | The EIP-712 digest of a signature step's typed data, the wallet that signed it, and the signature with `v` as 27 or 28, as contracts take it. |
+| `RegentChain.Transaction` | An EIP-1559 transaction signed with a key the app holds, for the few sends a server makes itself: the raw bytes and their hash, kept before the app broadcasts them, and the key's address. |
 | `RegentChain.Abi` | Contract return data and event fields, including `bytes`, `string` and arrays, accepted only in their one canonical encoding; JSON-RPC data, quantities and hashes. |
 
 JSON-RPC reads stay in each app: `Outcome` takes the app's client module, whose

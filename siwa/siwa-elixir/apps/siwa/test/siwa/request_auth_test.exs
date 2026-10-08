@@ -32,8 +32,8 @@ defmodule Siwa.RequestAuthTest do
   test "exposes the required authenticated request shape" do
     headers = ~w(
       x-siwa-receipt
-      signature
-      signature-input
+      x-siwa-signature
+      x-siwa-signature-input
       x-key-id
       x-timestamp
       x-agent-wallet-address
@@ -167,7 +167,7 @@ defmodule Siwa.RequestAuthTest do
 
     {:ok, receipt} = wallet_receipt(smart)
     signed = sign(%{ctx | signer: smart, receipt: receipt})
-    assert byte_size(signed.headers["signature"]) > 90
+    assert byte_size(signed.headers["x-siwa-signature"]) > 90
 
     assert {:error, :signature_lookup_failed} =
              RequestAuth.verify_authenticated_request(signed, @opts)
@@ -259,16 +259,16 @@ defmodule Siwa.RequestAuthTest do
     signed = sign(ctx)
 
     for headers <- [
-          Map.delete(signed.headers, "signature"),
+          Map.delete(signed.headers, "x-siwa-signature"),
           Map.delete(signed.headers, "x-key-id"),
           Map.delete(signed.headers, "content-digest"),
-          Map.put(signed.headers, "signature", "malformed"),
+          Map.put(signed.headers, "x-siwa-signature", "malformed"),
           Map.update!(
             signed.headers,
-            "signature-input",
+            "x-siwa-signature-input",
             &String.replace(&1, ~s( "x-agent-chain-id"), "")
           ),
-          Map.update!(signed.headers, "signature-input", &(&1 <> ";created=1"))
+          Map.update!(signed.headers, "x-siwa-signature-input", &(&1 <> ";created=1"))
         ] do
       assert {:error, _} =
                RequestAuth.verify_authenticated_request(%{signed | headers: headers}, @opts)

@@ -31,7 +31,7 @@ defmodule RegentChain.Transaction do
   payment) and `private_key` is 32 raw bytes. Anything else is `:error`.
   """
   @spec sign(fields(), binary()) :: {:ok, %{raw: String.t(), hash: String.t()}} | :error
-  def sign(fields, private_key) when byte_size(private_key) == 32 do
+  def sign(fields, private_key) when is_binary(private_key) and byte_size(private_key) == 32 do
     with {:ok, unsigned} <- unsigned(fields),
          digest = keccak(@type_byte <> ExRLP.encode(unsigned)),
          {:ok, {<<r::binary-size(32), s::binary-size(32)>>, y_parity}} <-
@@ -52,7 +52,7 @@ defmodule RegentChain.Transaction do
 
   @doc "The lowercase address of the key's account, the sender of what `sign/2` signs."
   @spec address(binary()) :: {:ok, String.t()} | :error
-  def address(private_key) when byte_size(private_key) == 32 do
+  def address(private_key) when is_binary(private_key) and byte_size(private_key) == 32 do
     case ExSecp256k1.create_public_key(private_key) do
       {:ok, <<4, public_key::binary-size(64)>>} ->
         {:ok, public_key |> keccak() |> binary_part(12, 20) |> Address.encode()}

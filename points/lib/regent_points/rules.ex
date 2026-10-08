@@ -6,83 +6,76 @@ defmodule RegentPoints.Rules do
   """
   @unit 1_000_000
   @milestones [
-    {"account.email_verified", 5},
-    {"regents.first_stake", 10},
-    {"regents.first_reward_claim", 10},
-    {"regents.first_redemption", 10},
-    {"account.activated", 25},
-    {"account.profile_completed", 10},
-    {"social.x", 10},
-    {"social.github", 10},
-    {"social.farcaster", 10},
-    {"identity.ens_selected", 25},
-    {"agent.paired", 10},
-    {"agent.activated", 25},
-    {"agent.erc8004_registered", 25},
-    {"app.first_use.regents", 10},
-    {"app.first_use.patchbay", 10},
-    {"app.first_use.techtree", 10},
-    {"app.first_use.autolaunch", 10},
-    {"app.first_use.keyfleet", 10},
-    {"patchbay.first_report", 10},
-    {"patchbay.first_reply", 10},
-    {"patchbay.first_solution", 25},
-    {"patchbay.first_paid_assist", 10},
-    {"patchbay.first_resolved_priority_report", 15},
-    {"techtree.first_signing_key", 10},
-    {"techtree.first_non_demo_result", 25},
-    {"autolaunch.first_launch", 20},
-    {"autolaunch.first_graduation", 50},
-    {"autolaunch.first_settled_auction", 10},
-    {"keyfleet.first_membership", 10},
-    {"keyfleet.first_reveal", 5},
-    {"keyfleet.first_authorized_agent", 10},
-    {"keyfleet.first_message", 5},
-    {"keyfleet.first_vote", 10},
-    {"keyfleet.integration.marimo", 10},
-    {"keyfleet.integration.ddocs", 10},
-    {"keyfleet.integration.twigpine", 10},
-    {"keyfleet.integration.activegraph", 10}
+    {"account.email_verified", 5, "Email verified"},
+    {"regents.first_stake", 10, "First stake on Regents"},
+    {"regents.first_reward_claim", 10, "First staking reward claimed"},
+    {"regents.first_redemption", 10, "First redemption on Regents"},
+    {"account.activated", 25, "Account activated"},
+    {"account.profile_completed", 10, "Profile completed"},
+    {"social.x", 10, "X account linked"},
+    {"social.github", 10, "GitHub account linked"},
+    {"social.farcaster", 10, "Farcaster account linked"},
+    {"identity.ens_selected", 25, "Verified ENS name chosen"},
+    {"agent.paired", 10, "First agent connected"},
+    {"agent.activated", 25, "First agent activated"},
+    {"agent.erc8004_registered", 25, "First agent listed on ERC-8004"},
+    {"app.first_use.regents", 10, "First use of Regents"},
+    {"app.first_use.patchbay", 10, "First use of Patchbay"},
+    {"app.first_use.techtree", 10, "First use of Techtree"},
+    {"app.first_use.autolaunch", 10, "First use of Autolaunch"},
+    {"app.first_use.keyfleet", 10, "First use of Keyfleet"},
+    {"patchbay.first_report", 10, "First Patchbay report"},
+    {"patchbay.first_reply", 10, "First Patchbay reply"},
+    {"patchbay.first_solution", 25, "First Patchbay solution"},
+    {"patchbay.first_paid_assist", 10, "First paid Patchbay assist"},
+    {"patchbay.first_resolved_priority_report", 15, "First priority Patchbay report resolved"},
+    {"techtree.first_signing_key", 10, "First Techtree signing key"},
+    {"techtree.first_non_demo_result", 25, "First Techtree result"},
+    {"autolaunch.first_launch", 20, "First Autolaunch launch"},
+    {"autolaunch.first_graduation", 50, "First Autolaunch graduation"},
+    {"autolaunch.first_settled_auction", 10, "First Autolaunch auction settled"},
+    {"keyfleet.first_membership", 10, "First Keyfleet membership"},
+    {"keyfleet.first_reveal", 5, "First Keyfleet key revealed"},
+    {"keyfleet.first_authorized_agent", 10, "First agent authorized on Keyfleet"},
+    {"keyfleet.first_message", 5, "First Keyfleet message"},
+    {"keyfleet.first_vote", 10, "First Keyfleet vote"},
+    {"keyfleet.integration.marimo", 10, "Marimo used with Keyfleet"},
+    {"keyfleet.integration.ddocs", 10, "dDocs used with Keyfleet"},
+    {"keyfleet.integration.twigpine", 10, "Twigpine used with Keyfleet"},
+    {"keyfleet.integration.activegraph", 10, "ActiveGraph used with Keyfleet"}
   ]
   @activity [
-    {"keyfleet.rollcall", 5, 1, "day"},
-    {"patchbay.report_published", 10, 1, "day"},
-    {"patchbay.reply_published", 5, 2, "day"},
-    {"patchbay.solution_accepted", 20, 1, "day"},
-    {"patchbay.report_resolved", 5, 1, "day"},
-    {"patchbay.repair_verified", 15, 2, "day"}
+    {"patchbay.report_published", 10, 1, "day", "Patchbay report published"},
+    {"patchbay.reply_published", 5, 2, "day", "Patchbay reply published"},
+    {"patchbay.solution_accepted", 20, 1, "day", "Patchbay solution accepted"},
+    {"patchbay.report_resolved", 5, 1, "day", "Patchbay report resolved"}
   ]
 
-  @labels %{
-    "credits.purchase_settled" => "Credits purchase",
-    "keyfleet.rollcall" => "Rollcall completed",
-    "patchbay.report_published" => "Report published",
-    "patchbay.reply_published" => "Reply published",
-    "patchbay.solution_accepted" => "Solution accepted",
-    "patchbay.report_resolved" => "Report resolved",
-    "patchbay.repair_verified" => "Repair independently verified",
-    "identity.ens_selected" => "Verified ENS name selected",
-    "agent.erc8004_registered" => "First ERC-8004 registration"
-  }
+  @credits {"credits.purchase_settled", "Credits bought"}
+  @labels Map.new(
+            [@credits] ++
+              for({id, _points, label} <- @milestones, do: {id, label}) ++
+              for({id, _points, _count, _period, label} <- @activity, do: {id, label})
+          )
+  # The apps with daily actions are the apps the daily rules come from.
+  @activity_apps Enum.uniq(for {id, _, _, _, _} <- @activity, do: hd(String.split(id, ".")))
 
-  def label(id) do
-    Map.get_lazy(@labels, id, fn ->
-      id |> String.split(".") |> List.last() |> String.replace("_", " ") |> String.capitalize()
-    end)
-  end
+  @doc "The customer name of every catalog rule, including the source app."
+  def label(id), do: Map.fetch!(@labels, id)
 
   def catalog do
     milestones =
-      Enum.map(@milestones, fn {id, points} ->
+      Enum.map(@milestones, fn {id, points, _label} ->
         rule(id, "milestone", points, 1, "lifetime")
       end)
 
     activity =
-      Enum.map(@activity, fn {id, points, count, period} ->
+      Enum.map(@activity, fn {id, points, count, period, _label} ->
         rule(id, "activity", points, count, period)
       end)
 
-    [rule("credits.purchase_settled", "credits", nil, nil, "day") | milestones ++ activity]
+    {credits, _label} = @credits
+    [rule(credits, "credits", nil, nil, "day") | milestones ++ activity]
   end
 
   def config, do: Application.get_all_env(:regent_points)
@@ -91,6 +84,10 @@ defmodule RegentPoints.Rules do
   def milestone_total, do: Enum.sum(Enum.map(@milestones, &elem(&1, 1)))
   def enabled?(id), do: id in Keyword.get(config(), :approved_rules, []) and adapter(id) != nil
   def adapter(id), do: config() |> Keyword.get(:adapters, %{}) |> Map.get(id)
+
+  @doc "The catalog rules that earn right now."
+  def active,
+    do: Enum.filter(catalog(), &match?({:ok, _}, snapshot(&1["id"], DateTime.utc_now())))
 
   def snapshot(id, at) do
     with %DateTime{} = start <- Keyword.get(config(), :starts_at),
@@ -132,7 +129,8 @@ defmodule RegentPoints.Rules do
 
   def daily_cap("activity:human"), do: 50 * @unit
   def daily_cap(scope) when scope in ["credits", "activity:agent"], do: 100 * @unit
-  def activity_app?(app), do: app in ["patchbay", "keyfleet", "autolaunch"]
+  def activity_apps, do: @activity_apps
+  def activity_app?(app), do: app in @activity_apps
 
   defp rule(id, category, points, count, period),
     do: %{

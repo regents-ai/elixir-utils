@@ -46,12 +46,7 @@ defmodule RegentPoints.Summary do
          entries: entries.results,
          agent_names: agent_names,
          more?: entries.more?,
-         allowances: allowances(caps),
-         active_rules:
-           Enum.filter(
-             Rules.catalog(),
-             &match?({:ok, _}, Rules.snapshot(&1["id"], DateTime.utc_now()))
-           )
+         allowances: allowances(caps)
        })}
     end
   end

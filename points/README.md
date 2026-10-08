@@ -110,20 +110,19 @@ eligibility and preserve the same account and subject milestone identities.
 ## Rates and allowances
 
 The approved Credits basis is 10 points per USDC spent on purchased Credits, capped
-at 100 base points per UTC day. Privy-account actions across Patchbay, Keyfleet and
-Autolaunch share 50 per day. Connected agents across those apps share 100. Techtree
-has no daily rules yet. Per-action counts are separate for humans and the pooled
+at 100 base points per UTC day. Privy-account daily actions share 50 per day, and
+connected agents share 100. `Rules.activity_apps/0` lists the apps those actions come
+from, read from the daily rules: today only Patchbay. Per-action counts are separate for humans and the pooled
 agents. More agents, keys or wallets do not create extra allowances, and one completed
 event belongs to only one pool. One-time actions use no daily allowance and are once
 per canonical account across sites, wallets, keys and agents.
 
 The revised recurring catalog is: Patchbay report 10 once/day, reply 5 twice/day,
-accepted solution 20 once/day, asker resolution 5 once/day, and
-independently verified repair 15 twice/day. There is no active-day or recurring vote
-rule. Keyfleet retains its 10-point first-vote milestone. Rollcall remains a disabled
-5-point once/day candidate for an explicitly chosen participation incentive; no
-rollcall or voting product is created for Points. Repair stays disabled until a real
-independent verifier exists. All rules remain operationally disabled in the template.
+accepted solution 20 once/day, and asker resolution 5 once/day. There is no
+active-day or recurring vote rule. Keyfleet retains its 10-point first-vote milestone.
+Two approved candidates stay out of the catalog until their products exist (Sean, 8
+October): Keyfleet rollcall, 5 once/day, and independently verified Patchbay repair, 15
+twice/day. All rules remain operationally disabled in the template.
 
 Animata I, Animata II and Regents Club count together across verified linked
 wallets. The highest tier adds 20% for 1–4 pieces, 45% for 5–9, or 75% for 10+.
@@ -131,7 +130,9 @@ The highest tier applies once, without stacking, only to base points actually
 awarded after all limits, and also to one-time awards: the daily maximum
 is 250 base or 437.5 at the highest tier. The proposed milestone catalog totals 500
 base or 875 at the highest tier. Sean approved these trial values on 7 October;
-enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them. There is no uncapped revenue-points rule.
+enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
+`label/1` names each one for people, and `active/0` lists those earning now; a site's
+Points page builds its table from these. There is no uncapped revenue-points rule.
 
 Accepted events save the Credits rate and daily limits with the rule. Delayed
 processing uses that snapshot. Rule versions must remain immutable after approval;

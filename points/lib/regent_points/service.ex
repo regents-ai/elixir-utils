@@ -16,6 +16,7 @@ defmodule RegentPoints.Service do
 
     action :process_event, :map do
       argument :event_id, :uuid, allow_nil?: false
+      argument :last_attempt, :boolean, allow_nil?: false
       run RegentPoints.Award
     end
 

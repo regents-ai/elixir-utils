@@ -33,7 +33,10 @@ this package references it but never creates, updates or merges people.
 The chain client implements `RegentPoints.ChainClient`: `rpc(%{chain_id: 8453}, method, params)`. Historical
 `eth_call` must support canonical block hashes and archived balances. The transfer
 watcher requires explicit `removed: false` on logs, and stops on a changed saved
-block hash. Configure and verify the chosen RPC before enabling it.
+block hash. Configure and verify the chosen RPC before enabling it. Every award with
+linked wallets reads holdings at action time, whether or not NFT tracking is on. When
+Base cannot answer, the award retries for about six hours (12 attempts); the last
+attempt finishes it as not counted with reason `chain_unavailable`.
 
 Add `points: 5` and `points_chain: 2` queues to the site's existing Oban instance.
 Only Regents, the designated watcher owner, adds the minute cron for

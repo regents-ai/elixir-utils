@@ -54,7 +54,7 @@ defmodule RegentPoints do
     resource RegentPoints.Service do
       define :summary, action: :summary
       define :record_event, action: :record_event, args: [:event]
-      define :process_event, action: :process_event, args: [:event_id]
+      define :process_event, action: :process_event, args: [:event_id, :last_attempt]
       define :reverse, action: :reverse, args: [:entry_id, :correction_key, :base_micro, :reason]
     end
   end

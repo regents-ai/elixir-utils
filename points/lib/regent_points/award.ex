@@ -5,7 +5,7 @@ defmodule RegentPoints.Award do
   alias RegentPoints.{Account, Bonus, Nfts, Rules, Store}
 
   @impl true
-  def run(%{arguments: %{event_id: id}}, _, _) do
+  def run(%{arguments: %{event_id: id, last_attempt: last_attempt}}, _, _) do
     case Store.event(id) do
       nil ->
         {:error, "Unknown points event"}
@@ -14,22 +14,39 @@ defmodule RegentPoints.Award do
         {:ok, %{id: event.id, status: status}}
 
       event ->
-        process(event)
+        process(event, last_attempt)
     end
   end
 
-  defp process(event) do
+  defp process(event, last_attempt) do
     # Historical reads happen outside the transaction and use action-time wallets.
-    with {:ok, holdings} <- Nfts.at_time(event.wallets, event.source_action_at) do
-      Ash.transact(Account, fn ->
-        Store.lock_account(event.account_id)
-        award(Store.event(event.id), holdings)
-      end)
+    case Nfts.at_time(event.wallets, event.source_action_at) do
+      {:ok, holdings} -> settle(event, &award(&1, holdings))
+      {:error, _} when last_attempt -> settle(event, &chain_unavailable/1)
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  defp award(%{processing_status: status} = event, _) when status != :pending,
-    do: %{id: event.id, status: status}
+  defp settle(event, finish) do
+    Ash.transact(Account, fn ->
+      Store.lock_account(event.account_id)
+
+      case Store.event(event.id) do
+        %{processing_status: :pending} = event -> finish.(event)
+        event -> %{id: event.id, status: event.processing_status}
+      end
+    end)
+  end
+
+  defp chain_unavailable(event) do
+    Points.finish_event!(
+      event,
+      %{processing_status: :rejected, reason_code: "chain_unavailable"},
+      actor: Store.system()
+    )
+
+    %{id: event.id, status: :rejected}
+  end
 
   defp award(event, holdings) do
     event =

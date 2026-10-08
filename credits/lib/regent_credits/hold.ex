@@ -187,6 +187,14 @@ defmodule RegentCredits.Hold do
       argument :key, :string, allow_nil?: false
       run fn input, context -> Holds.take_back(input.arguments, context.actor) end
     end
+
+    action :lock_holds do
+      description "Locks every account closing these holds or holding for these people moves."
+      transaction? true
+      argument :keys, {:array, :string}, allow_nil?: false
+      argument :privy_user_ids, {:array, :string}, allow_nil?: false
+      run fn input, context -> Holds.lock_holds(input.arguments, context.actor) end
+    end
   end
 
   policies do
@@ -194,7 +202,15 @@ defmodule RegentCredits.Hold do
       authorize_if {RegentCredits.Checks.OwnCredits, roles: [:person, :agent]}
     end
 
-    policy action([:give_back, :charge, :carry_over, :settle, :pay_bounty, :take_back]) do
+    policy action([
+             :give_back,
+             :charge,
+             :carry_over,
+             :settle,
+             :pay_bounty,
+             :take_back,
+             :lock_holds
+           ]) do
       authorize_if actor_attribute_equals(:role, :site)
     end
 

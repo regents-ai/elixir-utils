@@ -78,6 +78,7 @@ defmodule RegentCredits do
       define :settle, args: [:key, :returned, :used, :forfeited]
       define :pay_bounty, args: [:key, :to]
       define :take_back, args: [:key]
+      define :lock_holds, args: [:keys, :privy_user_ids]
       define :holds, action: :read
     end
   end

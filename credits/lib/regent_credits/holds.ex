@@ -197,6 +197,32 @@ defmodule RegentCredits.Holds do
     {:ok, %{returned: 0, used: hold.amount, forfeited: 0}}
   end
 
+  @doc """
+  Locks, in one sorted statement, the accounts of everyone owning a hold under
+  `keys` or named in `privy_user_ids`, and the revenue account. A site that
+  holds and closes holds for several people in one transaction calls this
+  first, so each later call re-locks rows the transaction already holds and
+  never waits on another such transaction in the opposite order. A bounty's
+  recipient is not among them.
+  """
+  def lock_holds(%{keys: keys, privy_user_ids: privy_user_ids}, actor) do
+    # Internal: read by the authorized operation.
+    owners =
+      Hold
+      |> Ash.Query.filter(site == ^actor.site and key in ^keys)
+      |> Ash.Query.select([:privy_user_id])
+      |> Ash.read!(authorize?: false)
+      |> Enum.map(& &1.privy_user_id)
+
+    (owners ++ privy_user_ids)
+    |> Enum.uniq()
+    |> Enum.flat_map(&Ledger.person/1)
+    |> Enum.concat([revenue()])
+    |> Ledger.lock()
+
+    :ok
+  end
+
   # Locks the owner's accounts and the `others` the close moves Credits to,
   # re-reads the hold, and closes it once. `closing` is the fields a repeat must
   # match, then the fields only the first close writes. A repeat answers with

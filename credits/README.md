@@ -86,6 +86,9 @@ RegentCredits.take_back(post_id, actor: site)
   the same key with other details is refused.
 - A site that locks its own rows (an Offer slot) calls the hold after them,
   inside its own transaction. See `RegentCredits.Ledger` for the order.
+- A site that holds and closes for several people in one transaction first
+  calls `RegentCredits.lock_holds(keys, privy_user_ids, actor: site)` with
+  every hold it may close and every person it may hold for.
 
 ## Buying
 

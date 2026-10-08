@@ -82,6 +82,35 @@ defmodule RegentCredits.ConcurrencyTest do
     assert Decimal.eq?(RegentCredits.balance(b).available, d("98"))
   end
 
+  # Each transaction settles one person's hold (their accounts and revenue)
+  # and gives back the other's; half do it in the opposite order. Without
+  # `lock_holds` first, one locks revenue and waits on a person the other
+  # holds while waiting on revenue.
+  test "closing two people's holds in opposite orders never deadlocks after lock_holds" do
+    a = fund(person(), "0", "100")
+    b = fund(person(), "0", "100")
+
+    results =
+      race(40, fn i ->
+        keys = for owner <- [a, b], do: "slot-#{owner}-#{i}"
+        [key_a, key_b] = keys
+        {:ok, _} = RegentCredits.hold(key_a, a, d("1"), "offer_bid", actor: actor(a))
+        {:ok, _} = RegentCredits.hold(key_b, b, d("1"), "offer_bid", actor: actor(b))
+
+        Ash.transact(RegentCredits.Hold, fn ->
+          :ok = RegentCredits.lock_holds!(keys, [], actor: site())
+          {settle, give} = if rem(i, 2) == 0, do: {key_a, key_b}, else: {key_b, key_a}
+          RegentCredits.settle!(settle, d("0"), d("1"), d("0"), actor: site())
+          RegentCredits.give_back!(give, "outbid", actor: site())
+        end)
+      end)
+
+    assert ok_count(results) == 40, inspect(Enum.reject(results, &match?({:ok, _}, &1)), limit: 3)
+    # Each settled 20 and had 20 given back.
+    assert Decimal.eq?(RegentCredits.balance(a).available, d("80"))
+    assert Decimal.eq?(RegentCredits.balance(b).available, d("80"))
+  end
+
   test "an agent's held bids count toward its daily limit, and a returned bid gives the room back" do
     owner = fund(person(), "0", "50")
     agent = "0x00000000000000000000000000000000000000a1"

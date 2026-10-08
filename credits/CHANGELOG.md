@@ -10,6 +10,8 @@ shared by every Regent site.
   Ledger transfers cannot be changed or deleted.
 - Holds: hold, give back, charge, carry over, settle, bounty payout and
   takeback, given Credits spent first and returned as the same kind.
+  `lock_holds` locks every account a transaction closing several people's
+  holds may move, once and in order, before it starts.
 - Agent spending limits: on or off, most per spend, daily limit, sites. The
   daily limit counts a carried-over bid once, on the day it was first held.
 - Purchases with USDC on Base (approve and deposit into REGENT staking) and

@@ -16,6 +16,12 @@ defmodule RegentCredits.Ledger do
   A site that locks its own rows first (an Offer slot, say) calls the
   operation after them, never before.
 
+  Each operation's lock covers only its own accounts. A site that runs several
+  operations for different people in one transaction (settling an Offer slot
+  holds, gives back and settles several bidders' holds) calls
+  `RegentCredits.lock_holds/3` first, with every hold it may close and every
+  person it may hold for, so the whole set is locked once, in order.
+
   Callers have authorized the operation itself; these internal reads and
   writes run unauthorized for that reason.
   """

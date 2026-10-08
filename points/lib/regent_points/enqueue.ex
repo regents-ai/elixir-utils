@@ -10,7 +10,9 @@ defmodule RegentPoints.Enqueue do
   """
   def call(worker, args) do
     # insert_all passes standard Repo options through; insert/2 drops :mode.
-    # No job uniqueness is needed: the ledger deduplicates verified source facts.
+    # Oban's basic engine skips a worker's unique option on insert_all. Both jobs
+    # queued here are safe to repeat: the ledger deduplicates verified source
+    # facts, and a holdings refresh keeps the newest block under the account lock.
     opts = if RegentPoints.repo(nil, :mutate).in_transaction?(), do: [mode: :savepoint], else: []
 
     case Oban.insert_all([worker.new(args)], opts) do

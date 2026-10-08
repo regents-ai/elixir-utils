@@ -82,34 +82,44 @@ defmodule RegentCredits.ConcurrencyTest do
     assert Decimal.eq?(RegentCredits.balance(b).available, d("98"))
   end
 
-  # Each transaction settles one person's hold (their accounts and revenue)
-  # and gives back the other's; half do it in the opposite order. Without
-  # `lock_holds` first, one locks revenue and waits on a person the other
-  # holds while waiting on revenue.
+  # Two transactions close a hold of `a` (settling it locks `a` and revenue) and
+  # one of `b`, in opposite orders, pausing between the two so both have taken
+  # their first locks. Without `lock_holds` first this deadlocks every time; with
+  # it the second waits for the first to commit.
   test "closing two people's holds in opposite orders never deadlocks after lock_holds" do
-    a = fund(person(), "0", "100")
-    b = fund(person(), "0", "100")
+    a = fund(person(), "0", "4")
+    b = fund(person(), "0", "4")
+
+    hold = fn owner, n ->
+      key = "slot-#{owner}-#{n}"
+      {:ok, _} = RegentCredits.hold(key, owner, d("1"), "offer_bid", actor: actor(owner))
+      key
+    end
+
+    orders = [
+      [settle: hold.(a, 1), give_back: hold.(b, 1)],
+      [give_back: hold.(b, 2), settle: hold.(a, 2)]
+    ]
 
     results =
-      race(40, fn i ->
-        keys = for owner <- [a, b], do: "slot-#{owner}-#{i}"
-        [key_a, key_b] = keys
-        {:ok, _} = RegentCredits.hold(key_a, a, d("1"), "offer_bid", actor: actor(a))
-        {:ok, _} = RegentCredits.hold(key_b, b, d("1"), "offer_bid", actor: actor(b))
+      race(2, fn i ->
+        [{first, first_key}, {second, second_key}] = Enum.at(orders, i - 1)
 
         Ash.transact(RegentCredits.Hold, fn ->
-          :ok = RegentCredits.lock_holds!(keys, [], actor: site())
-          {settle, give} = if rem(i, 2) == 0, do: {key_a, key_b}, else: {key_b, key_a}
-          RegentCredits.settle!(settle, d("0"), d("1"), d("0"), actor: site())
-          RegentCredits.give_back!(give, "outbid", actor: site())
+          :ok = RegentCredits.lock_holds!([first_key, second_key], [], actor: site())
+          close(first, first_key)
+          Process.sleep(300)
+          close(second, second_key)
         end)
       end)
 
-    assert ok_count(results) == 40, inspect(Enum.reject(results, &match?({:ok, _}, &1)), limit: 3)
-    # Each settled 20 and had 20 given back.
-    assert Decimal.eq?(RegentCredits.balance(a).available, d("80"))
-    assert Decimal.eq?(RegentCredits.balance(b).available, d("80"))
+    assert ok_count(results) == 2, inspect(Enum.reject(results, &match?({:ok, _}, &1)))
+    assert Decimal.eq?(RegentCredits.balance(a).available, d("2"))
+    assert Decimal.eq?(RegentCredits.balance(b).available, d("4"))
   end
+
+  defp close(:settle, key), do: RegentCredits.settle!(key, d("0"), d("1"), d("0"), actor: site())
+  defp close(:give_back, key), do: RegentCredits.give_back!(key, "outbid", actor: site())
 
   test "an agent's held bids count toward its daily limit, and a returned bid gives the room back" do
     owner = fund(person(), "0", "50")

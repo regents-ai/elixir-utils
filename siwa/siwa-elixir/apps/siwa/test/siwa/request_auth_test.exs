@@ -60,6 +60,10 @@ defmodule Siwa.RequestAuthTest do
            ) == components ++ ["content-digest"]
   end
 
+  test "a signed request with a body carries exactly the forwarded headers", ctx do
+    assert Enum.sort(Map.keys(sign(ctx).headers)) == Enum.sort(Siwa.forwarded_headers())
+  end
+
   test "wallet requests need explicit audience opt-in", ctx do
     signed = sign(ctx)
 

@@ -11,6 +11,7 @@ defmodule Siwa do
   defdelegate sign_authenticated_request(request, receipt, signer, opts \\ []), to: RequestAuth
   defdelegate verify_authenticated_request(request, opts \\ []), to: RequestAuth
   defdelegate content_digest_for_body(body), to: RequestAuth
+  defdelegate forwarded_headers(), to: RequestAuth
 
   defdelegate required_authenticated_request_headers(body),
     to: RequestAuth,

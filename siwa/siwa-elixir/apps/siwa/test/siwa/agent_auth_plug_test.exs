@@ -83,6 +83,43 @@ defmodule Siwa.AgentAuthPlugTest do
     assert_received {:accept, %{"agent_claims" => %{"token_id" => "77"}}, :context}
   end
 
+  test "only the signed headers are forwarded to the sign-in server" do
+    :post
+    |> conn("/v1/things", "{}")
+    |> put_req_header("x-siwa-signature", "sig1=:abc=:")
+    |> put_req_header("cookie", "session=person")
+    |> put_req_header("authorization", "Bearer person")
+    |> call()
+
+    assert_received {:verify_http_request, %{"headers" => headers}, _opts}
+    assert headers == %{"x-siwa-signature" => "sig1=:abc=:"}
+  end
+
+  test "a signed header sent twice is refused before any hook or sign-in call" do
+    conn =
+      :post
+      |> conn("/v1/things", "{}")
+      |> then(&%{&1 | req_headers: [{"x-key-id", "a"}, {"X-Key-Id", "b"} | &1.req_headers]})
+      |> call()
+
+    assert conn.halted
+    assert_received {:deny, %{reason: :duplicate_proof, source: :siwa_plug}}
+    refute_received {:before_verify, _headers}
+    refute_received {:verify_http_request, _payload, _opts}
+  end
+
+  test "signed_request? tells a signed agent request from a person's" do
+    assert :post
+           |> conn("/v1/things", "{}")
+           |> put_req_header("x-siwa-receipt", "receipt")
+           |> AgentAuthPlug.signed_request?()
+
+    refute :post
+           |> conn("/v1/things", "{}")
+           |> put_req_header("cookie", "session=person")
+           |> AgentAuthPlug.signed_request?()
+  end
+
   test "signed path includes the query string by default and can be path only" do
     :post |> conn("/v1/things?cursor=2", "{}") |> call()
     assert_received {:verify_http_request, %{"path" => "/v1/things?cursor=2"}, _opts}

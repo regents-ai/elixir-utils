@@ -2,10 +2,11 @@ defmodule Siwa.AgentAuthPlug do
   @moduledoc """
   Shared agent-auth plug for Regent Phoenix apps backed by the SIWA broker.
 
-  The plug downcases the request headers, builds the canonical
-  `POST /api/shared/siwa/http-verify` payload, sends it through the
-  app-provided client, and hands every app-specific decision to the app's
-  hooks module:
+  The plug downcases the request headers, refuses a request that sends any
+  signed header (`Siwa.RequestAuth.forwarded_headers/0`) more than once, builds
+  the canonical `POST /api/shared/siwa/http-verify` payload carrying only those
+  headers, sends it through the app-provided client, and hands every
+  app-specific decision to the app's hooks module:
 
     * `c:Siwa.AgentAuthPlug.Hooks.before_verify/2` runs before the broker
       call and can pre-validate the request (for example required `x-agent-*`
@@ -24,12 +25,16 @@ defmodule Siwa.AgentAuthPlug do
     * `:body` — `:if_present` (default: omit the payload `"body"` when no raw
       body was captured) or `:always` (send the captured raw body or `""`)
 
-  Deny metadata is a map with `:reason` and `:source` plus optional detail
-  keys (`:siwa_status`, `:siwa_code`, `:siwa_message`, `:siwa_hint`,
-  `:transport_error`, `:missing_headers`, `:invalid_header`).
+  A repeated signed header denies with `%{reason: :duplicate_proof, source:
+  :siwa_plug}` before any hook runs. Deny metadata is a map with `:reason` and
+  `:source` plus optional detail keys (`:siwa_status`, `:siwa_code`,
+  `:siwa_message`, `:siwa_hint`, `:transport_error`, `:missing_headers`,
+  `:invalid_header`).
   """
 
   @behaviour Plug
+
+  alias Siwa.RequestAuth
 
   defmodule Client do
     @moduledoc """
@@ -70,7 +75,8 @@ defmodule Siwa.AgentAuthPlug do
     hooks = Keyword.fetch!(opts, :hooks)
     headers = downcase_headers(conn.req_headers)
 
-    with {:ok, context} <- hooks.before_verify(conn, headers),
+    with :ok <- refuse_repeats(conn),
+         {:ok, context} <- hooks.before_verify(conn, headers),
          {:ok, data} <- verify_envelope(conn, headers, opts),
          {:ok, conn} <- hooks.accept(conn, data, context) do
       conn
@@ -82,6 +88,24 @@ defmodule Siwa.AgentAuthPlug do
   @doc "Path of the broker verification endpoint."
   @spec http_verify_path() :: String.t()
   def http_verify_path, do: @http_verify_path
+
+  @doc "Whether the request carries any signed agent header, telling an agent's request from a person's."
+  @spec signed_request?(Plug.Conn.t()) :: boolean()
+  def signed_request?(conn) do
+    forwarded = RequestAuth.forwarded_headers()
+    Enum.any?(conn.req_headers, fn {name, _value} -> String.downcase(name) in forwarded end)
+  end
+
+  # The map of headers keeps one value per name, so repeats are found on the
+  # request's own list.
+  defp refuse_repeats(conn) do
+    names = Enum.map(conn.req_headers, fn {name, _value} -> String.downcase(name) end)
+    repeats = names -- Enum.uniq(names)
+
+    if Enum.any?(repeats, &(&1 in RequestAuth.forwarded_headers())),
+      do: {:error, %{reason: :duplicate_proof, source: :siwa_plug}},
+      else: :ok
+  end
 
   defp verify_envelope(conn, headers, opts) do
     client = Keyword.fetch!(opts, :client)
@@ -116,7 +140,7 @@ defmodule Siwa.AgentAuthPlug do
     payload = %{
       "method" => conn.method,
       "path" => signed_path(conn, Keyword.get(opts, :signed_path, :path_and_query)),
-      "headers" => headers
+      "headers" => Map.take(headers, RequestAuth.forwarded_headers())
     }
 
     case {Keyword.get(opts, :body, :if_present), conn.assigns[:raw_body]} do

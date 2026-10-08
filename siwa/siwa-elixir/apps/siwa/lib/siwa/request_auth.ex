@@ -144,6 +144,14 @@ defmodule Siwa.RequestAuth do
 
   def content_digest_for_body(_body), do: nil
 
+  @doc """
+  Every header a signed agent request may carry: the required ones plus
+  `content-digest`, which comes with a body. A site forwards exactly these to the
+  sign-in server and nothing else.
+  """
+  @spec forwarded_headers() :: [String.t()]
+  def forwarded_headers, do: @required_headers ++ ["content-digest"]
+
   def required_headers(body) do
     body
     |> request_body_digest()

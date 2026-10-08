@@ -4,14 +4,14 @@ defmodule Siwa do
   carry them.
   """
 
-  alias Siwa.{Receipt, RequestAuth}
+  alias Siwa.{Contract, Receipt, RequestAuth}
 
   defdelegate create_receipt(payload, opts \\ []), to: Receipt, as: :create
   defdelegate verify_receipt(token, opts \\ []), to: Receipt, as: :verify
   defdelegate sign_authenticated_request(request, receipt, signer, opts \\ []), to: RequestAuth
   defdelegate verify_authenticated_request(request, opts \\ []), to: RequestAuth
   defdelegate content_digest_for_body(body), to: RequestAuth
-  defdelegate forwarded_headers(), to: RequestAuth
+  defdelegate forwarded_headers(), to: Contract
 
   defdelegate required_authenticated_request_headers(body),
     to: RequestAuth,

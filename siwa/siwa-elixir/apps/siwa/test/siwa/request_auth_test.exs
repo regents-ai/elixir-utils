@@ -31,9 +31,9 @@ defmodule Siwa.RequestAuthTest do
 
   test "exposes the required authenticated request shape" do
     headers = ~w(
-      x-siwa-receipt
       x-siwa-signature
       x-siwa-signature-input
+      x-siwa-receipt
       x-key-id
       x-timestamp
       x-agent-wallet-address

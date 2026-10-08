@@ -1,36 +1,26 @@
 defmodule Siwa.RequestAuth do
-  alias Siwa.{Receipt, WalletSignature}
+  @moduledoc """
+  Signs and verifies agent requests under `Siwa.Contract`, which names every
+  header, component and parameter used here.
+  """
 
-  @default_expires_in_seconds 120
+  alias Siwa.{Contract, Receipt, WalletSignature}
+
   @default_signature_tolerance_seconds 300
-  @receipt_header "x-siwa-receipt"
-  @signature_header "x-siwa-signature"
-  @signature_input_header "x-siwa-signature-input"
-  @signature_regex ~r/^sig1=:(?<payload>[A-Za-z0-9+\/=]+):$/
-  @content_digest_regex ~r/^sha-256=:(?<payload>[A-Za-z0-9+\/=]+):$/
   @positive_int_regex ~r/^[1-9][0-9]*$/
 
-  @required_headers ~w(
-    x-siwa-receipt
-    x-siwa-signature
-    x-siwa-signature-input
-    x-key-id
-    x-timestamp
-    x-agent-wallet-address
-    x-agent-chain-id
-  )
-
-  @base_components ~w(
-    @method
-    @path
-    x-siwa-receipt
-    x-key-id
-    x-timestamp
-    x-agent-wallet-address
-    x-agent-chain-id
-  )
-
-  @signature_components @base_components ++ ["content-digest"]
+  @label Contract.label()
+  @receipt_header Contract.header_for("receipt")
+  @key_id_header Contract.header_for("key_id")
+  @timestamp_header Contract.header_for("created")
+  @wallet_address_header Contract.header_for("wallet_address")
+  @chain_id_header Contract.header_for("chain_id")
+  @signature_header Contract.signature_header()
+  @signature_input_header Contract.signature_input_header()
+  @body_component Contract.body_component()
+  @required_headers Contract.required_headers()
+  @base_components Contract.component_names()
+  @signature_components @base_components ++ [@body_component]
 
   def sign_authenticated_request(request, receipt, signer, opts \\ []) do
     request = normalize_request(request)
@@ -42,23 +32,20 @@ defmodule Siwa.RequestAuth do
          {:ok, expires} <- expires_unix_seconds(created, opts),
          unsigned_headers <- unsigned_headers(request, receipt, receipt_payload, created),
          signature_input <-
-           build_signature_input(%{
-             covered_components:
-               required_components_for_headers(
-                 unsigned_headers,
-                 request_body_digest(request.body)
-               ),
-             created: created,
-             expires: expires,
-             nonce: Keyword.get_lazy(opts, :nonce, &signature_nonce/0),
-             key_id: receipt_payload["key_id"]
-           }),
-         signing_message <-
-           build_http_signing_message(
-             request.method,
-             request.path,
-             Map.put(unsigned_headers, @signature_input_header, signature_input)
+           build_signature_input(
+             required_components_for_headers(unsigned_headers, request_body_digest(request.body)),
+             %{
+               "created" => created,
+               "expires" => expires,
+               "nonce" => Keyword.get_lazy(opts, :nonce, &signature_nonce/0),
+               "key_id" => receipt_payload["key_id"]
+             }
            ),
+         {:ok, signing_message} <-
+           signing_message(%{
+             request
+             | headers: Map.put(unsigned_headers, @signature_input_header, signature_input)
+           }),
          {:ok, signature} <- signer_module(signer).sign_message(signer, signing_message),
          {:ok, signature_header} <- encode_signature_header(signature) do
       headers =
@@ -123,6 +110,22 @@ defmodule Siwa.RequestAuth do
     end
   end
 
+  @doc "The message a request's signature covers, read from its signature-input header."
+  def signing_message(request) do
+    request = normalize_request(request)
+
+    with {:ok, parsed_signature_input} <-
+           parse_signature_input(Map.get(request.headers, @signature_input_header)) do
+      {:ok,
+       build_http_signing_message(
+         request.method,
+         request.path,
+         request.headers,
+         parsed_signature_input
+       )}
+    end
+  end
+
   def normalize_request(request) do
     path = request[:path] || request["path"] || "/"
 
@@ -139,18 +142,10 @@ defmodule Siwa.RequestAuth do
       :crypto.hash(:sha256, body)
       |> Base.encode64()
 
-    "sha-256=:#{digest}:"
+    "#{Contract.body_algorithm()}=:#{digest}:"
   end
 
   def content_digest_for_body(_body), do: nil
-
-  @doc """
-  Every header a signed agent request may carry: the required ones plus
-  `content-digest`, which comes with a body. A site forwards exactly these to the
-  sign-in server and nothing else.
-  """
-  @spec forwarded_headers() :: [String.t()]
-  def forwarded_headers, do: @required_headers ++ ["content-digest"]
 
   def required_headers(body) do
     body
@@ -165,17 +160,22 @@ defmodule Siwa.RequestAuth do
   end
 
   defp unsigned_headers(request, receipt, receipt_payload, created) do
-    headers = %{
-      @receipt_header => receipt,
-      "x-key-id" => receipt_payload["key_id"],
-      "x-timestamp" => Integer.to_string(created),
-      "x-agent-wallet-address" => receipt_payload["sub"],
-      "x-agent-chain-id" => Integer.to_string(receipt_payload["chain_id"])
+    values = %{
+      "receipt" => receipt,
+      "key_id" => receipt_payload["key_id"],
+      "created" => Integer.to_string(created),
+      "wallet_address" => receipt_payload["sub"],
+      "chain_id" => Integer.to_string(receipt_payload["chain_id"])
     }
+
+    headers =
+      Map.new(Contract.header_components(), fn {header, from} ->
+        {header, Map.fetch!(values, from)}
+      end)
 
     case request_body_digest(request.body) do
       nil -> headers
-      body_digest -> Map.put(headers, "content-digest", body_digest)
+      body_digest -> Map.put(headers, @body_component, body_digest)
     end
   end
 
@@ -257,7 +257,7 @@ defmodule Siwa.RequestAuth do
   defp expires_unix_seconds(created, opts) do
     expires =
       case Keyword.get(opts, :expires_at) do
-        nil -> created + Keyword.get(opts, :expires_in_seconds, @default_expires_in_seconds)
+        nil -> created + Keyword.get(opts, :expires_in_seconds, Contract.lifetime_seconds())
         value -> value
       end
 
@@ -275,21 +275,25 @@ defmodule Siwa.RequestAuth do
 
   defp unix_seconds(_value), do: {:error, :invalid_signature_window}
 
-  defp build_signature_input(input) do
-    signature_params =
-      "(#{Enum.map_join(input.covered_components, " ", &~s("#{&1}"))})" <>
-        ";created=#{input.created}" <>
-        ";expires=#{input.expires}" <>
-        ~s(;nonce="#{input.nonce}") <>
-        ~s(;keyid="#{input.key_id}")
+  defp build_signature_input(components, values),
+    do: "#{@label}=#{signature_params(components, values)}"
 
-    "sig1=#{signature_params}"
+  # The parameters follow the contract's order; created and expires are bare
+  # integers, the others quoted strings (RFC 9421).
+  defp signature_params(components, values) do
+    "(#{Enum.map_join(components, " ", &~s("#{&1}"))})" <>
+      Enum.map_join(Contract.params(), fn {name, from} ->
+        ";#{name}=#{param_value(from, Map.fetch!(values, from))}"
+      end)
   end
+
+  defp param_value(from, value) when from in ["created", "expires"], do: Integer.to_string(value)
+  defp param_value(_from, value), do: ~s("#{value}")
 
   defp parse_signature_input(signature_input) when is_binary(signature_input) do
     with %{"components" => components_blob, "params" => params_blob} <-
            Regex.named_captures(
-             ~r/^sig1=\((?<components>.+)\)(?<params>(?:;.+)*)$/,
+             ~r/^#{@label}=\((?<components>.+)\)(?<params>(?:;.+)*)$/,
              String.trim(signature_input)
            ),
          {:ok, components} <- parse_components(components_blob),
@@ -297,16 +301,11 @@ defmodule Siwa.RequestAuth do
       {:ok,
        %{
          components: components,
-         created: params.created,
-         expires: params.expires,
-         nonce: params.nonce,
-         key_id: params.key_id,
-         signature_params:
-           "(#{Enum.map_join(components, " ", &~s("#{&1}"))})" <>
-             ";created=#{params.created}" <>
-             ";expires=#{params.expires}" <>
-             ~s(;nonce="#{params.nonce}") <>
-             if(params.key_id, do: ~s(;keyid="#{params.key_id}"), else: "")
+         created: params["created"],
+         expires: params["expires"],
+         nonce: params["nonce"],
+         key_id: params["key_id"],
+         signature_params: signature_params(components, params)
        }}
     else
       _ -> {:error, :invalid_signature_input}
@@ -347,18 +346,15 @@ defmodule Siwa.RequestAuth do
         {:error, reason}
 
       entries ->
-        with {:ok, created} <- parse_positive_integer(entries["created"]),
-             {:ok, expires} <- parse_positive_integer(entries["expires"]),
-             {:ok, nonce} <- required_value(entries["nonce"]),
-             {:ok, key_id} <- required_value(entries["keyid"]),
+        param = &entries[Contract.param_name(&1)]
+
+        with {:ok, created} <- parse_positive_integer(param.("created")),
+             {:ok, expires} <- parse_positive_integer(param.("expires")),
+             {:ok, nonce} <- required_value(param.("nonce")),
+             {:ok, key_id} <- required_value(param.("key_id")),
              true <- expires > created do
           {:ok,
-           %{
-             created: created,
-             expires: expires,
-             nonce: nonce,
-             key_id: key_id
-           }}
+           %{"created" => created, "expires" => expires, "nonce" => nonce, "key_id" => key_id}}
         else
           _ -> {:error, :invalid_signature_input}
         end
@@ -389,7 +385,7 @@ defmodule Siwa.RequestAuth do
   end
 
   defp required_headers_for_digest(nil), do: @required_headers
-  defp required_headers_for_digest(_body_digest), do: @required_headers ++ ["content-digest"]
+  defp required_headers_for_digest(_body_digest), do: @required_headers ++ [@body_component]
 
   defp ensure_signature_window(parsed_signature_input, headers, opts) do
     now =
@@ -400,12 +396,12 @@ defmodule Siwa.RequestAuth do
     tolerance_seconds =
       Keyword.get(opts, :signature_tolerance_seconds, @default_signature_tolerance_seconds)
 
-    with {:ok, header_timestamp} <- parse_positive_integer(Map.get(headers, "x-timestamp")) do
+    with {:ok, header_timestamp} <- parse_positive_integer(Map.get(headers, @timestamp_header)) do
       cond do
         header_timestamp != parsed_signature_input.created ->
           {:error, :timestamp_mismatch}
 
-        parsed_signature_input.key_id != Map.get(headers, "x-key-id") ->
+        parsed_signature_input.key_id != Map.get(headers, @key_id_header) ->
           {:error, :signature_key_id_mismatch}
 
         parsed_signature_input.created > now + tolerance_seconds ->
@@ -438,15 +434,15 @@ defmodule Siwa.RequestAuth do
   end
 
   defp required_components_for_headers(headers, body_digest) do
-    if is_binary(body_digest) or Map.has_key?(headers, "content-digest") do
-      @base_components ++ ["content-digest"]
+    if is_binary(body_digest) or Map.has_key?(headers, @body_component) do
+      @signature_components
     else
       @base_components
     end
   end
 
   defp ensure_body_binding(headers, nil) do
-    if Map.has_key?(headers, "content-digest") do
+    if Map.has_key?(headers, @body_component) do
       {:error, :request_body_required}
     else
       :ok
@@ -454,9 +450,13 @@ defmodule Siwa.RequestAuth do
   end
 
   defp ensure_body_binding(headers, body_digest) do
-    with content_digest when is_binary(content_digest) <- Map.get(headers, "content-digest"),
+    with content_digest when is_binary(content_digest) <- Map.get(headers, @body_component),
          true <- content_digest == body_digest,
-         %{"payload" => payload} <- Regex.named_captures(@content_digest_regex, content_digest),
+         %{"payload" => payload} <-
+           Regex.named_captures(
+             ~r/^#{Contract.body_algorithm()}=:(?<payload>[A-Za-z0-9+\/=]+):$/,
+             content_digest
+           ),
          {:ok, _decoded} <- Base.decode64(payload) do
       :ok
     else
@@ -468,9 +468,9 @@ defmodule Siwa.RequestAuth do
 
   defp ensure_header_binding(headers, receipt_payload) do
     checks = [
-      fn -> ensure_address_claim_binding(headers, receipt_payload, "x-key-id", "key_id") end,
+      fn -> ensure_address_claim_binding(headers, receipt_payload, @key_id_header, "key_id") end,
       fn ->
-        ensure_address_claim_binding(headers, receipt_payload, "x-agent-wallet-address", "sub")
+        ensure_address_claim_binding(headers, receipt_payload, @wallet_address_header, "sub")
       end,
       fn -> ensure_chain_binding(headers, receipt_payload) end
     ]
@@ -490,7 +490,7 @@ defmodule Siwa.RequestAuth do
   end
 
   defp ensure_chain_binding(headers, claims) do
-    with {:ok, chain_id} <- parse_positive_integer(Map.get(headers, "x-agent-chain-id")),
+    with {:ok, chain_id} <- parse_positive_integer(Map.get(headers, @chain_id_header)),
          true <- chain_id == claims["chain_id"] do
       :ok
     else
@@ -500,7 +500,10 @@ defmodule Siwa.RequestAuth do
 
   defp decode_signature(signature_header) when is_binary(signature_header) do
     with %{"payload" => payload} <-
-           Regex.named_captures(@signature_regex, String.trim(signature_header)),
+           Regex.named_captures(
+             ~r/^#{@label}=:(?<payload>[A-Za-z0-9+\/=]+):$/,
+             String.trim(signature_header)
+           ),
          {:ok, bytes} <- Base.decode64(payload),
          true <- byte_size(bytes) in 1..WalletSignature.max_bytes() do
       {:ok, "0x" <> Base.encode16(bytes, case: :lower)}
@@ -514,7 +517,7 @@ defmodule Siwa.RequestAuth do
   defp encode_signature_header("0x" <> hex) do
     with {:ok, bytes} <- Base.decode16(hex, case: :mixed),
          true <- byte_size(bytes) in 1..WalletSignature.max_bytes() do
-      {:ok, "sig1=:#{Base.encode64(bytes)}:"}
+      {:ok, "#{@label}=:#{Base.encode64(bytes)}:"}
     else
       _ -> {:error, :invalid_signature}
     end
@@ -526,23 +529,16 @@ defmodule Siwa.RequestAuth do
     parsed_signature_input.components
     |> Enum.map(fn component ->
       value =
-        case component do
-          "@method" -> String.downcase(method)
-          "@path" -> request_path
-          header_name -> Map.fetch!(headers, header_name)
+        case Contract.source(component) do
+          "method" -> String.downcase(method)
+          "path" -> request_path
+          _header -> Map.fetch!(headers, component)
         end
 
       ~s("#{component}": #{value})
     end)
     |> Kernel.++([~s("@signature-params": #{parsed_signature_input.signature_params})])
     |> Enum.join("\n")
-  end
-
-  defp build_http_signing_message(method, request_path, headers) do
-    with {:ok, parsed_signature_input} <-
-           parse_signature_input(Map.fetch!(headers, @signature_input_header)) do
-      build_http_signing_message(method, request_path, headers, parsed_signature_input)
-    end
   end
 
   defp consume_replay_window(

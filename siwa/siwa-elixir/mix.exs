@@ -25,6 +25,7 @@ defmodule SiwaElixir.MixProject do
         "deps.unlock --unused",
         "format --check-formatted",
         "usage_rules.sync --check",
+        "siwa.contract --check",
         "test"
       ],
       precommit: ["check"]

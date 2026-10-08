@@ -4,7 +4,7 @@ defmodule Siwa.AgentAuthPlug do
 
   Before any hook runs, the plug refuses, with `source: :siwa_plug`:
 
-    * `:duplicate_proof` — a signed header (`Siwa.RequestAuth.forwarded_headers/0`)
+    * `:duplicate_proof` — a signed header (`Siwa.Contract.forwarded_headers/0`)
       sent more than once;
     * `:unsupported_query` — a query string, unless the site signs queries
       (`query: :signed`);
@@ -41,7 +41,7 @@ defmodule Siwa.AgentAuthPlug do
 
   @behaviour Plug
 
-  alias Siwa.RequestAuth
+  alias Siwa.Contract
 
   defmodule Client do
     @moduledoc """
@@ -101,7 +101,7 @@ defmodule Siwa.AgentAuthPlug do
   @doc "Whether the request carries any signed agent header, telling an agent's request from a person's."
   @spec signed_request?(Plug.Conn.t()) :: boolean()
   def signed_request?(conn) do
-    forwarded = RequestAuth.forwarded_headers()
+    forwarded = Contract.forwarded_headers()
     Enum.any?(conn.req_headers, fn {name, _value} -> String.downcase(name) in forwarded end)
   end
 
@@ -111,7 +111,7 @@ defmodule Siwa.AgentAuthPlug do
     names = Enum.map(conn.req_headers, fn {name, _value} -> String.downcase(name) end)
     repeats = names -- Enum.uniq(names)
 
-    if Enum.any?(repeats, &(&1 in RequestAuth.forwarded_headers())),
+    if Enum.any?(repeats, &(&1 in Contract.forwarded_headers())),
       do: {:error, %{reason: :duplicate_proof, source: :siwa_plug}},
       else: :ok
   end
@@ -205,7 +205,7 @@ defmodule Siwa.AgentAuthPlug do
     payload = %{
       "method" => conn.method,
       "path" => signed_path(conn),
-      "headers" => Map.take(headers, RequestAuth.forwarded_headers())
+      "headers" => Map.take(headers, Contract.forwarded_headers())
     }
 
     case {Keyword.get(opts, :body, :if_present), conn.assigns[:raw_body]} do

@@ -4,7 +4,8 @@ defmodule RegentCredits.Purchases do
 
   `check/1` reads the chain outside any transaction, then credits in a
   transaction of its own (`credit/1`), which locks the person's accounts and
-  re-reads the purchase so it credits once.
+  re-reads the purchase so it credits once, and tells the site's
+  `RegentCredits.Credited` module in that same transaction.
 
   The purchase rows are written by the library after the action was
   authorized, so they run unauthorized.
@@ -69,7 +70,12 @@ defmodule RegentCredits.Purchases do
       finish(purchase, %{status: :failed, reason: "already credited"})
     else
       Ledger.move(accounts, pair, Decimal.new(purchase.amount), "purchase:#{purchase.id}")
-      finish(purchase, %{status: :credited, credited_at: DateTime.utc_now()})
+
+      with {:ok, purchase} <-
+             finish(purchase, %{status: :credited, credited_at: DateTime.utc_now()}) do
+        :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
+        {:ok, purchase}
+      end
     end
   end
 

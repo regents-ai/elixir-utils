@@ -26,7 +26,9 @@ defmodule RegentCredits.PurchaseTest do
     )
 
     assert check(purchase).status == :credited
+    assert_received {:credited, id, true} when id == purchase.id
     assert check(purchase).status == :credited
+    refute_received {:credited, _, _}
 
     {:ok, again} =
       RegentCredits.report_purchase(owner, payer, :base, 25, purchase.number, purchase.tx_hash,

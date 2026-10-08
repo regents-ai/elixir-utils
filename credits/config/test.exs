@@ -4,6 +4,7 @@ config :regent_credits,
   repo: RegentCredits.TestRepo,
   admins: ["did:privy:admin"],
   chain_client: RegentCredits.TestChain,
+  on_credited: RegentCredits.TestCredited,
   chains: %{
     base: %{chain_id: 8453, name: "Base", rpc_url: "http://127.0.0.1:8545"},
     ethereum: %{chain_id: 1, name: "Ethereum", rpc_url: "http://127.0.0.1:8546"}

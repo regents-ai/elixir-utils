@@ -25,6 +25,7 @@ config :regent_credits,
   pubsub: MySite.PubSub,
   admins: ["did:privy:..."],
   chain_client: MySite.Chain.Client,
+  on_credited: MySite.Credits.Credited,
   chains: %{
     base: %{chain_id: 8453, name: "Base", rpc_url: "https://..."},
     ethereum: %{chain_id: 1, name: "Ethereum", rpc_url: "https://..."}
@@ -36,6 +37,11 @@ config :regent_credits,
   hears `:credits_changed` whenever that balance changes on any site.
 - `chain_client` implements `RegentCredits.ChainClient`: `transaction/2`,
   `receipt/2` and `block_number/1`, all read at `latest`.
+- `on_credited` implements `RegentCredits.Credited`: `credited(purchase)` runs
+  inside the credit's transaction once a purchase is credited and returns `:ok`.
+  Work it queues commits with the credit; it must never fail the credit. Every
+  site that lists the `RegentCredits` domain may credit any purchase, so each
+  one's module does the same work.
 - The site's Oban needs a `:regent_credits` queue, and its AshOban
   configuration lists the `RegentCredits` domain. The library starts no Oban
   of its own.

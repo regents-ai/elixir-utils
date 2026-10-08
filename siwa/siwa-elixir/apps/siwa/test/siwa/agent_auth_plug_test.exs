@@ -51,6 +51,11 @@ defmodule Siwa.AgentAuthPlugTest do
     end
   end
 
+  defp read_whole_body(conn) do
+    {:ok, _body, conn} = AgentAuthPlug.read_body(conn, [], 1_000)
+    conn
+  end
+
   defp call(conn, opts \\ []) do
     AgentAuthPlug.call(
       conn,
@@ -64,9 +69,9 @@ defmodule Siwa.AgentAuthPlugTest do
   test "verified envelope flows through accept with before_verify context" do
     conn =
       :post
-      |> conn("/v1/things", "{}")
+      |> conn("/v1/things", ~s({"a":1}))
       |> then(&%{&1 | req_headers: [{"X-Agent-Wallet-Address", "0xabc"} | &1.req_headers]})
-      |> assign(:raw_body, ~s({"a":1}))
+      |> read_whole_body()
       |> call()
 
     assert conn.assigns.accepted
@@ -120,12 +125,40 @@ defmodule Siwa.AgentAuthPlugTest do
            |> AgentAuthPlug.signed_request?()
   end
 
-  test "signed path includes the query string by default and can be path only" do
-    :post |> conn("/v1/things?cursor=2", "{}") |> call()
-    assert_received {:verify_http_request, %{"path" => "/v1/things?cursor=2"}, _opts}
+  test "a query string is refused unless the site signs it as part of the path" do
+    :get |> conn("/v1/things?cursor=2") |> call()
+    assert_received {:deny, %{reason: :unsupported_query, source: :siwa_plug}}
+    refute_received {:verify_http_request, _payload, _opts}
 
-    :post |> conn("/v1/things?cursor=2", "{}") |> call(signed_path: :path_only)
-    assert_received {:verify_http_request, %{"path" => "/v1/things"}, _opts}
+    :get |> conn("/v1/things?cursor=2") |> call(query: :signed)
+    assert_received {:verify_http_request, %{"path" => "/v1/things?cursor=2"}, _opts}
+  end
+
+  test "a body the signature would not cover is refused before any hook" do
+    :post |> conn("/v1/things", "{}") |> put_req_header("content-length", "2") |> call()
+    assert_received {:deny, %{reason: :missing_signed_body, source: :siwa_plug}}
+
+    :post |> conn("/v1/things", %{"a" => "1"}) |> call()
+    assert_received {:deny, %{reason: :missing_signed_body, source: :siwa_plug}}
+
+    refute_received {:before_verify, _headers}
+    refute_received {:verify_http_request, _payload, _opts}
+  end
+
+  test "read_body keeps a signed body's exact bytes, and a body over the limit is refused" do
+    :post
+    |> conn("/v1/things", ~s({"a": 1}))
+    |> put_req_header("content-length", "8")
+    |> read_whole_body()
+    |> call()
+
+    assert_received {:verify_http_request, %{"body" => ~s({"a": 1})}, _opts}
+
+    {:more, _chunk, conn} =
+      :post |> conn("/v1/things", String.duplicate("a", 11)) |> AgentAuthPlug.read_body([], 10)
+
+    call(conn)
+    assert_received {:deny, %{reason: :missing_signed_body, source: :siwa_plug}}
   end
 
   test "body is omitted without a captured raw body unless :always" do

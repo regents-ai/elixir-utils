@@ -2,11 +2,18 @@ defmodule Siwa.AgentAuthPlug do
   @moduledoc """
   Shared agent-auth plug for Regent Phoenix apps backed by the SIWA broker.
 
-  The plug downcases the request headers, refuses a request that sends any
-  signed header (`Siwa.RequestAuth.forwarded_headers/0`) more than once, builds
-  the canonical `POST /api/shared/siwa/http-verify` payload carrying only those
-  headers, sends it through the app-provided client, and hands every
-  app-specific decision to the app's hooks module:
+  Before any hook runs, the plug refuses, with `source: :siwa_plug`:
+
+    * `:duplicate_proof` — a signed header (`Siwa.RequestAuth.forwarded_headers/0`)
+      sent more than once;
+    * `:unsupported_query` — a query string, unless the site signs queries
+      (`query: :signed`);
+    * `:missing_signed_body` — a body whose exact bytes `read_body/3` did not
+      capture whole, so the signature would not cover what the site reads.
+
+  It then builds the canonical `POST /api/shared/siwa/http-verify` payload
+  carrying only the signed headers, sends it through the app-provided client,
+  and hands every app-specific decision to the app's hooks module:
 
     * `c:Siwa.AgentAuthPlug.Hooks.before_verify/2` runs before the broker
       call and can pre-validate the request (for example required `x-agent-*`
@@ -21,13 +28,13 @@ defmodule Siwa.AgentAuthPlug do
     * `:client` — module implementing `Siwa.AgentAuthPlug.Client` (required)
     * `:hooks` — module implementing `Siwa.AgentAuthPlug.Hooks` (required)
     * `:audience` — SIWA audience string passed to the client (required)
-    * `:signed_path` — `:path_and_query` (default) or `:path_only`
+    * `:query` — `:refuse` (default) or `:signed` (the query string is part of
+      the signed path)
     * `:body` — `:if_present` (default: omit the payload `"body"` when no raw
       body was captured) or `:always` (send the captured raw body or `""`)
 
-  A repeated signed header denies with `%{reason: :duplicate_proof, source:
-  :siwa_plug}` before any hook runs. Deny metadata is a map with `:reason` and
-  `:source` plus optional detail keys (`:siwa_status`, `:siwa_code`,
+  A site's body reader passes each signed route's body to `read_body/3`. Deny
+  metadata is a map with `:reason` and `:source` plus optional detail keys (`:siwa_status`, `:siwa_code`,
   `:siwa_message`, `:siwa_hint`, `:transport_error`, `:missing_headers`,
   `:invalid_header`).
   """
@@ -76,6 +83,8 @@ defmodule Siwa.AgentAuthPlug do
     headers = downcase_headers(conn.req_headers)
 
     with :ok <- refuse_repeats(conn),
+         :ok <- refuse_query(conn, Keyword.get(opts, :query, :refuse)),
+         :ok <- refuse_unsigned_body(conn),
          {:ok, context} <- hooks.before_verify(conn, headers),
          {:ok, data} <- verify_envelope(conn, headers, opts),
          {:ok, conn} <- hooks.accept(conn, data, context) do
@@ -105,6 +114,62 @@ defmodule Siwa.AgentAuthPlug do
     if Enum.any?(repeats, &(&1 in RequestAuth.forwarded_headers())),
       do: {:error, %{reason: :duplicate_proof, source: :siwa_plug}},
       else: :ok
+  end
+
+  defp refuse_query(%Plug.Conn{query_string: ""}, _query), do: :ok
+  defp refuse_query(_conn, :signed), do: :ok
+
+  defp refuse_query(_conn, :refuse),
+    do: {:error, %{reason: :unsupported_query, source: :siwa_plug}}
+
+  @doc """
+  A `Plug.Parsers` body reader for a signed route, called as
+  `read_body(conn, opts, limit)` from the site's own reader. It keeps the exact
+  bytes in `conn.assigns.raw_body`, marks whether they are the whole body, and
+  refuses a body over `limit` bytes.
+  """
+  @spec read_body(Plug.Conn.t(), keyword(), pos_integer()) ::
+          {:ok | :more, binary(), Plug.Conn.t()} | {:error, term()}
+  def read_body(conn, opts, limit) do
+    opts = opts |> Keyword.put(:length, limit) |> Keyword.put(:read_length, limit + 1)
+
+    case Plug.Conn.read_body(conn, opts) do
+      {status, chunk, conn} when status in [:ok, :more] ->
+        body = Map.get(conn.assigns, :raw_body, "") <> chunk
+        if byte_size(body) > limit, do: raise(Plug.Parsers.RequestTooLargeError)
+
+        conn =
+          conn
+          |> Plug.Conn.assign(:raw_body, body)
+          |> Plug.Conn.put_private(:siwa_body_complete, status == :ok)
+
+        {status, chunk, conn}
+
+      other ->
+        other
+    end
+  end
+
+  defp refuse_unsigned_body(conn) do
+    if body_sent?(conn) and not body_captured?(conn),
+      do: {:error, %{reason: :missing_signed_body, source: :siwa_plug}},
+      else: :ok
+  end
+
+  defp body_captured?(%Plug.Conn{
+         assigns: %{raw_body: body},
+         private: %{siwa_body_complete: true}
+       })
+       when is_binary(body),
+       do: true
+
+  defp body_captured?(_conn), do: false
+
+  defp body_sent?(conn) do
+    Map.has_key?(conn.assigns, :raw_body) or
+      Plug.Conn.get_req_header(conn, "content-length") not in [[], ["0"]] or
+      Plug.Conn.get_req_header(conn, "transfer-encoding") != [] or
+      conn.body_params not in [%{}, %Plug.Conn.Unfetched{aspect: :body_params}]
   end
 
   defp verify_envelope(conn, headers, opts) do
@@ -139,7 +204,7 @@ defmodule Siwa.AgentAuthPlug do
   defp http_verify_payload(conn, headers, opts) do
     payload = %{
       "method" => conn.method,
-      "path" => signed_path(conn, Keyword.get(opts, :signed_path, :path_and_query)),
+      "path" => signed_path(conn),
       "headers" => Map.take(headers, RequestAuth.forwarded_headers())
     }
 
@@ -150,11 +215,8 @@ defmodule Siwa.AgentAuthPlug do
     end
   end
 
-  defp signed_path(%Plug.Conn{request_path: path}, :path_only), do: path
-  defp signed_path(%Plug.Conn{request_path: path, query_string: ""}, :path_and_query), do: path
-
-  defp signed_path(%Plug.Conn{request_path: path, query_string: query}, :path_and_query),
-    do: path <> "?" <> query
+  defp signed_path(%Plug.Conn{request_path: path, query_string: ""}), do: path
+  defp signed_path(%Plug.Conn{request_path: path, query_string: query}), do: path <> "?" <> query
 
   defp downcase_headers(headers) do
     Map.new(headers, fn {key, value} -> {String.downcase(key), value} end)

@@ -48,6 +48,7 @@ features.
 | [`jev`](jev/README.md) | `regent_jev` | Typed choice questions to Jev, the decision model on OpenRouter, each answer with the tokens it used and its cost in US dollars. |
 | [`openai`](openai/README.md) | `regent_openai` | OpenAI text and screenshot replies, push-to-talk transcription and speech, each with the tokens it used and its cost in US dollars. |
 | [`sprites`](sprites/README.md) | `regent_sprites` | Fly Sprites machines: create, look up and delete them, checkpoint and restore their disks, run commands, and move files in and out. |
+| [`points`](points/README.md) | `regent_points` | Shared Points ledger, allowances, NFT bonuses and corrections; hosts supply verified source facts. |
 | [`privy`](privy/README.md) | `regent_privy` | Privy identity-token verification: ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses. |
 | [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Wallet sign-in receipts, signed request checks, wallet signature checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
 | [`siwa/siwa-elixir/apps/siwa_keyring`](siwa/siwa-elixir/apps/siwa_keyring/README.md) | `siwa_keyring` | Isolated local wallet creation and signing behind an internal HMAC-protected service. |
@@ -66,6 +67,7 @@ features.
 | `regent_jev` | ash-template (planned for patchbay) |
 | `regent_openai` | not used yet; planned for patchbay |
 | `regent_sprites` | not used yet; planned for regents and techtree |
+| `regent_points` | ash-template and regents (both in progress); earning disabled |
 | `regent_privy` | regents (platform and identity), autolaunch, patchbay, techtree, ash-template, keyfleet |
 | `siwa` | siwa-server, patchbay, keyfleet, and `ens_elixir` in this repository |
 | `siwa_keyring` | siwa-server |

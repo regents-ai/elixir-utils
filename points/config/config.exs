@@ -9,6 +9,6 @@ config :regent_points,
 config :regent_points, RegentPoints.Repo,
   hostname: "127.0.0.1",
   port: 5432,
-  database: System.get_env("REGENT_POINTS_DATABASE") || "regent_points_dev",
-  username: System.get_env("USER") || "postgres",
+  database: "regent_points_dev",
+  username: System.get_env("USER"),
   pool_size: 5

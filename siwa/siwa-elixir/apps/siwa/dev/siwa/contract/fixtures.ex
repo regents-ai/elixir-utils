@@ -17,7 +17,9 @@ defmodule Siwa.Contract.Fixtures do
   the sign-in server is asked) or `siwa_server` (it needs the sign-in server's
   replay window or chain reads: a signature that is not the signer's is refused
   as `signature_invalid` only once the chain shows no smart wallet signed it). A
-  case with `sends` is refused on that send, the earlier ones accepted.
+  case with `sends` is refused on that send, the earlier ones accepted. A case
+  the sign-in server refuses carries the `status` and `code` it answers with
+  (`refusals` in the contract); a `site_plug` case never reaches it.
   """
 
   alias Siwa.{Contract, Crypto, LocalSigner, Receipt, RequestAuth}
@@ -69,48 +71,101 @@ defmodule Siwa.Contract.Fixtures do
           "tampered_body",
           %{json_body | body: ~s({"a":2})},
           "verifier",
-          "content_digest_mismatch"
+          :content_digest_mismatch
         ),
-        refused_case("wrong_audience", no_body, "verifier", "receipt_binding_mismatch",
+        refused_case("wrong_audience", no_body, "verifier", :receipt_binding_mismatch,
           audience: "another-site"
         ),
-        refused_case("replay", no_body, "siwa_server", "replayed_request", sends: 2),
+        refused_case("replay", no_body, "siwa_server", :replayed_request, sends: 2),
         refused_case(
           "repeated_proof_header",
           add_headers(no_body, [
             List.keyfind(no_body.headers, Contract.signature_header(), 0)
           ]),
           "site_plug",
-          "duplicate_proof"
+          :duplicate_proof
+        ),
+        refused_case(
+          "repeated_signature_input_header",
+          add_headers(no_body, [
+            List.keyfind(no_body.headers, Contract.signature_input_header(), 0)
+          ]),
+          "site_plug",
+          :duplicate_proof
+        ),
+        refused_case(
+          "repeated_timestamp_header",
+          add_headers(no_body, [List.keyfind(no_body.headers, Contract.header_for("created"), 0)]),
+          "site_plug",
+          :duplicate_proof
+        ),
+        refused_case(
+          "malformed_signature",
+          put_header(no_body, Contract.signature_header(), Contract.label() <> "=:not base64:"),
+          "verifier",
+          :invalid_signature_header
+        ),
+        refused_case(
+          "expired_signature",
+          sign(
+            signer,
+            receipt,
+            "GET",
+            "/fixture",
+            nil,
+            @created - Contract.lifetime_seconds() - 1
+          ),
+          "verifier",
+          :request_expired
+        ),
+        refused_case(
+          "created_in_future",
+          sign(signer, receipt, "GET", "/fixture", nil, @created + 301),
+          "verifier",
+          :request_not_yet_valid
+        ),
+        refused_case(
+          "timestamp_differs_from_created",
+          put_header(no_body, Contract.header_for("created"), Integer.to_string(@created + 1)),
+          "verifier",
+          :timestamp_mismatch
         ),
         refused_case(
           "malformed_signature_input",
           put_header(no_body, Contract.signature_input_header(), Contract.label() <> "=garbage"),
           "verifier",
-          "invalid_signature_input"
+          :invalid_signature_input
         ),
         refused_case(
           "unsigned_body",
           %{no_body | body: @json_body},
           "verifier",
-          "missing_signed_headers"
+          :missing_signed_headers
         ),
         refused_case(
           "unsigned_query",
           %{no_body | path: "/fixture?cursor=2"},
           "site_plug",
-          "unsupported_query"
+          :unsupported_query
         ),
         refused_case(
           "changed_query",
           %{signed_query | path: "/fixture?cursor=3"},
           "siwa_server",
-          "signature_invalid",
+          :signature_invalid,
           query: "signed"
         )
       ],
       accepted: [
         accepted_case("extra_unsigned_header", add_headers(no_body, [{"x-agent-role", "admin"}])),
+        accepted_case(
+          "mixed_case_header_names",
+          %{
+            no_body
+            | headers:
+                Enum.map(no_body.headers, fn {name, value} -> {title_case(name), value} end)
+          }
+        ),
         accepted_case(
           "platform_signature_alongside",
           add_headers(no_body, [
@@ -160,13 +215,13 @@ defmodule Siwa.Contract.Fixtures do
     receipt
   end
 
-  defp sign(signer, receipt, method, path, body) do
+  defp sign(signer, receipt, method, path, body, created \\ @created) do
     {:ok, signed} =
       RequestAuth.sign_authenticated_request(
         %{method: method, path: path, body: body, headers: %{}},
         receipt.token,
         signer,
-        Keyword.merge(verify_opts(), created_at: @created, nonce: @nonce)
+        Keyword.merge(verify_opts(), created_at: created, nonce: @nonce)
       )
 
     %{signed | headers: Enum.sort(signed.headers)}
@@ -198,9 +253,16 @@ defmodule Siwa.Contract.Fixtures do
         query: Keyword.get(opts, :query, "refuse"),
         request: request_json(request),
         checked_by: checked_by,
-        reason: reason
-      ] ++ Keyword.take(opts, [:audience, :sends])
+        reason: Atom.to_string(reason)
+      ] ++ server_answer(checked_by, reason) ++ Keyword.take(opts, [:audience, :sends])
     )
+  end
+
+  defp server_answer("site_plug", _reason), do: []
+
+  defp server_answer(_checked_by, reason) do
+    {status, code, _message} = Contract.refusal(reason)
+    [status: status, code: code]
   end
 
   defp accepted_case(name, request),
@@ -214,6 +276,9 @@ defmodule Siwa.Contract.Fixtures do
       headers: Enum.map(request.headers, &Tuple.to_list/1)
     )
   end
+
+  defp title_case(name),
+    do: name |> String.split("-") |> Enum.map_join("-", &String.capitalize/1)
 
   defp add_headers(request, pairs), do: %{request | headers: Enum.sort(request.headers ++ pairs)}
 

@@ -13,6 +13,7 @@ defmodule Siwa.MixProject do
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
       elixir: "~> 1.19",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       description: @description,
       deps: deps(),
@@ -38,6 +39,12 @@ defmodule Siwa.MixProject do
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end
+
+  # dev/ holds the contract fixture generator and its mix task. A site or the
+  # sign-in server compiles this library in :prod, so no release carries the
+  # fixtures' test key or receipt secret.
+  defp elixirc_paths(:prod), do: ["lib"]
+  defp elixirc_paths(_env), do: ["lib", "dev"]
 
   defp package do
     [

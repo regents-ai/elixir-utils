@@ -83,7 +83,7 @@ defmodule Siwa.AgentAuthPlug do
     headers = downcase_headers(conn.req_headers)
 
     with :ok <- refuse_repeats(conn),
-         :ok <- refuse_query(conn, Keyword.get(opts, :query, :refuse)),
+         :ok <- refuse_query(conn, Keyword.get(opts, :query, Contract.query_default())),
          :ok <- refuse_unsigned_body(conn),
          {:ok, context} <- hooks.before_verify(conn, headers),
          {:ok, data} <- verify_envelope(conn, headers, opts),

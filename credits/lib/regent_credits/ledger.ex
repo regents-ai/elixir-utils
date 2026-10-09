@@ -39,7 +39,9 @@ defmodule RegentCredits.Ledger do
   @spec identifier(atom(), String.t() | nil) :: String.t()
   def identifier(kind, nil) when kind in @regent, do: Atom.to_string(kind)
   def identifier(kind, privy_user_id) when kind in @person, do: "#{kind}/#{privy_user_id}"
-  def identifier(:address_given, address), do: "address_given/#{String.downcase(address)}"
+
+  def identifier(kind, address) when kind in [:address_given, :address_purchased],
+    do: "#{kind}/#{String.downcase(address)}"
 
   @doc "The four identifiers of a Privy account."
   @spec person(String.t()) :: [String.t()]

@@ -47,11 +47,17 @@ defmodule RegentCredits.Chains do
   @spec treasury() :: String.t()
   def treasury, do: @treasury
 
+  @doc "The `bytes32` source tag every Credits deposit into REGENT staking carries."
+  @spec source_tag() :: String.t()
+  def source_tag, do: @source_tag
+
   @doc """
   The wallet steps that buy `dollars` of Credits on `chain`. `number` is the
   purchase number the Base deposit carries.
   """
-  @spec steps(:base | :ethereum, pos_integer(), Ecto.UUID.t()) :: [Review.transaction()]
+  @spec steps(:base | :ethereum, pos_integer() | Decimal.t(), Ecto.UUID.t()) :: [
+          Review.transaction()
+        ]
   def steps(:base, dollars, number) do
     micro = micro(dollars)
 
@@ -84,12 +90,13 @@ defmodule RegentCredits.Chains do
   end
 
   @doc "The step whose sent transaction is the purchase."
-  @spec buy_step(:base | :ethereum, pos_integer(), Ecto.UUID.t()) :: Review.transaction()
+  @spec buy_step(:base | :ethereum, pos_integer() | Decimal.t(), Ecto.UUID.t()) ::
+          Review.transaction()
   def buy_step(chain, dollars, number), do: chain |> steps(dollars, number) |> List.last()
 
-  @doc "USDC's six-decimal units for whole dollars."
-  @spec micro(pos_integer()) :: pos_integer()
-  def micro(dollars), do: dollars * 1_000_000
+  @doc "USDC's six-decimal units for an amount of dollars."
+  @spec micro(pos_integer() | Decimal.t()) :: pos_integer()
+  def micro(dollars), do: dollars |> Decimal.mult(1_000_000) |> Decimal.to_integer()
 
   defp source_ref(number) do
     {:ok, bytes} = Ecto.UUID.dump(number)

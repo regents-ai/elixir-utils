@@ -43,6 +43,7 @@ defmodule RegentCredits do
     resource RegentCredits.Ledger.Balance
     resource RegentCredits.FirstUse
     resource RegentCredits.Wallet
+    resource RegentCredits.DepositCursor
 
     resource RegentCredits.Purchase do
       define :report_purchase,

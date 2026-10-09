@@ -8,7 +8,7 @@ defmodule RegentCredits.Gifts do
   require Ash.Query
 
   alias RegentChain.Address
-  alias RegentCredits.{Amount, Gift, Ledger, Wallets}
+  alias RegentCredits.{Amount, Gift, Ledger, Purchases, Wallets}
   alias RegentCredits.Errors.Refused
 
   @doc """
@@ -45,27 +45,34 @@ defmodule RegentCredits.Gifts do
 
   @doc """
   Records that the account holds exactly these wallets, and moves everything
-  waiting under them to the account's given Credits.
+  waiting under them to the account: gifts to its given Credits, deposits
+  to its purchased Credits along with the purchases themselves.
   """
   def attach_wallets(%{privy_user_id: owner, wallets: wallets}, _actor) do
     with {:ok, addresses} <- addresses(wallets) do
       Ledger.open(Ledger.person(owner))
-      to = Ledger.identifier(:given, owner)
-      waiting = Enum.map(addresses, &Ledger.identifier(:address_given, &1))
-      accounts = Ledger.lock(Ledger.person(owner) ++ waiting)
+
+      waiting =
+        for {kind, into} <- [address_given: :given, address_purchased: :purchased],
+            address <- addresses,
+            do: {Ledger.identifier(kind, address), Ledger.identifier(into, owner)}
+
+      accounts = Ledger.lock(Ledger.person(owner) ++ Enum.map(waiting, &elem(&1, 0)))
       Wallets.remember(owner, addresses)
 
       moved =
         waiting
-        |> Enum.map(&{&1, Ledger.balance_of(accounts, &1)})
-        |> Enum.filter(fn {_account, balance} -> Decimal.gt?(balance, 0) end)
+        |> Enum.map(fn {account, to} -> {account, to, Ledger.balance_of(accounts, account)} end)
+        |> Enum.filter(fn {_account, _to, balance} -> Decimal.gt?(balance, 0) end)
 
-      Enum.each(moved, fn {account, balance} ->
+      Enum.each(moved, fn {account, to, balance} ->
         Ledger.move(accounts, {account, to}, balance, "attach:#{account}")
       end)
 
+      Purchases.claim(owner, addresses)
+
       {:ok,
-       Enum.reduce(moved, Decimal.new(0), fn {_account, balance}, sum ->
+       Enum.reduce(moved, Decimal.new(0), fn {_account, _to, balance}, sum ->
          Decimal.add(sum, balance)
        end)}
     end

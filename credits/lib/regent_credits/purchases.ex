@@ -7,6 +7,10 @@ defmodule RegentCredits.Purchases do
   re-reads the purchase so it credits once, and tells the site's
   `RegentCredits.Credited` module in that same transaction.
 
+  `credit_deposit/1` credits a Base deposit `RegentCredits.Deposits` read
+  from the chain, under the same lock, so a deposit and its report credit
+  once between them.
+
   The purchase rows are written by the library after the action was
   authorized, so they run unauthorized.
   """
@@ -14,7 +18,7 @@ defmodule RegentCredits.Purchases do
   require Ash.Query
 
   alias RegentChain.{Abi, Address, Outcome}
-  alias RegentCredits.{Chains, Ledger, Purchase}
+  alias RegentCredits.{Chains, Ledger, Purchase, Wallets}
   alias RegentCredits.Errors.Refused
 
   @ethereum_blocks 12
@@ -61,6 +65,88 @@ defmodule RegentCredits.Purchases do
       %{status: :checking} = purchase -> credit_once(purchase, accounts, {from, to})
       purchase -> {:ok, purchase}
     end
+  end
+
+  @doc """
+  Credits a deposit the chain holds, once: to the account holding the wallet
+  that sent it, or under that wallet while no account does. A report of the
+  same transaction by that account is credited with what the chain holds.
+  """
+  def credit_deposit(%{chain: chain, tx_hash: hash, wallet: wallet} = deposit) do
+    owner = Map.get(Wallets.owners([wallet]), wallet)
+    {to, opened} = holder(owner, wallet)
+    Ledger.open(opened)
+    from = Ledger.identifier(:regent_purchases, nil)
+    accounts = Ledger.lock([from | opened])
+    found = for_transaction(chain, hash)
+
+    case Enum.find(found, &(&1.status == :credited)) do
+      nil ->
+        purchase =
+          save_deposit(Enum.find(found, &(owner && &1.privy_user_id == owner)), deposit, owner)
+
+        Ledger.move(accounts, {from, to}, purchase.amount, "purchase:#{purchase.id}")
+
+        if owner,
+          do: :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
+
+        {:ok, purchase}
+
+      credited ->
+        {:ok, credited}
+    end
+  end
+
+  @doc """
+  Gives `owner` the credited deposits waiting under these wallets, and tells
+  the site of each as it would of any credit. The caller has locked the
+  Regent and waiting accounts and moved the Credits.
+  """
+  def claim(owner, addresses) do
+    on_credited = Application.fetch_env!(:regent_credits, :on_credited)
+
+    # Internal: written by the authorized attach action.
+    Purchase
+    |> Ash.Query.filter(is_nil(privy_user_id) and wallet in ^addresses and status == :credited)
+    |> Ash.bulk_update!(:claim, %{privy_user_id: owner},
+      return_records?: true,
+      strategy: [:atomic, :stream],
+      authorize?: false
+    )
+    |> Map.fetch!(:records)
+    |> Enum.each(&(:ok = on_credited.credited(&1)))
+  end
+
+  defp holder(nil, wallet) do
+    waiting = Ledger.identifier(:address_purchased, wallet)
+    {waiting, [waiting]}
+  end
+
+  defp holder(owner, _wallet), do: {Ledger.identifier(:purchased, owner), Ledger.person(owner)}
+
+  defp save_deposit(nil, deposit, owner) do
+    # Internal: written by the credit of a deposit the chain holds.
+    Purchase
+    |> Ash.Changeset.for_create(:found, Map.put(deposit, :privy_user_id, owner),
+      authorize?: false
+    )
+    |> Ash.create!()
+  end
+
+  defp save_deposit(reported, deposit, _owner) do
+    # Internal: written by the credit of a deposit the chain holds.
+    reported
+    |> Ash.Changeset.for_update(:found_reported, Map.take(deposit, [:wallet, :amount, :number]),
+      authorize?: false
+    )
+    |> Ash.update!()
+  end
+
+  defp for_transaction(chain, hash) do
+    # Internal: read by the credit of a deposit, after the lock.
+    Purchase
+    |> Ash.Query.filter(chain == ^chain and tx_hash == ^hash)
+    |> Ash.read!(authorize?: false)
   end
 
   # Every credit locks regent_purchases, so a second row for the same
@@ -185,9 +271,10 @@ defmodule RegentCredits.Purchases do
   end
 
   defp same(purchase, details) do
-    if Enum.all?([:wallet, :amount, :number], &(Map.get(purchase, &1) == details[&1])),
-      do: {:ok, purchase},
-      else: {:error, Refused.exception(reason: :key_reused)}
+    if purchase.wallet == details.wallet and purchase.number == details.number and
+         Decimal.eq?(purchase.amount, details.amount),
+       do: {:ok, purchase},
+       else: {:error, Refused.exception(reason: :key_reused)}
   end
 
   defp find(owner, chain, hash) do

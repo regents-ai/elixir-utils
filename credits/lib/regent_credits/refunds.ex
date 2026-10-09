@@ -19,6 +19,7 @@ defmodule RegentCredits.Refunds do
   def start(purchase_id, actor) do
     # Internal: read by the authorized start action.
     case Ash.get(Purchase, purchase_id, authorize?: false) do
+      {:ok, %{status: :credited, privy_user_id: nil}} -> refuse(:no_account)
       {:ok, %{status: :credited} = purchase} -> take_out(purchase, actor)
       {:ok, _not_credited} -> refuse(:not_credited)
       {:error, _not_found} -> refuse(:not_found)

@@ -129,16 +129,16 @@ defmodule RegentCredits.PurchaseTest do
     tx = TestChain.buy(:ethereum, payer, 20, purchase.number)
 
     TestChain.put(purchase.tx_hash, tx, TestChain.mined("0x1", 100))
-    TestChain.head(105)
+    TestChain.head(:ethereum, 105)
     assert %{status: :checking, block_number: 100} = check(purchase)
 
     # A reorg moved it to block 101; 112 is only 11 blocks on top of that.
     TestChain.put(purchase.tx_hash, tx, TestChain.mined("0x1", 101))
-    TestChain.head(112)
+    TestChain.head(:ethereum, 112)
     assert %{status: :checking, block_number: 101} = check(purchase)
     assert check(purchase).status == :checking
 
-    TestChain.head(113)
+    TestChain.head(:ethereum, 113)
     assert check(purchase).status == :credited
     assert purchased(owner) == 20
   end

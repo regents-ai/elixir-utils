@@ -1,8 +1,9 @@
 defmodule RegentCredits.Purchase do
   @moduledoc """
-  One wallet payment for Credits: a sent transaction a person's page reported.
-  Every press is its own purchase, so a second press of Buy that also lands
-  buys Credits twice.
+  One wallet payment for Credits: a sent transaction a person's page
+  reported, or a Base deposit the site read from the chain
+  (`RegentCredits.Deposits`). Every press is its own purchase, so a second
+  press of Buy that also lands buys Credits twice.
 
   The purchase is checked at the latest block (`check`), by the page every
   two seconds while it waits and by the site's Oban once a minute until it
@@ -13,6 +14,11 @@ defmodule RegentCredits.Purchase do
       a later read still finds it in that same block.
     * Failed when it reverted, is not the purchase it claims to be, or is
       still unknown to the chain a day after it was reported.
+
+  Every Credits deposit on Base is also read from the chain and credited
+  exactly as it landed, to the account holding the wallet that sent it; one
+  from a wallet no account holds waits under that wallet until an account
+  signs in with it (`attach_wallets`).
 
   A person reports only payments sent from the wallets their sign-in
   verified (`RegentCredits.Checks.OwnWallet`), and a transaction credits at
@@ -58,9 +64,10 @@ defmodule RegentCredits.Purchase do
   attributes do
     uuid_primary_key :id
 
-    attribute :privy_user_id, :string, allow_nil?: false, public?: true
+    # Empty while the paying wallet belongs to no account.
+    attribute :privy_user_id, :string, public?: true
 
-    # The signed-in wallet that sent it.
+    # The wallet that sent it.
     attribute :wallet, :string, allow_nil?: false, public?: true
 
     attribute :chain, :atom do
@@ -69,11 +76,12 @@ defmodule RegentCredits.Purchase do
       constraints one_of: [:base, :ethereum]
     end
 
-    # Whole dollars, $5 to $500.
-    attribute :amount, :integer do
+    # USDC, to the millionth. A Buy press pays whole dollars, $5 to $500; a
+    # deposit read from the chain is whatever landed.
+    attribute :amount, :decimal do
       allow_nil? false
       public? true
-      constraints min: 5, max: 500
+      constraints greater_than: 0
     end
 
     # The purchase number the panel built the steps with.
@@ -120,6 +128,27 @@ defmodule RegentCredits.Purchase do
       accept [:status, :reason, :credited_at]
     end
 
+    # A deposit read from the chain, credited as it is saved.
+    create :found do
+      accept [:privy_user_id, :wallet, :chain, :amount, :number, :tx_hash]
+      change set_attribute(:status, :credited)
+      change set_attribute(:credited_at, &DateTime.utc_now/0)
+    end
+
+    # The person's own report of a deposit read from the chain: credited
+    # with what the chain holds.
+    update :found_reported do
+      accept [:wallet, :amount, :number]
+      change set_attribute(:status, :credited)
+      change set_attribute(:reason, nil)
+      change set_attribute(:credited_at, &DateTime.utc_now/0)
+    end
+
+    # The account that signed in with the wallet a waiting deposit came from.
+    update :claim do
+      accept [:privy_user_id]
+    end
+
     # Not in a transaction: the report reads the chain before it saves.
     action :report, :struct do
       description "Records a purchase the person's wallet sent, once the chain holds it."
@@ -154,6 +183,18 @@ defmodule RegentCredits.Purchase do
       transaction? true
       argument :id, :uuid, allow_nil?: false
       run fn input, _context -> Purchases.credit(input.arguments.id) end
+    end
+
+    action :credit_deposit, :struct do
+      description "Credits a Base deposit the chain holds, once."
+      constraints instance_of: __MODULE__
+      transaction? true
+      argument :chain, :atom, allow_nil?: false, constraints: [one_of: [:base]]
+      argument :tx_hash, :string, allow_nil?: false
+      argument :wallet, :string, allow_nil?: false
+      argument :amount, :decimal, allow_nil?: false, constraints: [greater_than: 0]
+      argument :number, :uuid, allow_nil?: false
+      run fn input, _context -> Purchases.credit_deposit(input.arguments) end
     end
   end
 

@@ -36,7 +36,8 @@ config :regent_credits,
   showing a balance subscribes to `RegentCredits.topic(privy_user_id)` and
   hears `:credits_changed` whenever that balance changes on any site.
 - `chain_client` implements `RegentCredits.ChainClient`: `transaction/2`,
-  `receipt/2` and `block_number/1`, all read at `latest`.
+  `receipt/2`, `block_number/1` and `logs/2` (`eth_getLogs` over at most 500
+  blocks), all read at `latest`.
 - `on_credited` implements `RegentCredits.Credited`: `credited(purchase)` runs
   inside the credit's transaction once a purchase is credited and returns `:ok`.
   Work it queues commits with the credit; it must never fail the credit. Every
@@ -102,6 +103,12 @@ seconds for about five minutes. Each report reads the chain, so the site calls
 it behind a per-person limit, for example 120 a minute. The site's Oban checks every purchase still
 open once a minute. Base purchases count at the latest block; Ethereum
 purchases once 12 blocks sit on top of theirs and it is still in that block.
+
+The site's Oban also reads every Credits deposit on Base from the chain once
+a minute (`RegentCredits.Deposits`), up to ten blocks behind the newest, and
+credits each exactly as it landed, whether or not a page reported it: to the
+account holding the paying wallet, or under that wallet until an account
+signs in with it. A deposit and its report credit once between them.
 
 ## Gifts and refunds
 

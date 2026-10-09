@@ -54,7 +54,8 @@ defmodule RegentCredits.GiftRefundTest do
     purchase = bought(owner, wallet(), 25)
 
     {:ok, refund} = RegentCredits.start_refund(purchase.id, actor: admin())
-    assert {refund.status, refund.amount, refund.wallet} == {:locked, 25, purchase.wallet}
+    assert {refund.status, refund.wallet} == {:locked, purchase.wallet}
+    assert Decimal.eq?(refund.amount, 25)
     assert {:ok, %{id: same}} = RegentCredits.start_refund(purchase.id, actor: admin())
     assert same == refund.id
     assert RegentCredits.balance(owner).purchased |> Decimal.eq?(0)

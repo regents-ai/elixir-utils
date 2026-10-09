@@ -37,7 +37,9 @@ config :regent_credits,
   hears `:credits_changed` whenever that balance changes on any site.
 - `chain_client` implements `RegentCredits.ChainClient`: `transaction/2`,
   `receipt/2`, `block_number/1` and `logs/2` (`eth_getLogs` over at most 500
-  blocks), all read at `latest`.
+  blocks), all read at `latest`. A JSON-RPC error answer comes back as
+  `{:error, {:rpc, error}}`; the deposit reader reads a span refused that way
+  again in halves.
 - `on_credited` implements `RegentCredits.Credited`: `credited(purchase)` runs
   inside the credit's transaction once a purchase is credited and returns `:ok`.
   Work it queues commits with the credit; it must never fail the credit. Every

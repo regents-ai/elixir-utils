@@ -9,8 +9,11 @@ defmodule RegentCredits.Deposits do
   newest one, 500 blocks at a time, and moves the cursor on after each
   stretch is credited. The ten minutes keep it clear of a log search that
   lags the newest block, which would answer an unsearched stretch with no
-  logs; the page's own report credits sooner. A stretch the node refuses is
-  read again in halves, down to one block.
+  logs; the page's own report credits sooner. A stretch once read is never
+  read again, so the reader assumes Base neither reorganizes nor fills in
+  missing logs more than 300 blocks below its newest block. A stretch the
+  node refuses (`{:rpc, error}`) is read again in halves, down to one block;
+  any other error ends the run, and the next run starts from the cursor.
 
   Two sites reading the same chain at once credit each deposit once between
   them; the one that finds the cursor already past its stretch stops there.
@@ -57,7 +60,7 @@ defmodule RegentCredits.Deposits do
           read_on(cursor, chain, last, span)
         end
 
-      {:error, _reason} when span > 1 ->
+      {:error, {:rpc, _refused}} when span > 1 ->
         read_on(cursor, chain, last, div(span, 2))
 
       {:error, reason} ->

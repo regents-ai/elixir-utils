@@ -327,6 +327,7 @@ defmodule RegentCredits.Purchases do
       authorize?: false
     )
     |> Ash.update()
+    |> decided(purchase)
   end
 
   defp finish(purchase, fields) do
@@ -334,7 +335,17 @@ defmodule RegentCredits.Purchases do
     purchase
     |> Ash.Changeset.for_update(:finish, fields, authorize?: false)
     |> Ash.update()
+    |> decided(purchase)
   end
+
+  # A deposit read from the chain credited the purchase while it was checked.
+  defp decided(
+         {:error, %Ash.Error.Invalid{errors: [%Ash.Error.Changes.StaleRecord{}]}},
+         purchase
+       ),
+       do: {:ok, get(purchase.id)}
+
+  defp decided(result, _purchase), do: result
 
   defp same(purchase, details) do
     if purchase.number == details.number and Decimal.eq?(purchase.amount, details.amount),

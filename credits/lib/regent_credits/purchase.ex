@@ -46,6 +46,17 @@ defmodule RegentCredits.Purchase do
     table "purchases"
 
     identity_wheres_to_sql credited: "status = 'credited'"
+
+    # Both are in the unique keys, so each has one spelling: lowercase.
+    check_constraints do
+      check_constraint :wallet, "purchases_wallet_lowercase",
+        check: "wallet ~ '^0x[0-9a-f]{40}$'",
+        message: "must be a lowercase address"
+
+      check_constraint :tx_hash, "purchases_tx_hash_lowercase",
+        check: "tx_hash ~ '^0x[0-9a-f]{64}$'",
+        message: "must be a lowercase transaction hash"
+    end
   end
 
   oban do
@@ -123,12 +134,16 @@ defmodule RegentCredits.Purchase do
       accept [:privy_user_id, :wallet, :chain, :amount, :number, :tx_hash]
     end
 
+    # The check writes only while the purchase is still being checked; a
+    # deposit credited meanwhile stays credited.
     update :seen do
       accept [:block_number, :block_hash]
+      change filter(expr(status == :checking))
     end
 
     update :finish do
       accept [:status, :reason, :credited_at]
+      change filter(expr(status == :checking))
     end
 
     # A deposit read from the chain, credited as it is saved.

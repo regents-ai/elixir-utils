@@ -111,8 +111,8 @@ eligibility and preserve the same account and subject milestone identities.
 
 The approved Credits basis is 10 points per USDC spent on purchased Credits, capped
 at 100 base points per UTC day. Privy-account daily actions share 50 per day, and
-connected agents share 100. `Rules.activity_apps/0` lists the apps those actions
-come from, read from the daily rules: today only Patchbay. Per-action counts are
+connected agents share 100. Those actions come from the apps the daily rules name:
+today only Patchbay. Per-action counts are
 separate for humans and the pooled agents. More agents, keys or wallets do not create
 extra allowances, and one completed event belongs to only one pool. One-time actions
 use no daily allowance and are once per canonical account across sites, wallets, keys
@@ -132,8 +132,10 @@ awarded after all limits, and also to one-time awards: the daily maximum
 is 250 base or 437.5 at the highest tier. The proposed milestone catalog totals 500
 base or 875 at the highest tier. Sean approved these trial values on 7 October;
 enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
-`label/1` names each one for people, and `active/0` lists those earning now; a site's
-Points page builds its table from these. There is no uncapped revenue-points rule.
+`label/1` names each one for people, and `active/0` lists those earning now.
+`tracked/0` lists the rules this site has a source adapter for, and a site's Points
+page shows only those, so it never offers an action nothing records; `daily_apps/1`
+names the apps of the daily rules it shows. There is no uncapped revenue-points rule.
 
 Accepted events save the Credits rate and daily limits with the rule. Delayed
 processing uses that snapshot. Rule versions must remain immutable after approval;

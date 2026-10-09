@@ -57,8 +57,6 @@ defmodule RegentPoints.Rules do
               for({id, _points, label} <- @milestones, do: {id, label}) ++
               for({id, _points, _count, _period, label} <- @activity, do: {id, label})
           )
-  # The apps with daily actions are the apps the daily rules come from.
-  @activity_apps Enum.uniq(for {id, _, _, _, _} <- @activity, do: hd(String.split(id, ".")))
 
   @doc "The customer name of every catalog rule, including the source app."
   def label(id), do: Map.fetch!(@labels, id)
@@ -84,6 +82,9 @@ defmodule RegentPoints.Rules do
   def milestone_total, do: Enum.sum(Enum.map(@milestones, &elem(&1, 1)))
   def enabled?(id), do: id in Keyword.get(config(), :approved_rules, []) and adapter(id) != nil
   def adapter(id), do: config() |> Keyword.get(:adapters, %{}) |> Map.get(id)
+
+  @doc "The catalog rules this site has a source for: the rules its Points page lists."
+  def tracked, do: Enum.filter(catalog(), &adapter(&1["id"]))
 
   @doc "The catalog rules that earn right now."
   def active,
@@ -129,8 +130,14 @@ defmodule RegentPoints.Rules do
 
   def daily_cap("activity:human"), do: 50 * @unit
   def daily_cap(scope) when scope in ["credits", "activity:agent"], do: 100 * @unit
-  def activity_apps, do: @activity_apps
-  def activity_app?(app), do: app in @activity_apps
+  @doc "The apps the daily rules among `rules` come from."
+  def daily_apps(rules) do
+    for %{"category" => "activity", "id" => id} <- rules,
+        uniq: true,
+        do: hd(String.split(id, "."))
+  end
+
+  def activity_app?(app), do: app in daily_apps(catalog())
 
   defp rule(id, category, points, count, period),
     do: %{

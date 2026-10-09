@@ -4,7 +4,7 @@ defmodule RegentPoints.IntakeWorker do
   alias RegentPoints, as: Points
   alias RegentPoints.{Account, Rules, Store, Worker}
 
-  @required ~w(source_app source_kind source_event_key account_id actor_kind actor_id source_action_at qualified_at evidence_ref evidence wallets)a
+  @required ~w(source_app source_kind source_event_key account_id actor_kind actor_id source_action_at qualified_at evidence_ref evidence)a
 
   @impl true
   def perform(%Oban.Job{args: input}) do
@@ -67,9 +67,7 @@ defmodule RegentPoints.IntakeWorker do
          :ok <- identity(facts),
          :ok <- time(facts),
          :ok <- proof(facts, rule),
-         :ok <- solution_parties(facts, rule),
-         true <- is_list(facts.wallets),
-         true <- Enum.all?(facts.wallets, &wallet?/1) do
+         :ok <- solution_parties(facts, rule) do
       :ok
     else
       {:error, _} = error -> error
@@ -145,8 +143,6 @@ defmodule RegentPoints.IntakeWorker do
 
   defp solution_parties(_, _), do: :ok
 
-  defp wallet?(wallet), do: is_binary(wallet) and Regex.match?(~r/^0x[0-9a-f]{40}$/, wallet)
-
   defp record(facts, rule) do
     Store.lock_account(facts.account_id)
     # Business identity excludes transport, beneficiary and rule version. A WebMCP
@@ -155,7 +151,7 @@ defmodule RegentPoints.IntakeWorker do
 
     # The digest covers exactly the stored facts, so an adapter's extra keys can
     # never make the same source look like a conflicting one.
-    stored = facts |> Map.take(@required) |> Map.update!(:wallets, &Enum.uniq/1)
+    stored = Map.take(facts, @required)
 
     attrs =
       Map.merge(stored, %{

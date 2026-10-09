@@ -22,14 +22,12 @@ defmodule RegentPoints do
     resource RegentPoints.Account do
       define :open_account, action: :open
       define :read_accounts, action: :read
-      define :record_holdings, action: :record_holdings
     end
 
     resource RegentPoints.Event do
       define :create_event, action: :record
       define :read_events, action: :read
       define :finish_event, action: :finish
-      define :snapshot_bonus, action: :snapshot_bonus
     end
 
     resource RegentPoints.Entry do
@@ -44,18 +42,19 @@ defmodule RegentPoints do
       define :consume_cap, action: :consume, args: [:points]
     end
 
-    resource RegentPoints.TransferCursor do
-      define :start_cursor, action: :start
-      define :read_cursors, action: :read
-      define :advance_cursor, action: :advance
-      define :stop_cursor, action: :stop
+    resource RegentPoints.MonthBonus do
+      define :record_month_bonus, action: :record
+      define :read_month_bonuses, action: :read
     end
 
     resource RegentPoints.Service do
       define :summary, action: :summary
       define :record_event, action: :record_event, args: [:event]
-      define :process_event, action: :process_event, args: [:event_id, :last_attempt]
-      define :reverse, action: :reverse, args: [:entry_id, :correction_key, :base_micro, :reason]
+      define :process_event, action: :process_event, args: [:event_id]
+
+      define :reverse,
+        action: :reverse,
+        args: [:entry_id, :correction_key, :points_micro, :reason]
     end
   end
 end

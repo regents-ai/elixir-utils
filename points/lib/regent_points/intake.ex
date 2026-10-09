@@ -9,7 +9,7 @@ defmodule RegentPoints.Intake do
 
     cond do
       not Enum.all?(@keys, &(is_binary(reference[&1]) and byte_size(reference[&1]) in 1..512)) ->
-        {:ok, %{status: :not_queued, reason: :invalid_source_reference}}
+        {:error, "Invalid Points source reference"}
 
       not Rules.enabled?(reference["rule_id"]) ->
         {:ok, %{status: :disabled}}

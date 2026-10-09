@@ -32,11 +32,6 @@ defmodule RegentPoints.Event do
     attribute :payload_digest, :string, allow_nil?: false
     attribute :evidence, :map, allow_nil?: false, sensitive?: true
     attribute :rule_snapshot, :map, allow_nil?: false
-    attribute :wallets, {:array, :string}, allow_nil?: false, sensitive?: true
-    attribute :bonus_percent, :integer, constraints: [min: 0, max: RegentPoints.Bonus.maximum()]
-    attribute :nft_block, :integer
-    attribute :nft_block_hash, :string
-    attribute :nft_count, :integer, constraints: [min: 0]
     attribute :award_key, :string, allow_nil?: false
 
     attribute :processing_status, :atom,
@@ -77,9 +72,6 @@ defmodule RegentPoints.Event do
         :payload_digest,
         :evidence,
         :rule_snapshot,
-        :wallets,
-        :bonus_percent,
-        :nft_block,
         :award_key
       ]
 
@@ -93,10 +85,6 @@ defmodule RegentPoints.Event do
     update :finish do
       accept [:processing_status, :reason_code]
       change set_attribute(:processed_at, &DateTime.utc_now/0)
-    end
-
-    update :snapshot_bonus do
-      accept [:bonus_percent, :nft_block, :nft_block_hash, :nft_count]
     end
   end
 

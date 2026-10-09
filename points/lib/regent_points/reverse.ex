@@ -7,7 +7,7 @@ defmodule RegentPoints.Reverse do
   @impl true
   def run(%{arguments: args}, _, _) do
     case Store.entry(args.entry_id) do
-      %{reversal_of_entry_id: nil, base_points_micro: base} = original when base > 0 ->
+      %{reversal_of_entry_id: nil, points_micro_delta: points} = original when points > 0 ->
         Ash.transact(Account, fn ->
           Store.lock_account(original.account_id)
           correct(original, args)
@@ -26,26 +26,21 @@ defmodule RegentPoints.Reverse do
         append(original, args, key)
 
       existing ->
-        if existing.base_points_micro == -args.base_micro and existing.reason_code == args.reason,
-          do: %{id: existing.id},
-          else: {:error, "Correction key conflicts with its original amount or reason"}
+        if existing.points_micro_delta == -args.points_micro and
+             existing.reason_code == args.reason,
+           do: %{id: existing.id},
+           else: {:error, "Correction key conflicts with its original amount or reason"}
     end
   end
 
   defp append(original, args, key) do
     query = Ash.Query.filter(Entry, reversal_of_entry_id == ^original.id)
     corrections = Points.read_entries!(query: query, actor: Store.system())
-    reversed_base = -Enum.sum(Enum.map(corrections, & &1.base_points_micro))
-    reversed_bonus = -Enum.sum(Enum.map(corrections, & &1.bonus_points_micro))
+    reversed = -Enum.sum(Enum.map(corrections, & &1.points_micro_delta))
 
-    if reversed_base + args.base_micro > original.base_points_micro do
+    if reversed + args.points_micro > original.points_micro_delta do
       {:error, "Correction exceeds the original remaining award"}
     else
-      # Cumulative rounding makes many partial corrections exactly equal one
-      # full correction, including the last fractional micro-point of bonus.
-      bonus =
-        div((reversed_base + args.base_micro) * original.bonus_percent, 100) - reversed_bonus
-
       attrs =
         original
         |> Map.from_struct()
@@ -59,17 +54,14 @@ defmodule RegentPoints.Reverse do
           :actor_kind,
           :actor_id,
           :category,
-          :milestone_key,
-          :bonus_percent
+          :milestone_key
         ])
 
       row =
         Points.append_entry!(
           Map.merge(attrs, %{
             award_key: key,
-            base_points_micro: -args.base_micro,
-            bonus_points_micro: -bonus,
-            points_micro_delta: -args.base_micro - bonus,
+            points_micro_delta: -args.points_micro,
             earned_at: original.earned_at,
             reversal_of_entry_id: original.id,
             reason_code: args.reason

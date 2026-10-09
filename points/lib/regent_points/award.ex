@@ -2,10 +2,10 @@ defmodule RegentPoints.Award do
   @moduledoc false
   use Ash.Resource.Actions.Implementation
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, Bonus, Nfts, Rules, Store}
+  alias RegentPoints.{Account, Rules, Store}
 
   @impl true
-  def run(%{arguments: %{event_id: id, last_attempt: last_attempt}}, _, _) do
+  def run(%{arguments: %{event_id: id}}, _, _) do
     case Store.event(id) do
       nil ->
         {:error, "Unknown points event"}
@@ -14,53 +14,18 @@ defmodule RegentPoints.Award do
         {:ok, %{id: event.id, status: status}}
 
       event ->
-        process(event, last_attempt)
+        Ash.transact(Account, fn ->
+          Store.lock_account(event.account_id)
+
+          case Store.event(event.id) do
+            %{processing_status: :pending} = event -> award(event)
+            event -> %{id: event.id, status: event.processing_status}
+          end
+        end)
     end
   end
 
-  defp process(event, last_attempt) do
-    # Historical reads happen outside the transaction and use action-time wallets.
-    case Nfts.at_time(event.wallets, event.source_action_at) do
-      {:ok, holdings} -> settle(event, &award(&1, holdings))
-      {:error, _} when last_attempt -> settle(event, &chain_unavailable/1)
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp settle(event, finish) do
-    Ash.transact(Account, fn ->
-      Store.lock_account(event.account_id)
-
-      case Store.event(event.id) do
-        %{processing_status: :pending} = event -> finish.(event)
-        event -> %{id: event.id, status: event.processing_status}
-      end
-    end)
-  end
-
-  defp chain_unavailable(event) do
-    Points.finish_event!(
-      event,
-      %{processing_status: :rejected, reason_code: "chain_unavailable"},
-      actor: Store.system()
-    )
-
-    %{id: event.id, status: :rejected}
-  end
-
-  defp award(event, holdings) do
-    event =
-      Points.snapshot_bonus!(
-        event,
-        %{
-          bonus_percent: Bonus.percent(holdings.count),
-          nft_block: holdings.block,
-          nft_block_hash: holdings.hash,
-          nft_count: holdings.count
-        },
-        actor: Store.system()
-      )
-
+  defp award(event) do
     rule = event.rule_snapshot
 
     case Rules.base_micro(rule, event.evidence) do
@@ -88,8 +53,6 @@ defmodule RegentPoints.Award do
       end)
     end
 
-    bonus = div(base * event.bonus_percent, 100)
-
     Points.append_entry!(
       %{
         program_id: event.program_id,
@@ -103,11 +66,8 @@ defmodule RegentPoints.Award do
         actor_id: event.actor_id,
         category: rule["category"],
         milestone_key: rule["milestone_key"],
-        base_points_micro: base,
-        bonus_points_micro: bonus,
+        points_micro_delta: base,
         cap_reduction_micro: requested - base,
-        bonus_percent: event.bonus_percent,
-        points_micro_delta: base + bonus,
         purchased_usdc_atomic: event.evidence["purchased_usdc_atomic"],
         earned_at: event.source_action_at,
         reason_code: reason

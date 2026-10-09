@@ -3,29 +3,17 @@ defmodule RegentPoints.Account do
   use Ash.Resource,
     domain: RegentPoints,
     data_layer: AshPostgres.DataLayer,
-    authorizers: [Ash.Policy.Authorizer],
-    notifiers: [Ash.Notifier.PubSub]
+    authorizers: [Ash.Policy.Authorizer]
 
   postgres do
     migrate?(Application.compile_env(:regent_points, :generate_migrations, false))
     table "accounts"
     schema("regent_points")
     repo(&RegentPoints.repo/2)
-
-    check_constraints do
-      check_constraint(:nft_count, "holdings_nonnegative",
-        check: "nft_count IS NULL OR nft_count >= 0"
-      )
-    end
   end
 
   attributes do
     attribute :id, :integer, primary_key?: true, allow_nil?: false
-    attribute :nft_count, :integer, constraints: [min: 0]
-    attribute :nft_block, :integer
-    attribute :nft_block_hash, :string
-    attribute :nft_checked_at, :utc_datetime_usec
-    attribute :wallet_digest, :string, sensitive?: true
     create_timestamp :inserted_at
   end
 
@@ -41,10 +29,6 @@ defmodule RegentPoints.Account do
       upsert_fields []
       upsert_condition expr(false)
       return_skipped_upsert? true
-    end
-
-    update :record_holdings do
-      accept [:nft_count, :nft_block, :nft_block_hash, :nft_checked_at, :wallet_digest]
     end
   end
 
@@ -71,22 +55,15 @@ defmodule RegentPoints.Account do
     end
 
     has_many :entries, RegentPoints.Entry, destination_attribute: :account_id
+    has_many :month_bonuses, RegentPoints.MonthBonus, destination_attribute: :account_id
   end
 
   aggregates do
-    sum :balance_micro, :entries, :points_micro_delta, default: 0
+    sum :earned_micro, :entries, :points_micro_delta, default: 0
+    sum :bonus_micro, :month_bonuses, :bonus_micro, default: 0
   end
 
   calculations do
-    calculate :bonus_percent, :integer, RegentPoints.Bonus.Calculation
-  end
-
-  pub_sub do
-    module RegentPoints.PubSub
-    name :regent_points
-    prefix "points"
-    broadcast_type :broadcast
-    transform fn _notification -> :points_changed end
-    publish :record_holdings, [:id]
+    calculate :balance_micro, :integer, expr(earned_micro + bonus_micro)
   end
 end

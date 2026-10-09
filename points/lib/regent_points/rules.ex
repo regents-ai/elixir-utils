@@ -42,7 +42,8 @@ defmodule RegentPoints.Rules do
     {"keyfleet.integration.marimo", 10, "Marimo used with Keyfleet"},
     {"keyfleet.integration.ddocs", 10, "dDocs used with Keyfleet"},
     {"keyfleet.integration.twigpine", 10, "Twigpine used with Keyfleet"},
-    {"keyfleet.integration.activegraph", 10, "ActiveGraph used with Keyfleet"}
+    {"keyfleet.integration.activegraph", 10, "ActiveGraph used with Keyfleet"},
+    {"template.first_agent_note", 10, "First note written by your agent"}
   ]
   @activity [
     {"patchbay.report_published", 10, 1, "day", "Patchbay report published"},
@@ -99,6 +100,25 @@ defmodule RegentPoints.Rules do
       {:ok, Map.put(rule, "effective_at", DateTime.to_iso8601(start))}
     else
       _ -> {:error, :rule_not_active}
+    end
+  end
+
+  @doc "Program month `n` as `{start, stop}`: whole months counted from the start time."
+  def month(n) do
+    start = Keyword.fetch!(config(), :starts_at)
+    {DateTime.shift(start, month: n - 1), DateTime.shift(start, month: n)}
+  end
+
+  @doc "The program months that have ended by `now`, oldest first. Each gets one bonus tally."
+  def ended_months(now) do
+    case Keyword.get(config(), :starts_at) do
+      %DateTime{} ->
+        1
+        |> Stream.iterate(&(&1 + 1))
+        |> Enum.take_while(&(DateTime.compare(elem(month(&1), 1), now) != :gt))
+
+      nil ->
+        []
     end
   end
 

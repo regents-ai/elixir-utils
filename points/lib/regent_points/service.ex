@@ -16,14 +16,13 @@ defmodule RegentPoints.Service do
 
     action :process_event, :map do
       argument :event_id, :uuid, allow_nil?: false
-      argument :last_attempt, :boolean, allow_nil?: false
       run RegentPoints.Award
     end
 
     action :reverse, :map do
       argument :entry_id, :uuid, allow_nil?: false
       argument :correction_key, :string, allow_nil?: false, constraints: [min_length: 1]
-      argument :base_micro, :integer, allow_nil?: false, constraints: [min: 1]
+      argument :points_micro, :integer, allow_nil?: false, constraints: [min: 1]
       argument :reason, :string, allow_nil?: false, constraints: [min_length: 1]
       run RegentPoints.Reverse
     end

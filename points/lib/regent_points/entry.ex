@@ -13,17 +13,9 @@ defmodule RegentPoints.Entry do
     repo(&RegentPoints.repo/2)
 
     check_constraints do
-      check_constraint(:points_micro_delta, "entry_amount_parts",
-        check: "points_micro_delta = base_points_micro + bonus_points_micro"
-      )
-
-      check_constraint(:base_points_micro, "entry_direction",
+      check_constraint(:points_micro_delta, "entry_direction",
         check:
-          "(reversal_of_entry_id IS NULL AND base_points_micro >= 0 AND bonus_points_micro >= 0) OR (reversal_of_entry_id IS NOT NULL AND base_points_micro < 0 AND bonus_points_micro <= 0)"
-      )
-
-      check_constraint(:bonus_percent, "entry_bonus_tier",
-        check: "bonus_percent IN (#{Enum.join(RegentPoints.Bonus.allowed_percentages(), ",")})"
+          "(reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR (reversal_of_entry_id IS NOT NULL AND points_micro_delta < 0)"
       )
 
       check_constraint(:cap_reduction_micro, "entry_cap_nonnegative",
@@ -50,10 +42,7 @@ defmodule RegentPoints.Entry do
     attribute :actor_id, :string, allow_nil?: false
     attribute :category, :string, allow_nil?: false
     attribute :milestone_key, :string
-    attribute :base_points_micro, :integer, allow_nil?: false
-    attribute :bonus_points_micro, :integer, allow_nil?: false
     attribute :cap_reduction_micro, :integer, allow_nil?: false, default: 0
-    attribute :bonus_percent, :integer, allow_nil?: false
     attribute :points_micro_delta, :integer, allow_nil?: false
     attribute :purchased_usdc_atomic, :integer
     attribute :earned_at, :utc_datetime_usec, allow_nil?: false
@@ -106,10 +95,7 @@ defmodule RegentPoints.Entry do
         :actor_id,
         :category,
         :milestone_key,
-        :base_points_micro,
-        :bonus_points_micro,
         :cap_reduction_micro,
-        :bonus_percent,
         :points_micro_delta,
         :purchased_usdc_atomic,
         :earned_at,

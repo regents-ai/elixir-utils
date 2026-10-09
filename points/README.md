@@ -18,29 +18,23 @@ config :regent_points,
   program_id: "regents-points-v1",
   starts_at: nil,
   approved_rules: [],
-  adapters: %{},
-  nft_tracking_enabled: false
+  adapters: %{}
 ```
 
 The accounts module implements `RegentPoints.Accounts`: `human/1` supplies the
-verified wallet set for a canonical integer account ID; `wallet_holders/1` returns
-canonical account IDs matching transfer parties; `agent_names/2` returns names
+verified wallet set for a canonical integer account ID; `agent_names/2` returns names
 only for agents belonging to that account, as `{:ok, names}`. Return `{:error, reason}`
 on lookup failure so the account page shows an error rather than a false missing-agent label. Agent `actor_id` is the verified paired
 agent record ID. The shared `regent_names.platform_human_users` table must exist;
 this package references it but never creates, updates or merges people.
 
-The chain client implements `RegentPoints.ChainClient`: `rpc(%{chain_id: 8453}, method, params)`. Historical
-`eth_call` must support canonical block hashes and archived balances. The transfer
-watcher requires explicit `removed: false` on logs, and stops on a changed saved
-block hash. Configure and verify the chosen RPC before enabling it. Every award with
-linked wallets reads holdings at action time, whether or not NFT tracking is on. When
-Base cannot answer, the award retries for about six hours (12 attempts); the last
-attempt finishes it as not counted with reason `chain_unavailable`.
+The chain client implements `RegentPoints.ChainClient`: `rpc(%{chain_id: 8453}, method, params)`.
+Points reads NFT holdings only at the latest Base block: for the page's current tier
+and for the month-end tally. Configure and verify the chosen RPC before enabling it.
 
 Add `points: 5` and `points_chain: 2` queues to the site's existing Oban instance.
-Only Regents, the designated watcher owner, adds the minute cron for
-`RegentPoints.WatchTransfers`; every other site leaves it out. All hosts use the same shared database and schema.
+Only Regents, the one tally owner, adds a daily cron for `RegentPoints.TallyMonths`;
+every other site leaves it out. All hosts use the same shared database and schema.
 Use the same Repo for source actions and Oban. The package's notifier broadcasts
 on the configured host PubSub under `points:<account_id>`; cross-node notification
 delivery follows the host's PubSub topology.
@@ -50,23 +44,21 @@ delivery follows the host's PubSub topology.
 In the source action's transaction, call the system-only domain action:
 
 ```elixir
-RegentPoints.record_event(%{
-  rule_id: "credits.purchase_settled",
-  source_app: "regents",
-  source_kind: "credits_purchase",
-  source_event_key: purchase.id
-}, actor: %{role: :system})
-# Preserve the original source action result; Points is an optional side effect.
+{:ok, _} =
+  RegentPoints.record_event(%{
+    rule_id: "credits.purchase_settled",
+    source_app: "regents",
+    source_kind: "credits_purchase",
+    source_event_key: purchase.id
+  }, actor: %{role: :system})
 ```
 
 Only those four reference fields enter the Oban job. No adapter, Points table or
-chain read runs in the product transaction. The single job insert uses a PostgreSQL
-statement savepoint when inside a transaction. A failure returns `:not_queued`,
-emits `[:regent_points, :enqueue, :failure]`, and leaves the product action usable.
-A rollback of the product action removes its job. Outside a transaction, the same
-API can resubmit a reference to an already committed source. Never repeat a purchase,
-post or wallet action to recover Points; reconcile from authoritative source records.
-Do not propagate a Points return value as the source action's result.
+chain read runs in the product transaction. The job is inserted in the source's own
+transaction, so the action and its Points job commit or roll back together; an insert
+failure raises and rolls back the action. Outside a transaction, the same API can
+resubmit a reference to an already committed source. Never repeat a purchase, post
+or wallet action to recover Points; reconcile from authoritative source records.
 
 The background verifier calls the rule's configured adapter `verify(reference)`.
 It must load authoritative persisted records, not trust browser assertions. Return
@@ -74,12 +66,12 @@ It must load authoritative persisted records, not trust browser assertions. Retu
 `{:retry, reason}` for an outage. Exceptions also retry through Oban. Invalid facts
 and conflicting evidence get a permanent private `source_rejections` audit, without
 changing an accepted event. Infrastructure failures retry; discarded Oban jobs need
-operator diagnosis. An enqueue failure leaves no job and needs source reconciliation.
+operator diagnosis.
 
 Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_id`,
 `actor_kind` (`"human"` or `"agent"`), `actor_id`, `source_action_at`, `qualified_at`,
-`evidence_ref`, `evidence` and `wallets`. Both times are UTC DateTimes. Freeze the
-beneficiary and linked wallets at action time. Source identity must match the job.
+`evidence_ref` and `evidence`. Both times are UTC DateTimes. Freeze the beneficiary
+at action time. Source identity must match the job.
 Credits evidence contains settled non-promotional `"purchased_usdc_atomic"`.
 Any site that lists `RegentCredits` may credit any purchase, and its `on_credited`
 module records `credits.purchase_settled` with `source_app: "regents"`, so the award
@@ -124,13 +116,19 @@ Two approved candidates stay out of the catalog until their products exist (Sean
 October): Keyfleet rollcall, 5 once/day, and independently verified Patchbay repair, 15
 twice/day. All rules remain operationally disabled in the template.
 
-Animata I, Animata II and Regents Club count together across verified linked
-wallets. The highest tier adds 20% for 1–4 pieces, 45% for 5–9, or 75% for 10+.
-The highest tier applies once, without stacking, only to base points actually
-awarded after all limits, and also to one-time awards: the daily maximum
-is 250 base or 437.5 at the highest tier. The proposed milestone catalog totals 500
-base or 875 at the highest tier. Sean approved these trial values on 7 October;
-enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
+Awards save points only. The NFT bonus is added once per program month, at the
+month-end tally (Sean, 9 October). Program months are whole months counted from
+`starts_at`. Animata I, Animata II and Regents Club count together across the
+account's verified linked wallets, read at the tally: 1–2 pieces add 20%, 3–6 add
+45%, 7 or more add 75%. One tier applies, without stacking, to the points the account
+earned in that month after all limits and the corrections made before the tally,
+one-time awards included.
+`RegentPoints.TallyAccount` writes one `month_bonuses` row per account and month; it
+waits while any of that month's actions is still being verified, and Oban retries a
+Base outage. An account's balance is its entries plus its month bonuses. Daily
+earning is at most 250 points before the bonus. The proposed milestone catalog
+totals 510 (Sean, 9 October: the 10-point first agent note). Sean approved the trial
+values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
 `tracked/0` lists the rules this site has a source adapter for, and a site's Points
 page shows only those, so it never offers an action nothing records; `daily_apps/1`
@@ -138,12 +136,10 @@ names the apps of the daily rules it shows. There is no uncapped revenue-points 
 
 Accepted events save the Credits rate and daily limits with the rule. Delayed
 processing uses that snapshot. Rule versions must remain immutable after approval;
-future rate revisions need prospective versioned rules. NFT awards use canonical
-holdings and verified linked wallets at action time, not processing time. Transfers
-refresh both parties and affect subsequent actions without repricing earlier awards.
-The page displays requested base, awarded base, bonus and total for capped awards.
-`RegentPoints.Bonus` owns the tier definition used by
-awards, the account calculation, the database constraint and the page.
+future rate revisions need prospective versioned rules. `RegentPoints.Bonus` owns
+the tiers used by the tally and the database constraint. `Bonus.current/1` reads
+the tier an account's wallets hold now, for the page's "+X% at the month-end tally";
+nothing is saved until the tally.
 
 Only the server system actor may intake, award or correct. Human actors with a
 verified `human_account_id` can read only their own entries and summary. Rejections
@@ -154,9 +150,9 @@ reopen allowances. There is no browser award API.
 
 `RegentPoints.Migrator.up(MySite.Repo)` runs the package's generated migrations on
 a dedicated connection, with its own history in `regent_points`. One designated
-owner runs production migrations only with Sean's grant. The package ships one
-initial migration for the final schema. It expects a fresh Points schema; an older
-local prototype requires an explicitly authorized reset before using this version.
+owner runs production migrations only with Sean's grant. The month bonus migration
+removes the action-time NFT columns and the transfer cursor table; its rollback runs
+only while the Points tables hold no awards.
 Shared Ash SQL extensions belong to the host and are not migrated by this package.
 
 For package development:
@@ -170,5 +166,5 @@ mix ash.codegen describe_change
 ```
 
 The package's development Repo uses an isolated local database. Only package config
-enables migration generation. Source adapters, approved rates/start time, watcher
-ownership and live product acceptance remain required before earning is enabled.
+enables migration generation. Source adapters, approved rates/start time, the tally
+cron on Regents and live product acceptance remain required before earning is enabled.

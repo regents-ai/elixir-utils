@@ -45,6 +45,7 @@ defmodule RegentPoints do
     resource RegentPoints.PeriodBonus do
       define :record_period_bonus, action: :record
       define :read_period_bonuses, action: :read
+      define :follow_period_bonus, action: :follow
     end
 
     resource RegentPoints.Service do

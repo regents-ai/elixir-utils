@@ -1,7 +1,8 @@
 defmodule RegentPoints.PeriodBonus do
   @moduledoc """
-  One account's NFT bonus for one 30-day program period, written once by the tally
-  at the period's end from the points earned in it and the tier held at the tally.
+  One account's NFT bonus for one 30-day program period, written by the tally at the
+  period's end with the tier held then. The tier never changes afterwards; an award
+  or correction for the period moves its earned total and bonus at that tier.
   """
   use Ash.Resource,
     domain: RegentPoints,
@@ -64,6 +65,10 @@ defmodule RegentPoints.PeriodBonus do
         :bonus_micro
       ]
     end
+
+    update :follow do
+      accept [:earned_micro, :bonus_micro]
+    end
   end
 
   policies do
@@ -87,5 +92,6 @@ defmodule RegentPoints.PeriodBonus do
     broadcast_type :broadcast
     transform fn _notification -> :points_changed end
     publish :record, [:account_id]
+    publish :follow, [:account_id]
   end
 end

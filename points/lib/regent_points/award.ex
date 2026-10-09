@@ -53,27 +53,30 @@ defmodule RegentPoints.Award do
       end)
     end
 
-    Points.append_entry!(
-      %{
-        program_id: event.program_id,
-        event_id: event.id,
-        award_key: event.award_key,
-        account_id: event.account_id,
-        rule_id: event.rule_id,
-        rule_version: rule["version"],
-        source_app: event.source_app,
-        actor_kind: event.actor_kind,
-        actor_id: event.actor_id,
-        category: rule["category"],
-        milestone_key: rule["milestone_key"],
-        points_micro_delta: base,
-        cap_reduction_micro: requested - base,
-        purchased_usdc_atomic: event.evidence["purchased_usdc_atomic"],
-        earned_at: event.source_action_at,
-        reason_code: reason
-      },
-      actor: Store.system()
-    )
+    entry =
+      Points.append_entry!(
+        %{
+          program_id: event.program_id,
+          event_id: event.id,
+          award_key: event.award_key,
+          account_id: event.account_id,
+          rule_id: event.rule_id,
+          rule_version: rule["version"],
+          source_app: event.source_app,
+          actor_kind: event.actor_kind,
+          actor_id: event.actor_id,
+          category: rule["category"],
+          milestone_key: rule["milestone_key"],
+          points_micro_delta: base,
+          cap_reduction_micro: requested - base,
+          purchased_usdc_atomic: event.evidence["purchased_usdc_atomic"],
+          earned_at: event.source_action_at,
+          reason_code: reason
+        },
+        actor: Store.system()
+      )
+
+    Store.follow_period_bonus(entry)
 
     status = if base == 0, do: :capped, else: :confirmed
 

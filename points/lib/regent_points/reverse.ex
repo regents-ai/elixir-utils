@@ -1,5 +1,5 @@
 defmodule RegentPoints.Reverse do
-  @moduledoc "Auditable partial corrections; earning allowances never reopen."
+  @moduledoc "Auditable partial corrections; earning allowances never reopen; a tallied period's bonus follows."
   use Ash.Resource.Actions.Implementation
   require Ash.Query
   alias RegentPoints, as: Points
@@ -34,9 +34,13 @@ defmodule RegentPoints.Reverse do
   end
 
   defp append(original, args, key) do
-    query = Ash.Query.filter(Entry, reversal_of_entry_id == ^original.id)
-    corrections = Points.read_entries!(query: query, actor: Store.system())
-    reversed = -Enum.sum(Enum.map(corrections, & &1.points_micro_delta))
+    corrected =
+      Entry
+      |> Ash.Query.filter(reversal_of_entry_id == ^original.id)
+      |> Ash.Query.for_read(:read, %{}, actor: Store.system())
+      |> Ash.sum!(:points_micro_delta)
+
+    reversed = -(corrected || 0)
 
     if reversed + args.points_micro > original.points_micro_delta do
       {:error, "Correction exceeds the original remaining award"}
@@ -69,6 +73,7 @@ defmodule RegentPoints.Reverse do
           actor: Store.system()
         )
 
+      Store.follow_period_bonus(row)
       %{id: row.id}
     end
   end

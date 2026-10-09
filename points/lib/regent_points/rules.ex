@@ -109,6 +109,12 @@ defmodule RegentPoints.Rules do
     {DateTime.add(start, (n - 1) * 30, :day), DateTime.add(start, n * 30, :day)}
   end
 
+  @doc "The program period `at` falls in. Every award is earned at or after the start."
+  def period_of(at) do
+    start = Keyword.fetch!(config(), :starts_at)
+    div(DateTime.diff(at, start, :second), 30 * 86_400) + 1
+  end
+
   @doc "The program periods that have ended by `now`, oldest first. Each gets one bonus tally."
   def ended_periods(now) do
     case Keyword.get(config(), :starts_at) do

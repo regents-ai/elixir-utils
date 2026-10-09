@@ -1,8 +1,9 @@
 defmodule RegentPoints.TallyAccount do
   @moduledoc """
   Writes one account's bonus for one ended 30-day program period: the points earned
-  in that period times the tier its linked wallets hold at the tally. Waits while any
-  of the period's actions is still being verified. Oban retries a Base outage.
+  in that period times the tier its linked wallets hold at the tally. An action
+  checked or corrected after the tally moves the bonus at the saved tier
+  (`RegentPoints.Store.follow_period_bonus/1`). Oban retries a Base outage.
   """
   use Oban.Worker,
     queue: :points_chain,
@@ -11,34 +12,18 @@ defmodule RegentPoints.TallyAccount do
 
   require Ash.Query
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, Bonus, Entry, Event, PeriodBonus, Rules, Store}
+  alias RegentPoints.{Account, Bonus, PeriodBonus, Rules, Store}
 
   @impl true
   def perform(%Oban.Job{args: %{"account_id" => id, "period" => period}}) do
-    {start, stop} = Rules.period(period)
-
-    if pending?(id, start, stop) do
-      {:snooze, 600}
-    else
-      # Base is read before the transaction; the account lock then guards the write.
-      with {:ok, tier} <- Bonus.current(id),
-           {:ok, _} <- Ash.transact(Account, fn -> record(id, period, {start, stop}, tier) end) do
-        :ok
-      end
+    # Base is read before the transaction; the account lock then guards the write.
+    with {:ok, tier} <- Bonus.current(id),
+         {:ok, _} <- Ash.transact(Account, fn -> record(id, period, tier) end) do
+      :ok
     end
   end
 
-  defp pending?(id, start, stop) do
-    Event
-    |> Ash.Query.filter(
-      account_id == ^id and processing_status == :pending and source_action_at >= ^start and
-        source_action_at < ^stop
-    )
-    |> Ash.Query.for_read(:read, %{}, actor: Store.system())
-    |> Ash.exists?()
-  end
-
-  defp record(id, period, {start, stop}, tier) do
+  defp record(id, period, tier) do
     Store.lock_account(id)
     program = Rules.program()
 
@@ -48,7 +33,7 @@ defmodule RegentPoints.TallyAccount do
       |> then(&Points.read_period_bonuses!(query: &1, actor: Store.system()))
 
     if existing == [] do
-      earned = max(earned(id, program, start, stop), 0)
+      earned = Store.period_earned(id, program, period)
 
       Points.record_period_bonus!(
         %{
@@ -66,15 +51,5 @@ defmodule RegentPoints.TallyAccount do
     end
 
     :ok
-  end
-
-  defp earned(id, program, start, stop) do
-    Entry
-    |> Ash.Query.filter(
-      account_id == ^id and program_id == ^program and earned_at >= ^start and earned_at < ^stop
-    )
-    |> Ash.Query.for_read(:read, %{}, actor: Store.system())
-    |> Ash.sum!(:points_micro_delta)
-    |> Kernel.||(0)
   end
 end

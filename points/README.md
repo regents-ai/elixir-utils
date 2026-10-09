@@ -121,11 +121,12 @@ tally when the period ends (Sean, 9 October). Periods last 30 days, counted from
 `starts_at`. Animata I, Animata II and Regents Club count together across the
 account's verified linked wallets, read at the tally: 1–2 pieces add 20%, 3–6 add
 45%, 7 or more add 75%. One tier applies, without stacking, to the points the account
-earned in that period after all limits and the corrections made before the tally,
-one-time awards included.
-`RegentPoints.TallyAccount` writes one `period_bonuses` row per account and period; it
-waits while any of that period's actions is still being verified, and Oban retries a
-Base outage. An account's balance is its entries plus its period bonuses. Daily
+earned in that period after all limits and corrections, one-time awards included.
+`RegentPoints.TallyAccount` writes one `period_bonuses` row per account and period with
+the tier held at the tally, and Oban retries a Base outage. The tier is never read
+again for that period: an award checked after the tally, or a correction, moves the
+period's earned total and bonus at the saved tier in the same locked transaction as
+its ledger entry. An account's balance is its entries plus its period bonuses. Daily
 earning is at most 250 points before the bonus. The proposed milestone catalog
 totals 510 (Sean, 9 October: the 10-point first agent note). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,

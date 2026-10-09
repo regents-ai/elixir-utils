@@ -30,10 +30,10 @@ this package references it but never creates, updates or merges people.
 
 The chain client implements `RegentPoints.ChainClient`: `rpc(%{chain_id: 8453}, method, params)`.
 Points reads NFT holdings only at the latest Base block: for the page's current tier
-and for the month-end tally. Configure and verify the chosen RPC before enabling it.
+and for the tally at the end of each 30-day period. Configure and verify the chosen RPC before enabling it.
 
 Add `points: 5` and `points_chain: 2` queues to the site's existing Oban instance.
-Only Regents, the one tally owner, adds a daily cron for `RegentPoints.TallyMonths`;
+Only Regents, the one tally owner, adds a daily cron for `RegentPoints.TallyPeriods`;
 every other site leaves it out. All hosts use the same shared database and schema.
 Use the same Repo for source actions and Oban. The package's notifier broadcasts
 on the configured host PubSub under `points:<account_id>`; cross-node notification
@@ -116,16 +116,16 @@ Two approved candidates stay out of the catalog until their products exist (Sean
 October): Keyfleet rollcall, 5 once/day, and independently verified Patchbay repair, 15
 twice/day. All rules remain operationally disabled in the template.
 
-Awards save points only. The NFT bonus is added once per program month, at the
-month-end tally (Sean, 9 October). Program months are whole months counted from
+Awards save points only. The NFT bonus is added once per program period, at the
+tally when the period ends (Sean, 9 October). Periods last 30 days, counted from
 `starts_at`. Animata I, Animata II and Regents Club count together across the
 account's verified linked wallets, read at the tally: 1–2 pieces add 20%, 3–6 add
 45%, 7 or more add 75%. One tier applies, without stacking, to the points the account
-earned in that month after all limits and the corrections made before the tally,
+earned in that period after all limits and the corrections made before the tally,
 one-time awards included.
-`RegentPoints.TallyAccount` writes one `month_bonuses` row per account and month; it
-waits while any of that month's actions is still being verified, and Oban retries a
-Base outage. An account's balance is its entries plus its month bonuses. Daily
+`RegentPoints.TallyAccount` writes one `period_bonuses` row per account and period; it
+waits while any of that period's actions is still being verified, and Oban retries a
+Base outage. An account's balance is its entries plus its period bonuses. Daily
 earning is at most 250 points before the bonus. The proposed milestone catalog
 totals 510 (Sean, 9 October: the 10-point first agent note). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
@@ -138,7 +138,7 @@ Accepted events save the Credits rate and daily limits with the rule. Delayed
 processing uses that snapshot. Rule versions must remain immutable after approval;
 future rate revisions need prospective versioned rules. `RegentPoints.Bonus` owns
 the tiers used by the tally and the database constraint. `Bonus.current/1` reads
-the tier an account's wallets hold now, for the page's "+X% at the month-end tally";
+the tier an account's wallets hold now, for the page's "+X% at the end of this period";
 nothing is saved until the tally.
 
 Only the server system actor may intake, award or correct. Human actors with a
@@ -150,7 +150,7 @@ reopen allowances. There is no browser award API.
 
 `RegentPoints.Migrator.up(MySite.Repo)` runs the package's generated migrations on
 a dedicated connection, with its own history in `regent_points`. One designated
-owner runs production migrations only with Sean's grant. The month bonus migration
+owner runs production migrations only with Sean's grant. The period bonus migration
 removes the action-time NFT columns and the transfer cursor table; its rollback runs
 only while the Points tables hold no awards.
 Shared Ash SQL extensions belong to the host and are not migrated by this package.

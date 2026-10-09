@@ -1,4 +1,4 @@
-defmodule RegentPoints.Repo.Migrations.MonthBonusTally do
+defmodule RegentPoints.Repo.Migrations.PeriodBonusTally do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
@@ -27,7 +27,7 @@ defmodule RegentPoints.Repo.Migrations.MonthBonusTally do
 
     execute("CREATE SCHEMA IF NOT EXISTS regent_points")
 
-    create table(:month_bonuses, primary_key: false, prefix: "regent_points") do
+    create table(:period_bonuses, primary_key: false, prefix: "regent_points") do
       add(:id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true)
       add(:program_id, :text, null: false)
 
@@ -35,22 +35,22 @@ defmodule RegentPoints.Repo.Migrations.MonthBonusTally do
         :account_id,
         references(:accounts,
           column: :id,
-          name: "month_bonuses_account_id_fkey",
+          name: "period_bonuses_account_id_fkey",
           type: :bigint,
           prefix: "regent_points"
         ),
         null: false
       )
 
-      add(:month, :bigint, null: false)
+      add(:period, :bigint, null: false)
     end
 
-    create unique_index(:month_bonuses, [:program_id, :account_id, :month],
-             name: "month_bonuses_account_month_index",
+    create unique_index(:period_bonuses, [:program_id, :account_id, :period],
+             name: "period_bonuses_account_period_index",
              prefix: "regent_points"
            )
 
-    alter table(:month_bonuses, prefix: "regent_points") do
+    alter table(:period_bonuses, prefix: "regent_points") do
       add(:earned_micro, :bigint, null: false)
       add(:nft_count, :bigint, null: false)
       add(:nft_block, :bigint, null: false)
@@ -63,14 +63,14 @@ defmodule RegentPoints.Repo.Migrations.MonthBonusTally do
       )
     end
 
-    create constraint(:month_bonuses, :month_bonus_tier,
+    create constraint(:period_bonuses, :period_bonus_tier,
              check: """
                bonus_percent IN (0,20,45,75)
              """,
              prefix: "regent_points"
            )
 
-    create constraint(:month_bonuses, :month_bonus_amount,
+    create constraint(:period_bonuses, :period_bonus_amount,
              check: """
                earned_micro >= 0 AND nft_count >= 0 AND bonus_micro = earned_micro * bonus_percent / 100
              """,
@@ -150,7 +150,7 @@ defmodule RegentPoints.Repo.Migrations.MonthBonusTally do
              prefix: "regent_points"
            )
 
-    drop(table(:month_bonuses, prefix: "regent_points"))
+    drop(table(:period_bonuses, prefix: "regent_points"))
 
     alter table(:accounts, prefix: "regent_points") do
       add(:nft_count, :bigint)

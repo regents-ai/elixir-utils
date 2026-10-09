@@ -42,9 +42,9 @@ defmodule RegentPoints do
       define :consume_cap, action: :consume, args: [:points]
     end
 
-    resource RegentPoints.MonthBonus do
-      define :record_month_bonus, action: :record
-      define :read_month_bonuses, action: :read
+    resource RegentPoints.PeriodBonus do
+      define :record_period_bonus, action: :record
+      define :read_period_bonuses, action: :read
     end
 
     resource RegentPoints.Service do

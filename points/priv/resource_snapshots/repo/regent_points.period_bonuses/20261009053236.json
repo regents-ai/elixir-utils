@@ -45,7 +45,7 @@
           "global": null,
           "strategy": null
         },
-        "name": "month_bonuses_account_id_fkey",
+        "name": "period_bonuses_account_id_fkey",
         "on_delete": null,
         "on_update": null,
         "primary_key?": true,
@@ -66,7 +66,7 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "month",
+      "source": "period",
       "type": "bigint"
     },
     {
@@ -150,7 +150,7 @@
       ],
       "base_filter": null,
       "check": "bonus_percent IN (0,20,45,75)",
-      "name": "month_bonus_tier"
+      "name": "period_bonus_tier"
     },
     {
       "attribute": [
@@ -158,19 +158,19 @@
       ],
       "base_filter": null,
       "check": "earned_micro >= 0 AND nft_count >= 0 AND bonus_micro = earned_micro * bonus_percent / 100",
-      "name": "month_bonus_amount"
+      "name": "period_bonus_amount"
     }
   ],
   "create_table_options": null,
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "07280B650F078ACB301844BC4F10284615081DBAA0ECE0A4F52FBF368A21843D",
+  "hash": "DE4AB8E8CB87446B1CF81DAC6D0E4392DDC10F581E0C37182244FA800A5FE76F",
   "identities": [
     {
       "all_tenants?": false,
       "base_filter": null,
-      "index_name": "month_bonuses_account_month_index",
+      "index_name": "period_bonuses_account_period_index",
       "keys": [
         {
           "type": "atom",
@@ -182,10 +182,10 @@
         },
         {
           "type": "atom",
-          "value": "month"
+          "value": "period"
         }
       ],
-      "name": "account_month",
+      "name": "account_period",
       "nils_distinct?": true,
       "where": null
     }
@@ -197,5 +197,5 @@
   },
   "repo": "Elixir.RegentPoints.Repo",
   "schema": "regent_points",
-  "table": "month_bonuses"
+  "table": "period_bonuses"
 }

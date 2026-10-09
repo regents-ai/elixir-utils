@@ -1,7 +1,7 @@
-defmodule RegentPoints.MonthBonus do
+defmodule RegentPoints.PeriodBonus do
   @moduledoc """
-  One account's NFT bonus for one program month, written once by the month-end
-  tally from the points earned in that month and the tier held at the tally.
+  One account's NFT bonus for one 30-day program period, written once by the tally
+  at the period's end from the points earned in it and the tier held at the tally.
   """
   use Ash.Resource,
     domain: RegentPoints,
@@ -11,16 +11,16 @@ defmodule RegentPoints.MonthBonus do
 
   postgres do
     migrate?(Application.compile_env(:regent_points, :generate_migrations, false))
-    table "month_bonuses"
+    table "period_bonuses"
     schema("regent_points")
     repo(&RegentPoints.repo/2)
 
     check_constraints do
-      check_constraint(:bonus_percent, "month_bonus_tier",
+      check_constraint(:bonus_percent, "period_bonus_tier",
         check: "bonus_percent IN (#{Enum.join(RegentPoints.Bonus.allowed_percentages(), ",")})"
       )
 
-      check_constraint(:bonus_micro, "month_bonus_amount",
+      check_constraint(:bonus_micro, "period_bonus_amount",
         check:
           "earned_micro >= 0 AND nft_count >= 0 AND bonus_micro = earned_micro * bonus_percent / 100"
       )
@@ -31,7 +31,7 @@ defmodule RegentPoints.MonthBonus do
     uuid_primary_key :id
     attribute :program_id, :string, allow_nil?: false
     attribute :account_id, :integer, allow_nil?: false
-    attribute :month, :integer, allow_nil?: false, constraints: [min: 1]
+    attribute :period, :integer, allow_nil?: false, constraints: [min: 1]
     attribute :earned_micro, :integer, allow_nil?: false
     attribute :nft_count, :integer, allow_nil?: false
     attribute :nft_block, :integer, allow_nil?: false
@@ -56,7 +56,7 @@ defmodule RegentPoints.MonthBonus do
       accept [
         :program_id,
         :account_id,
-        :month,
+        :period,
         :earned_micro,
         :nft_count,
         :nft_block,
@@ -77,7 +77,7 @@ defmodule RegentPoints.MonthBonus do
   end
 
   identities do
-    identity :account_month, [:program_id, :account_id, :month]
+    identity :account_period, [:program_id, :account_id, :period]
   end
 
   pub_sub do

@@ -103,19 +103,19 @@ defmodule RegentPoints.Rules do
     end
   end
 
-  @doc "Program month `n` as `{start, stop}`: whole months counted from the start time."
-  def month(n) do
+  @doc "Program period `n` as `{start, stop}`: 30-day periods counted from the start time."
+  def period(n) do
     start = Keyword.fetch!(config(), :starts_at)
-    {DateTime.shift(start, month: n - 1), DateTime.shift(start, month: n)}
+    {DateTime.add(start, (n - 1) * 30, :day), DateTime.add(start, n * 30, :day)}
   end
 
-  @doc "The program months that have ended by `now`, oldest first. Each gets one bonus tally."
-  def ended_months(now) do
+  @doc "The program periods that have ended by `now`, oldest first. Each gets one bonus tally."
+  def ended_periods(now) do
     case Keyword.get(config(), :starts_at) do
       %DateTime{} ->
         1
         |> Stream.iterate(&(&1 + 1))
-        |> Enum.take_while(&(DateTime.compare(elem(month(&1), 1), now) != :gt))
+        |> Enum.take_while(&(DateTime.compare(elem(period(&1), 1), now) != :gt))
 
       nil ->
         []

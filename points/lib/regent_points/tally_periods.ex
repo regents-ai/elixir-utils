@@ -1,7 +1,7 @@
-defmodule RegentPoints.TallyMonths do
+defmodule RegentPoints.TallyPeriods do
   @moduledoc """
   Daily cron on the one designated owner site (Regents): queues one tally for each
-  account that earned points in an ended program month and has no bonus for it yet.
+  account that earned points in an ended 30-day program period and has no bonus for it yet.
   A tally that ran out of attempts is queued again by the next day's run.
   """
   use Oban.Worker,
@@ -16,21 +16,21 @@ defmodule RegentPoints.TallyMonths do
   def perform(_job) do
     program = Rules.program()
 
-    for month <- Rules.ended_months(DateTime.utc_now()), id <- untallied(program, month) do
-      Oban.insert!(TallyAccount.new(%{account_id: id, month: month}))
+    for period <- Rules.ended_periods(DateTime.utc_now()), id <- untallied(program, period) do
+      Oban.insert!(TallyAccount.new(%{account_id: id, period: period}))
     end
 
     :ok
   end
 
-  defp untallied(program, month) do
-    {start, stop} = Rules.month(month)
+  defp untallied(program, period) do
+    {start, stop} = Rules.period(period)
 
     query =
       Account
       |> Ash.Query.filter(
         exists(entries, program_id == ^program and earned_at >= ^start and earned_at < ^stop) and
-          not exists(month_bonuses, program_id == ^program and month == ^month)
+          not exists(period_bonuses, program_id == ^program and period == ^period)
       )
       |> Ash.Query.select([:id])
 

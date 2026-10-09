@@ -55,12 +55,12 @@ defmodule RegentPoints.Account do
     end
 
     has_many :entries, RegentPoints.Entry, destination_attribute: :account_id
-    has_many :month_bonuses, RegentPoints.MonthBonus, destination_attribute: :account_id
+    has_many :period_bonuses, RegentPoints.PeriodBonus, destination_attribute: :account_id
   end
 
   aggregates do
     sum :earned_micro, :entries, :points_micro_delta, default: 0
-    sum :bonus_micro, :month_bonuses, :bonus_micro, default: 0
+    sum :bonus_micro, :period_bonuses, :bonus_micro, default: 0
   end
 
   calculations do

@@ -3,7 +3,7 @@ defmodule RegentPoints.Summary do
   use Ash.Resource.Actions.Implementation
   require Ash.Query
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, CapUsage, Entry, Event, MonthBonus, Rules, Store}
+  alias RegentPoints.{Account, CapUsage, Entry, Event, PeriodBonus, Rules, Store}
 
   @impl true
   def run(input, _, %{actor: actor}) do
@@ -33,10 +33,10 @@ defmodule RegentPoints.Summary do
       )
 
     bonuses_query =
-      MonthBonus |> Ash.Query.filter(account_id == ^id) |> Ash.Query.sort(month: :desc)
+      PeriodBonus |> Ash.Query.filter(account_id == ^id) |> Ash.Query.sort(period: :desc)
 
     with {:ok, accounts} <- Points.read_accounts(query: account_query, actor: actor),
-         {:ok, month_bonuses} <- Points.read_month_bonuses(query: bonuses_query, actor: actor),
+         {:ok, period_bonuses} <- Points.read_period_bonuses(query: bonuses_query, actor: actor),
          {:ok, entries} <- Points.history(query: entries_query, actor: actor),
          {:ok, today_points} <- Ash.sum(today_query, :points_micro_delta),
          {:ok, pending} <- Ash.count(pending_query),
@@ -48,7 +48,7 @@ defmodule RegentPoints.Summary do
          earned_today_micro: today_points || 0,
          pending: pending,
          entries: entries.results,
-         month_bonuses: month_bonuses,
+         period_bonuses: period_bonuses,
          agent_names: agent_names,
          more?: entries.more?,
          allowances: allowances(caps)

@@ -1,7 +1,7 @@
 defmodule RegentPoints.Bonus do
   @moduledoc """
-  The approved NFT tiers. The bonus is never saved with an award: each month-end
-  tally applies the tier the account's current linked wallets hold that day.
+  The approved NFT tiers. The bonus is never saved with an award: the tally at the
+  end of each 30-day period applies the tier the account's linked wallets hold that day.
   """
   alias RegentPoints.{Nfts, Store}
   @tiers [{7, 75}, {3, 45}, {1, 20}]

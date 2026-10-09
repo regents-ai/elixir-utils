@@ -16,13 +16,14 @@ defmodule RegentCredits.Purchase do
       still unknown to the chain a day after it was reported.
 
   Every Credits deposit on Base is also read from the chain and credited
-  exactly as it landed, to the account holding the wallet that sent it; one
-  from a wallet no account holds waits under that wallet until an account
-  signs in with it (`attach_wallets`).
+  exactly as it landed, to the account holding the wallet that sent it, else
+  to the account that reported it; one from a wallet no account holds waits
+  under that wallet until an account signs in with it (`attach_wallets`) or
+  reports it.
 
   A person reports only payments sent from the wallets their sign-in
-  verified (`RegentCredits.Checks.OwnWallet`), and a transaction credits at
-  most once, whoever reports it. A report is saved only once the chain holds
+  verified (`RegentCredits.Checks.OwnWallet`), and a wallet's payment in a
+  transaction credits at most once, whoever reports it. A report is saved only once the chain holds
   the transaction and it is this purchase's Buy from that wallet; until then
   the page reports it again. Each report reads the chain, so the site calls
   `report` behind a per-person limit on how often it may be called.
@@ -106,8 +107,10 @@ defmodule RegentCredits.Purchase do
   end
 
   identities do
-    identity :report, [:privy_user_id, :chain, :tx_hash]
-    identity :credited, [:chain, :tx_hash], where: expr(status == :credited)
+    # One purchase per wallet's payment in a transaction: two wallets paying
+    # in one transaction are two purchases.
+    identity :report, [:privy_user_id, :chain, :tx_hash, :wallet]
+    identity :credited, [:chain, :tx_hash, :wallet], where: expr(status == :credited)
   end
 
   actions do

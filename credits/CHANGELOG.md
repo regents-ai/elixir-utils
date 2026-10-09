@@ -23,7 +23,9 @@ shared by every Regent site.
   credited exactly as it landed, reported or not, so a paid Buy whose page
   closed is still credited. A deposit from a wallet no account holds goes to
   the account that reported it, or waits under the wallet until a sign-in
-  shows that wallet or a report of it arrives. Purchase and refund amounts are
+  shows that wallet or a report of it arrives. Each wallet's payment in a
+  transaction is its own purchase, so two wallets paying in one transaction
+  are credited separately. Purchase and refund amounts are
   USDC to the millionth.
 - Admin gifts to Privy accounts or wallet addresses. A gift or bounty to a
   wallet an account showed at its last sign-in lands on the account at once;

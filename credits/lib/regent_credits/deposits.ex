@@ -15,8 +15,10 @@ defmodule RegentCredits.Deposits do
   Two sites reading the same chain at once credit each deposit once between
   them; the one that finds the cursor already past its stretch stops there.
 
-  A transaction is credited at most once, together with any report of it
-  (`RegentCredits.Purchases.credit_deposit/1`). Reads happen outside any
+  Each wallet's deposits in a transaction are credited at most once, to that
+  wallet's account, together with any report of them
+  (`RegentCredits.Purchases.credit_deposit/1`). Two wallets paying in one
+  transaction are two purchases. Reads happen outside any
   database transaction; each deposit is credited in a transaction of its own.
   """
 
@@ -74,8 +76,6 @@ defmodule RegentCredits.Deposits do
 
   defp quantity(number), do: "0x" <> String.downcase(Integer.to_string(number, 16))
 
-  # One deposit per transaction: the Credits deposits it holds, added up and
-  # credited to the wallet behind the first of them.
   defp deposits(logs, chain) do
     logs
     |> Enum.reject(&match?(%{"removed" => true}, &1))
@@ -87,7 +87,7 @@ defmodule RegentCredits.Deposits do
       end
     end)
     |> case do
-      {:ok, found} -> {:ok, found |> Enum.reverse() |> by_transaction(chain)}
+      {:ok, found} -> {:ok, found |> Enum.reverse() |> by_wallet(chain)}
       error -> error
     end
   end
@@ -108,10 +108,12 @@ defmodule RegentCredits.Deposits do
 
   defp deposit(_log), do: :error
 
-  defp by_transaction(deposits, chain) do
+  # One deposit per wallet in a transaction: its Credits deposits there,
+  # added up, under the purchase number of the first.
+  defp by_wallet(deposits, chain) do
     deposits
-    |> Enum.group_by(& &1.tx_hash)
-    |> Enum.map(fn {_hash, [first | _rest] = same} ->
+    |> Enum.group_by(&{&1.tx_hash, &1.wallet})
+    |> Enum.map(fn {_paid, [first | _rest] = same} ->
       micro = same |> Enum.map(& &1.micro) |> Enum.sum()
       first |> Map.delete(:micro) |> Map.merge(%{chain: chain, amount: amount(micro)})
     end)

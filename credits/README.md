@@ -109,8 +109,9 @@ a minute (`RegentCredits.Deposits`), up to ten minutes behind the newest
 block, and credits each exactly as it landed, whether or not a page reported
 it: to the account holding the paying wallet, else to the account that
 reported it from that wallet, else under that wallet until an account signs
-in with it or reports it. A deposit and its report credit once between them,
-as one purchase.
+in with it or reports it. Each wallet's payment in a transaction is one
+purchase: it and its report credit once between them, and two wallets paying
+in one transaction are credited separately.
 
 ## Gifts and refunds
 

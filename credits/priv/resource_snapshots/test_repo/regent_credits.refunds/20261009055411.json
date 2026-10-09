@@ -13,7 +13,19 @@
       "type": "uuid"
     },
     {
-      "allow_nil?": true,
+      "allow_nil?": false,
+      "default": "nil",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": null,
+      "scale": null,
+      "size": null,
+      "source": "purchase_id",
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": false,
       "default": "nil",
       "generated?": false,
       "precision": null,
@@ -62,31 +74,7 @@
     },
     {
       "allow_nil?": false,
-      "default": "nil",
-      "generated?": false,
-      "precision": null,
-      "primary_key?": false,
-      "references": null,
-      "scale": null,
-      "size": null,
-      "source": "number",
-      "type": "uuid"
-    },
-    {
-      "allow_nil?": false,
-      "default": "nil",
-      "generated?": false,
-      "precision": null,
-      "primary_key?": false,
-      "references": null,
-      "scale": null,
-      "size": null,
-      "source": "tx_hash",
-      "type": "text"
-    },
-    {
-      "allow_nil?": false,
-      "default": "\"checking\"",
+      "default": "\"locked\"",
       "generated?": false,
       "precision": null,
       "primary_key?": false,
@@ -105,7 +93,19 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "reason",
+      "source": "tx_hash",
+      "type": "text"
+    },
+    {
+      "allow_nil?": false,
+      "default": "nil",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": null,
+      "scale": null,
+      "size": null,
+      "source": "started_by",
       "type": "text"
     },
     {
@@ -117,31 +117,7 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "block_number",
-      "type": "bigint"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "precision": null,
-      "primary_key?": false,
-      "references": null,
-      "scale": null,
-      "size": null,
-      "source": "block_hash",
-      "type": "text"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "precision": null,
-      "primary_key?": false,
-      "references": null,
-      "scale": null,
-      "size": null,
-      "source": "credited_at",
+      "source": "sent_at",
       "type": "utc_datetime_usec"
     },
     {
@@ -163,35 +139,27 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "114CF3BEF8CE3E3904DC689002CCAF31F94E743AA8CDE86EE0D4F09990233C05",
+  "hash": "A8564324A04157255255C27EFF4BD3611E983F770DE1C5A14D478B12738D5D2F",
   "identities": [
     {
       "all_tenants?": false,
       "base_filter": null,
-      "index_name": "purchases_credited_index",
+      "index_name": "refunds_purchase_index",
       "keys": [
         {
           "type": "atom",
-          "value": "chain"
-        },
-        {
-          "type": "atom",
-          "value": "tx_hash"
+          "value": "purchase_id"
         }
       ],
-      "name": "credited",
+      "name": "purchase",
       "nils_distinct?": true,
-      "where": "status = 'credited'"
+      "where": null
     },
     {
       "all_tenants?": false,
       "base_filter": null,
-      "index_name": "purchases_report_index",
+      "index_name": "refunds_transaction_index",
       "keys": [
-        {
-          "type": "atom",
-          "value": "privy_user_id"
-        },
         {
           "type": "atom",
           "value": "chain"
@@ -201,7 +169,7 @@
           "value": "tx_hash"
         }
       ],
-      "name": "report",
+      "name": "transaction",
       "nils_distinct?": true,
       "where": null
     }
@@ -213,5 +181,5 @@
   },
   "repo": "Elixir.RegentCredits.TestRepo",
   "schema": "regent_credits",
-  "table": "purchases"
+  "table": "refunds"
 }

@@ -101,6 +101,44 @@ defmodule RegentCredits.DepositTest do
              2
   end
 
+  # A contract can deposit for two wallets in one transaction; each wallet's
+  # account gets its own part, once, and its report finds that part.
+  test "two wallets paying in one transaction are credited separately, once each" do
+    first = person()
+    a = wallet()
+    b = wallet()
+    {:ok, _moved} = RegentCredits.attach_wallets(first, [a], actor: site())
+    hash = TestChain.hash()
+    number = Ecto.UUID.generate()
+
+    TestChain.logs([
+      TestChain.deposit_log(a, 5_000_000, @start + 1, tx_hash: hash, number: number),
+      TestChain.deposit_log(b, 25_000_000, @start + 1, tx_hash: hash),
+      TestChain.deposit_log(b, 1_500_000, @start + 1, tx_hash: hash)
+    ])
+
+    assert :ok = read(@start + 400)
+    read_again_from_start()
+    assert :ok = read(@start + 400)
+
+    assert Decimal.eq?(purchased(first), 5)
+    assert_received {:credited, _a, true}
+    refute_received {:credited, _, _}
+
+    TestChain.put(hash, TestChain.buy(:base, a, 5, number), TestChain.mined("0x1"))
+
+    assert {:ok, %{status: :credited, wallet: ^a}} =
+             RegentCredits.report_purchase(first, a, :base, 5, number, hash,
+               actor: actor(first, [a])
+             )
+
+    second = person()
+    assert {:ok, moved} = RegentCredits.attach_wallets(second, [b], actor: site())
+    assert Decimal.eq?(moved, "26.5")
+    assert Decimal.eq?(purchased(first), 5)
+    assert length(purchases(Ash.Query.filter(RegentCredits.Purchase, tx_hash == ^hash))) == 2
+  end
+
   # A person reports a Buy from a wallet their account has not attached yet;
   # one record of the payment reaches them in either order, and signing in
   # with the wallet afterwards still works.

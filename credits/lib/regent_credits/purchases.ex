@@ -9,10 +9,11 @@ defmodule RegentCredits.Purchases do
 
   `credit_deposit/1` credits a Base deposit `RegentCredits.Deposits` read
   from the chain, under the same lock, so a deposit and its report credit
-  once between them. A report is saved under that lock too, so a person
-  never has two purchases of one transaction: a report finds the deposit the
-  chain already credited and takes it, and a deposit finds the report and
-  credits it.
+  once between them. A report is saved under that lock too, so one wallet's
+  payment in a transaction is never two purchases: a report finds the
+  deposit the chain already credited and takes it, and a deposit finds the
+  report and credits it. Two wallets paying in one transaction are two
+  purchases.
 
   The purchase rows are written by the library after the action was
   authorized, so they run unauthorized.
@@ -39,7 +40,7 @@ defmodule RegentCredits.Purchases do
          {:ok, hash} <- Abi.hash(hash) do
       details = %{args | wallet: wallet, tx_hash: hash}
 
-      case find(owner, chain, hash) do
+      case find(owner, chain, hash, wallet) do
         nil -> record_sent(details)
         purchase -> same(purchase, details)
       end
@@ -71,7 +72,7 @@ defmodule RegentCredits.Purchases do
   end
 
   @doc """
-  Credits a deposit the chain holds, once: to the account holding the wallet
+  Credits a wallet's deposit the chain holds, once: to the account holding the wallet
   that sent it, else to the account that reported it from that wallet, else
   under that wallet until an account attaches it. That account's report of
   the same transaction is credited with what the chain holds.
@@ -81,12 +82,12 @@ defmodule RegentCredits.Purchases do
   again.
   """
   def credit_deposit(%{chain: chain, tx_hash: hash, wallet: wallet} = deposit) do
-    account = account(wallet, for_transaction(chain, hash))
+    account = account(wallet, paid(chain, hash, wallet))
     {to, opened} = holder(account, wallet)
     Ledger.open(opened)
     from = Ledger.identifier(:regent_purchases, nil)
     accounts = Ledger.lock([from | opened])
-    found = for_transaction(chain, hash)
+    found = paid(chain, hash, wallet)
 
     cond do
       credited = Enum.find(found, &(&1.status == :credited)) ->
@@ -107,12 +108,12 @@ defmodule RegentCredits.Purchases do
     end
   end
 
-  # The account holding the wallet, else the first to report the transaction
-  # from it: Outcome.sent proved that wallet sent it.
+  # The account holding the wallet, else the first to report the payment:
+  # Outcome.sent proved the wallet sent it.
   defp account(wallet, found) do
     Map.get(Wallets.owners([wallet]), wallet) ||
       found
-      |> Enum.filter(&(&1.privy_user_id && &1.wallet == wallet))
+      |> Enum.filter(& &1.privy_user_id)
       |> Enum.min_by(& &1.inserted_at, DateTime, fn -> %{privy_user_id: nil} end)
       |> Map.fetch!(:privy_user_id)
   end
@@ -121,7 +122,7 @@ defmodule RegentCredits.Purchases do
   Gives `owner` the credited deposits waiting under these wallets, and tells
   the site of each as it would of any credit. The caller has locked the
   waiting accounts, which every credit into them also locks, and moved the
-  Credits. `owner` has no purchase of these transactions: a report from the
+  Credits. `owner` has no purchase of these payments: a report from the
   wallet takes its waiting deposit instead.
   """
   def claim(owner, addresses) do
@@ -165,16 +166,17 @@ defmodule RegentCredits.Purchases do
     |> Ash.update!()
   end
 
-  defp for_transaction(chain, hash) do
+  # The purchases of what `wallet` paid in the transaction.
+  defp paid(chain, hash, wallet) do
     # Internal: read by the credit of a deposit or a report, before and
     # after the lock.
     Purchase
-    |> Ash.Query.filter(chain == ^chain and tx_hash == ^hash)
+    |> Ash.Query.filter(chain == ^chain and tx_hash == ^hash and wallet == ^wallet)
     |> Ash.read!(authorize?: false)
   end
 
   # Every credit locks regent_purchases, so a second row for the same
-  # transaction sees the first one's credit here.
+  # payment sees the first one's credit here.
   defp credit_once(purchase, accounts, pair) do
     if credited_elsewhere?(purchase) do
       finish(purchase, %{status: :failed, reason: "already credited"})
@@ -189,10 +191,12 @@ defmodule RegentCredits.Purchases do
     end
   end
 
-  defp credited_elsewhere?(%{chain: chain, tx_hash: hash}) do
+  defp credited_elsewhere?(%{chain: chain, tx_hash: hash, wallet: wallet}) do
     # Internal: read by the authorized credit.
     Purchase
-    |> Ash.Query.filter(chain == ^chain and tx_hash == ^hash and status == :credited)
+    |> Ash.Query.filter(
+      chain == ^chain and tx_hash == ^hash and wallet == ^wallet and status == :credited
+    )
     |> Ash.exists?(authorize?: false)
   end
 
@@ -282,14 +286,14 @@ defmodule RegentCredits.Purchases do
     Ash.transact(Purchase, fn ->
       Ledger.open([waiting | Ledger.person(owner)])
       accounts = Ledger.lock([from, waiting | Ledger.person(owner)])
-      found = for_transaction(chain, hash)
+      found = paid(chain, hash, wallet)
 
       saved =
         cond do
           mine = Enum.find(found, &(&1.privy_user_id == owner)) ->
             same(mine, details)
 
-          deposit = Enum.find(found, &(is_nil(&1.privy_user_id) and &1.wallet == wallet)) ->
+          deposit = Enum.find(found, &is_nil(&1.privy_user_id)) ->
             Ledger.move(accounts, {waiting, to}, deposit.amount, "purchase:#{deposit.id}")
             take(deposit, owner)
 
@@ -333,16 +337,17 @@ defmodule RegentCredits.Purchases do
   end
 
   defp same(purchase, details) do
-    if purchase.wallet == details.wallet and purchase.number == details.number and
-         Decimal.eq?(purchase.amount, details.amount),
-       do: {:ok, purchase},
-       else: {:error, Refused.exception(reason: :key_reused)}
+    if purchase.number == details.number and Decimal.eq?(purchase.amount, details.amount),
+      do: {:ok, purchase},
+      else: {:error, Refused.exception(reason: :key_reused)}
   end
 
-  defp find(owner, chain, hash) do
+  defp find(owner, chain, hash, wallet) do
     # Internal: read by the authorized report.
     Purchase
-    |> Ash.Query.filter(privy_user_id == ^owner and chain == ^chain and tx_hash == ^hash)
+    |> Ash.Query.filter(
+      privy_user_id == ^owner and chain == ^chain and tx_hash == ^hash and wallet == ^wallet
+    )
     |> Ash.read_one!(authorize?: false)
   end
 

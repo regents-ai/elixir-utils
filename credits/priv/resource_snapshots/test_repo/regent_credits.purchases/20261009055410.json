@@ -13,19 +13,7 @@
       "type": "uuid"
     },
     {
-      "allow_nil?": false,
-      "default": "nil",
-      "generated?": false,
-      "precision": null,
-      "primary_key?": false,
-      "references": null,
-      "scale": null,
-      "size": null,
-      "source": "purchase_id",
-      "type": "uuid"
-    },
-    {
-      "allow_nil?": false,
+      "allow_nil?": true,
       "default": "nil",
       "generated?": false,
       "precision": null,
@@ -74,7 +62,31 @@
     },
     {
       "allow_nil?": false,
-      "default": "\"locked\"",
+      "default": "nil",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": null,
+      "scale": null,
+      "size": null,
+      "source": "number",
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": false,
+      "default": "nil",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": null,
+      "scale": null,
+      "size": null,
+      "source": "tx_hash",
+      "type": "text"
+    },
+    {
+      "allow_nil?": false,
+      "default": "\"checking\"",
       "generated?": false,
       "precision": null,
       "primary_key?": false,
@@ -93,19 +105,7 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "tx_hash",
-      "type": "text"
-    },
-    {
-      "allow_nil?": false,
-      "default": "nil",
-      "generated?": false,
-      "precision": null,
-      "primary_key?": false,
-      "references": null,
-      "scale": null,
-      "size": null,
-      "source": "started_by",
+      "source": "reason",
       "type": "text"
     },
     {
@@ -117,7 +117,31 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "sent_at",
+      "source": "block_number",
+      "type": "bigint"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": null,
+      "scale": null,
+      "size": null,
+      "source": "block_hash",
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": null,
+      "scale": null,
+      "size": null,
+      "source": "credited_at",
       "type": "utc_datetime_usec"
     },
     {
@@ -139,26 +163,12 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "AD753B62115236E1AF21612F413CAFFDCFCCB961AB35034C730F3B95844EE58B",
+  "hash": "5EA4609898DADC9367542D18B0503F4DD2297C8C571F935BAB102C89C0C84D3F",
   "identities": [
     {
       "all_tenants?": false,
       "base_filter": null,
-      "index_name": "refunds_purchase_index",
-      "keys": [
-        {
-          "type": "atom",
-          "value": "purchase_id"
-        }
-      ],
-      "name": "purchase",
-      "nils_distinct?": true,
-      "where": null
-    },
-    {
-      "all_tenants?": false,
-      "base_filter": null,
-      "index_name": "refunds_transaction_index",
+      "index_name": "purchases_credited_index",
       "keys": [
         {
           "type": "atom",
@@ -167,9 +177,39 @@
         {
           "type": "atom",
           "value": "tx_hash"
+        },
+        {
+          "type": "atom",
+          "value": "wallet"
         }
       ],
-      "name": "transaction",
+      "name": "credited",
+      "nils_distinct?": true,
+      "where": "status = 'credited'"
+    },
+    {
+      "all_tenants?": false,
+      "base_filter": null,
+      "index_name": "purchases_report_index",
+      "keys": [
+        {
+          "type": "atom",
+          "value": "privy_user_id"
+        },
+        {
+          "type": "atom",
+          "value": "chain"
+        },
+        {
+          "type": "atom",
+          "value": "tx_hash"
+        },
+        {
+          "type": "atom",
+          "value": "wallet"
+        }
+      ],
+      "name": "report",
       "nils_distinct?": true,
       "where": null
     }
@@ -181,5 +221,5 @@
   },
   "repo": "Elixir.RegentCredits.TestRepo",
   "schema": "regent_credits",
-  "table": "refunds"
+  "table": "purchases"
 }

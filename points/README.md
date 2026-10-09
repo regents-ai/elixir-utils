@@ -112,11 +112,10 @@ eligibility and preserve the same account and subject milestone identities.
 The approved Credits basis is 10 points per USDC spent on purchased Credits, capped
 at 100 base points per UTC day. Privy-account daily actions share 50 per day, and
 connected agents share 100. Those actions come from the apps the daily rules name:
-today only Patchbay. Per-action counts are
-separate for humans and the pooled agents. More agents, keys or wallets do not create
-extra allowances, and one completed event belongs to only one pool. One-time actions
-use no daily allowance and are once per canonical account across sites, wallets, keys
-and agents.
+today only Patchbay. Per-action counts are separate for humans and the pooled agents.
+More agents, keys or wallets do not create extra allowances, and one completed event
+belongs to only one pool. One-time actions use no daily allowance and are once per
+canonical account across sites, wallets, keys and agents.
 
 The revised recurring catalog is: Patchbay report 10 once/day, reply 5 twice/day,
 accepted solution 20 once/day, and asker resolution 5 once/day. There is no

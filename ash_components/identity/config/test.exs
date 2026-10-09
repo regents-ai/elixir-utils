@@ -5,7 +5,7 @@ config :regent_identity, RegentIdentity.TestRepo,
   hostname: "127.0.0.1",
   port: 5432,
   username: System.get_env("USER"),
-  database: System.fetch_env!("REGENT_IDENTITY_TEST_DATABASE"),
+  database: "regent_identity_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 8
 

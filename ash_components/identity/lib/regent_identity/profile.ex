@@ -1,4 +1,8 @@
 defmodule RegentIdentity.Profile do
+  @moduledoc """
+  One shared profile per Privy account: display name, selected wallet, the
+  verified linked wallets and X account, and when that proof was issued.
+  """
   use Ash.Resource,
     domain: RegentIdentity,
     data_layer: AshPostgres.DataLayer,

@@ -18,24 +18,24 @@ defmodule RegentIdentity do
   @doc "Synchronizes an explicit verified sign-in/link event. Passive page loads only read."
   def sync(%RegentPrivy.Session{issued_at: issued} = actor) when is_integer(issued) do
     if RegentIdentity.VerifiedActor.match?(actor, nil, []) do
-      Ash.transact(RegentIdentity.Profile, fn ->
-        # Serialize one person's reconciliation across sites before reading. This
-        # never controls wallet operations, payment requests or transaction sends.
-        lock(actor)
-
-        with {:ok, profile} <- get_my_profile(actor: actor),
-             {:ok, profile} <- reconcile(profile, actor) do
-          profile
-        else
-          {:error, error} -> {:error, error}
-        end
-      end)
+      Ash.transact(RegentIdentity.Profile, fn -> sync_locked(actor) end)
     else
       {:error, :unverified_identity}
     end
   end
 
   def sync(_actor), do: {:error, :missing_issued_at}
+
+  defp sync_locked(actor) do
+    # Serialize one person's reconciliation across sites before reading. This
+    # never controls wallet operations, payment requests or transaction sends.
+    lock(actor)
+
+    with {:ok, profile} <- get_my_profile(actor: actor),
+         {:ok, profile} <- reconcile(profile, actor) do
+      profile
+    end
+  end
 
   defp reconcile(nil, actor) do
     RegentIdentity.Profile

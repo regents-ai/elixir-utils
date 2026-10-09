@@ -84,7 +84,7 @@ defmodule RegentIdentity.HTTP do
   defp proof(conn) do
     case {get_req_header(conn, "authorization"), get_req_header(conn, "privy-id-token")} do
       {["Bearer " <> access], [identity]}
-      when byte_size(access) in 1..32768 and byte_size(identity) in 1..32768 ->
+      when byte_size(access) in 1..32_768 and byte_size(identity) in 1..32_768 ->
         {:ok, %{access: access, identity: identity}}
 
       _ ->

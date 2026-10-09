@@ -1,4 +1,5 @@
 defmodule Mix.Tasks.RegentIdentity.Assets do
+  @moduledoc "Copies the shared profile client from this package into the site's `assets/vendor/regent_identity`."
   @shortdoc "Copy the pinned shared profile client into product assets"
   use Mix.Task
   @impl true

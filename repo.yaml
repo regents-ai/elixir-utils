@@ -19,6 +19,9 @@ owns:
   - privy_token_verification
   - sprite_machines
   - siwa_library
+  - agent_pairing
+  - shared_profiles
+  - payment_records
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []
@@ -58,6 +61,12 @@ code_map:
     owns: sprite_machines
   - path: siwa/siwa-elixir
     owns: siwa_library
+  - path: ash_components/agents
+    owns: agent_pairing
+  - path: ash_components/identity
+    owns: shared_profiles
+  - path: ash_components/payments
+    owns: payment_records
 local_path_dependencies: []
 acceptance_commands:
   - cwd: elixir-utils/agent_access
@@ -89,4 +98,10 @@ acceptance_commands:
   - cwd: elixir-utils/sprites
     command: mix check
   - cwd: elixir-utils/siwa/siwa-elixir
+    command: mix check
+  - cwd: elixir-utils/ash_components/agents
+    command: mix check
+  - cwd: elixir-utils/ash_components/identity
+    command: mix check
+  - cwd: elixir-utils/ash_components/payments
     command: mix check

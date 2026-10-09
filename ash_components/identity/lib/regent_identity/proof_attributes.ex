@@ -1,4 +1,8 @@
 defmodule RegentIdentity.ProofAttributes do
+  @moduledoc """
+  Writes the verified Privy proof onto a profile, and refuses evidence older
+  than, or conflicting with, the proof already saved.
+  """
   use Ash.Resource.Change
 
   @impl true
@@ -15,48 +19,54 @@ defmodule RegentIdentity.ProofAttributes do
       proof_issued_at: actor.issued_at
     }
 
-    changeset = Ash.Changeset.force_change_attributes(changeset, attributes)
-
-    changeset =
-      if changeset.action_type == :create do
-        wallet =
-          case actor.wallet_addresses do
-            [one] -> one
-            _ -> nil
-          end
-
-        Ash.Changeset.force_change_attribute(changeset, :wallet_address, wallet)
-      else
-        changeset
-      end
-
-    Ash.Changeset.before_action(changeset, fn locked ->
-      RegentIdentity.lock(actor)
-
-      case RegentIdentity.get_my_profile(actor: actor) do
-        {:ok, nil} ->
-          locked
-
-        {:ok, current} ->
-          locked = validate_freshness(locked, current, actor, attributes)
-
-          if locked.action_type == :update and current.id == locked.data.id do
-            # Equality was measured against the caller's old record; apply the
-            # complete proof against the locked current row instead.
-            %{locked | data: current}
-            |> Ash.Changeset.force_change_attributes(attributes)
-          else
-            locked
-          end
-
-        {:error, error} ->
-          Ash.Changeset.add_error(locked, error)
-      end
-    end)
+    changeset
+    |> Ash.Changeset.force_change_attributes(attributes)
+    |> initial_wallet(actor)
+    |> Ash.Changeset.before_action(&against_current(&1, actor, attributes))
   end
 
   def change(changeset, _, _),
     do: Ash.Changeset.add_error(changeset, "verified identity required")
+
+  defp initial_wallet(%{action_type: :create} = changeset, actor) do
+    wallet =
+      case actor.wallet_addresses do
+        [one] -> one
+        _ -> nil
+      end
+
+    Ash.Changeset.force_change_attribute(changeset, :wallet_address, wallet)
+  end
+
+  defp initial_wallet(changeset, _actor), do: changeset
+
+  defp against_current(locked, actor, attributes) do
+    RegentIdentity.lock(actor)
+
+    case RegentIdentity.get_my_profile(actor: actor) do
+      {:ok, nil} ->
+        locked
+
+      {:ok, current} ->
+        locked
+        |> validate_freshness(current, actor, attributes)
+        |> onto_current(current, attributes)
+
+      {:error, error} ->
+        Ash.Changeset.add_error(locked, error)
+    end
+  end
+
+  # Equality was measured against the caller's old record; apply the complete
+  # proof against the locked current row instead.
+  defp onto_current(
+         %{action_type: :update, data: %{id: id}} = locked,
+         %{id: id} = current,
+         attributes
+       ),
+       do: Ash.Changeset.force_change_attributes(%{locked | data: current}, attributes)
+
+  defp onto_current(locked, _current, _attributes), do: locked
 
   defp validate_freshness(changeset, current, actor, attributes) do
     same =

@@ -1,6 +1,6 @@
 # Regent Identity
 
-Regents owns this Ash domain and its `regent_identity` schema. All four products
+This Ash domain and its `regent_identity` schema are shared by every Regent site. All four products
 consume it using their own database role/connection to **one physical PostgreSQL
 database**. Set `config :regent_identity, repo: Product.Repo`. The library starts no
 repository, opens no alternate database and changes no product authorization.
@@ -25,8 +25,8 @@ sequences, sessions, ledgers and product IDs need a rehearsed data reconciliatio
 
 ## Disposable verification
 
-Create a uniquely named local database, then set `REGENT_IDENTITY_TEST_DATABASE`.
-Run `mix check`; `regent_privy` is pinned in `mix.exs`.
+Create a local database named `regent_identity_test_<suffix>`, then run `mix check`
+with `MIX_TEST_PARTITION=_<suffix>`. `regent_privy` is the sibling `../../privy`.
 The test harness checks its database name before migrating its own schema. It
 never resets any existing product database. No production/provider access occurs.
 

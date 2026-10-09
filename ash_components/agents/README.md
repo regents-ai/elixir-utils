@@ -97,4 +97,5 @@ never run it.
 
 ## Checks
 
-`make check-agents` from the repository root, with `MIX_TEST_PARTITION` set.
+`mix check` in this folder, with `MIX_TEST_PARTITION=_<suffix>` naming a local
+database `regent_agents_test_<suffix>`.

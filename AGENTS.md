@@ -4,6 +4,8 @@ Follow the workspace `regent-workflow` (Pairing or Claude-only mode); no ticket 
 
 This repo owns shared Elixir utilities used by Regent products. Each package keeps its own `mix.exs`, version, and checks. Apps use the packages from a local checkout as path dependencies.
 
+`ash_components/` (agents, identity, payments) is owned by the ash-template lane and merges through this repo's integrator; see `ash_components/AGENTS.md`.
+
 ## Core Rules
 
 - Shared packages own reusable behavior, not product routes, product pages, or product databases.

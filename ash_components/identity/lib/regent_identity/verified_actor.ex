@@ -1,4 +1,5 @@
 defmodule RegentIdentity.VerifiedActor do
+  @moduledoc "Policy check: the actor is a Privy session whose app, subject and expiry are present and current."
   use Ash.Policy.SimpleCheck
   def describe(_opts), do: "a currently verified Privy token pair"
 

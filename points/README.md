@@ -21,6 +21,11 @@ config :regent_points,
   adapters: %{}
 ```
 
+Earning is off while `starts_at` is `nil`. Setting it starts the program and its
+30-day periods, and it never changes or returns to `nil` afterwards: awards still
+being checked, corrections and bonuses all count periods from it. To stop earning
+later, empty `approved_rules`.
+
 The accounts module implements `RegentPoints.Accounts`: `human/1` supplies the
 verified wallet set for a canonical integer account ID; `agent_names/2` returns names
 only for agents belonging to that account, as `{:ok, names}`. Return `{:error, reason}`

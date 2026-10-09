@@ -1,8 +1,10 @@
 defmodule RegentPoints.Worker do
   @moduledoc """
   Awards one recorded event under its account's lock. Oban owns retries. When the
-  last attempt fails, the event is rejected as `award_failed`, so the account's
-  summary never counts it as pending forever.
+  last attempt fails, by an error or a raise, the event is rejected as
+  `award_failed`, so the account's summary never counts it as pending forever,
+  and the job keeps the failure. A last attempt killed outright (its node
+  stopped) is discarded by Oban's Lifeline and leaves the event pending.
   """
   use Oban.Worker,
     queue: :points,
@@ -13,26 +15,31 @@ defmodule RegentPoints.Worker do
 
   @impl true
   def perform(%Oban.Job{args: %{"event_id" => id}} = job) do
-    case RegentPoints.process_event(id, actor: Store.system()) do
-      {:ok, _} -> :ok
-      {:error, reason} when job.attempt < job.max_attempts -> {:error, reason}
-      {:error, _reason} -> give_up(id)
-    end
+    if job.attempt < job.max_attempts, do: award(id), else: last_attempt(id)
   end
 
-  defp give_up(id) do
-    case Store.event(id) do
-      %{processing_status: :pending} = event ->
-        RegentPoints.finish_event!(
-          event,
-          %{processing_status: :rejected, reason_code: "award_failed"},
-          actor: Store.system()
-        )
+  defp award(id) do
+    with {:ok, _} <- RegentPoints.process_event(id, actor: Store.system()), do: :ok
+  end
 
-        :ok
-
-      _ ->
-        :ok
+  defp last_attempt(id) do
+    case award(id) do
+      :ok -> :ok
+      {:error, reason} -> give_up(id, reason)
     end
+  rescue
+    error -> give_up(id, error)
+  end
+
+  defp give_up(id, reason) do
+    with %{processing_status: :pending} = event <- Store.event(id) do
+      RegentPoints.finish_event!(
+        event,
+        %{processing_status: :rejected, reason_code: "award_failed"},
+        actor: Store.system()
+      )
+    end
+
+    {:error, reason}
   end
 end

@@ -183,8 +183,19 @@ defmodule RegentCredits.Purchases do
     else
       Ledger.move(accounts, pair, Decimal.new(purchase.amount), "purchase:#{purchase.id}")
 
-      with {:ok, purchase} <-
-             finish(purchase, %{status: :credited, credited_at: DateTime.utc_now()}) do
+      # Internal: written by the authorized credit. Not through decided/2: a
+      # purchase that stopped being checked fails the credit, which rolls back
+      # the move.
+      credited =
+        purchase
+        |> Ash.Changeset.for_update(
+          :finish,
+          %{status: :credited, credited_at: DateTime.utc_now()},
+          authorize?: false
+        )
+        |> Ash.update()
+
+      with {:ok, purchase} <- credited do
         :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
         {:ok, purchase}
       end

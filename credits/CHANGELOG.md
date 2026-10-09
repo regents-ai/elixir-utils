@@ -21,8 +21,9 @@ shared by every Regent site.
   report is saved only once the chain holds it as that purchase's Buy.
 - Every Credits deposit on Base is read from the chain once a minute and
   credited exactly as it landed, reported or not, so a paid Buy whose page
-  closed is still credited. A deposit from a wallet no account holds waits
-  under it until a sign-in shows that wallet. Purchase and refund amounts are
+  closed is still credited. A deposit from a wallet no account holds goes to
+  the account that reported it, or waits under the wallet until a sign-in
+  shows that wallet or a report of it arrives. Purchase and refund amounts are
   USDC to the millionth.
 - Admin gifts to Privy accounts or wallet addresses. A gift or bounty to a
   wallet an account showed at its last sign-in lands on the account at once;

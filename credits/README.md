@@ -105,10 +105,12 @@ open once a minute. Base purchases count at the latest block; Ethereum
 purchases once 12 blocks sit on top of theirs and it is still in that block.
 
 The site's Oban also reads every Credits deposit on Base from the chain once
-a minute (`RegentCredits.Deposits`), up to ten blocks behind the newest, and
-credits each exactly as it landed, whether or not a page reported it: to the
-account holding the paying wallet, or under that wallet until an account
-signs in with it. A deposit and its report credit once between them.
+a minute (`RegentCredits.Deposits`), up to ten minutes behind the newest
+block, and credits each exactly as it landed, whether or not a page reported
+it: to the account holding the paying wallet, else to the account that
+reported it from that wallet, else under that wallet until an account signs
+in with it or reports it. A deposit and its report credit once between them,
+as one purchase.
 
 ## Gifts and refunds
 

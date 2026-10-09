@@ -5,10 +5,15 @@ defmodule RegentCredits.Deposits do
 
   A Credits deposit is a `USDCRevenueDeposited` event of REGENT staking whose
   source tag is `regent.credits`. Each run reads from the chain's
-  `RegentCredits.DepositCursor` up to ten blocks behind the newest one, 500
-  blocks at a time, and moves the cursor on after each stretch is credited.
-  Ten blocks (twenty seconds) keep it clear of a node that answers with the
-  newest block before it can search it; the page's own report credits sooner.
+  `RegentCredits.DepositCursor` up to 300 blocks (ten minutes) behind the
+  newest one, 500 blocks at a time, and moves the cursor on after each
+  stretch is credited. The ten minutes keep it clear of a log search that
+  lags the newest block, which would answer an unsearched stretch with no
+  logs; the page's own report credits sooner. A stretch the node refuses is
+  read again in halves, down to one block.
+
+  Two sites reading the same chain at once credit each deposit once between
+  them; the one that finds the cursor already past its stretch stops there.
 
   A transaction is credited at most once, together with any report of it
   (`RegentCredits.Purchases.credit_deposit/1`). Reads happen outside any
@@ -23,9 +28,9 @@ defmodule RegentCredits.Deposits do
   @event "USDCRevenueDeposited(uint256,uint256,uint256,uint8,address,bytes32,bytes32)"
   @direct_deposit "0x" <> String.duplicate("0", 64)
   @span 500
-  @behind 10
+  @behind 300
 
-  @doc "Credits the chain's deposits since its cursor, up to ten blocks behind the newest."
+  @doc "Credits the chain's deposits since its cursor, up to 300 blocks behind the newest."
   @spec read(:base) :: :ok | {:error, term()}
   def read(name) do
     # Internal: read by the Oban read of the chain.
@@ -33,20 +38,28 @@ defmodule RegentCredits.Deposits do
     chain = Chains.chain(name)
 
     with {:ok, head} <- Chains.client().block_number(chain) do
-      read_on(cursor, chain, head - @behind)
+      read_on(cursor, chain, head - @behind, @span)
     end
   end
 
-  defp read_on(%{next_block: from}, _chain, last) when from > last, do: :ok
+  defp read_on(%{next_block: from}, _chain, last, _span) when from > last, do: :ok
 
-  defp read_on(%{next_block: from} = cursor, chain, last) do
-    to = min(last, from + @span - 1)
+  defp read_on(%{next_block: from} = cursor, chain, last, span) do
+    to = min(last, from + span - 1)
 
-    with {:ok, logs} <- Chains.client().logs(chain, filter(from, to)),
-         {:ok, deposits} <- deposits(logs, cursor.chain),
-         :ok <- credit_all(deposits),
-         {:ok, cursor} <- advance(cursor, from, to + 1) do
-      read_on(cursor, chain, last)
+    case Chains.client().logs(chain, filter(from, to)) do
+      {:ok, logs} ->
+        with {:ok, deposits} <- deposits(logs, cursor.chain),
+             :ok <- credit_all(deposits),
+             {:ok, cursor} <- advance(cursor, from, to + 1) do
+          read_on(cursor, chain, last, span)
+        end
+
+      {:error, _reason} when span > 1 ->
+        read_on(cursor, chain, last, div(span, 2))
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -117,11 +130,16 @@ defmodule RegentCredits.Deposits do
     end)
   end
 
+  # Another site's read already moved the cursor past this stretch.
   defp advance(cursor, from, to) do
     # Internal: moved by the Oban read once the stretch is credited.
     cursor
     |> Ash.Changeset.for_update(:advance, %{from: from, to: to}, authorize?: false)
     |> Ash.update()
+    |> case do
+      {:error, %Ash.Error.Invalid{errors: [%Ash.Error.Changes.StaleRecord{}]}} -> :ok
+      result -> result
+    end
   end
 
   # USDC has six decimals; Credits are kept to the millionth.

@@ -9,7 +9,10 @@ defmodule RegentCredits.Purchases do
 
   `credit_deposit/1` credits a Base deposit `RegentCredits.Deposits` read
   from the chain, under the same lock, so a deposit and its report credit
-  once between them.
+  once between them. A report is saved under that lock too, so a person
+  never has two purchases of one transaction: a report finds the deposit the
+  chain already credited and takes it, and a deposit finds the report and
+  credits it.
 
   The purchase rows are written by the library after the action was
   authorized, so they run unauthorized.
@@ -69,38 +72,57 @@ defmodule RegentCredits.Purchases do
 
   @doc """
   Credits a deposit the chain holds, once: to the account holding the wallet
-  that sent it, or under that wallet while no account does. A report of the
-  same transaction by that account is credited with what the chain holds.
+  that sent it, else to the account that reported it from that wallet, else
+  under that wallet until an account attaches it. That account's report of
+  the same transaction is credited with what the chain holds.
+
+  The account is chosen before the lock and again under it. When an attach or
+  a report changed it meanwhile, nothing is credited and the next read tries
+  again.
   """
   def credit_deposit(%{chain: chain, tx_hash: hash, wallet: wallet} = deposit) do
-    owner = Map.get(Wallets.owners([wallet]), wallet)
-    {to, opened} = holder(owner, wallet)
+    account = account(wallet, for_transaction(chain, hash))
+    {to, opened} = holder(account, wallet)
     Ledger.open(opened)
     from = Ledger.identifier(:regent_purchases, nil)
     accounts = Ledger.lock([from | opened])
     found = for_transaction(chain, hash)
 
-    case Enum.find(found, &(&1.status == :credited)) do
-      nil ->
-        purchase =
-          save_deposit(Enum.find(found, &(owner && &1.privy_user_id == owner)), deposit, owner)
+    cond do
+      credited = Enum.find(found, &(&1.status == :credited)) ->
+        {:ok, credited}
 
+      account(wallet, found) != account ->
+        {:error, :account_changed}
+
+      true ->
+        report = account && Enum.find(found, &(&1.privy_user_id == account))
+        purchase = save_deposit(report, deposit, account)
         Ledger.move(accounts, {from, to}, purchase.amount, "purchase:#{purchase.id}")
 
-        if owner,
+        if account,
           do: :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
 
         {:ok, purchase}
-
-      credited ->
-        {:ok, credited}
     end
+  end
+
+  # The account holding the wallet, else the first to report the transaction
+  # from it: Outcome.sent proved that wallet sent it.
+  defp account(wallet, found) do
+    Map.get(Wallets.owners([wallet]), wallet) ||
+      found
+      |> Enum.filter(&(&1.privy_user_id && &1.wallet == wallet))
+      |> Enum.min_by(& &1.inserted_at, DateTime, fn -> %{privy_user_id: nil} end)
+      |> Map.fetch!(:privy_user_id)
   end
 
   @doc """
   Gives `owner` the credited deposits waiting under these wallets, and tells
   the site of each as it would of any credit. The caller has locked the
-  Regent and waiting accounts and moved the Credits.
+  waiting accounts, which every credit into them also locks, and moved the
+  Credits. `owner` has no purchase of these transactions: a report from the
+  wallet takes its waiting deposit instead.
   """
   def claim(owner, addresses) do
     on_credited = Application.fetch_env!(:regent_credits, :on_credited)
@@ -122,18 +144,19 @@ defmodule RegentCredits.Purchases do
     {waiting, [waiting]}
   end
 
-  defp holder(owner, _wallet), do: {Ledger.identifier(:purchased, owner), Ledger.person(owner)}
+  defp holder(account, _wallet),
+    do: {Ledger.identifier(:purchased, account), Ledger.person(account)}
 
-  defp save_deposit(nil, deposit, owner) do
+  defp save_deposit(nil, deposit, account) do
     # Internal: written by the credit of a deposit the chain holds.
     Purchase
-    |> Ash.Changeset.for_create(:found, Map.put(deposit, :privy_user_id, owner),
+    |> Ash.Changeset.for_create(:found, Map.put(deposit, :privy_user_id, account),
       authorize?: false
     )
     |> Ash.create!()
   end
 
-  defp save_deposit(reported, deposit, _owner) do
+  defp save_deposit(reported, deposit, _account) do
     # Internal: written by the credit of a deposit the chain holds.
     reported
     |> Ash.Changeset.for_update(:found_reported, Map.take(deposit, [:wallet, :amount, :number]),
@@ -143,7 +166,8 @@ defmodule RegentCredits.Purchases do
   end
 
   defp for_transaction(chain, hash) do
-    # Internal: read by the credit of a deposit, after the lock.
+    # Internal: read by the credit of a deposit or a report, before and
+    # after the lock.
     Purchase
     |> Ash.Query.filter(chain == ^chain and tx_hash == ^hash)
     |> Ash.read!(authorize?: false)
@@ -247,11 +271,49 @@ defmodule RegentCredits.Purchases do
     end
   end
 
-  defp record(details) do
+  # Under the lock every credit takes. The deposit waiting under the wallet,
+  # if the chain's credit came first, goes to the person; a report of theirs
+  # saved meanwhile answers as a repeat would.
+  defp record(%{privy_user_id: owner, chain: chain, tx_hash: hash, wallet: wallet} = details) do
+    from = Ledger.identifier(:regent_purchases, nil)
+    waiting = Ledger.identifier(:address_purchased, wallet)
+    to = Ledger.identifier(:purchased, owner)
+
+    Ash.transact(Purchase, fn ->
+      Ledger.open([waiting | Ledger.person(owner)])
+      accounts = Ledger.lock([from, waiting | Ledger.person(owner)])
+      found = for_transaction(chain, hash)
+
+      saved =
+        cond do
+          mine = Enum.find(found, &(&1.privy_user_id == owner)) ->
+            same(mine, details)
+
+          deposit = Enum.find(found, &(is_nil(&1.privy_user_id) and &1.wallet == wallet)) ->
+            Ledger.move(accounts, {waiting, to}, deposit.amount, "purchase:#{deposit.id}")
+            take(deposit, owner)
+
+          true ->
+            # Internal: written by the authorized report action.
+            Purchase
+            |> Ash.Changeset.for_create(:record, details, authorize?: false)
+            |> Ash.create()
+        end
+
+      # Ash.transact wraps the purchase in {:ok, _} and rolls back an error.
+      with {:ok, purchase} <- saved, do: purchase
+    end)
+  end
+
+  defp take(deposit, owner) do
     # Internal: written by the authorized report action.
-    Purchase
-    |> Ash.Changeset.for_create(:record, details, authorize?: false)
-    |> Ash.create()
+    purchase =
+      deposit
+      |> Ash.Changeset.for_update(:claim, %{privy_user_id: owner}, authorize?: false)
+      |> Ash.update!()
+
+    :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
+    {:ok, purchase}
   end
 
   defp seen(purchase, number, hash) do

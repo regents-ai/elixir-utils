@@ -1,8 +1,8 @@
 defmodule RegentPoints.Worker do
   @moduledoc """
   Awards one recorded event under its account's lock. Oban owns retries. When the
-  last attempt fails, the event is rejected as `award_failed`, so no event stays
-  pending and the period tally that waits for it can run.
+  last attempt fails, the event is rejected as `award_failed`, so the account's
+  summary never counts it as pending forever.
   """
   use Oban.Worker,
     queue: :points,

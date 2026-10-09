@@ -14,6 +14,34 @@ defmodule RegentAgents.Migrator do
   this package never starts a repository or runs migrations.
   """
 
+  @doc "Checks pairing-history prerequisites without applying shared migrations."
+  @spec require_pairing_history!(module()) :: :ok
+  def require_pairing_history!(repo) do
+    %{rows: [[ready?]]} =
+      Ecto.Adapters.SQL.query!(repo, """
+      SELECT
+        EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a
+          JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'regent_agents' AND c.relname = 'pairing_history'
+            AND a.attname = 'revoked_at' AND NOT a.attisdropped)
+        AND EXISTS (SELECT 1 FROM pg_catalog.pg_trigger t
+          JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'regent_agents' AND c.relname = 'paired_agents'
+            AND t.tgname = 'retain_pairing_episode'
+            AND NOT t.tgisinternal AND t.tgenabled IN ('O', 'A'))
+      """)
+
+    unless ready?,
+      do:
+        raise(
+          "Signed agent access requires the separately approved shared Agents pairing-history migration before deployment"
+        )
+
+    :ok
+  end
+
   def up(repo) do
     options =
       repo.config()

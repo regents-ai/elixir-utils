@@ -18,6 +18,40 @@ defmodule RegentCredits.Migrator do
   stores amounts in, database-wide in `public`, with its operators.
   """
 
+  @doc "Checks episode-bound grant prerequisites without applying shared migrations."
+  @spec require_pairing_grants!(module()) :: :ok
+  def require_pairing_grants!(repo) do
+    %{rows: [[ready?]]} =
+      Ecto.Adapters.SQL.query!(repo, """
+      SELECT
+        (SELECT count(*) = 2 FROM pg_catalog.pg_attribute a
+          JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'regent_credits' AND c.relname IN ('holds', 'agent_permissions')
+            AND a.attname = 'pairing_id' AND NOT a.attisdropped)
+        AND EXISTS (SELECT 1 FROM pg_catalog.pg_trigger t
+          JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'regent_agents' AND c.relname = 'paired_agents'
+            AND t.tgname = 'revoke_credit_grant'
+            AND NOT t.tgisinternal AND t.tgenabled IN ('O', 'A'))
+        AND EXISTS (SELECT 1 FROM pg_catalog.pg_constraint con
+          JOIN pg_catalog.pg_class c ON c.oid = con.conrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'regent_credits' AND c.relname = 'agent_permissions'
+            AND con.conname = 'enabled_requires_pairing' AND con.convalidated
+            AND con.contype = 'c')
+      """)
+
+    unless ready?,
+      do:
+        raise(
+          "Signed agent access requires the separately approved shared Credits pairing-grant migration before deployment"
+        )
+
+    :ok
+  end
+
   @spec up(module()) :: :ok
   def up(repo) do
     options =

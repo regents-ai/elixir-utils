@@ -28,6 +28,47 @@ The host supplies its configured trusted origin, audience, operation manifest an
 SIWA's proof-header list. Product endpoints verify through SIWA once, resolve the
 current pairing and enforce their own Ash policies.
 
+Inputs use a small JSON Schema subset: `string`, `number`, `integer`, `boolean`,
+`null`, `array` and `object`; `enum`; string/item/property minimum and maximum
+counts; numeric `minimum`/`maximum`; and field `maxBytes` measured in UTF-8.
+Arrays declare `items`. Objects declare `properties` and `required`, and reject
+unknown fields. Only nested objects explicitly declaring
+`additionalProperties: true` accept opaque JSON, such as report arguments;
+give those fields a product limit such as `maxBytes: 8192`. Root inputs always
+reject unknown fields. No values are coerced, and integers must be safe integers.
+Undeclared limits are 10,000 characters per string and 100 array items or object
+properties. Every preparation is bounded to depth 16 and 10,000 values; structured
+request bodies cannot exceed 2,097,152 UTF-8 bytes. Endpoints retain their own
+validation and authorization.
+
+An operation that signs a complete JSON document declares its body explicitly:
+
+```json
+{
+  "request_body": {"encoding": "raw_json", "field": "raw_body", "maxBytes": 2097152},
+  "input_schema": {
+    "type": "object",
+    "properties": {"raw_body": {"type": "string"}},
+    "required": ["raw_body"],
+    "additionalProperties": false
+  }
+}
+```
+
+The raw field must contain a valid JSON object. The helper checks its size and
+complexity while preserving the original text, whitespace and UTF-8 bytes for
+signing and sending; it rejects text that UTF-8 conversion would change. The
+declared byte limit cannot exceed 2,097,152. The raw field's default string limit
+is that shared ceiling, and strings inside its document use the same ceiling.
+Raw document collections use the 10,000-value ceiling rather than the typed
+input default of 100 items or properties; the endpoint validates the document.
+Other supplied fields must be consumed by declared string route placeholders;
+none become extra body fields or headers. If `operation_id_field` is declared for
+a raw operation, it names a required value inside that JSON object. Preparation
+returns a frozen request, and execution independently recomputes the entire
+request before forwarding it. Callers cannot supply a destination, method or
+publication metadata headers, and browser cookies never confer authority.
+
 Run `mix regent_agent_access.assets` in the host before building assets to copy
 the helper into `assets/vendor/regent_agent_access/signed_tools.ts`. Keep that
 generated file ignored. The reference integration is ash-template. Run the

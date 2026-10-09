@@ -92,6 +92,15 @@ defmodule RegentCredits do
   def repo(_resource, _operation), do: Application.fetch_env!(:regent_credits, :repo)
 
   @doc """
+  Whether owners may enable agent spending grants. Defaults to false until every
+  shared Credits writer has adopted pairing-bound grants.
+  """
+  @spec agent_grants_enabled?() :: boolean()
+  def agent_grants_enabled? do
+    Application.get_env(:regent_credits, :agent_grants_enabled, false) == true
+  end
+
+  @doc """
   The PubSub topic that hears `:credits_changed` when a person's balance
   changes on any Regent site: a purchase, a gift, a hold or its close.
   """

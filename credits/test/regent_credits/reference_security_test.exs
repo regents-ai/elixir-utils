@@ -53,6 +53,9 @@ defmodule RegentCredits.ReferenceSecurityTest do
   end
 
   test "revocation stops new holds, preserves settlement, and re-pairing cannot revive a grant" do
+    grants_enabled = Application.fetch_env!(:regent_credits, :agent_grants_enabled)
+    on_exit(fn -> Application.put_env(:regent_credits, :agent_grants_enabled, grants_enabled) end)
+
     owner = fund(person(), "0", "5")
     address = wallet()
     pairing_id = pairing(owner, address)
@@ -66,6 +69,26 @@ defmodule RegentCredits.ReferenceSecurityTest do
       sites: ["patchbay", "regents"]
     }
 
+    Application.delete_env(:regent_credits, :agent_grants_enabled)
+    refute RegentCredits.agent_grants_enabled?()
+
+    assert {:error, error} =
+             RegentCredits.set_agent_permission(settings,
+               actor: RegentCredits.Actor.person(owner, [], "regents"),
+               context: %{agent_grants_enabled: true},
+               authorize?: false
+             )
+
+    assert Exception.message(error) =~
+             "Agent spending grants are unavailable until the shared rollout is complete."
+
+    grant_query =
+      Ash.Query.filter(RegentCredits.AgentPermission, privy_user_id == ^owner)
+
+    assert [] == Ash.read!(grant_query, authorize?: false)
+    Application.put_env(:regent_credits, :agent_grants_enabled, true)
+    assert RegentCredits.agent_grants_enabled?()
+
     assert {:ok, grant} =
              RegentCredits.set_agent_permission(settings,
                actor: RegentCredits.Actor.person(owner, [], "regents")
@@ -75,6 +98,8 @@ defmodule RegentCredits.ReferenceSecurityTest do
     agent = RegentCredits.Actor.agent(owner, address, "patchbay", pairing_id)
     assert {:ok, hold} = RegentCredits.hold("before", owner, d("1"), "fix", actor: agent)
     assert hold.pairing_id == pairing_id
+
+    Application.put_env(:regent_credits, :agent_grants_enabled, false)
 
     person = %RegentAgents.Person{privy_user_id: owner}
     paired = RegentAgents.get_my_agent!(pairing_id, actor: person)
@@ -90,6 +115,8 @@ defmodule RegentCredits.ReferenceSecurityTest do
     assert {:error, _} =
              RegentCredits.hold("new-episode", owner, d("1"), "fix", actor: next_agent)
 
+    Application.put_env(:regent_credits, :agent_grants_enabled, true)
+
     assert {:error, _} = RegentCredits.set_agent_permission(settings, actor: next_agent)
 
     assert {:ok, _} =
@@ -98,6 +125,20 @@ defmodule RegentCredits.ReferenceSecurityTest do
              )
 
     assert {:ok, _} = RegentCredits.hold("new-episode", owner, d("1"), "fix", actor: next_agent)
+
+    Application.put_env(:regent_credits, :agent_grants_enabled, false)
+
+    assert {:ok, %{enabled: false}} =
+             RegentCredits.set_agent_permission(%{settings | enabled: false},
+               actor: RegentCredits.Actor.person(owner, [], "regents")
+             )
+
+    assert {:error, _} =
+             RegentCredits.set_agent_permission(settings,
+               actor: RegentCredits.Actor.person(owner, [], "regents")
+             )
+
+    assert %{enabled: false} = Ash.read_one!(grant_query, authorize?: false)
   end
 
   test "all permanent movements are paged privately, including holds and millionths" do

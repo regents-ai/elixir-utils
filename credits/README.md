@@ -71,6 +71,15 @@ Every call passes a `RegentCredits.Actor`:
 
 Agent settings are saved only by regents.sh (`Actor.person(id, wallets, "regents")`).
 
+Enabling a spending grant is disabled by default. Keep it disabled during the shared
+rollout: older Credits writers must not use newly enabled grants. Only after every
+writer supports pairing-bound grants may the deployment configuration explicitly set
+`config :regent_credits, agent_grants_enabled: true`. Pages can read
+`RegentCredits.agent_grants_enabled?/0` to explain availability. Request parameters,
+actor privileges and action context cannot enable this setting. The gate does not
+prevent disabling a grant or settling an existing hold, and does not itself revoke
+existing grants.
+
 ## Spending
 
 ```elixir

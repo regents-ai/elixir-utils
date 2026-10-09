@@ -3,6 +3,7 @@ config :regent_agents, repo: RegentCredits.TestRepo
 
 config :regent_credits,
   repo: RegentCredits.TestRepo,
+  agent_grants_enabled: true,
   admins: ["did:privy:admin"],
   chain_client: RegentCredits.TestChain,
   on_credited: RegentCredits.TestCredited,

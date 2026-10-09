@@ -52,6 +52,21 @@ defmodule RegentCredits.AgentPermission do
 
       change fn changeset, _context ->
         Ash.Changeset.before_action(changeset, fn changeset ->
+          if Ash.Changeset.get_attribute(changeset, :enabled) == true and
+               not RegentCredits.agent_grants_enabled?() do
+            Ash.Changeset.add_error(changeset,
+              field: :enabled,
+              message:
+                "Agent spending grants are unavailable until the shared rollout is complete."
+            )
+          else
+            changeset
+          end
+        end)
+      end
+
+      change fn changeset, _context ->
+        Ash.Changeset.before_action(changeset, fn changeset ->
           owner = Ash.Changeset.get_attribute(changeset, :privy_user_id)
           wallet = Ash.Changeset.get_attribute(changeset, :agent_address)
 

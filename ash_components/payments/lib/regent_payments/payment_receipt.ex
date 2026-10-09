@@ -115,6 +115,7 @@ defmodule RegentPayments.PaymentReceipt do
     end
 
     policy action_type(:read) do
+      forbid_unless {RegentPayments.Checks.AuthorityOwner, through: :payment_intent}
       authorize_if expr(payment_intent.actor_profile_id == ^actor(:id))
     end
   end

@@ -54,7 +54,7 @@ defmodule RegentPayments.PaymentIntent do
 
     # The frozen effect: what is done, at which wallet, and how much. Whatever
     # the kind, the wallet the money goes to is under `pay_to_address`.
-    attribute :payload, :map, allow_nil?: false, public?: true
+    attribute :payload, :map, allow_nil?: false, public?: false
 
     attribute :payload_digest, :string do
       allow_nil? false
@@ -84,6 +84,10 @@ defmodule RegentPayments.PaymentIntent do
 
   preparations do
     prepare RegentPayments.Preparations.ThisSite
+  end
+
+  changes do
+    change {RegentPayments.Changes.RequireAgentPairing, mode: :immutable}, on: [:update]
   end
 
   actions do
@@ -120,52 +124,62 @@ defmodule RegentPayments.PaymentIntent do
       change set_attribute(:asset, USDC.asset())
       change set_attribute(:network, USDC.network())
       change RegentPayments.Changes.FreezeTerms
+      change {RegentPayments.Changes.RequireAgentPairing, mode: :prepare}
     end
 
     update :mark_payment_required do
       description "The payer has been handed the terms and asked to sign for them."
       accept []
+      require_atomic? false
       change set_attribute(:status, :payment_required)
     end
 
     update :mark_settlement_pending do
       description "The settlement attempt is committed; its outcome has not been recorded yet."
       accept []
+      require_atomic? false
+      change {RegentPayments.Changes.RequireAgentPairing, mode: :settle}
       change set_attribute(:status, :settlement_pending)
     end
 
     update :mark_settled do
       description "The money has moved."
       accept []
+      require_atomic? false
       change set_attribute(:status, :settled)
     end
 
     update :mark_applied do
       description "The effect the payer paid for has been carried out."
       accept []
+      require_atomic? false
       change set_attribute(:status, :applied)
     end
 
     update :mark_failed do
       description "The facilitator refused to settle this payment."
       accept []
+      require_atomic? false
       change set_attribute(:status, :failed)
     end
 
     update :expire do
       description "The terms stood too long unpaid to still be honoured."
       accept []
+      require_atomic? false
       change set_attribute(:status, :expired)
     end
   end
 
   policies do
     policy action(:prepare) do
+      forbid_if RegentPayments.Checks.CompletionActor
       authorize_if RegentPayments.Checks.OfferTakesPayer
     end
 
     # Keep payer ownership at the domain boundary, including row-lock reads.
     policy action_type(:read) do
+      forbid_unless RegentPayments.Checks.AuthorityOwner
       authorize_if expr(actor_profile_id == ^actor(:id))
     end
 

@@ -16,6 +16,7 @@ defmodule RegentPayments.PurchaseTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias RegentPayments.Purchase
   alias RegentPayments.Test.Actor
+  alias RegentPayments.Test.AgentActor
   alias RegentPayments.Test.DirectOffer
   alias RegentPayments.Test.Effects
   alias RegentPayments.Test.PublishOffer
@@ -75,11 +76,163 @@ defmodule RegentPayments.PurchaseTest do
     %{payer: payer, wallet: wallet, intent: prepare(DirectOffer, payer)}
   end
 
+  test "revocation blocks new authorization and re-pairing cannot settle an old offer", c do
+    agent = paired_agent(c)
+    intent = prepare(DirectOffer, agent)
+    remove_pairing(agent)
+    before = intent_count()
+    assert {:error, _} = RegentPayments.Purchase.prepare(DirectOffer, terms(), agent)
+    assert intent_count() == before
+
+    replacement = paired_agent(c, %{agent | pairing_id: Ecto.UUID.generate()})
+    request = %{payment: "not a payment", payer: nil, context: %{}}
+    assert {:error, _} = Purchase.execute(replacement, intent.id, request)
+    assert {:error, _} = RegentPayments.Steps.step(intent, :mark_settlement_pending, replacement)
+    nothing_sent()
+
+    malformed = %{replacement | acting_agent_id: Ecto.UUID.generate()}
+    assert {:error, _} = Purchase.prepare(DirectOffer, terms(), malformed)
+    assert {:error, _} = Purchase.prepare(DirectOffer, terms(), Map.delete(replacement, :id))
+    assert {:error, _} = Purchase.prepare(DirectOffer, terms(), Map.put(c.payer, :role, "agent"))
+    fresh = prepare(DirectOffer, replacement)
+
+    altered =
+      fresh.payload
+      |> Map.put(RegentPayments.AgentAuthority.key(), %{"wallet_address" => c.wallet.address})
+
+    changeset =
+      fresh
+      |> Ash.Changeset.for_update(:mark_settlement_pending, %{},
+        actor: replacement,
+        context: %{regent_payments: :purchase}
+      )
+      |> Ash.Changeset.force_change_attribute(:payload, altered)
+
+    assert {:error, _} = Ash.update(changeset)
+    assert {:ok, %{status: :prepared, payload: original}} = Purchase.read(replacement, fresh.id)
+    assert original == fresh.payload
+  end
+
+  test "authorized completion preserves original attribution without replacement-owner access",
+       c do
+    agent = paired_agent(c)
+    intent = prepare(DirectOffer, agent)
+    original = %{c | payer: agent, intent: intent}
+    review = review(original)
+    {:ok, payment} = WalletPayment.payment(intent, c.wallet.address, signed(c.wallet, review))
+    mixed_case_payer = "0x" <> String.upcase(String.slice(c.wallet.address, 2..-1//1))
+    payment = put_in(payment, ["payload", "authorization", "from"], mixed_case_payer)
+    parent = self()
+
+    {worker, _} =
+      spawn_monitor(fn ->
+        answer =
+          Purchase.execute(agent, intent.id, %{
+            payment: payment,
+            payer: nil,
+            context: %{attribution: parent}
+          })
+
+        send(parent, {:done, self(), answer})
+      end)
+
+    assert_receive {:settle, service, _}, 3_000
+    remove_pairing(agent)
+
+    replacement =
+      paired_agent(c, %{
+        agent
+        | pairing_id: Ecto.UUID.generate(),
+          privy_user_id: "did:privy:replacement",
+          beneficiary_profile_id: Ecto.UUID.generate(),
+          human_account_id: 2
+      })
+
+    assert {:error, :not_found} = Purchase.read(replacement, intent.id)
+    assert {:error, _} = RegentPayments.get_payment_intent(intent.id, actor: replacement)
+
+    assert {:settlement_pending, _} =
+             Purchase.complete(c.payer |> Map.put(:id, agent.id), intent.id)
+
+    send(service, {:reply, 200, settled("9")})
+    assert_receive {:done, ^worker, {:applied, applied, receipt}}, 3_000
+    assert receipt.payer_address == mixed_case_payer
+    assert_receive {:attribution, completion, completed_intent}
+    assert completion.role == :payment_completion
+    assert completion.pairing_id == agent.pairing_id
+    assert completion.beneficiary_profile_id == agent.beneficiary_profile_id
+    assert completion.human_account_id == agent.human_account_id
+    assert RegentPayments.AgentAuthority.completion_for?(completion, completed_intent, :direct)
+    refute RegentPayments.AgentAuthority.completion_for?(completion, completed_intent, :publish)
+
+    refute RegentPayments.AgentAuthority.completion_for?(
+             completion,
+             %{completed_intent | id: Ecto.UUID.generate()},
+             :direct
+           )
+
+    assert {:error, _} = Purchase.read(completion, intent.id)
+
+    refute RegentPayments.AgentAuthority.completion_for?(
+             completion,
+             %{completed_intent | target_id: Ecto.UUID.generate()},
+             :direct
+           )
+
+    assert {:error, _} = Purchase.prepare(DirectOffer, terms(), completion)
+    assert {:error, _} = Purchase.complete(completion, intent.id)
+    assert {:applied, again, same} = Purchase.complete(%{c.payer | id: agent.id}, intent.id)
+    assert again.id == applied.id and same.id == receipt.id
+    refute_receive {:settle, _, _}, 200
+  end
+
+  defp terms do
+    %{
+      amount_atomic: 1_000_000,
+      pay_to: "0x" <> String.duplicate("b", 40),
+      target_id: Ecto.UUID.generate()
+    }
+  end
+
+  defp intent_count,
+    do:
+      TestRepo.query!("SELECT count(*) FROM regent_payments.payment_intents").rows |> hd() |> hd()
+
+  defp paired_agent(c, actor \\ nil) do
+    id = Ecto.UUID.generate()
+
+    actor =
+      actor ||
+        %AgentActor{
+          id: id,
+          acting_agent_id: id,
+          wallet_address: c.wallet.address,
+          privy_user_id: "did:privy:original",
+          beneficiary_profile_id: Ecto.UUID.generate(),
+          human_account_id: 1,
+          pairing_id: Ecto.UUID.generate()
+        }
+
+    TestRepo.query!(
+      "INSERT INTO regent_agents.paired_agents (id,privy_user_id,wallet,name,harness,paired_at,last_contact_at) VALUES ($1,$2,$3,'fixture','fixture',now(),now())",
+      [Ecto.UUID.dump!(actor.pairing_id), actor.privy_user_id, actor.wallet_address]
+    )
+
+    actor
+  end
+
+  defp remove_pairing(actor),
+    do:
+      TestRepo.query!("DELETE FROM regent_agents.paired_agents WHERE id=$1", [
+        Ecto.UUID.dump!(actor.pairing_id)
+      ])
+
   test "pending commits before dispatch and a 503 never repeats settlement", c do
     {worker, ref} = execute(c)
     assert_receive {:settle, service, _payload}, 3_000
     assert status(c) == :settlement_pending
     assert {:settlement_pending, _} = pay(c, %{})
+    assert {:error, _} = Purchase.complete(c.payer, c.intent.id)
     send(service, {:reply, 503, %{error: "uncertain"}})
     assert_receive {:done, ^worker, {:settlement_pending, _}}, 3_000
     assert_receive {:DOWN, ^ref, :process, ^worker, :normal}
@@ -113,6 +266,9 @@ defmodule RegentPayments.PurchaseTest do
 
     assert {:ok, found} = Purchase.read(c.payer, c.intent.id)
     assert found.receipt.transaction_hash == settled("3")["transaction"]
+    assert {:applied, _, _} = Purchase.complete(c.payer, c.intent.id)
+    changed_wallet = %{c.payer | wallet_address: WalletSigner.new().address}
+    assert {:error, _} = Purchase.complete(changed_wallet, c.intent.id)
 
     stranger = %Actor{id: Ecto.UUID.generate(), wallet_address: WalletSigner.new().address}
     assert {:error, :not_found} = Purchase.read(stranger, c.intent.id)

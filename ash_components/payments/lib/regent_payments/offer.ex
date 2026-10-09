@@ -79,6 +79,15 @@ defmodule RegentPayments.Offer do
   returns. An Ash `after_transaction` hook on the site's write does not
   wait, because inside this open transaction it runs before the commit.
   Nothing outside the database starts from inside `carry_out/4` itself.
+
+  A delegated payment receives `RegentPayments.CompletionActor` with its
+  original frozen attribution, even if that pairing has since been revoked.
+  The product's paid resource action must check
+  `RegentPayments.AgentAuthority.completion_for?(actor, intent, kind())` and
+  bind its effect to this intent's frozen target. This grants only the paid
+  effect, never a new live-agent action or account-owner authority. Completion
+  responses expose status and receipt only; do not expose the private payload,
+  another owner's assist content, recovery details or history.
   """
   @callback carry_out(
               intent :: RegentPayments.PaymentIntent.t(),

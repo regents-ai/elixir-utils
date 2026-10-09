@@ -28,6 +28,8 @@ defmodule RegentPayments.Purchase do
 
   require Logger
 
+  alias RegentPayments.AgentAuthority
+  alias RegentPayments.CompletionActor
   alias RegentPayments.Offer
   alias RegentPayments.PaymentIntent
   alias RegentPayments.PaymentReceipt
@@ -98,12 +100,23 @@ defmodule RegentPayments.Purchase do
   """
   @spec execute(struct(), String.t(), request()) :: answer()
   def execute(actor, id, request) do
+    with {:ok, found} <- read(actor, id),
+         {:ok, checked} <- check_before_transaction(actor, found, request) do
+      execute_checked(actor, id, Map.put(request, :checked, checked))
+    end
+  end
+
+  defp execute_checked(actor, id, request) do
     case Ash.transact([PaymentIntent, PaymentReceipt], fn -> attempt(actor, id, request) end) do
       {:ok, {:settled, {:dispatch, found, payment, requirement, request}}} ->
-        settle(actor, found, payment, requirement, request)
+        with {:ok, completion} <- completion_actor(actor, found) do
+          settle(completion, found, payment, requirement, request)
+        end
 
       {:ok, {:settled, {:carry_out, found}}} ->
-        carried_out(actor, found.id, request)
+        with {:ok, completion} <- completion_actor(actor, found) do
+          carried_out(completion, found.id, request)
+        end
 
       {:ok, {:settled, answer}} ->
         answer
@@ -112,6 +125,88 @@ defmodule RegentPayments.Purchase do
         {:error, failed_write}
     end
   end
+
+  defp completion_actor(actor, found) do
+    with {:ok, snapshot} <- AgentAuthority.snapshot(found) do
+      if snapshot, do: AgentAuthority.completion(actor, found), else: {:ok, actor}
+    end
+  end
+
+  # Verification may call the facilitator. It happens before either DB lock;
+  # the locked transition rechecks the immutable terms and original episode.
+  defp check_before_transaction(actor, found, request) do
+    if AgentAuthority.authorized?(found) or request.payment == nil or
+         DateTime.before?(found.expires_at, DateTime.utc_now()) do
+      {:ok, nil}
+    else
+      verify_before_transaction(actor, found, request)
+    end
+  end
+
+  defp verify_before_transaction(actor, found, request) do
+    with false <- RegentPayments.repo(nil, nil).in_transaction?(),
+         :ok <- AgentAuthority.preflight(actor, found),
+         {:ok, snapshot} <- AgentAuthority.snapshot(found) do
+      payer = if snapshot, do: snapshot["wallet_address"], else: request.payer
+      requirement = requirement(found)
+
+      {:ok,
+       {checked_payment(%{request | payer: payer}, requirement), requirement,
+        found.payload_digest}}
+    else
+      true ->
+        {:error,
+         Ash.Error.Changes.InvalidChanges.exception(
+           message: "payment verification requires no open transaction"
+         )}
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Finishes only an already pending, settled or applied payment after verifying
+  its original signer at the product boundary. It cannot start settlement or
+  confer ordinary private-read authority. Return only status/receipt publicly.
+  Offers check `AgentAuthority.completion_for?/3` before their paid effect.
+  """
+  def complete(actor, id, context \\ %{})
+  def complete(%{role: :payment_completion}, _id, _context), do: AgentAuthority.refused()
+
+  def complete(%{id: actor_id, wallet_address: wallet} = actor, id, context)
+      when is_binary(actor_id) and is_binary(wallet) do
+    reader = %CompletionActor{
+      id: actor.id,
+      wallet_address: String.downcase(actor.wallet_address),
+      payment_intent_id: id,
+      authentication_origin: Map.get(actor, :authentication_origin),
+      origin: Map.get(actor, :origin, :page)
+    }
+
+    result =
+      Ash.transact([PaymentIntent, PaymentReceipt], fn ->
+        with {:ok, found} <- intent(reader, id, &RegentPayments.lock_payment_intent/2),
+             {:ok, completion} <- AgentAuthority.completion(actor, found) do
+          {:ok, {completion, found}}
+        end
+      end)
+
+    case result do
+      {:ok, {:ok, {completion, found}}} ->
+        if found.status == :settled and Offer.for_kind!(found.kind).resumes?(),
+          do: carried_out(completion, found.id, %{context: context}),
+          else: advance(completion, found, %{context: context})
+
+      {:ok, {:error, error}} ->
+        {:error, error}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  def complete(_, _, _), do: AgentAuthority.refused()
 
   # A refusal is an answer, and the status it wrote down travels out with it.
   # Only a write that genuinely failed undoes the transaction.
@@ -170,7 +265,13 @@ defmodule RegentPayments.Purchase do
   defp offer_or_settle(actor, found, request) do
     requirement = requirement(found)
 
-    case checked_payment(request, requirement) do
+    checked =
+      case Map.get(request, :checked) do
+        {checked, ^requirement, digest} when digest == found.payload_digest -> checked
+        _ -> {:refused, "The frozen payment terms changed before settlement."}
+      end
+
+    case checked do
       {:ok, payment} ->
         with {:ok, pending} <- Steps.step(found, :mark_settlement_pending, actor) do
           {:dispatch, pending, payment, requirement, request}
@@ -381,11 +482,22 @@ defmodule RegentPayments.Purchase do
   end
 
   defp as_it_stands(actor, id, failure) do
-    case read(actor, id) do
+    case completion_status(actor, id) do
       {:ok, %{status: :settled} = found} -> {:settled, found, found.receipt}
       _unread -> {:error, failure}
     end
   end
+
+  defp completion_status(%CompletionActor{} = actor, id) do
+    case Ash.transact([PaymentIntent, PaymentReceipt], fn ->
+           intent(actor, id, &RegentPayments.lock_payment_intent/2)
+         end) do
+      {:ok, {:ok, found}} -> {:ok, found}
+      _ -> AgentAuthority.refused()
+    end
+  end
+
+  defp completion_status(actor, id), do: read(actor, id)
 
   # Called only while the intent's row lock is held: the status read under the
   # lock decides, so an applied intent is never carried out again. An effect

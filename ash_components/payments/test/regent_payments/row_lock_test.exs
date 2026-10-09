@@ -47,6 +47,47 @@ defmodule RegentPayments.RowLockTest do
     assert unboxed(fn -> Effects.carried_out(c.intent.id) end) == 1
   end
 
+  test "two connections cannot both commit an initial settlement authorization", c do
+    intent =
+      unboxed(fn ->
+        {:ok, intent} =
+          RegentPayments.prepare_payment_intent(
+            DirectOffer,
+            %{
+              amount_atomic: 1_000_000,
+              pay_to: "0x" <> String.duplicate("9", 40),
+              target_id: Ecto.UUID.generate()
+            },
+            actor: c.payer
+          )
+
+        intent
+      end)
+
+    on_exit(fn -> unboxed(fn -> remove!(intent.id) end) end)
+    parent = self()
+
+    callers =
+      for _ <- 1..2,
+          do:
+            Task.async(fn ->
+              send(parent, {:ready, self()})
+
+              receive do
+                :go -> unboxed(fn -> Steps.step(intent, :mark_settlement_pending, c.payer) end)
+              end
+            end)
+
+    for _ <- callers do
+      assert_receive {:ready, pid}
+      send(pid, :go)
+    end
+
+    answers = Task.await_many(callers, 5_000)
+    assert Enum.count(answers, &match?({:ok, %{status: :settlement_pending}}, &1)) == 1
+    assert Enum.count(answers, &match?({:error, _}, &1)) == 1
+  end
+
   defp unboxed(fun), do: Sandbox.unboxed_run(TestRepo, fun)
 
   # A settled payment whose effect has not been carried out yet.

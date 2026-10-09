@@ -14,6 +14,7 @@ defmodule RegentPayments.Changes.FreezeTerms do
 
   alias Ash.Error.Changes.InvalidArgument
   alias Ash.Error.Changes.InvalidChanges
+  alias RegentPayments.AgentAuthority
   alias RegentPayments.CanonicalJSON
   alias RegentPayments.Offer
 
@@ -23,10 +24,11 @@ defmodule RegentPayments.Changes.FreezeTerms do
 
   @impl true
   def change(changeset, _opts, %{actor: actor}) when not is_nil(actor) do
-    with {:ok, offer} <- Offer.registered(Ash.Changeset.get_argument(changeset, :offer)),
+    with {:ok, authority} <- AgentAuthority.from_actor(actor),
+         {:ok, offer} <- Offer.registered(Ash.Changeset.get_argument(changeset, :offer)),
          {:ok, terms} <- offer.freeze(Ash.Changeset.get_argument(changeset, :input), actor),
          :ok <- payable(terms) do
-      freeze(changeset, offer, terms)
+      freeze(changeset, offer, terms, authority)
     else
       :error ->
         Ash.Changeset.add_error(
@@ -54,12 +56,15 @@ defmodule RegentPayments.Changes.FreezeTerms do
   defp payable(_terms),
     do: {:error, InvalidChanges.exception(message: "the terms name no wallet or amount")}
 
-  defp freeze(changeset, offer, terms) do
+  defp freeze(changeset, offer, terms, authority) do
     payload =
-      Map.merge(terms.payload, %{
+      Map.merge(Map.delete(terms.payload, AgentAuthority.key()), %{
         "pay_to_address" => terms.pay_to_address,
         "amount_atomic" => terms.amount_atomic
       })
+      |> then(fn payload ->
+        if authority, do: Map.put(payload, AgentAuthority.key(), authority), else: payload
+      end)
 
     Ash.Changeset.force_change_attributes(changeset, %{
       kind: offer.kind(),

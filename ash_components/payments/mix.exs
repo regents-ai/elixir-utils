@@ -47,6 +47,7 @@ defmodule RegentPayments.MixProject do
       {:plug_crypto, "~> 2.1"},
       {:regent_chain, path: "../../chain"},
       {:regent_format, path: "../../format"},
+      {:regent_agents, path: "../agents"},
       {:bandit, "~> 1.5", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false},

@@ -6,6 +6,22 @@ defmodule RegentPayments.Test.Actor do
   defstruct [:id, :wallet_address, origin: :page]
 end
 
+defmodule RegentPayments.Test.AgentActor do
+  @moduledoc false
+  defstruct [
+    :id,
+    :wallet_address,
+    :acting_agent_id,
+    :beneficiary_profile_id,
+    :human_account_id,
+    :pairing_id,
+    :privy_user_id,
+    role: :agent,
+    authentication_origin: :wallet,
+    origin: :page
+  ]
+end
+
 defmodule RegentPayments.Test.Endpoint do
   @moduledoc "The one thing the library asks of a site's endpoint: its secret key base."
   def config(:secret_key_base), do: String.duplicate("regent payments test secret ", 3)
@@ -84,7 +100,8 @@ defmodule RegentPayments.Test.DirectOffer do
   @impl true
   def freeze(input, _actor), do: RegentPayments.Test.Terms.freeze(input)
   @impl true
-  def carry_out(intent, _receipt, _actor, context) do
+  def carry_out(intent, _receipt, actor, context) do
+    if context[:attribution], do: send(context.attribution, {:attribution, actor, intent})
     held(context)
     RegentPayments.Test.Effects.write!(intent.id)
 

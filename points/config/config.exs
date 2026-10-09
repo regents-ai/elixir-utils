@@ -1,4 +1,5 @@
 import Config
+config :regent_agents, ash_domains: [RegentAgents]
 config :ash, default_string_length_count: :codepoints
 
 config :regent_points,

@@ -35,8 +35,19 @@ defmodule RegentCredits.Fixtures do
       TestChain.mined("0x1")
     )
 
-    {:ok, purchase} = RegentCredits.check_purchase(purchase.id)
+    {:ok, purchase} = RegentCredits.check_purchase(purchase.id, actor: actor(owner, [wallet]))
     purchase
+  end
+
+  def pairing(owner, wallet) do
+    id = Ecto.UUID.generate()
+
+    RegentCredits.TestRepo.query!(
+      "INSERT INTO regent_agents.paired_agents (id, privy_user_id, wallet, name, harness, paired_at, last_contact_at) VALUES ($1, $2, $3, 'Test', 'codex', now(), now())",
+      [Ecto.UUID.dump!(id), owner, wallet]
+    )
+
+    id
   end
 
   def fund(privy_user_id, given, purchased) do

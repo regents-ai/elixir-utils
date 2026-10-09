@@ -90,8 +90,7 @@ defmodule RegentPoints.Award do
   defp caps(event, rule) do
     lifetime? = rule["period"] == "lifetime"
     program = if lifetime?, do: "lifetime", else: event.program_id
-    scope = rule["milestone_key"] || event.rule_id
-    scope = if rule["category"] == "activity", do: scope <> ":" <> event.actor_kind, else: scope
+    scope = Rules.count_scope(rule, event.actor_kind)
 
     count =
       if rule["count"],

@@ -31,6 +31,7 @@ defmodule RegentPoints.Service do
   policies do
     policy action(:summary) do
       authorize_if actor_attribute_equals(:role, :human)
+      authorize_if {RegentAgents.Checks.Paired, repo_app: :regent_points}
     end
 
     policy action([:record_event, :process_event, :reverse]) do

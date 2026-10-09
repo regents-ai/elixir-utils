@@ -121,9 +121,13 @@ defmodule RegentCredits.ConcurrencyTest do
   defp close(:settle, key), do: RegentCredits.settle!(key, d("0"), d("1"), d("0"), actor: site())
   defp close(:give_back, key), do: RegentCredits.give_back!(key, "outbid", actor: site())
 
-  test "an agent's held bids count toward its daily limit, and a returned bid gives the room back" do
+  test "agents across sites share reserved allowance, and a return restores room" do
     owner = fund(person(), "0", "50")
-    agent = "0x00000000000000000000000000000000000000a1"
+    agent = wallet()
+
+    pairing_id = pairing(owner, agent)
+    other_agent = wallet()
+    other_pairing_id = pairing(owner, other_agent)
 
     {:ok, _} =
       RegentCredits.set_agent_permission(
@@ -133,22 +137,44 @@ defmodule RegentCredits.ConcurrencyTest do
           enabled: true,
           max_per_spend: d("3"),
           daily_limit: d("5"),
-          sites: ["patchbay"]
+          sites: ["patchbay", "ash-template"]
         },
         actor: Actor.person(owner, [], "regents")
       )
 
-    as_agent = Actor.agent(owner, agent, "patchbay")
+    {:ok, _} =
+      RegentCredits.set_agent_permission(
+        %{
+          privy_user_id: owner,
+          agent_address: other_agent,
+          enabled: true,
+          max_per_spend: d("3"),
+          daily_limit: d("5"),
+          sites: ["patchbay", "ash-template"]
+        },
+        actor: Actor.person(owner, [], "regents")
+      )
+
+    as_agent = Actor.agent(owner, agent, "patchbay", pairing_id)
+    other = Actor.agent(owner, other_agent, "ash-template", other_pairing_id)
 
     results =
       race(10, fn i ->
-        RegentCredits.hold("agent-#{owner}-#{i}", owner, d("1"), "offer_bid", actor: as_agent)
+        RegentCredits.hold("agent-#{owner}-#{i}", owner, d("1"), "offer_bid",
+          actor: if(rem(i, 2) == 0, do: as_agent, else: other)
+        )
       end)
 
     assert ok_count(results) == 5
 
+    held =
+      Enum.find_value(results, fn
+        {:ok, hold} -> hold
+        _ -> nil
+      end)
+
     {:ok, _} =
-      RegentCredits.give_back("agent-#{owner}-#{first_ok(results)}", "lost", actor: site())
+      RegentCredits.give_back(held.key, "lost", actor: Actor.site(held.site))
 
     assert {:ok, _} =
              RegentCredits.hold("agent-#{owner}-again", owner, d("1"), "offer_bid",
@@ -164,6 +190,46 @@ defmodule RegentCredits.ConcurrencyTest do
              RegentCredits.hold("agent-#{owner}-big", owner, d("4"), "offer_bid", actor: as_agent)
   end
 
+  test "revocation races spending and owner grant approval without leaving usable authority" do
+    owner = fund(person(), "0", "10")
+    address = wallet()
+    pairing_id = pairing(owner, address)
+    person = %RegentAgents.Person{privy_user_id: owner}
+    paired = RegentAgents.get_my_agent!(pairing_id, actor: person)
+
+    settings = %{
+      privy_user_id: owner,
+      agent_address: address,
+      enabled: true,
+      max_per_spend: d("5"),
+      daily_limit: d("5"),
+      sites: ["patchbay"]
+    }
+
+    owner_actor = Actor.person(owner, [], "regents")
+    assert {:ok, _} = RegentCredits.set_agent_permission(settings, actor: owner_actor)
+    agent = Actor.agent(owner, address, "patchbay", pairing_id)
+
+    race(3, fn
+      1 -> RegentCredits.hold("race-revoke-" <> owner, owner, d("1"), "fix", actor: agent)
+      2 -> RegentAgents.unpair_agent(paired, actor: person)
+      3 -> RegentCredits.set_agent_permission(settings, actor: owner_actor)
+    end)
+
+    assert {:error, _} =
+             RegentCredits.hold("after-revoke-" <> owner, owner, d("1"), "fix", actor: agent)
+
+    assert {:error, _} = RegentCredits.set_agent_permission(settings, actor: owner_actor)
+
+    assert %{rows: [[false]]} =
+             TestRepo.query!(
+               "SELECT enabled FROM regent_credits.agent_permissions WHERE pairing_id = $1",
+               [Ecto.UUID.dump!(pairing_id)]
+             )
+
+    assert Decimal.lte?(RegentCredits.balance(owner).held, d("1"))
+  end
+
   test "ten checks of one landed purchase racing: it credits once" do
     owner = person()
     payer = wallet()
@@ -175,7 +241,10 @@ defmodule RegentCredits.ConcurrencyTest do
       RegentCredits.TestChain.mined("0x1")
     )
 
-    results = race(10, fn _i -> RegentCredits.check_purchase(purchase.id) end)
+    results =
+      race(10, fn _i ->
+        RegentCredits.check_purchase(purchase.id, actor: actor(owner, [payer]))
+      end)
 
     assert ok_count(results) == 10
     assert Decimal.eq?(RegentCredits.balance(owner).purchased, 30)
@@ -191,14 +260,5 @@ defmodule RegentCredits.ConcurrencyTest do
 
     assert Decimal.eq?(total, 0)
     assert [_ | _] = Ledger.balances(["regent_revenue"])
-  end
-
-  defp first_ok(results) do
-    results
-    |> Enum.with_index()
-    |> Enum.find_value(fn
-      {{:ok, _}, i} -> i + 1
-      _ -> nil
-    end)
   end
 end

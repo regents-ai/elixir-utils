@@ -8,7 +8,7 @@ defmodule RegentCredits.Actor do
     * `person/3`: a signed-in person, spending or reading their own Credits,
       with the wallets the site's sign-in verified for them. A person reports
       purchases only from those wallets.
-    * `agent/3`: an agent linked to that person, spending within the limits
+    * `agent/4`: an agent linked to that person, spending within the limits
       the person set at regents.sh/account.
     * `site/1`: the site's own server code: giving back, charging and settling
       what it held, recording payments and attaching held gifts.
@@ -16,13 +16,14 @@ defmodule RegentCredits.Actor do
   """
 
   @enforce_keys [:role, :site]
-  defstruct [:role, :site, :privy_user_id, :agent_address, wallets: []]
+  defstruct [:role, :site, :privy_user_id, :agent_address, :pairing_id, wallets: []]
 
   @type t :: %__MODULE__{
           role: :person | :agent | :site | :admin,
           site: String.t(),
           privy_user_id: String.t() | nil,
           agent_address: String.t() | nil,
+          pairing_id: Ecto.UUID.t() | nil,
           wallets: [String.t()]
         }
 
@@ -36,13 +37,14 @@ defmodule RegentCredits.Actor do
     }
   end
 
-  @spec agent(String.t(), String.t(), String.t()) :: t()
-  def agent(privy_user_id, agent_address, site) do
+  @spec agent(String.t(), String.t(), String.t(), Ecto.UUID.t()) :: t()
+  def agent(privy_user_id, agent_address, site, pairing_id) do
     %__MODULE__{
       role: :agent,
       site: site,
       privy_user_id: privy_user_id,
-      agent_address: String.downcase(agent_address)
+      agent_address: String.downcase(agent_address),
+      pairing_id: pairing_id
     }
   end
 

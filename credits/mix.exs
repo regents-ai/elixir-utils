@@ -33,7 +33,7 @@ defmodule RegentCredits.MixProject do
 
   defp deps do
     [
-      {:ash, "~> 3.34 and >= 3.34.3"},
+      {:ash, "~> 3.34 and >= 3.34.6"},
       # 2.13.1 and later build upserts against the wrong schema.
       {:ash_postgres, "== 2.13.0"},
       {:ash_double_entry, "~> 1.0.19"},
@@ -44,6 +44,7 @@ defmodule RegentCredits.MixProject do
       {:postgrex, "~> 0.22"},
       {:phoenix_pubsub, "~> 2.1"},
       {:regent_chain, path: "../chain"},
+      {:regent_agents, path: "../ash_components/agents"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

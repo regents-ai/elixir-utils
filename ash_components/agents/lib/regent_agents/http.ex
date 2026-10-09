@@ -67,6 +67,7 @@ defmodule RegentAgents.HTTP do
   @impl true
   def call(%Plug.Conn{method: "POST", path_info: ["pair"]} = conn, _opts), do: pair(conn)
   def call(%Plug.Conn{method: "GET", path_info: ["me"]} = conn, _opts), do: me(conn)
+  def call(%Plug.Conn{method: "GET", path_info: ["whoami"]} = conn, _opts), do: whoami(conn)
   def call(conn, _opts), do: error(conn, "not_found")
 
   defp pair(
@@ -95,6 +96,31 @@ defmodule RegentAgents.HTTP do
     else
       {:refused, conn} -> conn
       {:error, _not_paired} -> error(conn, "not_paired")
+    end
+  end
+
+  # This probe verifies the proof once and never performs a check-in or awards Points.
+  defp whoami(conn) do
+    with {:ok, agent, conn} <- verify(conn),
+         {:ok, pairing} <- RegentAgents.current_pairing(actor: agent) do
+      answer(conn, %{
+        data: %{
+          agent: %{wallet: agent.wallet, registry_listing: agent.registry_listing},
+          audience: Broker.audience(),
+          authenticated: true,
+          pairing: if(pairing, do: %{id: pairing.id, paired_at: pairing.paired_at}, else: nil),
+          effective_access: %{
+            paired: not is_nil(pairing),
+            product_permissions:
+              if(pairing, do: "subject_to_product_authorization", else: "public_only"),
+            account_management: false,
+            spending: "requires_current_pairing_grant"
+          }
+        }
+      })
+    else
+      {:refused, conn} -> conn
+      {:error, _error} -> error(conn, "siwa_request_failed")
     end
   end
 
@@ -154,6 +180,7 @@ defmodule RegentAgents.HTTP do
 
   defp present(paired, agent) do
     %{
+      id: paired.id,
       name: paired.name,
       harness: paired.harness,
       wallet: paired.wallet,
@@ -176,6 +203,7 @@ defmodule RegentAgents.HTTP do
 
   defp answer(conn, body) do
     conn
+    |> put_resp_header("cache-control", "no-store")
     |> put_resp_content_type("application/json")
     |> send_resp(conn.status || 200, Jason.encode_to_iodata!(body))
     |> halt()

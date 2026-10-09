@@ -1,4 +1,5 @@
 import Config
+config :regent_agents, ash_domains: [RegentAgents]
 
 # Ash 3.33 requires an explicit string length unit. Codepoints match how
 # PostgreSQL counts `length()`, so `max_length` bounds stored size; graphemes

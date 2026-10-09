@@ -40,6 +40,7 @@ defmodule RegentAgents do
     resource RegentAgents.PairedAgent do
       define :pair_agent, action: :pair, args: [:code, :name, :harness]
       define :check_in_agent, action: :check_in
+      define :current_pairing, action: :by_wallet, not_found_error?: false
       define :list_my_agents, action: :mine
       define :get_my_agent, action: :mine_by_id, args: [:id], not_found_error?: false
       define :unpair_agent, action: :unpair

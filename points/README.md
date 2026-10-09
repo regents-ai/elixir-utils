@@ -174,3 +174,12 @@ mix ash.codegen describe_change
 The package's development Repo uses an isolated local database. Only package config
 enables migration generation. Source adapters, approved rates/start time, the tally
 cron on Regents and live product acceptance remain required before earning is enabled.
+
+## Unified activity cutover
+
+The prospective v2 rules share 100 base activity Points per UTC day and per-action
+counts between the user and all agents. Credits purchases retain a separate
+100-base-Point allowance. Configure `unified_activity_starts_at` with the same
+recorded UTC midnight on every compatible host. A nil value preserves v1 rules;
+this setting enables no program. Delayed events select rules by action time.
+Historical snapshots, approved rates and milestones are preserved.

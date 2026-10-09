@@ -104,6 +104,8 @@ defmodule RegentCredits.HoldTest do
     owner = fund(person(), "0", "20")
     agent = "0x00000000000000000000000000000000000000b2"
 
+    pairing_id = pairing(owner, agent)
+
     {:ok, _} =
       RegentCredits.set_agent_permission(
         %{
@@ -117,7 +119,7 @@ defmodule RegentCredits.HoldTest do
         actor: RegentCredits.Actor.person(owner, [], "regents")
       )
 
-    as_agent = RegentCredits.Actor.agent(owner, agent, "patchbay")
+    as_agent = RegentCredits.Actor.agent(owner, agent, "patchbay", pairing_id)
     {:ok, first} = hold(owner, "pre-bid", "3", as_agent)
 
     # Test only: the library never rewrites a hold's time; this stands in for two days passing.

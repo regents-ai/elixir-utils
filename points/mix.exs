@@ -12,19 +12,22 @@ defmodule RegentPoints.MixProject do
         check: [
           "compile --warnings-as-errors",
           "format --check-formatted",
-          "deps.unlock --check-unused"
+          "deps.unlock --check-unused",
+          "test --warnings-as-errors"
         ]
       ]
     ]
   end
 
   def application, do: [extra_applications: [:logger]]
+  def cli, do: [preferred_envs: [check: :test]]
   defp paths(:prod), do: ["lib"]
   defp paths(_), do: ["lib", "dev"]
 
   defp deps do
     [
-      {:ash, "~> 3.34 and >= 3.34.3"},
+      {:regent_agents, path: "../ash_components/agents"},
+      {:ash, "~> 3.34 and >= 3.34.6"},
       {:ash_postgres, "== 2.13.0"},
       {:simple_sat, "~> 0.1"},
       {:oban, "~> 2.24"},

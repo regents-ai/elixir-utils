@@ -11,7 +11,12 @@ defmodule RegentCredits.PurchaseTest do
   end
 
   defp purchased(owner), do: RegentCredits.balance(owner).purchased |> Decimal.to_integer()
-  defp check(purchase), do: RegentCredits.check_purchase!(purchase.id)
+
+  defp check(purchase),
+    do:
+      RegentCredits.check_purchase!(purchase.id,
+        actor: actor(purchase.privy_user_id, [purchase.wallet])
+      )
 
   test "a Base purchase credits once when its deposit lands, however often it is checked or reported" do
     owner = person()

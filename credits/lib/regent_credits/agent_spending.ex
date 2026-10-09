@@ -3,9 +3,9 @@ defmodule RegentCredits.AgentSpending do
   Whether an agent may place a hold, under the settings its person saved in
   `RegentCredits.AgentPermission`. People spend without limits; an agent
   needs spending on, the site in its list, the amount within its most per
-  spend, and its last 24 hours within its daily limit.
+  spend, and the owner's agent spending in the last 24 hours within its daily limit.
 
-  Runs after the person's accounts are locked, so two holds by the same agent
+  Runs after the person's accounts are locked, so holds by different agents
   never both fit under the same room.
   """
 
@@ -16,10 +16,18 @@ defmodule RegentCredits.AgentSpending do
 
   @spec allow(Actor.t(), map()) :: :ok | {:error, Exception.t()}
   def allow(%Actor{role: :agent} = actor, %{amount: amount}) do
+    with :ok <- current_pairing(actor) do
+      allow_amount(actor, amount)
+    end
+  end
+
+  def allow(%Actor{}, _details), do: :ok
+
+  defp allow_amount(actor, amount) do
     permission = permission(actor.privy_user_id, actor.agent_address)
 
     cond do
-      is_nil(permission) or not permission.enabled ->
+      is_nil(permission) or not permission.enabled or permission.pairing_id != actor.pairing_id ->
         refuse(:agent_off)
 
       actor.site not in permission.sites ->
@@ -36,21 +44,35 @@ defmodule RegentCredits.AgentSpending do
     end
   end
 
-  def allow(%Actor{}, _details), do: :ok
+  @doc "Check the current episode inside the spending transaction, including idempotent retries."
+  def current_pairing(%Actor{role: :agent, pairing_id: id} = actor) when is_binary(id) do
+    case RegentAgents.Authority.lock(
+           RegentCredits.repo(nil, :mutate),
+           id,
+           actor.privy_user_id,
+           actor.agent_address
+         ) do
+      {:ok, _pairing} -> :ok
+      {:error, _} -> refuse(:agent_not_paired)
+    end
+  end
+
+  def current_pairing(%Actor{role: :agent}), do: refuse(:agent_not_paired)
+  def current_pairing(%Actor{}), do: :ok
 
   @doc """
-  What the agent has held or spent in the last 24 hours: every hold it made,
+  What all the owner's agents have held or spent across sites in the last 24 hours,
   less what came back. A carried-over hold counts once, under its new key, at
   the time it was first held.
   """
   @spec spent_today(Actor.t()) :: Decimal.t()
-  def spent_today(%Actor{privy_user_id: owner, agent_address: agent}) do
+  def spent_today(%Actor{privy_user_id: owner}) do
     since = DateTime.add(DateTime.utc_now(), -1, :day)
 
     # Internal: read while authorizing the agent's own hold.
     Hold
     |> Ash.Query.filter(
-      privy_user_id == ^owner and agent_address == ^agent and held_at > ^since and
+      privy_user_id == ^owner and not is_nil(agent_address) and held_at > ^since and
         status != :carried_over
     )
     |> Ash.read!(authorize?: false)

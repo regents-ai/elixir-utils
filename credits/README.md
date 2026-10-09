@@ -85,6 +85,8 @@ RegentCredits.take_back(post_id, actor: site)
 ```
 
 - Given Credits are spent first; what comes back returns as the kind it was.
+- Carrying a hold is a server operation between two distinct reservation keys.
+  Carrying it to its own key is refused before anything changes.
 - A hold is closed once. The same call again answers with the first result;
   the same key with other details is refused.
 - A site that locks its own rows (an Offer slot) calls the hold after them,
@@ -98,7 +100,8 @@ RegentCredits.take_back(post_id, actor: site)
 The panel builds the steps with `RegentCredits.Chains.steps(chain, dollars,
 number)` into a `RegentChain.Review`, reports each sent Buy with
 `RegentCredits.report_purchase/7`, and calls `RegentCredits.check_purchase/2`
-every two seconds while it waits. A report is saved only once the chain holds
+every two seconds while it waits, passing the owning person actor. Purchase details
+are never returned to an anonymous caller or another person. A report is saved only once the chain holds
 the transaction as this purchase's Buy from the reported wallet. Until then it
 is refused with `:not_seen_yet`, and the panel reports it again every two
 seconds for about five minutes. Each report reads the chain, so the site calls
@@ -127,6 +130,20 @@ in one transaction are credited separately.
   out while the account has never used Credits;
   `RegentCredits.close_refund(refund_id, tx_hash, actor: admin)` checks the
   Treasury Safe's USDC transfer back to the paying wallet.
+
+## Account history
+
+`RegentCredits.history(actor: person)` returns the person's permanent ledger
+movements, including purchases, gifts, held Credits, returns, spending and refunds.
+Each movement belongs to ledger accounts identified by that person's Privy user ID.
+Wallet funds that have not yet been attached become user activity when attached.
+No movement is removed to limit history length. Each page holds at most 50 rows;
+pass `%{after: page.next}` to read older rows while `page.more?` is true. Ownership
+comes from the actor, never a supplied account ID. Results contain signed available
+and held changes, an operation label and time; counterparty account IDs stay private.
+All amounts retain six decimal places of precision.
+
+Refunding a purchase does not remove the Points it earned (Sean, 9 October 2026).
 
 ## Development
 

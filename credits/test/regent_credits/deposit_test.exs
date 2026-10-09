@@ -83,7 +83,10 @@ defmodule RegentCredits.DepositTest do
     ])
 
     assert :ok = read(@start + 400)
-    assert RegentCredits.check_purchase!(reported.id).status == :credited
+
+    assert RegentCredits.check_purchase!(reported.id,
+             actor: actor(reported.privy_user_id, [reported.wallet])
+           ).status == :credited
 
     credited = bought(owner, payer, 10)
 
@@ -155,7 +158,11 @@ defmodule RegentCredits.DepositTest do
     ])
 
     assert :ok = read(@start + 400)
-    assert RegentCredits.check_purchase!(reported.id).status == :credited
+
+    assert RegentCredits.check_purchase!(reported.id,
+             actor: actor(reported.privy_user_id, [reported.wallet])
+           ).status == :credited
+
     assert Decimal.eq?(purchased(reporter), 25)
     assert_received {:credited, id, true}
     assert id == reported.id

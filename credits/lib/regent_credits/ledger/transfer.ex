@@ -16,6 +16,11 @@ defmodule RegentCredits.Ledger.Transfer do
     schema "regent_credits"
     table "transfers"
 
+    custom_indexes do
+      index [:from_account_id, :id], concurrently: true
+      index [:to_account_id, :id], concurrently: true
+    end
+
     custom_statements do
       statement :refuse_change do
         up """

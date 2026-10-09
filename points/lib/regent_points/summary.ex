@@ -70,15 +70,18 @@ defmodule RegentPoints.Summary do
   defp balance(account), do: account.balance_micro
 
   defp allowances(caps) do
-    Enum.map(["credits", "activity:human", "activity:agent"], fn scope ->
-      used =
-        case Enum.find(caps, &(&1.cap_scope == scope)) do
-          nil -> 0
-          cap -> cap.points_micro
-        end
+    Enum.map(
+      Rules.catalog() |> hd() |> Map.fetch!("daily_caps_micro") |> Map.keys() |> Enum.sort(),
+      fn scope ->
+        used =
+          case Enum.find(caps, &(&1.cap_scope == scope)) do
+            nil -> 0
+            cap -> cap.points_micro
+          end
 
-      %{scope: scope, remaining: max(0, Rules.daily_cap(scope) - used)}
-    end)
+        %{scope: scope, remaining: max(0, Rules.daily_cap(scope) - used)}
+      end
+    )
   end
 
   defp filters(query, filters) do

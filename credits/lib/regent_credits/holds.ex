@@ -19,11 +19,18 @@ defmodule RegentCredits.Holds do
   @doc "Sets aside the amount: given Credits first, then purchased."
   def hold(%{key: key, privy_user_id: owner, amount: amount, purpose: purpose}, actor) do
     agent = if actor.role == :agent, do: actor.agent_address
-    details = %{privy_user_id: owner, amount: amount, purpose: purpose, agent_address: agent}
 
-    with :ok <- valid_amount(amount) do
-      accounts = owner |> Ledger.person() |> Ledger.lock()
+    details = %{
+      privy_user_id: owner,
+      amount: amount,
+      purpose: purpose,
+      agent_address: agent,
+      pairing_id: if(actor.role == :agent, do: actor.pairing_id)
+    }
 
+    with :ok <- valid_amount(amount),
+         accounts = owner |> Ledger.person() |> Ledger.lock(),
+         :ok <- AgentSpending.current_pairing(actor) do
       case find(actor.site, key) do
         nil -> place(accounts, actor, key, details)
         hold -> same(hold, details)
@@ -91,13 +98,24 @@ defmodule RegentCredits.Holds do
   charged, the person's balance does not change, and the new hold keeps the
   time the Credits were first held.
   """
+  def carry_over(%{key: key, to_key: to_key}, _actor) when key == to_key,
+    do: {:error, Refused.exception(reason: :same_key)}
+
   def carry_over(%{key: key, to_key: to_key, purpose: purpose}, actor) do
     closing = {%{status: :carried_over, carried_to: to_key}, %{}}
 
     with {:ok, closed} <- close(actor, key, closing, [], fn _hold, _accounts -> {:ok, %{}} end) do
       carried =
         closed
-        |> Map.take([:privy_user_id, :agent_address, :amount, :given, :purchased, :held_at])
+        |> Map.take([
+          :privy_user_id,
+          :agent_address,
+          :pairing_id,
+          :amount,
+          :given,
+          :purchased,
+          :held_at
+        ])
         |> Map.put(:purpose, purpose)
 
       # A hold already under `to_key` is this carry made before, or the key is

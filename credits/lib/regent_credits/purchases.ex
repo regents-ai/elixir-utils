@@ -50,6 +50,18 @@ defmodule RegentCredits.Purchases do
   end
 
   @doc "Checks the purchase at the latest block and records what it found."
+  def check_owned(id, actor) do
+    Purchase
+    |> Ash.Query.filter(id == ^id)
+    |> Ash.read_one(actor: actor)
+    |> case do
+      {:ok, %Purchase{}} -> check(id)
+      {:ok, nil} -> {:error, Refused.exception(reason: :not_found)}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc "Internal check, called after ownership authorization or by the site's Oban."
   def check(id) do
     case get(id) do
       %{status: :checking} = purchase -> read_chain(purchase)

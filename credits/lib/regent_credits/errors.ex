@@ -12,6 +12,7 @@ defmodule RegentCredits.Errors.Refused do
 
     * `:invalid_amount`: not a positive amount to the millionth of a Credit.
     * `:key_reused`: the key already names an operation with other details.
+    * `:same_key`: a hold cannot be carried to its own key.
     * `:closed`: the hold was already closed another way.
     * `:not_found`: no hold has this key on this site.
     * `:agent_off`, `:agent_site`, `:agent_max_per_spend`, `:agent_daily_limit`:

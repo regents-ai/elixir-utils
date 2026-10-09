@@ -116,10 +116,97 @@ defmodule RegentAgents.PairingTest do
 
     assert :ok = RegentAgents.unpair_agent(agent, actor: owner)
     assert {:ok, []} = RegentAgents.list_my_agents(actor: owner)
+    assert {:ok, nil} = RegentAgents.current_pairing(actor: %Agent{wallet: @wallet})
+
+    assert %{rows: [[revoked_at]]} =
+             RegentAgents.TestRepo.query!(
+               "SELECT revoked_at FROM regent_agents.pairing_history WHERE id = $1",
+               [Ecto.UUID.dump!(agent.id)]
+             )
+
+    assert revoked_at != nil
+
+    assert {:ok, next} =
+             RegentAgents.pair_agent(code!(owner), "Again", :hermes,
+               actor: %Agent{wallet: @wallet}
+             )
+
+    refute next.id == agent.id
+
+    # Deployed older sites read by wallet without a revocation predicate and
+    # unpair with DELETE. Both must retain their semantics and episode evidence.
+    assert %{rows: [[id]]} =
+             RegentAgents.TestRepo.query!(
+               "SELECT id FROM regent_agents.paired_agents WHERE wallet = $1",
+               [@wallet]
+             )
+
+    assert Ecto.UUID.load!(id) == next.id
+
+    RegentAgents.TestRepo.query!(
+      "DELETE FROM regent_agents.paired_agents WHERE id = $1",
+      [id]
+    )
+
+    assert %{rows: [[at]]} =
+             RegentAgents.TestRepo.query!(
+               "SELECT revoked_at FROM regent_agents.pairing_history WHERE id = $1",
+               [id]
+             )
+
+    assert at != nil
+    assert {:ok, nil} = RegentAgents.current_pairing(actor: %Agent{wallet: @wallet})
   end
 
   test "a person's agents need a signed-in person" do
     assert {:error, _error} = RegentAgents.list_my_agents(actor: %Agent{wallet: @wallet})
     assert {:error, _error} = RegentAgents.issue_pairing_code(actor: %Agent{wallet: @wallet})
+  end
+end
+
+defmodule RegentAgents.PairingLimitTest do
+  use ExUnit.Case, async: false
+  alias RegentAgents.{Agent, Person, TestRepo}
+
+  test "concurrent hundredth pairing succeeds once and the rejected code remains unused" do
+    Ecto.Adapters.SQL.Sandbox.mode(TestRepo, :auto)
+    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.mode(TestRepo, :manual) end)
+    owner = %Person{privy_user_id: "did:privy:limit-" <> Ecto.UUID.generate()}
+    prefix = Base.encode16(:crypto.strong_rand_bytes(18), case: :lower)
+
+    TestRepo.query!(
+      """
+      INSERT INTO regent_agents.paired_agents (id, privy_user_id, wallet, name, harness, paired_at, last_contact_at)
+      SELECT gen_random_uuid(), $1, '0x' || $2 || lpad(to_hex(n), 4, '0'), 'Limit', 'codex', now(), now()
+      FROM generate_series(1, 99) AS n
+      """,
+      [owner.privy_user_id, prefix]
+    )
+
+    requests =
+      for _ <- 1..2 do
+        {RegentAgents.issue_pairing_code!(actor: owner).code,
+         %Agent{wallet: "0x" <> Base.encode16(:crypto.strong_rand_bytes(20), case: :lower)}}
+      end
+
+    results =
+      Task.async_stream(
+        requests,
+        fn {code, actor} ->
+          {code, RegentAgents.pair_agent(code, "Hundred", :codex, actor: actor)}
+        end,
+        max_concurrency: 2
+      )
+      |> Enum.map(fn {:ok, result} -> result end)
+
+    assert Enum.count(results, fn {_, result} -> match?({:ok, _}, result) end) == 1
+    assert length(RegentAgents.list_my_agents!(actor: owner)) == 100
+    {unused, _} = Enum.find(results, fn {_, result} -> match?({:error, _}, result) end)
+
+    assert %{rows: [[nil]]} =
+             TestRepo.query!(
+               "SELECT used_at FROM regent_agents.pairing_codes WHERE code_hash = $1",
+               [RegentAgents.PairingCode.hash(unused)]
+             )
   end
 end

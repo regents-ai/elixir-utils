@@ -185,6 +185,15 @@ defmodule RegentAgents.HTTPTest do
   test "an agent nobody paired is told to ask for a code" do
     siwa_verifies()
 
+    assert {200,
+            %{
+              "data" => %{
+                "authenticated" => true,
+                "pairing" => nil,
+                "effective_access" => %{"paired" => false}
+              }
+            }} = send_request(:get, "/api/agents/v1/whoami")
+
     assert {404, %{"error" => %{"code" => "not_paired"}}} =
              send_request(:get, "/api/agents/v1/me")
   end

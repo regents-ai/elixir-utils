@@ -46,6 +46,7 @@ defmodule RegentCredits.Hold do
 
     # The agent that spent, when an agent did.
     attribute :agent_address, :string, public?: true
+    attribute :pairing_id, :uuid, public?: true
 
     attribute :amount, :decimal, allow_nil?: false, public?: true
     attribute :given, :decimal, allow_nil?: false, public?: true
@@ -106,6 +107,7 @@ defmodule RegentCredits.Hold do
         :privy_user_id,
         :purpose,
         :agent_address,
+        :pairing_id,
         :amount,
         :given,
         :purchased,

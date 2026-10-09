@@ -184,7 +184,7 @@ defmodule RegentCredits.Purchase do
       description "Reads the purchase's transaction and credits it once it counts."
       constraints instance_of: __MODULE__
       argument :id, :uuid, allow_nil?: false
-      run fn input, _context -> Purchases.check(input.arguments.id) end
+      run fn input, context -> Purchases.check_owned(input.arguments.id, context.actor) end
     end
 
     action :check_due do
@@ -230,9 +230,9 @@ defmodule RegentCredits.Purchase do
       authorize_if RegentCredits.Checks.OwnWallet
     end
 
-    # Checking reads the chain and credits only what it proves, so anyone may ask.
+    # The result contains private purchase details. Internal Oban work uses check_due.
     policy action(:check) do
-      authorize_if always()
+      authorize_if actor_present()
     end
 
     policy action_type(:read) do

@@ -62,7 +62,7 @@ defmodule RegentPoints.Rules do
   @doc "The customer name of every catalog rule, including the source app."
   def label(id), do: Map.fetch!(@labels, id)
 
-  def catalog do
+  def catalog(at \\ DateTime.utc_now()) do
     milestones =
       Enum.map(@milestones, fn {id, points, _label} ->
         rule(id, "milestone", points, 1, "lifetime")
@@ -74,7 +74,9 @@ defmodule RegentPoints.Rules do
       end)
 
     {credits, _label} = @credits
+
     [rule(credits, "credits", nil, nil, "day") | milestones ++ activity]
+    |> Enum.map(&version(&1, at))
   end
 
   def config, do: Application.get_all_env(:regent_points)
@@ -96,8 +98,8 @@ defmodule RegentPoints.Rules do
          true <- DateTime.compare(at, start) != :lt,
          true <- DateTime.compare(at, DateTime.utc_now()) != :gt,
          true <- enabled?(id),
-         %{} = rule <- Enum.find(catalog(), &(&1["id"] == id)) do
-      {:ok, Map.put(rule, "effective_at", DateTime.to_iso8601(start))}
+         %{} = rule <- Enum.find(catalog(at), &(&1["id"] == id)) do
+      {:ok, Map.put(rule, "effective_at", DateTime.to_iso8601(effective_at(rule, start)))}
     else
       _ -> {:error, :rule_not_active}
     end
@@ -144,6 +146,7 @@ defmodule RegentPoints.Rules do
   def base_micro(_, _), do: {:error, :invalid_rule_snapshot}
 
   def allowance_scope(%{"category" => "credits"}, _actor), do: "credits"
+  def allowance_scope(%{"category" => "activity", "version" => 2}, _actor), do: "activity:account"
   def allowance_scope(%{"category" => "activity"}, actor), do: "activity:#{actor}"
   def allowance_scope(_, _), do: nil
 
@@ -155,7 +158,10 @@ defmodule RegentPoints.Rules do
   end
 
   def daily_cap("activity:human"), do: 50 * @unit
-  def daily_cap(scope) when scope in ["credits", "activity:agent"], do: 100 * @unit
+
+  def daily_cap(scope) when scope in ["credits", "activity:agent", "activity:account"],
+    do: 100 * @unit
+
   @doc "The apps the daily rules among `rules` come from."
   def daily_apps(rules) do
     for %{"category" => "activity", "id" => id} <- rules,
@@ -164,6 +170,57 @@ defmodule RegentPoints.Rules do
   end
 
   def activity_app?(app), do: app in daily_apps(catalog())
+
+  @doc "Shared per-action allowance for v2; historical v1 keeps its original actor pools."
+  def count_scope(%{"category" => "activity", "version" => 1, "id" => id}, actor),
+    do: id <> ":" <> actor
+
+  def count_scope(rule, _actor), do: rule["milestone_key"] || rule["id"]
+
+  defp version(rule, at) do
+    case cutover() do
+      nil ->
+        rule
+
+      cutover ->
+        if DateTime.compare(at, cutover) == :lt do
+          rule
+        else
+          %{
+            rule
+            | "version" => 2,
+              "daily_caps_micro" => Map.new(["credits", "activity:account"], &{&1, daily_cap(&1)})
+          }
+        end
+    end
+  end
+
+  defp effective_at(%{"version" => 2}, _start), do: cutover()
+  defp effective_at(_rule, start), do: start
+
+  # Explicit configuration does not enable any program or approved rule. All
+  # services must deploy compatible code before setting the same UTC midnight.
+  defp cutover do
+    case Keyword.get(config(), :unified_activity_starts_at) do
+      nil ->
+        nil
+
+      %DateTime{time_zone: "Etc/UTC", hour: 0, minute: 0, second: 0, microsecond: {0, _}} = at ->
+        case Keyword.get(config(), :starts_at) do
+          %DateTime{} = start ->
+            if DateTime.compare(at, start) == :lt,
+              do: raise(ArgumentError, "unified activity cannot precede the program start")
+
+          _ ->
+            :ok
+        end
+
+        at
+
+      _ ->
+        raise ArgumentError, "unified_activity_starts_at must be a UTC midnight"
+    end
+  end
 
   defp rule(id, category, points, count, period),
     do: %{

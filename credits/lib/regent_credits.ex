@@ -45,6 +45,10 @@ defmodule RegentCredits do
     resource RegentCredits.Wallet
     resource RegentCredits.DepositCursor
 
+    resource RegentCredits.History do
+      define :history, action: :history
+    end
+
     resource RegentCredits.Purchase do
       define :report_purchase,
         action: :report,

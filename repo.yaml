@@ -8,6 +8,9 @@ owns:
   - markdown_blog_catalogs
   - ash_lint_checks
   - regent_credits_ledger
+  - regent_points_ledger
+  - chain_wallet_steps
+  - mcp_events_helpers
   - ens_library
   - display_formatting
   - http_client_conventions
@@ -31,6 +34,8 @@ code_map:
     owns: markdown_blog_catalogs
   - path: credo_ash
     owns: ash_lint_checks
+  - path: chain
+    owns: chain_wallet_steps
   - path: credits
     owns: regent_credits_ledger
   - path: ens
@@ -41,8 +46,12 @@ code_map:
     owns: http_client_conventions
   - path: jev
     owns: jev_decisions
+  - path: mcp_events
+    owns: mcp_events_helpers
   - path: openai
     owns: openai_calls
+  - path: points
+    owns: regent_points_ledger
   - path: privy
     owns: privy_token_verification
   - path: sprites
@@ -57,6 +66,8 @@ acceptance_commands:
     command: mix check
   - cwd: elixir-utils/credo_ash
     command: mix check
+  - cwd: elixir-utils/chain
+    command: mix check
   - cwd: elixir-utils/credits
     command: mix check
   - cwd: elixir-utils/ens
@@ -67,7 +78,11 @@ acceptance_commands:
     command: mix check
   - cwd: elixir-utils/jev
     command: mix check
+  - cwd: elixir-utils/mcp_events
+    command: mix check
   - cwd: elixir-utils/openai
+    command: mix check
+  - cwd: elixir-utils/points
     command: mix check
   - cwd: elixir-utils/privy
     command: mix check

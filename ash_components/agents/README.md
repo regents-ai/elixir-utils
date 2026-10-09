@@ -97,5 +97,5 @@ never run it.
 
 ## Checks
 
-`mix check` in this folder, with `MIX_TEST_PARTITION=_<suffix>` naming a local
-database `regent_agents_test_<suffix>`.
+`mix check` in this folder, against the local database `regent_agents_test_local`
+(with `MIX_TEST_PARTITION=_<suffix>`, `regent_agents_test_local_<suffix>`).

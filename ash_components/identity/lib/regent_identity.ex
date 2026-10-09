@@ -1,8 +1,9 @@
 defmodule RegentIdentity do
   @moduledoc """
-  Canonical Regent profiles. Regents owns the schema migration; each product
-  supplies its own repository connection to the same database and keeps its own
-  sessions, product account IDs and authorization.
+  Canonical Regent profiles in the shared `regent_identity` schema, whose one
+  migration ran once, from Regents. Each product supplies its own repository
+  connection to the same database and keeps its own sessions, product account IDs
+  and authorization.
   """
   use Ash.Domain
 

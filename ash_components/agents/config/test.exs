@@ -11,7 +11,7 @@ config :regent_agents, RegentAgents.TestRepo,
   hostname: "127.0.0.1",
   port: 5432,
   username: System.get_env("USER"),
-  database: "regent_agents_test#{System.get_env("MIX_TEST_PARTITION")}",
+  database: "regent_agents_test_local#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 8
 

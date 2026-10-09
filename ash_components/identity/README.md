@@ -25,8 +25,8 @@ sequences, sessions, ledgers and product IDs need a rehearsed data reconciliatio
 
 ## Disposable verification
 
-Create a local database named `regent_identity_test_<suffix>`, then run `mix check`
-with `MIX_TEST_PARTITION=_<suffix>`. `regent_privy` is the sibling `../../privy`.
+Create the local database `regent_identity_test_local`, then run `mix check`
+(with `MIX_TEST_PARTITION=_<suffix>`, the database is `regent_identity_test_local_<suffix>`). `regent_privy` is the sibling `../../privy`.
 The test harness checks its database name before migrating its own schema. It
 never resets any existing product database. No production/provider access occurs.
 

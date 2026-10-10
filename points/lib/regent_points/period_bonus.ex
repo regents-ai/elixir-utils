@@ -42,6 +42,8 @@ defmodule RegentPoints.PeriodBonus do
   end
 
   relationships do
+    belongs_to :snapshot, RegentPoints.PeriodSnapshot
+
     belongs_to :account, RegentPoints.Account,
       define_attribute?: false,
       source_attribute: :account_id,
@@ -58,12 +60,15 @@ defmodule RegentPoints.PeriodBonus do
         :program_id,
         :account_id,
         :period,
+        :snapshot_id,
         :earned_micro,
         :nft_count,
         :nft_block,
         :bonus_percent,
         :bonus_micro
       ]
+
+      validate present(:snapshot_id)
     end
 
     update :follow do

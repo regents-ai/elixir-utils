@@ -17,6 +17,7 @@ config :regent_points,
   ash_domains: [RegentPoints],
   program_id: "regents-points-v1",
   starts_at: nil,
+  unified_activity_starts_at: nil,
   approved_rules: [],
   adapters: %{}
 ```
@@ -34,8 +35,11 @@ agent record ID. The shared `regent_names.platform_human_users` table must exist
 this package references it but never creates, updates or merges people.
 
 The chain client implements `RegentPoints.ChainClient`: `rpc(%{chain_id: 8453}, method, params)`.
-Points reads NFT holdings only at the latest Base block: for the page's current tier
-and for the tally at the end of each 30-day period. Configure and verify the chosen RPC before enabling it.
+The page reads current Base holdings as a preview. Confirmation reads one saved
+finalized block immediately before the end of the 30-day period, shared by every
+account. The RPC must support `finalized`, historical block headers and EIP-1898
+`eth_call` by canonical block hash. Verify those capabilities before enabling earning;
+missing historical evidence retries rather than falling back to current holdings.
 
 Add `points: 5` and `points_chain: 2` queues to the site's existing Oban instance.
 Only Regents, the one tally owner, adds a daily cron for `RegentPoints.TallyPeriods`;
@@ -107,12 +111,17 @@ eligibility and preserve the same account and subject milestone identities.
 ## Rates and allowances
 
 The approved Credits basis is 10 points per USDC spent on purchased Credits, capped
-at 100 base points per UTC day. Privy-account daily actions share 50 per day, and
-connected agents share 100. Those actions come from the apps the daily rules name:
-today only Patchbay. Per-action counts are separate for humans and the pooled agents.
-More agents, keys or wallets do not create extra allowances, and one completed event
-belongs to only one pool. One-time actions use no daily allowance and are once per
-canonical account across sites, wallets, keys and agents.
+at 100 base points per UTC day, separate from activity. Rule version 2 gives each
+account and all its paired agents one combined 100-base-Point activity allowance
+per UTC day and shared per-action counts, across every interface. One-time actions
+use no daily allowance and remain once per canonical account.
+
+Set `unified_activity_starts_at` to the same recorded UTC midnight on every host,
+after deploying compatible services. Leave `starts_at`, approved rules and adapters
+unchanged. A nil cutover preserves historical version 1 behavior until activation.
+Version 1 has separate human (50) and agent (100) activity pools; its snapshots and
+pre-cutover source events retain those rules. Version 2 never recalculates old awards.
+Delayed intake selects the version by `source_action_at`, not processing time.
 
 The revised recurring catalog is: Patchbay report 10 once/day, reply 5 twice/day,
 accepted solution 20 once/day, and asker resolution 5 once/day. There is no
@@ -124,15 +133,15 @@ twice/day. All rules remain operationally disabled in the template.
 Awards save points only. The NFT bonus is added once per program period, at the
 tally when the period ends (Sean, 9 October). Periods last 30 days, counted from
 `starts_at`. Animata I, Animata II and Regents Club count together across the
-account's verified linked wallets, read at the tally: 1–2 pieces add 20%, 3–6 add
+account's verified linked wallets at the period-end snapshot: 1–2 pieces add 20%, 3–6 add
 45%, 7 or more add 75%. One tier applies, without stacking, to the points the account
 earned in that period after all limits and corrections, one-time awards included.
 `RegentPoints.TallyAccount` writes one `period_bonuses` row per account and period with
-the tier held at the tally, and Oban retries a Base outage. The tier is never read
+the tier held at period end, and Oban retries a Base outage. The tier is never read
 again for that period: an award checked after the tally, or a correction, moves the
 period's earned total and bonus at the saved tier in the same locked transaction as
-its ledger entry. An account's balance is its entries plus its period bonuses. Daily
-earning is at most 250 points before the bonus. The proposed milestone catalog
+its ledger entry. An account's balance is its entries plus its period bonuses. Version 2 daily
+activity and Credits rewards together are at most 200 base Points, excluding milestones. The proposed milestone catalog
 totals 510 (Sean, 9 October: the 10-point first agent note). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
@@ -144,8 +153,9 @@ Accepted events save the Credits rate and daily limits with the rule. Delayed
 processing uses that snapshot. Rule versions must remain immutable after approval;
 future rate revisions need prospective versioned rules. `RegentPoints.Bonus` owns
 the tiers used by the tally and the database constraint. `Bonus.current/1` reads
-the tier an account's wallets hold now, for the page's "+X% at the end of this period";
-nothing is saved until the tally.
+the tier an account's wallets hold now. The page shows a projected bonus and total,
+with the actual period-end snapshot date. Moving an NFT changes this preview; only
+holding it at the period-end snapshot determines the confirmed bonus.
 
 Only the server system actor may intake, award or correct. Human actors with a
 verified `human_account_id` can read only their own entries and summary. Rejections
@@ -159,6 +169,18 @@ a dedicated connection, with its own history in `regent_points`. One designated
 owner runs production migrations only with Sean's grant. The period bonus migration
 removes the action-time NFT columns and the transfer cursor table; its rollback runs
 only while the Points tables hold no awards.
+The period-end snapshot migration records the existing verified wallet sets and
+installs a capture trigger on the canonical account table, covering every site's
+wallet changes. Wallet history, capture coverage and period snapshots are immutable.
+Set `starts_at` at or after this capture coverage begins; older periods cannot be
+reconstructed from current account state and are refused. Conflicting wallet ownership
+at period end also refuses the tally. Snapshot creation is serialized, so concurrent
+jobs reuse the same saved block. The generated capture migration wraps its statements
+in one SQL block because Postgrex prepares one statement per call.
+
+Refunding a Credits purchase does not remove the Points it earned, including when
+verification happens after the refund (Sean, 9 October 2026).
+
 Shared Ash SQL extensions belong to the host and are not migrated by this package.
 
 For package development:
@@ -174,12 +196,3 @@ mix ash.codegen describe_change
 The package's development Repo uses an isolated local database. Only package config
 enables migration generation. Source adapters, approved rates/start time, the tally
 cron on Regents and live product acceptance remain required before earning is enabled.
-
-## Unified activity cutover
-
-The prospective v2 rules share 100 base activity Points per UTC day and per-action
-counts between the user and all agents. Credits purchases retain a separate
-100-base-Point allowance. Configure `unified_activity_starts_at` with the same
-recorded UTC midnight on every compatible host. A nil value preserves v1 rules;
-this setting enables no program. Delayed events select rules by action time.
-Historical snapshots, approved rates and milestones are preserved.

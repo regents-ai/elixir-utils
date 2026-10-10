@@ -17,7 +17,7 @@ defmodule RegentPoints.TallyPeriods do
     program = Rules.program()
 
     for period <- Rules.ended_periods(DateTime.utc_now()), id <- untallied(program, period) do
-      Oban.insert!(TallyAccount.new(%{account_id: id, period: period}))
+      Oban.insert!(TallyAccount.new(%{program_id: program, account_id: id, period: period}))
     end
 
     :ok

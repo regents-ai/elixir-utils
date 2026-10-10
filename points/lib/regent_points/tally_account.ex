@@ -1,29 +1,36 @@
 defmodule RegentPoints.TallyAccount do
   @moduledoc """
   Writes one account's bonus for one ended 30-day program period: the points earned
-  in that period times the tier its linked wallets hold at the tally. An action
+  in that period times the tier its linked wallets held at the period-end snapshot. An action
   checked or corrected after the tally moves the bonus at the saved tier
   (`RegentPoints.Store.follow_period_bonus/1`). Oban retries a Base outage.
   """
   use Oban.Worker,
     queue: :points_chain,
     max_attempts: 10,
-    unique: [keys: [:account_id, :period], period: :infinity, states: :incomplete]
+    unique: [keys: [:program_id, :account_id, :period], period: :infinity, states: :incomplete]
 
   require Ash.Query
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, Bonus, PeriodBonus, Rules, Store}
+  alias RegentPoints.{Account, Bonus, PeriodBonus, Rules, Snapshot, Store}
 
   @impl true
-  def perform(%Oban.Job{args: %{"account_id" => id, "period" => period}}) do
+  def perform(%Oban.Job{args: %{"account_id" => id, "period" => period} = args}) do
     # Base is read before the transaction; the account lock then guards the write.
-    with {:ok, tier} <- Bonus.current(id),
-         {:ok, _} <- Ash.transact(Account, fn -> record(id, period, tier) end) do
+    program = Map.get(args, "program_id", Rules.program())
+    tally(id, period, program)
+  end
+
+  @doc "Tallies one period from its fixed snapshot; `now` supports deterministic operator verification."
+  def tally(id, period, program, now \\ DateTime.utc_now()) do
+    with {:ok, snapshot} <- Snapshot.for_period(program, period, now),
+         {:ok, tier} <- Bonus.at_snapshot(id, snapshot),
+         {:ok, _} <- Ash.transact(Account, fn -> record(id, period, tier, snapshot) end) do
       :ok
     end
   end
 
-  defp record(id, period, tier) do
+  defp record(id, period, tier, snapshot) do
     Store.lock_account(id)
     program = Rules.program()
 
@@ -40,6 +47,7 @@ defmodule RegentPoints.TallyAccount do
           program_id: program,
           account_id: id,
           period: period,
+          snapshot_id: snapshot.id,
           earned_micro: earned,
           nft_count: tier.nft_count,
           nft_block: tier.block,

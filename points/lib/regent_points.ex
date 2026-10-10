@@ -10,6 +10,10 @@ defmodule RegentPoints do
   def chain_client, do: Application.fetch_env!(:regent_points, :chain_client)
 
   resources do
+    resource RegentPoints.PeriodSnapshot
+    resource RegentPoints.WalletSnapshot
+    resource RegentPoints.WalletCoverage
+
     resource RegentPoints.HumanAccount do
       define :read_human_references, action: :read
     end

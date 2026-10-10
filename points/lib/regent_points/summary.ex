@@ -49,10 +49,31 @@ defmodule RegentPoints.Summary do
          pending: pending,
          entries: entries.results,
          period_bonuses: period_bonuses,
+         current_period: current_period(id),
          agent_names: agent_names,
          more?: entries.more?,
          allowances: allowances(caps)
        }}
+    end
+  end
+
+  defp current_period(id) do
+    now = DateTime.utc_now()
+
+    case Rules.config()[:starts_at] do
+      %DateTime{} = start ->
+        if DateTime.compare(now, start) != :lt do
+          period = Rules.period_of(now)
+
+          %{
+            number: period,
+            ends_at: elem(Rules.period(period), 1),
+            earned_micro: Store.period_earned(id, Rules.program(), period)
+          }
+        end
+
+      nil ->
+        nil
     end
   end
 

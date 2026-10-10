@@ -25,6 +25,83 @@ defmodule RegentPoints.Nfts do
     end
   end
 
+  @doc "Reads every collection at exactly the saved canonical block hash."
+  def at_block(wallets, block), do: holdings(wallets, block)
+
+  @doc "The last finalized Base block strictly before the full period-end timestamp."
+  def period_end_block(stop) do
+    with {:ok, head} <- block("finalized"),
+         true <- DateTime.compare(head.at, stop) != :lt,
+         {:ok, first} <- block(0),
+         true <- DateTime.compare(first.at, stop) == :lt,
+         {:ok, before} <- search(first, head, stop),
+         {:ok, after_end} <- block(before.number + 1),
+         true <-
+           DateTime.compare(before.at, stop) == :lt and
+             DateTime.compare(after_end.at, stop) != :lt and
+             after_end.parent == before.hash do
+      {:ok, before}
+    else
+      false -> {:error, :snapshot_block_not_finalized}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp search(before, after_end, _stop) when after_end.number - before.number == 1,
+    do: {:ok, before}
+
+  defp search(before, after_end, stop) do
+    middle = div(before.number + after_end.number, 2)
+
+    with {:ok, found} <- block(middle) do
+      if DateTime.compare(found.at, stop) == :lt,
+        do: search(found, after_end, stop),
+        else: search(before, found, stop)
+    end
+  end
+
+  defp block(number) when is_integer(number) do
+    with {:ok, block} <- block("0x" <> Integer.to_string(number, 16)),
+         true <- block.number == number do
+      {:ok, block}
+    else
+      false -> {:error, :invalid_snapshot_block}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp block(tag) do
+    case rpc("eth_getBlockByNumber", [tag, false]) do
+      {:ok, %{"number" => height, "hash" => hash, "parentHash" => parent, "timestamp" => at}} ->
+        with {:ok, height} <- hex_number(height),
+             {:ok, timestamp} <- hex_number(at),
+             {:ok, at} <- DateTime.from_unix(timestamp),
+             true <- block_hash?(hash) and block_hash?(parent) do
+          {:ok,
+           %{number: height, hash: String.downcase(hash), parent: String.downcase(parent), at: at}}
+        else
+          _ -> {:error, :invalid_snapshot_block}
+        end
+
+      {:error, _} = error ->
+        error
+
+      _ ->
+        {:error, :snapshot_block_unavailable}
+    end
+  end
+
+  defp hex_number("0x" <> value) do
+    case Integer.parse(value, 16) do
+      {number, ""} when number >= 0 -> {:ok, number}
+      _ -> {:error, :invalid_snapshot_block}
+    end
+  end
+
+  defp hex_number(_), do: {:error, :invalid_snapshot_block}
+  defp block_hash?(hash) when is_binary(hash), do: Regex.match?(~r/^0x[0-9a-fA-F]{64}$/, hash)
+  defp block_hash?(_), do: false
+
   defp holdings(wallets, block) do
     calls = for wallet <- Enum.uniq(wallets), collection <- @collections, do: {wallet, collection}
 

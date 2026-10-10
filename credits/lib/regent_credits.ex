@@ -49,6 +49,10 @@ defmodule RegentCredits do
       define :history, action: :history
     end
 
+    resource RegentCredits.Budget do
+      define :agent_budget, action: :read
+    end
+
     resource RegentCredits.Purchase do
       define :report_purchase,
         action: :report,

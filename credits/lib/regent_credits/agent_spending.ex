@@ -66,7 +66,21 @@ defmodule RegentCredits.AgentSpending do
   the time it was first held.
   """
   @spec spent_today(Actor.t()) :: Decimal.t()
-  def spent_today(%Actor{privy_user_id: owner}) do
+  def spent_today(%Actor{} = actor) do
+    # Internal usage for the owner already authorized by the hold action.
+    actor |> usage_query() |> Ash.read!(authorize?: false) |> total_used()
+  end
+
+  @doc "The same owner-wide usage read, returning failures for display callers."
+  @spec read_spent_today(Actor.t()) :: {:ok, Decimal.t()} | {:error, term()}
+  def read_spent_today(%Actor{} = actor) do
+    # Internal usage for the owner already authorized by the Budget action.
+    with {:ok, holds} <- Ash.read(usage_query(actor), authorize?: false) do
+      {:ok, total_used(holds)}
+    end
+  end
+
+  defp usage_query(%Actor{privy_user_id: owner}) do
     since = DateTime.add(DateTime.utc_now(), -1, :day)
 
     # Internal: read while authorizing the agent's own hold.
@@ -75,8 +89,10 @@ defmodule RegentCredits.AgentSpending do
       privy_user_id == ^owner and not is_nil(agent_address) and held_at > ^since and
         status != :carried_over
     )
-    |> Ash.read!(authorize?: false)
-    |> Enum.reduce(Decimal.new(0), fn hold, total ->
+  end
+
+  defp total_used(holds) do
+    Enum.reduce(holds, Decimal.new(0), fn hold, total ->
       total |> Decimal.add(hold.amount) |> Decimal.sub(hold.returned || 0)
     end)
   end

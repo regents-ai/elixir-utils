@@ -108,7 +108,7 @@ defmodule AgentEns.PrimaryName do
     client = Keyword.get(opts, :http_client, AvatarHTTP)
     timeout = Keyword.get(opts, :avatar_timeout_ms, @avatar_timeout_ms)
 
-    case client.head(url, receive_timeout: timeout, retry: false) do
+    case client.head(url, receive_timeout: timeout, retry: false, redirect: false) do
       {:ok, %{status: 200}} -> url
       _unserved -> nil
     end

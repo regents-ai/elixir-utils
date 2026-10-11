@@ -11,6 +11,11 @@ All notable changes to `ens_elixir` should be recorded here.
   only when the service answers with a picture. The address an avatar record names is never
   fetched.
 
+### Fixed
+
+- The avatar check no longer follows redirects: a redirect from the ENS avatar service is
+  not a picture, so no avatar is given and the server never fetches the address it points to.
+
 ### Removed
 
 - `AgentEns.Display` and `AgentEns.Identicon`: no Regent product calls them, and every site

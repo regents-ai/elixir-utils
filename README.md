@@ -39,6 +39,7 @@ features.
 | Folder | Package | Use it for |
 | --- | --- | --- |
 | [`agent_access`](agent_access/README.md) | `regent_agent_access` | `Accept` negotiation, `Vary` merging, Markdown or JSON recovery responses for public documents served to people and agents, and IETF rate-limit headers. |
+| [`anthropic`](anthropic/README.md) | `regent_anthropic` | Claude replies with adaptive thinking, plain or held to a JSON schema, each with the tokens it used and its cost in US dollars. |
 | [`blog`](blog/README.md) | `regent_blog` | Repository-owned Markdown catalogs, safe HTML, stable contents links and local LaTeX assets. Presentation lives in `Regent.Blog` in the design system. |
 | [`chain`](chain/README.md) | `regent_chain` | Wallet steps built on the server: checked addresses, contract calldata, the review a wallet button sends, and the check of a sent step. |
 | [`credo_ash`](credo_ash/README.md) | `credo_ash` | Credo checks for Ash Framework anti-patterns, which generic Elixir linters cannot see. |
@@ -58,6 +59,7 @@ features.
 | Package | Used in |
 | --- | --- |
 | `regent_agent_access` | regents, ash-template, keyfleet |
+| `regent_anthropic` | techtree (AgentWalletBench judge) |
 | `regent_blog` | regents, autolaunch, patchbay, techtree |
 | `regent_chain` | not used yet; planned for autolaunch, regents and keyfleet |
 | `credo_ash` | regents, autolaunch, patchbay, ash-template, keyfleet (dev and test only) |
@@ -83,6 +85,9 @@ private key.
 Use `ens_elixir` when a product needs to read ENS state, prove that an ENS name points at an
 agent, show a wallet's verified primary name, or prepare the next wallet approval for ENS or
 ERC-8004.
+
+Use `regent_anthropic` when a product asks a Claude model for a reply, plain or held to a JSON
+schema, and needs to know what each call cost.
 
 Use `regent_chain` when a wallet button needs its steps built on the server, or the server
 needs to check what a sent transaction did.
@@ -138,6 +143,7 @@ These must pass before a change is proposed. Run the one for the package you tou
 | Package folder | Command |
 | --- | --- |
 | `agent_access` | `mix check` |
+| `anthropic` | `mix check` |
 | `blog` | `mix check` |
 | `chain` | `mix check` |
 | `credo_ash` | `mix check` |
@@ -160,6 +166,7 @@ To read every version straight from the source rather than from this file:
 ```bash
 for d in \
   agent_access \
+  anthropic \
   blog \
   chain \
   credo_ash \

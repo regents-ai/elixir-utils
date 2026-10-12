@@ -5,6 +5,7 @@ path: elixir-utils
 release_group: public_beta
 owns:
   - agent_access_negotiation
+  - anthropic_calls
   - markdown_blog_catalogs
   - ash_lint_checks
   - regent_credits_ledger
@@ -33,6 +34,8 @@ source_of_truth:
 code_map:
   - path: agent_access
     owns: agent_access_negotiation
+  - path: anthropic
+    owns: anthropic_calls
   - path: blog
     owns: markdown_blog_catalogs
   - path: credo_ash
@@ -70,6 +73,8 @@ code_map:
 local_path_dependencies: []
 acceptance_commands:
   - cwd: elixir-utils/agent_access
+    command: mix check
+  - cwd: elixir-utils/anthropic
     command: mix check
   - cwd: elixir-utils/blog
     command: mix check

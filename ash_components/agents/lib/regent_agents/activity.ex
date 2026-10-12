@@ -1,0 +1,139 @@
+defmodule RegentAgents.Activity do
+  @moduledoc """
+  What a paired agent has done across the Regent sites since it was paired, in
+  plain words and 20 requests at a time, newest first, and its listing in the
+  agent registry, if it has one. The SIWA service keeps both: every request an
+  agent signs is verified there, whichever site it went to, and an agent lists
+  itself through it.
+
+  A site reads them with its own reader key, which the SIWA service lists among
+  its activity readers:
+
+      config :regent_agents, activity_read_token: System.get_env("SIWA_ACTIVITY_READ_TOKEN")
+
+  Without the key, or without an https SIWA address, every read answers
+  `{:error, :not_configured}`. Whether a person stands behind the agent is saved
+  on the agent at its own requests and is not read here.
+  """
+
+  alias RegentAgents.{Broker, PairedAgent}
+
+  @sites %{
+    "ash-template" => "Ash Template",
+    "regents" => "Regents Labs",
+    "autolaunch" => "Autolaunch",
+    "techtree" => "Techtree",
+    "patchbay" => "Patchbay",
+    "keyfleet" => "Keyfleet"
+  }
+
+  @type entry :: %{site: String.t(), action: String.t(), occurred_at: DateTime.t()}
+  @type listing :: %{url: String.t(), number: String.t()}
+
+  @type page :: %{
+          entries: [entry()],
+          next: String.t() | nil,
+          listing: listing() | nil
+        }
+
+  @doc """
+  The newest page of the agent's activity, or with `after_cursor` set to an earlier
+  page's `next`, the page after it. `next` is nil on the last page, which ends
+  with the pairing itself.
+  """
+  @spec recent(PairedAgent.t(), String.t() | nil) :: {:ok, page()} | {:error, term()}
+  def recent(%PairedAgent{} = agent, after_cursor \\ nil) do
+    with {:ok, config} <- config(),
+         {:ok,
+          %Req.Response{
+            status: 200,
+            body: %{
+              "data" => %{
+                "activity" => activity,
+                "next" => next,
+                "agentRegistration" => registration
+              }
+            }
+          }}
+         when is_nil(next) or (is_binary(next) and next != "") <-
+           Broker.request(
+             method: :post,
+             url: config.base_url <> "/api/shared/siwa/activity",
+             receive_timeout: 5_000,
+             connect_options: [timeout: 2_000],
+             auth: {:bearer, config.token},
+             json: body(agent, after_cursor)
+           ),
+         {:ok, listing} <- listing(registration) do
+      {:ok,
+       %{
+         entries: Enum.flat_map(activity, &describe/1) ++ pairing(agent, next),
+         next: next,
+         listing: listing
+       }}
+    else
+      {:ok, %Req.Response{status: status}} -> {:error, {:unexpected_status, status}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # The registry page and the number the registry gave the agent.
+  defp listing(nil), do: {:ok, nil}
+
+  defp listing(%{"registryUrl" => "https://" <> _rest = url, "tokenId" => number})
+       when is_binary(number),
+       do: {:ok, %{url: url, number: number}}
+
+  defp listing(_other), do: {:error, :registration_unreadable}
+
+  # The pairing itself is the agent's own record here; the request that made
+  # it was verified a moment before the agent existed. It is the oldest entry,
+  # so it closes the last page. A pairing holds on every Regent site, and the
+  # record does not say which one made it.
+  defp pairing(agent, nil),
+    do: [
+      %{site: "Regent sites", action: "Paired with your account", occurred_at: agent.paired_at}
+    ]
+
+  defp pairing(_agent, _next), do: []
+
+  # Requests to sites outside the Regent family, and the pairing request
+  # already shown by the pairing itself, are left out.
+  defp describe(%{
+         "audience" => audience,
+         "method" => method,
+         "path" => path,
+         "occurred_at" => at
+       }) do
+    with {:ok, site} <- Map.fetch(@sites, audience),
+         {:ok, action} <- action(method, path),
+         {:ok, occurred_at, _offset} <- DateTime.from_iso8601(at) do
+      [%{site: site, action: action, occurred_at: occurred_at}]
+    else
+      _other -> []
+    end
+  end
+
+  defp action("GET", "/api/agents/v1/me"), do: {:ok, "Checked in"}
+  defp action("POST", "/api/agents/v1/pair"), do: :skip
+  defp action(method, _path) when method in ["GET", "HEAD"], do: {:ok, "Looked something up"}
+  defp action(_method, _path), do: {:ok, "Asked to make a change"}
+
+  defp config do
+    base_url = Application.fetch_env!(:regent_agents, :siwa)[:url]
+    token = Application.get_env(:regent_agents, :activity_read_token)
+
+    case {base_url, token} do
+      {"https://" <> _rest, token} when is_binary(token) and token != "" ->
+        {:ok, %{base_url: String.trim_trailing(base_url, "/"), token: token}}
+
+      _missing ->
+        {:error, :not_configured}
+    end
+  end
+
+  defp body(agent, nil),
+    do: %{wallet_address: agent.wallet, since: DateTime.to_iso8601(agent.paired_at)}
+
+  defp body(agent, after_cursor), do: Map.put(body(agent, nil), :after, after_cursor)
+end

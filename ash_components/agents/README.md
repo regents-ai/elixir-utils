@@ -89,6 +89,18 @@ and `unpair_agent`, and subscribes to
 person's agents are paired, check in or are unpaired on any
 Regent site.
 
+The message a person pastes to their agent is
+`RegentAgents.PairingMessage.text(code, site_name, origin, harness)`, the same
+words on every site.
+
+`RegentAgents.Activity.recent(agent)` reads what a paired agent has done across
+the Regent sites, newest first, 20 at a time; pass the page's `next` to read the
+page after it. It needs the site's own reader key from the SIWA service:
+
+```elixir
+config :regent_agents, activity_read_token: System.get_env("SIWA_ACTIVITY_READ_TOKEN")
+```
+
 ## Migrations
 
 Regents alone runs `RegentAgents.Migrator.up(Regents.Repo)` in its release step.

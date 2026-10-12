@@ -20,12 +20,14 @@ defmodule RegentAgents.Broker do
   @spec audience() :: String.t()
   def audience, do: Keyword.fetch!(config(), :audience)
 
-  # Verification spends replay state. Never retry or follow a redirect.
+  # Every request to the SIWA service goes through here. Verification spends
+  # replay state and the activity read carries this site's key, so neither
+  # retries nor follows a redirect.
   @doc false
   def request(options) do
     options
-    |> Keyword.merge(retry: false, redirect: false)
     |> Keyword.merge(Application.get_env(:regent_agents, :req_options, []))
+    |> Keyword.merge(retry: false, redirect: false)
     |> Req.request()
   end
 

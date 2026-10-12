@@ -58,15 +58,17 @@ defmodule RegentHttpTest do
     message =
       RegentHttp.format_error(
         RuntimeError.exception(
-          "failed with Bearer sprite-secret and sk_test_123456789 and authorization: token"
+          "failed with Bearer sprite-secret and sk_test_123456789 and sk-ant-api03-abc_DEF-9 and authorization: token"
         )
       )
 
     assert message =~ "Bearer [redacted]"
     assert message =~ "sk_test_[redacted]"
+    assert message =~ "sk-ant-[redacted]"
     assert message =~ "authorization: [redacted]"
     refute message =~ "sprite-secret"
     refute message =~ "123456789"
+    refute message =~ "abc_DEF-9"
   end
 
   defmodule Client do

@@ -4,7 +4,8 @@ defmodule RegentHttp do
 
   Every request gets a default receive timeout and connect timeout, emits a
   `[:regent_http, :request]` telemetry event, and error formatting redacts
-  bearer tokens, Stripe-style secret keys, and authorization header values.
+  bearer tokens, Stripe-style secret keys, Anthropic API keys, and authorization
+  header values.
 
   The underlying client is resolved from application config so tests can
   inject a stub:
@@ -60,7 +61,7 @@ defmodule RegentHttp do
   def format_error(error), do: error |> inspect() |> redact()
 
   @doc """
-  Redacts bearer tokens, Stripe-style keys, and api-key/authorization header
+  Redacts bearer tokens, Stripe-style keys, Anthropic keys, and api-key/authorization header
   values from a binary. Non-binaries pass through unchanged.
   """
   @spec redact(term()) :: term()
@@ -68,6 +69,7 @@ defmodule RegentHttp do
     value
     |> String.replace(~r/Bearer\s+[A-Za-z0-9._~+\/=-]+/i, "Bearer [redacted]")
     |> String.replace(~r/(sk|pk|rk)_(live|test)_[A-Za-z0-9_]+/, "\\1_\\2_[redacted]")
+    |> String.replace(~r/sk-ant-[A-Za-z0-9_-]+/, "sk-ant-[redacted]")
     |> String.replace(~r/(x-api-key["':\s=>]+)[^,\]\}\s]+/i, "\\1[redacted]")
     |> String.replace(~r/(authorization["':\s=>]+)[^,\]\}]+/i, "\\1[redacted]")
   end

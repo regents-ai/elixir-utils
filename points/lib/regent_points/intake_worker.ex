@@ -112,17 +112,12 @@ defmodule RegentPoints.IntakeWorker do
   # The source adapter resolves both parties to canonical humans, including any
   # linked wallets and connected agents. A different signer is not independence.
   defp solution_parties(facts, rule)
-       when rule in [
-              "patchbay.solution_accepted",
-              "patchbay.first_solution",
-              "patchbay.report_resolved",
-              "patchbay.first_resolved_priority_report"
-            ] do
+       when rule in ["patchbay.first_solution", "patchbay.first_resolved_priority_report"] do
     asker = facts.evidence["asker_account_id"]
     solver = facts.evidence["solver_account_id"]
 
     beneficiary =
-      if rule in ["patchbay.solution_accepted", "patchbay.first_solution"],
+      if rule == "patchbay.first_solution",
         do: solver,
         else: asker
 

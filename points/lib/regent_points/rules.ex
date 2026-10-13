@@ -16,11 +16,6 @@ defmodule RegentPoints.Rules do
     {"agent.paired", 10, "First agent connected"},
     {"agent.activated", 25, "First agent activated"},
     {"agent.erc8004_registered", 25, "First agent listed on ERC-8004"},
-    {"app.first_use.regents", 10, "First use of Regents"},
-    {"app.first_use.patchbay", 10, "First use of Patchbay"},
-    {"app.first_use.techtree", 10, "First use of Techtree"},
-    {"app.first_use.autolaunch", 10, "First use of Autolaunch"},
-    {"app.first_use.keyfleet", 10, "First use of Keyfleet"},
     {"patchbay.first_report", 10, "First Patchbay report"},
     {"patchbay.first_reply", 10, "First Patchbay reply"},
     {"patchbay.first_solution", 25, "First Patchbay solution"},
@@ -46,11 +41,9 @@ defmodule RegentPoints.Rules do
     {"autolaunch.auction_bid", 20, 1, "day", "Autolaunch auction bid"},
     {"autolaunch.token_traded", 10, 1, "day", "Autolaunch token trade"},
     {"keyfleet.key_bought", 10, 5, "day", "Keyfleet key bought"},
-    {"patchbay.offer_bid_won", 10, 10, "day", "Patchbay Offer bid won"},
+    {"patchbay.offer_bid_placed", 10, 10, "day", "Patchbay Offer placed"},
     {"patchbay.report_published", 10, 1, "day", "Patchbay report published"},
-    {"patchbay.reply_published", 10, 1, "day", "Patchbay reply published"},
-    {"patchbay.solution_accepted", 20, 1, "day", "Patchbay solution accepted"},
-    {"patchbay.report_resolved", 5, 1, "day", "Patchbay report resolved"}
+    {"patchbay.reply_published", 10, 1, "day", "Patchbay reply published"}
   ]
 
   @credits {"credits.purchase_settled", "Credits bought"}

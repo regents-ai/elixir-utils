@@ -28,8 +28,9 @@ defmodule RegentCredits.Purchase do
   the page reports it again. Each report reads the chain, so the site calls
   `report` behind a per-person limit on how often it may be called.
 
-  The site runs the checks: its Oban has a `:regent_credits` queue and its
-  AshOban configuration lists the `RegentCredits` domain.
+  Regents runs the checks for every site: its Oban has a `:regent_credits`
+  queue and its AshOban configuration lists the `RegentCredits` domain. The
+  sites share one ledger, so another site's checks would only repeat its reads.
   """
   use Ash.Resource,
     otp_app: :regent_credits,

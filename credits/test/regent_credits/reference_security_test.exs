@@ -154,19 +154,19 @@ defmodule RegentCredits.ReferenceSecurityTest do
     assert length(first.entries) == 50 and first.more?
     {:ok, rest} = RegentCredits.history(%{after: first.next}, actor: actor(owner))
     all = first.entries ++ rest.entries
-    assert length(all) == 61 and not rest.more?
-    assert length(Enum.uniq_by(all, & &1.id)) == 61
-    assert Enum.count(all, &Decimal.eq?(&1.available_delta, d("0.000001"))) == 55
+    assert length(all) == 59 and not rest.more?
+    assert length(Enum.uniq_by(all, & &1.id)) == 59
 
-    assert Enum.any?(
-             all,
-             &(Decimal.negative?(&1.available_delta) and Decimal.positive?(&1.held_delta))
-           )
+    assert Enum.count(all, &(&1.kind == :gift and Decimal.eq?(&1.amount, d("0.000001")))) == 55
 
-    assert Enum.any?(
-             all,
-             &(Decimal.positive?(&1.available_delta) and Decimal.negative?(&1.held_delta))
-           )
+    # The hold took two given and two purchased Credits: one entry each way.
+    assert [%{direction: :out, site: "patchbay", purpose: "offer_bid"} = set_aside] =
+             Enum.filter(all, &(&1.kind == :set_aside))
+
+    assert [%{direction: :in, reason: "returned"} = returned] =
+             Enum.filter(all, &(&1.kind == :returned))
+
+    assert Decimal.eq?(set_aside.amount, 4) and Decimal.eq?(returned.amount, 4)
 
     assert {:ok, %{entries: []}} = RegentCredits.history(actor: actor(person()))
     assert {:error, _} = RegentCredits.history()

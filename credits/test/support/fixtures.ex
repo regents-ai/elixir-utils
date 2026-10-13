@@ -58,8 +58,12 @@ defmodule RegentCredits.Fixtures do
     RegentCredits.TestRepo.transaction(fn ->
       ["regent_gifts", "regent_purchases", given_to, purchased_to]
       |> Ledger.lock()
-      |> Ledger.move({"regent_gifts", given_to}, d(given), "test")
-      |> Ledger.move({"regent_purchases", purchased_to}, d(purchased), "test")
+      |> Ledger.move({"regent_gifts", given_to}, d(given), "gift:fund")
+      |> Ledger.move(
+        {"regent_purchases", purchased_to},
+        d(purchased),
+        "purchase:#{Ecto.UUID.generate()}"
+      )
     end)
 
     privy_user_id

@@ -36,3 +36,10 @@ shared by every Regent site.
   `RegentCredits.Listener` passes it to the site's PubSub on `topic/1`.
 - Refunds while an account has never used Credits, closed on the Treasury
   Safe's transfer back to the paying wallet.
+- Account history reads as what happened, not as ledger rows:
+  `RegentCredits.history/2` answers one entry for each purchase, gift, refund,
+  hold, return, spend and payment received, with a `kind`, a positive `amount`,
+  a `direction` and the facts that apply. A hold's transfers are added
+  together, and a page never ends inside one. The entries no longer carry
+  `operation`, `available_delta` or `held_delta`.
+  `RegentCredits.History.Words` holds the words every site shows for them.

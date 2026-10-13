@@ -142,14 +142,27 @@ in one transaction are credited separately.
 
 ## Account history
 
-`RegentCredits.history(actor: person)` returns the person's permanent ledger
-movements, including purchases, gifts, held Credits, returns, spending and refunds.
-Each movement belongs to ledger accounts identified by that person's Privy user ID.
-Wallet funds that have not yet been attached become user activity when attached.
-No movement is removed to limit history length. Each page holds at most 50 rows;
-pass `%{after: page.next}` to read older rows while `page.more?` is true. Ownership
-comes from the actor, never a supplied account ID. Results contain signed available
-and held changes, an operation label and time; counterparty account IDs stay private.
+`RegentCredits.history(actor: person)` returns everything that moved the person's
+balance, newest first, one entry for each thing that happened: a purchase, a gift,
+a refund, Credits set aside on a site, and held Credits returned, spent or received.
+The ledger writes one transfer for each kind of Credit an operation moves; an entry
+adds a hold's transfers together, so a hold that took given and purchased Credits is
+one entry, and its close is one entry for what came back and one for what was used.
+
+Each entry has `id`, `kind`, `at`, `amount` (always positive), `direction` (`:in` or
+`:out` of what the person can spend, `:none` for held Credits that were used), and
+the facts that apply, `nil` otherwise: `site`, `purpose`, `reason`, `note`, `chain`,
+`tx_hash`, `refund_status` and `refund_sent_at`. `RegentCredits.History` lists the
+kinds. Credits a person received from someone else's hold name the site only, never
+who paid. `RegentCredits.History.Words` holds the words every site shows for an
+entry (`line/1`) and for a site, purpose, reason, chain and failed purchase; a page
+never reads an operation string, and a code with no words there is shown as nothing.
+
+Ownership comes from the actor, never a supplied account ID. Nothing is removed to
+limit history length. A page holds the entries of at most 50 transfers and never ends
+inside one entry; pass `%{after: page.next}` to read older entries while `page.more?`
+is true. Purchases that added no Credits (still being checked, or failed with a
+reason) are not in the history; `RegentCredits.purchases(actor: person)` reads them.
 All amounts retain six decimal places of precision.
 
 Refunding a purchase does not remove the Points it earned (Sean, 9 October 2026).

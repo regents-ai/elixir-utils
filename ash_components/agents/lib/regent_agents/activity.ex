@@ -12,7 +12,13 @@ defmodule RegentAgents.Activity do
       config :regent_agents, activity_read_token: System.get_env("SIWA_ACTIVITY_READ_TOKEN")
 
   Without the key, or without an https SIWA address, every read answers
-  `{:error, :not_configured}`. Whether a person stands behind the agent is saved
+  `{:error, :not_configured}`.
+
+  The site names its own requests: for each operation an agent may sign there,
+  it passes the method, the path as its API description writes it
+  (`/tools/notes/{id}/pin`) and what the request did in its person's words
+  ("Pinned a note"). A request to another site, or one the site does not name,
+  is worded from its method alone. Whether a person stands behind the agent is saved
   on the agent at its own requests and is not read here.
   """
 
@@ -29,6 +35,7 @@ defmodule RegentAgents.Activity do
 
   @type entry :: %{site: String.t(), action: String.t(), occurred_at: DateTime.t()}
   @type listing :: %{url: String.t(), number: String.t()}
+  @type operation :: %{method: String.t(), path: String.t(), words: String.t()}
 
   @type page :: %{
           entries: [entry()],
@@ -41,8 +48,9 @@ defmodule RegentAgents.Activity do
   page's `next`, the page after it. `next` is nil on the last page, which ends
   with the pairing itself.
   """
-  @spec recent(PairedAgent.t(), String.t() | nil) :: {:ok, page()} | {:error, term()}
-  def recent(%PairedAgent{} = agent, after_cursor \\ nil) do
+  @spec recent(PairedAgent.t(), [operation()], String.t() | nil) ::
+          {:ok, page()} | {:error, term()}
+  def recent(%PairedAgent{} = agent, operations, after_cursor \\ nil) do
     with {:ok, config} <- config(),
          {:ok,
           %Req.Response{
@@ -67,7 +75,9 @@ defmodule RegentAgents.Activity do
          {:ok, listing} <- listing(registration) do
       {:ok,
        %{
-         entries: Enum.flat_map(activity, &describe/1) ++ pairing(agent, next),
+         entries:
+           Enum.flat_map(activity, &describe(&1, Broker.audience(), operations)) ++
+             pairing(agent, next),
          next: next,
          listing: listing
        }}
@@ -99,25 +109,55 @@ defmodule RegentAgents.Activity do
 
   # Requests to sites outside the Regent family, and the pairing request
   # already shown by the pairing itself, are left out.
-  defp describe(%{
-         "audience" => audience,
-         "method" => method,
-         "path" => path,
-         "occurred_at" => at
-       }) do
-    with {:ok, site} <- Map.fetch(@sites, audience),
-         {:ok, action} <- action(method, path),
+  defp describe(
+         %{"audience" => audience, "method" => method, "path" => path, "occurred_at" => at},
+         own,
+         operations
+       ) do
+    with {:ok, name} <- Map.fetch(@sites, audience),
+         {:ok, action} <- action(method, path, audience == own, operations),
          {:ok, occurred_at, _offset} <- DateTime.from_iso8601(at) do
-      [%{site: site, action: action, occurred_at: occurred_at}]
+      [%{site: name, action: action, occurred_at: occurred_at}]
     else
       _other -> []
     end
   end
 
-  defp action("GET", "/api/agents/v1/me"), do: {:ok, "Checked in"}
-  defp action("POST", "/api/agents/v1/pair"), do: :skip
-  defp action(method, _path) when method in ["GET", "HEAD"], do: {:ok, "Looked something up"}
-  defp action(_method, _path), do: {:ok, "Asked to make a change"}
+  defp action("GET", "/api/agents/v1/me", _own?, _operations), do: {:ok, "Checked in"}
+  defp action("POST", "/api/agents/v1/pair", _own?, _operations), do: :skip
+
+  defp action(method, path, true, operations) do
+    segments = segments(path)
+
+    case Enum.find(operations, &(&1.method == method and matches?(segments(&1.path), segments))) do
+      %{words: words} -> {:ok, words}
+      nil -> {:ok, method_words(method)}
+    end
+  end
+
+  defp action(method, _path, false, _operations), do: {:ok, method_words(method)}
+
+  # A POST may only read, so a request no site names is called a change only
+  # when its method always is one.
+  defp method_words(method) when method in ["GET", "HEAD"], do: "Looked something up"
+
+  defp method_words(method) when method in ["PUT", "PATCH", "DELETE"],
+    do: "Asked to make a change"
+
+  defp method_words(_method), do: "Sent a request"
+
+  defp segments(path), do: path |> String.split("?", parts: 2) |> hd() |> String.split("/")
+
+  # A `{name}` segment of the API description's path stands for any one segment.
+  defp matches?(pattern, segments) when length(pattern) == length(segments),
+    do:
+      Enum.zip(pattern, segments)
+      |> Enum.all?(fn {want, got} -> got == want or (placeholder?(want) and got != "") end)
+
+  defp matches?(_pattern, _segments), do: false
+
+  defp placeholder?(segment),
+    do: String.starts_with?(segment, "{") and String.ends_with?(segment, "}")
 
   defp config do
     base_url = Application.fetch_env!(:regent_agents, :siwa)[:url]

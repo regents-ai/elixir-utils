@@ -11,7 +11,7 @@ defmodule RegentCredits.Holds do
 
   require Ash.Query
 
-  alias RegentCredits.{AgentSpending, Amount, FirstUse, Hold, Ledger, Wallets}
+  alias RegentCredits.{AgentSpending, Amount, Hold, Ledger, Wallets}
   alias RegentCredits.Errors.{NotEnoughCredits, Refused}
 
   @bounty_share 90
@@ -53,13 +53,6 @@ defmodule RegentCredits.Holds do
       accounts
       |> Ledger.move(pair(:given, :held_given, owner), from_given, operation)
       |> Ledger.move(pair(:purchased, :held_purchased, owner), from_purchased, operation)
-
-      # Internal: written by the authorized hold action.
-      FirstUse
-      |> Ash.Changeset.for_create(:record, %{privy_user_id: owner, hold_key: key},
-        authorize?: false
-      )
-      |> Ash.create!()
 
       # Internal: written by the authorized hold action.
       Hold

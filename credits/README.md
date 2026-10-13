@@ -136,7 +136,9 @@ in one transaction are credited separately.
   sign-in or when a wallet is linked, records that the account holds exactly
   those wallets and moves Credits waiting under them to the account.
 - `RegentCredits.start_refund(purchase_id, actor: admin)` takes the Credits
-  out while the account has never used Credits;
+  out while that many purchased Credits are still in the account, neither set
+  aside nor spent. Credits are non-refundable; the team decides each exception
+  (Sean, 13 October 2026);
   `RegentCredits.close_refund(refund_id, tx_hash, actor: admin)` checks the
   Treasury Safe's USDC transfer back to the paying wallet.
 
@@ -151,12 +153,17 @@ one entry, and its close is one entry for what came back and one for what was us
 
 Each entry has `id`, `kind`, `at`, `amount` (always positive), `direction` (`:in` or
 `:out` of what the person can spend, `:none` for held Credits that were used), and
-the facts that apply, `nil` otherwise: `site`, `purpose`, `reason`, `note`, `chain`,
+the facts that apply, `nil` otherwise: `site`, `purpose`, `reason`, `agent_address`
+and `pairing_id` (the person's agent that set the Credits aside), `note`, `chain`,
 `tx_hash`, `refund_status` and `refund_sent_at`. `RegentCredits.History` lists the
 kinds. Credits a person received from someone else's hold name the site only, never
 who paid. `RegentCredits.History.Words` holds the words every site shows for an
 entry (`line/1`) and for a site, purpose, reason, chain and failed purchase; a page
 never reads an operation string, and a code with no words there is shown as nothing.
+
+`RegentCredits.history_of(privy_user_id, actor: admin)` answers the same entries for
+the person a Credits admin names, and nobody else may call it. The team's page shows
+them with the same words, so the team reads exactly what the person reads.
 
 Ownership comes from the actor, never a supplied account ID. Nothing is removed to
 limit history length. A page holds the entries of at most 50 transfers and never ends

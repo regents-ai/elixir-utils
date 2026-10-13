@@ -1,7 +1,9 @@
 defmodule RegentCredits.History do
   @moduledoc """
   A person's own Credits history: everything that moved their balance, newest
-  first, one entry for each thing that happened.
+  first, one entry for each thing that happened. `history_of` answers the same
+  entries for the person a Credits admin names, so the team reads exactly what
+  the person reads.
 
   The ledger writes one transfer for each kind of Credit an operation moves, so
   setting four Credits aside can be two transfers (given and purchased) and
@@ -24,6 +26,8 @@ defmodule RegentCredits.History do
       `:none` for `:spent`, which were already set aside.
     * `site`, `purpose` and `reason`: where a hold was placed, what for and why
       it came back, in the site's own short codes.
+    * `agent_address` and `pairing_id`: the person's agent that set the Credits
+      aside, when an agent did. A payment received never names the payer's.
     * `note`: a gift's note.
     * `chain` and `tx_hash`: a purchase's payment, or a refund's payment back
       once it is sent.
@@ -44,6 +48,12 @@ defmodule RegentCredits.History do
       argument :after, :string, constraints: [max_length: 2_048]
       run RegentCredits.History.Read
     end
+
+    action :history_of, :map do
+      argument :privy_user_id, :string, allow_nil?: false, constraints: [max_length: 255]
+      argument :after, :string, constraints: [max_length: 2_048]
+      run RegentCredits.History.Read
+    end
   end
 
   policies do
@@ -52,6 +62,10 @@ defmodule RegentCredits.History do
 
       authorize_if {RegentAgents.Checks.Paired,
                     repo_app: :regent_credits, wallet_field: :agent_address}
+    end
+
+    policy action(:history_of) do
+      authorize_if RegentCredits.Checks.Admin
     end
   end
 end
@@ -72,6 +86,8 @@ defmodule RegentCredits.History.Read do
     site: nil,
     purpose: nil,
     reason: nil,
+    agent_address: nil,
+    pairing_id: nil,
     note: nil,
     chain: nil,
     tx_hash: nil,
@@ -79,12 +95,26 @@ defmodule RegentCredits.History.Read do
     refund_sent_at: nil
   }
 
+  # A person or their agent reads the actor's own accounts, never an input's.
+  # Only `history_of`, which the policy keeps to Credits admins, names a person.
   @impl true
-  def run(input, _opts, %{actor: %RegentCredits.Actor{role: role, privy_user_id: owner}})
-      when role in [:person, :agent] and is_binary(owner) do
-    # The actor, never an input user id, determines the four private accounts.
+  def run(%{action: %{name: :history}} = input, _opts, %{
+        actor: %RegentCredits.Actor{role: role, privy_user_id: owner}
+      })
+      when role in [:person, :agent] and is_binary(owner),
+      do: read(owner, input)
+
+  def run(%{action: %{name: :history_of}} = input, _opts, %{
+        actor: %RegentCredits.Actor{role: :admin}
+      }),
+      do: read(input.arguments.privy_user_id, input)
+
+  def run(_input, _opts, _context), do: {:error, Ash.Error.Forbidden.exception([])}
+
+  defp read(owner, input) do
     identifiers = Ledger.person(owner)
 
+    # Internal: read by the authorized history action, for the one person it resolved.
     accounts =
       Account
       |> Ash.Query.filter(identifier in ^identifiers)
@@ -120,8 +150,6 @@ defmodule RegentCredits.History.Read do
         error
     end
   end
-
-  def run(_input, _opts, _context), do: {:error, Ash.Error.Forbidden.exception([])}
 
   # A hold's transfers follow one another in the person's ledger, because every
   # operation on it locks the person's accounts, and a hold writes at most six
@@ -278,7 +306,13 @@ defmodule RegentCredits.History.Read do
 
     case found.holds[name] do
       %Hold{} = hold ->
-        %{site: site, purpose: hold.purpose, reason: if(kind == :returned, do: hold.reason)}
+        %{
+          site: site,
+          purpose: hold.purpose,
+          reason: if(kind == :returned, do: hold.reason),
+          agent_address: hold.agent_address,
+          pairing_id: hold.pairing_id
+        }
 
       nil ->
         %{site: site}

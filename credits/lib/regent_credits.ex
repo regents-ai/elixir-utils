@@ -41,12 +41,12 @@ defmodule RegentCredits do
     resource RegentCredits.Ledger.Account
     resource RegentCredits.Ledger.Transfer
     resource RegentCredits.Ledger.Balance
-    resource RegentCredits.FirstUse
     resource RegentCredits.Wallet
     resource RegentCredits.DepositCursor
 
     resource RegentCredits.History do
       define :history, action: :history
+      define :history_of, action: :history_of, args: [:privy_user_id]
     end
 
     resource RegentCredits.Budget do

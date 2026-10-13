@@ -1,7 +1,8 @@
 defmodule RegentCredits.Refund do
   @moduledoc """
-  A refund of one purchase, allowed only while the account has never used
-  Credits (`RegentCredits.FirstUse`). Given Credits are never refunded.
+  A refund of one purchase, allowed while that many purchased Credits are
+  still in the account, neither set aside nor spent. The team decides each
+  case (Sean, 13 October 2026). Given Credits are never refunded.
 
   An admin starts it (`start`), which takes the purchase's Credits out of
   the account, then sends the USDC from the Treasury Safe to the wallet that

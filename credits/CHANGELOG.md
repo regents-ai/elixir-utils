@@ -43,3 +43,14 @@ shared by every Regent site.
   together, and a page never ends inside one. The entries no longer carry
   `operation`, `available_delta` or `held_delta`.
   `RegentCredits.History.Words` holds the words every site shows for them.
+- A refund no longer asks whether the account has ever used Credits (Sean, 13
+  October 2026: exceptions are decided case by case). `start_refund` takes a
+  purchase's Credits out whenever that many purchased Credits are still in the
+  account; the `:used` refusal is gone. Holds no longer write
+  `regent_credits.first_uses` and nothing reads it. The table itself stays
+  until every site that places holds runs this version, because an older
+  version writes to it on every hold; a later migration removes it.
+- `RegentCredits.history_of/2` answers one person's history to a Credits admin,
+  the same entries the person reads. An entry for Credits set aside, returned
+  or spent now carries `agent_address` and `pairing_id` when the person's agent
+  set them aside.

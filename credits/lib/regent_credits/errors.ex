@@ -30,7 +30,6 @@ defmodule RegentCredits.Errors.Refused do
       to refund.
     * `:no_account`: the purchase's Credits wait under its wallet until an
       account signs in with it, so no account holds them to refund.
-    * `:used`: the account has used Credits, so its purchases are not refunded.
     * `:refund_not_proven`: the transaction is not the Treasury Safe's
       successful transfer of exactly the refund to the wallet that paid.
   """

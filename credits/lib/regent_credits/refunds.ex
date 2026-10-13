@@ -1,8 +1,8 @@
 defmodule RegentCredits.Refunds do
   @moduledoc """
   The work behind `RegentCredits.Refund`'s actions. `start/2` follows
-  `RegentCredits.Ledger`'s order and reads whether the account has used
-  Credits only after its accounts are locked, so a hold placed at the same
+  `RegentCredits.Ledger`'s order and reads the purchased Credits still in the
+  account only after its accounts are locked, so a hold placed at the same
   moment is seen. `close/1` reads the chain outside any transaction.
 
   The refund rows and transfers are written by the library after the action
@@ -12,7 +12,7 @@ defmodule RegentCredits.Refunds do
   require Ash.Query
 
   alias RegentChain.{Abi, Address, Event}
-  alias RegentCredits.{Chains, FirstUse, Ledger, Purchase, Refund}
+  alias RegentCredits.{Chains, Ledger, Purchase, Refund}
   alias RegentCredits.Errors.{NotEnoughCredits, Refused}
 
   @doc "Takes the purchase's Credits out of the account, once."
@@ -36,9 +36,6 @@ defmodule RegentCredits.Refunds do
     cond do
       refund = existing(purchase.id) ->
         {:ok, refund}
-
-      used?(owner) ->
-        refuse(:used)
 
       Decimal.lt?(purchased, purchase.amount) ->
         {:error, NotEnoughCredits.exception(shortfall: Decimal.sub(purchase.amount, purchased))}
@@ -112,13 +109,6 @@ defmodule RegentCredits.Refunds do
     Refund
     |> Ash.Query.filter(purchase_id == ^purchase_id)
     |> Ash.read_one!(authorize?: false)
-  end
-
-  defp used?(owner) do
-    # Internal: read by the authorized start action, after the account is locked.
-    FirstUse
-    |> Ash.Query.filter(privy_user_id == ^owner)
-    |> Ash.exists?(authorize?: false)
   end
 
   defp or_refuse({:ok, value}, _reason), do: {:ok, value}

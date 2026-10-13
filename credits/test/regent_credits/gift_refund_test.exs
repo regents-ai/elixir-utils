@@ -4,6 +4,7 @@ defmodule RegentCredits.GiftRefundTest do
   import RegentCredits.Fixtures
 
   alias RegentCredits.{Chains, TestChain}
+  alias RegentCredits.Errors.NotEnoughCredits
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(RegentCredits.TestRepo)
@@ -49,7 +50,7 @@ defmodule RegentCredits.GiftRefundTest do
     assert Decimal.eq?(moved, 1)
   end
 
-  test "a purchase is refunded only while the account has never used Credits, even a hold given back" do
+  test "a purchase is refunded while its Credits are still in the account, set aside or not" do
     owner = person()
     purchase = bought(owner, wallet(), 25)
 
@@ -64,9 +65,13 @@ defmodule RegentCredits.GiftRefundTest do
     used = bought(user, wallet(), 5)
     bid = key()
     {:ok, _hold} = RegentCredits.hold(bid, user, d(1), "fix", actor: actor(user))
-    {:ok, _back} = RegentCredits.give_back(bid, "lost", actor: site())
 
-    assert reason(RegentCredits.start_refund(used.id, actor: admin())) == :used
+    assert {:error, %Ash.Error.Invalid{errors: [%NotEnoughCredits{shortfall: short}]}} =
+             RegentCredits.start_refund(used.id, actor: admin())
+
+    assert Decimal.eq?(short, 1)
+    {:ok, _back} = RegentCredits.give_back(bid, "lost", actor: site())
+    assert {:ok, %{status: :locked}} = RegentCredits.start_refund(used.id, actor: admin())
   end
 
   test "a refund closes only on the Treasury Safe's exact USDC transfer to the wallet that paid" do

@@ -28,10 +28,11 @@ defmodule RegentCredits.History.Words do
   # Patchbay Offers gives a bid back for these.
   @reasons %{
     "outbid" => "Outbid",
-    "stale" => "The Offer moved on",
+    "stale" => "The slot changed before your bid was decided",
     "ineligible" => "The wording could not be shown",
     "cancelled_by_buyout" => "The slot was bought out",
-    "next_leader_replaced" => "Outbid"
+    "next_leader_replaced" => "Outbid",
+    "placement_removed" => "The Offer in this slot was removed"
   }
 
   @chains %{base: "Base", ethereum: "Ethereum"}

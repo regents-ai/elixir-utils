@@ -128,6 +128,9 @@ accepted solution and resolved report earn nothing. There is no active-day or
 recurring vote rule; Keyfleet retains its 10-point first-vote milestone. Every
 Patchbay report and reply must be accepted by Patchbay's own quality check before it
 is published and earns; that check is Patchbay's, not this package's.
+Once Points has started, a rule that has ever earned is never removed from the
+catalog: the points it awarded are still read against it. A rule that should stop
+earning is given no adapter, and a new rule gets a new id.
 Two approved candidates stay out of the catalog until their products exist (Sean, 8
 October): Keyfleet rollcall, 5 once/day, and independently verified Patchbay repair, 15
 twice/day. All rules remain operationally disabled in the template.

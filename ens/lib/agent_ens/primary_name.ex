@@ -20,7 +20,9 @@ defmodule AgentEns.PrimaryName do
   @ethereum_chain_id 1
   @default_ens_registry "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
   @avatar_record "avatar"
-  @avatar_timeout_ms 2_000
+  # A name the service has not been asked about for an hour takes it one to
+  # five seconds to answer, picture or none.
+  @avatar_timeout_ms 10_000
 
   # ENS resolves any name's avatar record (an image address, an `ipfs://` URI or
   # a reference to the NFT holding the picture) and answers with the image
@@ -54,10 +56,14 @@ defmodule AgentEns.PrimaryName do
   the name publishes an avatar record and the service answers with a picture;
   otherwise it is `nil`. Nothing is fetched from an address the record names.
 
+  A service that does not answer in time is `{:error, reason}`, like a chain
+  read that fails: it says nothing about the picture, so the caller keeps what
+  it holds and asks again.
+
   Takes the options of `verified_primary_name/2`, and:
 
     * `:avatar_timeout_ms` — how long the avatar service may take to answer
-      (defaults to 2000)
+      (defaults to 10000)
     * `:http_client` — module whose `head(url, options)` asks the avatar service
       (defaults to `AgentEns.Internal.AvatarHTTP`, through Req)
   """
@@ -65,8 +71,9 @@ defmodule AgentEns.PrimaryName do
           {:ok, %{name: String.t(), avatar_url: String.t() | nil} | nil} | {:error, term()}
   def verified_primary_identity(wallet_address, opts \\ []) do
     with {:ok, %{normalized_name: name, text_records: records}} <-
-           verified(wallet_address, opts, [@avatar_record]) do
-      {:ok, %{name: name, avatar_url: avatar_url(name, records[@avatar_record], opts)}}
+           verified(wallet_address, opts, [@avatar_record]),
+         {:ok, avatar_url} <- avatar_url(name, records[@avatar_record], opts) do
+      {:ok, %{name: name, avatar_url: avatar_url}}
     end
   end
 
@@ -98,19 +105,21 @@ defmodule AgentEns.PrimaryName do
   end
 
   defp avatar_url(name, record, opts) when is_binary(record) do
-    if String.trim(record) != "",
-      do: served(@avatar_service <> URI.encode(name, &URI.char_unreserved?/1), opts)
+    if String.trim(record) == "",
+      do: {:ok, nil},
+      else: served(@avatar_service <> URI.encode(name, &URI.char_unreserved?/1), opts)
   end
 
-  defp avatar_url(_name, _absent, _opts), do: nil
+  defp avatar_url(_name, _absent, _opts), do: {:ok, nil}
 
   defp served(url, opts) do
     client = Keyword.get(opts, :http_client, AvatarHTTP)
     timeout = Keyword.get(opts, :avatar_timeout_ms, @avatar_timeout_ms)
 
     case client.head(url, receive_timeout: timeout, retry: false, redirect: false) do
-      {:ok, %{status: 200}} -> url
-      _unserved -> nil
+      {:ok, %{status: 200}} -> {:ok, url}
+      {:ok, _no_picture} -> {:ok, nil}
+      {:error, reason} -> {:error, reason}
     end
   end
 

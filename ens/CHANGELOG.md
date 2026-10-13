@@ -13,6 +13,11 @@ All notable changes to `ens_elixir` should be recorded here.
 
 ### Fixed
 
+- A picture that was slow to arrive is no longer recorded as no picture. The ENS avatar
+  service takes one to five seconds to answer for a name it has not been asked about in
+  the last hour, and the check gave up at two. `verified_primary_identity/2` now waits ten
+  seconds by default, and a service that does not answer in time is `{:error, reason}`, so
+  the caller keeps the picture it holds and asks again.
 - The avatar check no longer follows redirects: a redirect from the ENS avatar service is
   not a picture, so no avatar is given and the server never fetches the address it points to.
 

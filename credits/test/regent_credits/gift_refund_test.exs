@@ -50,7 +50,7 @@ defmodule RegentCredits.GiftRefundTest do
     assert Decimal.eq?(moved, 1)
   end
 
-  test "a purchase is refunded while its Credits are still in the account, set aside or not" do
+  test "a purchase is refunded while its Credits are in the account, not while any are set aside" do
     owner = person()
     purchase = bought(owner, wallet(), 25)
 

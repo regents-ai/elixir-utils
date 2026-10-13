@@ -17,7 +17,7 @@ defmodule RegentCredits.Holds do
   @bounty_share 90
 
   @doc "Sets aside the amount: given Credits first, then purchased."
-  def hold(%{key: key, privy_user_id: owner, amount: amount, purpose: purpose}, actor) do
+  def hold(%{key: key, privy_user_id: owner, amount: amount, purpose: purpose} = args, actor) do
     agent = if actor.role == :agent, do: actor.agent_address
 
     details = %{
@@ -32,13 +32,35 @@ defmodule RegentCredits.Holds do
          accounts = owner |> Ledger.person() |> Ledger.lock(),
          :ok <- AgentSpending.current_pairing(actor) do
       case find(actor.site, key) do
-        nil -> place(accounts, actor, key, details)
+        nil -> place(accounts, actor, key, details, cause(args, actor.site))
         hold -> same(hold, details)
       end
     end
   end
 
-  defp place(accounts, actor, key, details) do
+  @request_bytes 4_000
+
+  # What led to the hold. The request is kept only when it fits and Postgres
+  # can store it; a spend is never refused over it. Its size is reported, never
+  # its words.
+  defp cause(args, site) do
+    request = args[:request]
+
+    kept? =
+      is_nil(request) or (byte_size(request) <= @request_bytes and request =~ ~r/\A[^\0]*\z/s)
+
+    if request,
+      do:
+        :telemetry.execute(
+          [:regent_credits, :hold, :request],
+          %{bytes: byte_size(request)},
+          %{site: site, kept?: kept?}
+        )
+
+    %{tool: args[:tool], request: if(kept?, do: request)}
+  end
+
+  defp place(accounts, actor, key, details, cause) do
     %{privy_user_id: owner, amount: amount} = details
     given = Ledger.balance_of(accounts, Ledger.identifier(:given, owner))
     purchased = Ledger.balance_of(accounts, Ledger.identifier(:purchased, owner))
@@ -58,12 +80,9 @@ defmodule RegentCredits.Holds do
       Hold
       |> Ash.Changeset.for_create(
         :record,
-        Map.merge(details, %{
-          site: actor.site,
-          key: key,
-          given: from_given,
-          purchased: from_purchased
-        }),
+        details
+        |> Map.merge(cause)
+        |> Map.merge(%{site: actor.site, key: key, given: from_given, purchased: from_purchased}),
         authorize?: false
       )
       |> Ash.create()
@@ -104,6 +123,8 @@ defmodule RegentCredits.Holds do
           :privy_user_id,
           :agent_address,
           :pairing_id,
+          :tool,
+          :request,
           :amount,
           :given,
           :purchased,

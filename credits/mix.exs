@@ -43,6 +43,7 @@ defmodule RegentCredits.MixProject do
       {:simple_sat, "~> 0.1"},
       {:postgrex, "~> 0.22"},
       {:phoenix_pubsub, "~> 2.1"},
+      {:telemetry, "~> 1.0"},
       {:regent_chain, path: "../chain"},
       {:regent_agents, path: "../ash_components/agents"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},

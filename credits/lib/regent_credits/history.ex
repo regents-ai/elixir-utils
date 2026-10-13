@@ -28,6 +28,11 @@ defmodule RegentCredits.History do
       it came back, in the site's own short codes.
     * `agent_address` and `pairing_id`: the person's agent that set the Credits
       aside, when an agent did. A payment received never names the payer's.
+    * `key`, `tool` and `request`: the site's own id for what the Credits were
+      set aside for, the tool or page that set them aside, and the tool's
+      arguments as they were sent, when the site kept them. An agent reading
+      the history is given `request` only on a hold it placed itself, and a
+      payment received has none of the three.
     * `note`: a gift's note.
     * `chain` and `tx_hash`: a purchase's payment, or a refund's payment back
       once it is sent.
@@ -88,6 +93,9 @@ defmodule RegentCredits.History.Read do
     reason: nil,
     agent_address: nil,
     pairing_id: nil,
+    key: nil,
+    tool: nil,
+    request: nil,
     note: nil,
     chain: nil,
     tx_hash: nil,
@@ -141,7 +149,7 @@ defmodule RegentCredits.History.Read do
 
         {:ok,
          %{
-           entries: entries(transfers, accounts, owner),
+           entries: entries(transfers, accounts, owner, input.context.private.actor),
            more?: more?,
            next: if(more?, do: List.last(transfers).__metadata__.keyset)
          }}
@@ -170,9 +178,10 @@ defmodule RegentCredits.History.Read do
     end
   end
 
-  defp entries(transfers, accounts, owner) do
+  # `reader` is the actor the entries are for.
+  defp entries(transfers, accounts, owner, reader) do
     movements = Enum.map(transfers, &movement(&1, accounts))
-    found = found(movements, owner)
+    found = Map.put(found(movements, owner), :reader, reader)
 
     movements
     |> Enum.group_by(&event/1)
@@ -311,7 +320,10 @@ defmodule RegentCredits.History.Read do
           purpose: hold.purpose,
           reason: if(kind == :returned, do: hold.reason),
           agent_address: hold.agent_address,
-          pairing_id: hold.pairing_id
+          pairing_id: hold.pairing_id,
+          key: hold.key,
+          tool: hold.tool,
+          request: if(reads_request?(found.reader, hold), do: hold.request)
         }
 
       nil ->
@@ -350,4 +362,11 @@ defmodule RegentCredits.History.Read do
 
   # Credits that waited under a wallet until the account signed in with it.
   defp facts(%{operation: "attach:" <> _account}, _found), do: %{}
+
+  # An agent reads the request only on a hold it placed itself, so one agent's
+  # words never reach another agent of the same person as data.
+  defp reads_request?(%{role: :agent, agent_address: agent}, hold),
+    do: hold.agent_address == agent
+
+  defp reads_request?(_person_or_admin, _hold), do: true
 end

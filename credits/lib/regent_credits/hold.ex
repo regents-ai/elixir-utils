@@ -19,6 +19,17 @@ defmodule RegentCredits.Hold do
 
   Repeating an operation with the same details answers with the first result;
   the same key with other details is refused.
+
+  A site may say what led to a hold when it places one: `tool`, the tool or
+  page name as its capability list names it, and `request`, the tool's
+  arguments as the agent sent them. A site sends `request` only for a tool
+  whose accepted arguments always fit in 4,000 bytes and hold nothing a
+  visitor typed about themselves (a bid: yes; a post or a fix request: no,
+  the hold's `key` already names the site's own record of those words). It
+  never sends sign-in headers, proofs, signatures or tokens. A `request`
+  longer than that, or holding a zero byte, is not kept and the hold is
+  placed without it: a record-keeping limit never refuses a spend. A
+  carried-over hold keeps the first hold's.
   """
   use Ash.Resource,
     otp_app: :regent_credits,
@@ -32,6 +43,12 @@ defmodule RegentCredits.Hold do
     repo &RegentCredits.repo/2
     schema "regent_credits"
     table "holds"
+
+    check_constraints do
+      check_constraint :request, "request_fits",
+        check: "octet_length(request) <= 4000",
+        message: "is longer than 4,000 bytes"
+    end
   end
 
   attributes do
@@ -47,6 +64,12 @@ defmodule RegentCredits.Hold do
     # The agent that spent, when an agent did.
     attribute :agent_address, :string, public?: true
     attribute :pairing_id, :uuid, public?: true
+
+    # What led to the spend: the tool or page that placed the hold and, for a
+    # tool whose arguments are short and hold nothing personal, those arguments
+    # as they were sent. Never sign-in headers, proofs, signatures or tokens.
+    attribute :tool, :string, public?: true, constraints: [max_length: 120]
+    attribute :request, :string, public?: true, constraints: [trim?: false]
 
     attribute :amount, :decimal, allow_nil?: false, public?: true
     attribute :given, :decimal, allow_nil?: false, public?: true
@@ -108,6 +131,8 @@ defmodule RegentCredits.Hold do
         :purpose,
         :agent_address,
         :pairing_id,
+        :tool,
+        :request,
         :amount,
         :given,
         :purchased,
@@ -136,6 +161,8 @@ defmodule RegentCredits.Hold do
       argument :privy_user_id, :string, allow_nil?: false
       argument :amount, :decimal, allow_nil?: false
       argument :purpose, :string, allow_nil?: false
+      argument :tool, :string, constraints: [max_length: 120]
+      argument :request, :string, constraints: [trim?: false]
       run fn input, context -> Holds.hold(input.arguments, context.actor) end
     end
 
@@ -220,6 +247,19 @@ defmodule RegentCredits.Hold do
       authorize_if RegentCredits.Checks.Admin
       authorize_if expr(site == ^actor(:site) and ^actor(:role) == :site)
       authorize_if expr(privy_user_id == ^actor(:privy_user_id))
+    end
+  end
+
+  field_policies do
+    # An agent reads the request only on a hold it placed itself, so one agent's
+    # words never reach another agent of the same person as data.
+    field_policy :request do
+      authorize_if expr(^actor(:role) != :agent)
+      authorize_if expr(agent_address == ^actor(:agent_address))
+    end
+
+    field_policy :* do
+      authorize_if always()
     end
   end
 end

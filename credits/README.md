@@ -154,8 +154,9 @@ one entry, and its close is one entry for what came back and one for what was us
 Each entry has `id`, `kind`, `at`, `amount` (always positive), `direction` (`:in` or
 `:out` of what the person can spend, `:none` for held Credits that were used), and
 the facts that apply, `nil` otherwise: `site`, `purpose`, `reason`, `agent_address`
-and `pairing_id` (the person's agent that set the Credits aside), `note`, `chain`,
-`tx_hash`, `refund_status` and `refund_sent_at`. `RegentCredits.History` lists the
+and `pairing_id` (the person's agent that set the Credits aside), `key`, `tool` and
+`request` (what led to the spend, below), `note`, `chain`, `tx_hash`, `refund_status`
+and `refund_sent_at`. `RegentCredits.History` lists the
 kinds. Credits a person received from someone else's hold name the site only, never
 who paid. `RegentCredits.History.Words` holds the words every site shows for an
 entry (`line/1`) and for a site, purpose, reason, chain and failed purchase; a page
@@ -164,6 +165,39 @@ never reads an operation string, and a code with no words there is shown as noth
 `RegentCredits.history_of(privy_user_id, actor: admin)` answers the same entries for
 the person a Credits admin names, and nobody else may call it. The team's page shows
 them with the same words, so the team reads exactly what the person reads.
+
+### What led to a spend
+
+When a site places a hold it may say what led to it, so the person and the team can
+see it beside the spend (Sean, 13 October 2026):
+
+```elixir
+RegentCredits.hold(key, privy_user_id, amount, "offer_bid",
+  %{tool: "offers.bid", request: arguments_as_sent}, actor: actor)
+```
+
+- `tool` is the tool or page name as the site's capability list names it, at most
+  120 characters. A person's own press sends `tool` alone.
+- `request` is the tool's arguments as the agent sent them, at most 4,000 bytes.
+  Send it only for a tool whose accepted arguments always fit and hold nothing a
+  visitor typed about themselves: a bid, yes; a post or a fix request, no. For those
+  the entry's `key` is the site's own id of the post or request, where the words
+  already are. A `request` over 4,000 bytes, or one holding a zero byte, is not kept
+  and the hold is placed without it: a record-keeping limit never refuses a spend.
+  The database holds the same limit.
+- Never send sign-in headers, proofs, signatures or tokens. An agent may put a key
+  in its arguments, so pass only the arguments the site means to keep.
+- A carried-over hold keeps the first hold's `tool` and `request`.
+- The person and Credits admins read both. A paired agent reads the whole account's
+  history, its sibling agents' spends included, with `tool`, `key` and which agent
+  spent; it is given `request` only on a hold it placed itself, in the history and on
+  a hold alike, so one agent's words never reach another as data.
+- A page shows `request` as plain text, marked as written by the agent, never as a
+  link or markup, and never hands it to a model or a checker.
+- Never put `request` in a log line, error report, telemetry or a job's arguments.
+  Each hold that sends one emits `[:regent_credits, :hold, :request]` with its size in
+  `bytes`, the `site`, and whether it was `kept?`.
+- Nothing removes a stored `request` later; it stays with its hold.
 
 Ownership comes from the actor, never a supplied account ID. Nothing is removed to
 limit history length. A page holds the entries of at most 50 transfers and never ends

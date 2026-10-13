@@ -22,13 +22,14 @@ defmodule RegentAgents.HTTP do
 
   import Plug.Conn
 
-  alias RegentAgents.{Agent, Broker, Harness, HumanBacking}
+  alias RegentAgents.{Agent, Broker, Harness, HumanBacking, Refusal}
   alias RegentAgents.PairedAgent.AgentLimit
 
-  @guide "https://siwa.regents.sh/skill.md"
+  @sign_in_hint "Sign the request with your agent key as https://siwa.regents.sh/skill.md describes, then send it again."
   @harnesses Enum.map_join(Harness.values(), ", ", &Atom.to_string/1)
 
-  # Every refusal: a code for programs, a message and a hint for people.
+  # The refusals made here: a code for programs, a message and a hint for people.
+  # `RegentAgents.Refusal` words a request whose signature was refused.
   @errors %{
     "pairing_failed" =>
       {400, "The pairing code could not be used.",
@@ -42,20 +43,6 @@ defmodule RegentAgents.HTTP do
     "not_paired" =>
       {404, "This agent is not paired with an account.",
        "Ask your person for a pairing code, then pair again."},
-    "verification_failed" =>
-      {401, "The signed agent request could not be verified.",
-       "Sign the request with your agent key as #{@guide} describes, then send it again."},
-    "duplicate_proof" =>
-      {401, "A signature header was sent more than once.",
-       "Sign the request with your agent key as #{@guide} describes, then send it again."},
-    "unsupported_query" =>
-      {401, "A signed request here takes no query string.",
-       "Sign the request with your agent key as #{@guide} describes, then send it again."},
-    "missing_signed_body" =>
-      {401, "Send the body as JSON, signed with the rest of the request.",
-       "Sign the request with your agent key as #{@guide} describes, then send it again."},
-    "siwa_request_failed" =>
-      {503, "The sign-in service could not be reached.", "Try again in a minute."},
     "not_found" =>
       {404, "There is no such agent request.",
        "Agents pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}
@@ -120,7 +107,7 @@ defmodule RegentAgents.HTTP do
       })
     else
       {:refused, conn} -> conn
-      {:error, _error} -> error(conn, "siwa_request_failed")
+      {:error, _error} -> refuse(conn, %{reason: :siwa_request_failed})
     end
   end
 
@@ -152,31 +139,10 @@ defmodule RegentAgents.HTTP do
     end
   end
 
-  # The SIWA service's own refusal reaches the agent as it was given: the SIWA
-  # service writes the message and next steps for this site and the agent's
-  # signing tool.
-  defp refuse(conn, %{
-         siwa_status: status,
-         siwa_code: code,
-         siwa_message: message,
-         siwa_hint: hint
-       })
-       when status in 400..599 do
-    conn
-    |> put_status(status)
-    |> answer(%{error: %{code: code, message: message, hint: hint}})
+  defp refuse(conn, refusal) do
+    {status, error} = Refusal.describe(refusal, @sign_in_hint)
+    conn |> put_status(status) |> answer(%{error: error})
   end
-
-  defp refuse(conn, %{siwa_status: status}) when status >= 500,
-    do: error(conn, "siwa_request_failed")
-
-  defp refuse(conn, %{reason: :siwa_request_failed}), do: error(conn, "siwa_request_failed")
-
-  # The shared plug's own refusals keep its reason as the code, as on every site.
-  defp refuse(conn, %{source: :siwa_plug, reason: reason}),
-    do: error(conn, Atom.to_string(reason))
-
-  defp refuse(conn, _refusal), do: error(conn, "verification_failed")
 
   defp present(paired, agent) do
     %{

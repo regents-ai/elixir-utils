@@ -29,6 +29,14 @@ https://siwa.regents.sh/skill.md.
   `siwa_request_failed` (503), or the SIWA
   service's own refusal, passed on unchanged: its status, code, message and a
   hint written for the site and the agent's signing tool.
+- A site that runs `Siwa.AgentAuthPlug` for its own agent requests answers a
+  refused signature the same way: its `deny/2` hook calls
+  `RegentAgents.Refusal.describe(refusal, hint)` for every refusal it did not
+  make itself, with its own line on how an agent signs in to that site, and
+  sends the status and `{error: {code, message, hint}}` it returns. On purpose,
+  a refusal from the SIWA service below 500 that comes without its own code,
+  message and hint is answered `verification_failed` (401): its status, a 429
+  say, is not passed on.
 
 The person is named by their Privy user ID and the agent by its key's address.
 One key belongs to one person. A code works once, for ten minutes. A new code

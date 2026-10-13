@@ -17,7 +17,10 @@ All notable changes to `ens_elixir` should be recorded here.
   service takes one to five seconds to answer for a name it has not been asked about in
   the last hour, and the check gave up at two. `verified_primary_identity/2` now waits ten
   seconds by default, and a service that does not answer in time is `{:error, reason}`, so
-  the caller keeps the picture it holds and asks again.
+  the caller keeps the picture it holds and asks again. A service that answers busy or
+  broken (408, 429 or any 5xx) is `{:error, {:avatar_service_status, status}}` for the same
+  reason. Only its other answers that are not a picture, such as the 404 it gives a name
+  without one and the 400 it gives a name it refuses, mean no picture.
 - The avatar check no longer follows redirects: a redirect from the ENS avatar service is
   not a picture, so no avatar is given and the server never fetches the address it points to.
 

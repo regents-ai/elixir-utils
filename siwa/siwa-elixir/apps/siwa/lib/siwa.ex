@@ -13,11 +13,11 @@ defmodule Siwa do
   defdelegate content_digest_for_body(body), to: RequestAuth
   defdelegate forwarded_headers(), to: Contract
 
-  defdelegate required_authenticated_request_headers(body),
+  defdelegate required_authenticated_request_headers(body_digest),
     to: RequestAuth,
     as: :required_headers
 
-  defdelegate required_authenticated_request_components(headers, body),
+  defdelegate required_authenticated_request_components(headers, body_digest),
     to: RequestAuth,
     as: :required_covered_components
 end

@@ -94,6 +94,10 @@ receipt, and exact body digest.
   )
 ```
 
+`signed_request` carries the method, path and headers, and `body_digest`: the
+`Siwa.content_digest_for_body/1` of the body the verifier's caller read, or
+`nil` for a request without one. The body itself is never passed in.
+
 Verify the signature before consuming replay state, and keep product permission
 checks outside this package. `verified.verification_method` says how the wallet
 was proven: `:eoa_recovery` (its key, which holds on every chain), or `:erc1271`
@@ -129,7 +133,8 @@ wallet may do.
 A request carries the receipt in `x-siwa-receipt` and the wallet in `x-key-id`,
 `x-agent-wallet-address` and `x-agent-chain-id`, with `x-timestamp` and, when it
 has a body, `content-digest`. `Siwa.required_authenticated_request_headers/1` and
-`Siwa.required_authenticated_request_components/2` describe this shape. Replay
+`Siwa.required_authenticated_request_components/2` take the body digest (or
+`nil`) and describe this shape. Replay
 keys separate wallets by chain and audience.
 
 Use a durable replay store in the deployed broker. Its atomic consume must reject

@@ -17,6 +17,11 @@ All notable changes to `siwa` should be recorded here.
 
 ### Changed
 
+- `Siwa.verify_authenticated_request/2` takes the request's `body_digest`
+  (`Siwa.content_digest_for_body/1` of the body the caller read, or `nil`)
+  instead of its body, and `Siwa.required_authenticated_request_headers/1` and
+  `Siwa.required_authenticated_request_components/2` take that digest too.
+  `Siwa.AgentAuthPlug` sends the sign-in server `"body_digest"`, never the body.
 - `Siwa.required_authenticated_request_headers/1` and
   `Siwa.required_authenticated_request_components/2` describe the wallet
   request and take no kind argument.

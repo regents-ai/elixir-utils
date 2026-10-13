@@ -82,7 +82,8 @@ defmodule Siwa.AgentAuthPlugTest do
     assert_received {:verify_http_request, payload, audience: "testapp"}
     assert payload["method"] == "POST"
     assert payload["path"] == "/v1/things"
-    assert payload["body"] == ~s({"a":1})
+    assert payload["body_digest"] == Siwa.content_digest_for_body(~s({"a":1}))
+    refute Map.has_key?(payload, "body")
     assert payload["headers"]["x-agent-wallet-address"] == "0xabc"
 
     assert_received {:accept, %{"agent_claims" => %{"token_id" => "77"}}, :context}
@@ -152,7 +153,8 @@ defmodule Siwa.AgentAuthPlugTest do
     |> read_whole_body()
     |> call()
 
-    assert_received {:verify_http_request, %{"body" => ~s({"a": 1})}, _opts}
+    digest = Siwa.content_digest_for_body(~s({"a": 1}))
+    assert_received {:verify_http_request, %{"body_digest" => ^digest}, _opts}
 
     {:more, _chunk, conn} =
       :post |> conn("/v1/things", String.duplicate("a", 11)) |> AgentAuthPlug.read_body([], 10)
@@ -161,13 +163,14 @@ defmodule Siwa.AgentAuthPlugTest do
     assert_received {:deny, %{reason: :missing_signed_body, source: :siwa_plug}}
   end
 
-  test "body is omitted without a captured raw body unless :always" do
+  test "the body digest is omitted without a captured raw body unless :always" do
     :post |> conn("/v1/things", "{}") |> call()
     assert_received {:verify_http_request, payload, _opts}
-    refute Map.has_key?(payload, "body")
+    refute Map.has_key?(payload, "body_digest")
 
     :post |> conn("/v1/things", "{}") |> call(body: :always)
-    assert_received {:verify_http_request, %{"body" => ""}, _opts}
+    digest = Siwa.content_digest_for_body("")
+    assert_received {:verify_http_request, %{"body_digest" => ^digest}, _opts}
   end
 
   test "before_verify errors deny without calling the client" do

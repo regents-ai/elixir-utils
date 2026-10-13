@@ -138,7 +138,7 @@ defmodule Siwa.ContractConformanceTest do
     %{
       method: request["method"],
       path: request["path"],
-      body: request["body"],
+      body_digest: Siwa.content_digest_for_body(request["body"]),
       headers: Map.new(request["headers"], &List.to_tuple/1)
     }
   end

@@ -85,8 +85,12 @@ defmodule RegentAgents.HTTPTest do
     assert paired["same_person_agent_count"] == nil
 
     assert_received {:verified, "/api/shared/siwa/http-verify", ["test"], envelope}
-    assert %{"method" => "POST", "path" => "/api/agents/v1/pair", "body" => signed} = envelope
-    assert Jason.decode!(signed) == body
+
+    assert %{"method" => "POST", "path" => "/api/agents/v1/pair", "body_digest" => digest} =
+             envelope
+
+    assert digest == Siwa.content_digest_for_body(Jason.encode!(body))
+    refute Map.has_key?(envelope, "body")
 
     assert {200, %{"data" => checked_in}} = send_request(:get, "/api/agents/v1/me")
     assert checked_in["wallet"] == @wallet
@@ -95,7 +99,7 @@ defmodule RegentAgents.HTTPTest do
     assert_received {:verified, _path, _audience,
                      %{"method" => "GET", "path" => "/api/agents/v1/me"} = check_in}
 
-    refute Map.has_key?(check_in, "body")
+    refute Map.has_key?(check_in, "body_digest")
   end
 
   test "a listed, human-backed agent is answered with its listing's page and its saved backing, never the person's number" do

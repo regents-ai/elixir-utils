@@ -12,7 +12,10 @@ defmodule Siwa.AgentAuthPlug do
       capture whole, so the signature would not cover what the site reads.
 
   It then builds the canonical `POST /api/shared/siwa/http-verify` payload
-  carrying only the signed headers, sends it through the app-provided client,
+  carrying only the signed headers and, for a request with a body, that body's
+  digest (`Siwa.content_digest_for_body/1`) from the bytes this site read. The
+  body itself never leaves the site. It sends the payload through the
+  app-provided client,
   and hands every app-specific decision to the app's hooks module:
 
     * `c:Siwa.AgentAuthPlug.Hooks.before_verify/2` runs before the broker
@@ -35,8 +38,9 @@ defmodule Siwa.AgentAuthPlug do
     * `:audience` — SIWA audience string passed to the client (required)
     * `:query` — `:refuse` (default) or `:signed` (the query string is part of
       the signed path)
-    * `:body` — `:if_present` (default: omit the payload `"body"` when no raw
-      body was captured) or `:always` (send the captured raw body or `""`)
+    * `:body` — `:if_present` (default: omit the payload `"body_digest"` when
+      no raw body was captured) or `:always` (send the digest of the captured
+      raw body, or of `""`)
 
   A site's body reader passes each signed route's body to `read_body/3`. Deny
   metadata is a map with `:reason` and `:source` plus optional detail keys (`:siwa_status`, `:siwa_code`,
@@ -219,10 +223,14 @@ defmodule Siwa.AgentAuthPlug do
     }
 
     case {Keyword.get(opts, :body, :if_present), conn.assigns[:raw_body]} do
-      {_mode, body} when is_binary(body) -> Map.put(payload, "body", body)
-      {:always, _missing} -> Map.put(payload, "body", "")
+      {_mode, body} when is_binary(body) -> put_body_digest(payload, body)
+      {:always, _missing} -> put_body_digest(payload, "")
       {:if_present, _missing} -> payload
     end
+  end
+
+  defp put_body_digest(payload, body) do
+    Map.put(payload, "body_digest", Siwa.RequestAuth.content_digest_for_body(body))
   end
 
   defp signed_path(%Plug.Conn{request_path: path, query_string: ""}), do: path

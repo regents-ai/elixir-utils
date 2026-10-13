@@ -2,6 +2,10 @@ defmodule Siwa.RequestAuth do
   @moduledoc """
   Signs and verifies agent requests under `Siwa.Contract`, which names every
   header, component and parameter used here.
+
+  An agent signs the request's body; a verifier is given only that body's
+  digest (`content_digest_for_body/1`), worked out by whoever read the body,
+  and `nil` when the request had none.
   """
 
   alias Siwa.{Contract, Receipt, WalletSignature}
@@ -59,10 +63,10 @@ defmodule Siwa.RequestAuth do
   end
 
   def verify_authenticated_request(request, opts \\ []) do
+    body_digest = request[:body_digest] || request["body_digest"]
     request = normalize_request(request)
-    body_digest = request_body_digest(request.body)
 
-    with :ok <- ensure_request_body(request),
+    with :ok <- ensure_body_digest(body_digest),
          :ok <- ensure_required_headers(request.headers, body_digest),
          {:ok, receipt_payload} <-
            verify_receipt(Map.fetch!(request.headers, @receipt_header), opts),
@@ -147,16 +151,12 @@ defmodule Siwa.RequestAuth do
 
   def content_digest_for_body(_body), do: nil
 
-  def required_headers(body) do
-    body
-    |> request_body_digest()
-    |> required_headers_for_digest()
-  end
+  def required_headers(body_digest), do: required_headers_for_digest(body_digest)
 
-  def required_covered_components(headers, body) when is_map(headers) do
+  def required_covered_components(headers, body_digest) when is_map(headers) do
     headers
     |> lowercase_headers()
-    |> required_components_for_headers(request_body_digest(body))
+    |> required_components_for_headers(body_digest)
   end
 
   defp unsigned_headers(request, receipt, receipt_payload, created) do
@@ -189,6 +189,9 @@ defmodule Siwa.RequestAuth do
 
   defp ensure_request_body(%{body: body}) when is_nil(body) or is_binary(body), do: :ok
   defp ensure_request_body(_request), do: {:error, :invalid_request_body}
+
+  defp ensure_body_digest(body_digest) when is_nil(body_digest) or is_binary(body_digest), do: :ok
+  defp ensure_body_digest(_body_digest), do: {:error, :invalid_request_body}
 
   defp verify_receipt(receipt, opts) when is_binary(receipt) do
     with {:ok, audience} <- required_audience(opts),

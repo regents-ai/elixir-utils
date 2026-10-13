@@ -161,7 +161,10 @@ never reads an operation string, and a code with no words there is shown as noth
 Ownership comes from the actor, never a supplied account ID. Nothing is removed to
 limit history length. A page holds the entries of at most 50 transfers and never ends
 inside one entry; pass `%{after: page.next}` to read older entries while `page.more?`
-is true. Purchases that added no Credits (still being checked, or failed with a
+is true. Entries are ordered by when each site wrote them, by that site's own clock.
+If two sites write for one person within the same few milliseconds and their clocks
+differ, one hold's close can fall either side of a page edge and read as two lines
+whose amounts still add up to it. That is expected, not a fault. Purchases that added no Credits (still being checked, or failed with a
 reason) are not in the history; `RegentCredits.purchases(actor: person)` reads them.
 All amounts retain six decimal places of precision.
 

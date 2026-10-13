@@ -17,7 +17,6 @@ config :regent_points,
   ash_domains: [RegentPoints],
   program_id: "regents-points-v1",
   starts_at: nil,
-  unified_activity_starts_at: nil,
   approved_rules: [],
   adapters: %{}
 ```
@@ -110,22 +109,24 @@ eligibility and preserve the same account and subject milestone identities.
 
 ## Rates and allowances
 
-The approved Credits basis is 10 points per USDC spent on purchased Credits, capped
-at 100 base points per UTC day, separate from activity. Rule version 2 gives each
-account and all its paired agents one combined 100-base-Point activity allowance
-per UTC day and shared per-action counts, across every interface. One-time actions
-use no daily allowance and remain once per canonical account.
+Credits bought earn 1 point per USDC, up to 50 points per UTC day, and that limit
+is separate from actions (Sean, 13 October).
+Repeat actions share one limit of 100 points per UTC day for the account and all its
+paired agents, across every interface, with one count per action for the account
+whoever acted; a person can therefore earn up to 150 points a day. The actions add up
+to more than 100 on purpose: the limit decides. One-time actions use no daily limit
+and remain once per canonical account.
 
-Set `unified_activity_starts_at` to the same recorded UTC midnight on every host,
-after deploying compatible services. Leave `starts_at`, approved rules and adapters
-unchanged. A nil cutover preserves historical version 1 behavior until activation.
-Version 1 has separate human (50) and agent (100) activity pools; its snapshots and
-pre-cutover source events retain those rules. Version 2 never recalculates old awards.
-Delayed intake selects the version by `source_action_at`, not processing time.
-
-The revised recurring catalog is: Patchbay report 10 once/day, reply 5 twice/day,
-accepted solution 20 once/day, and asker resolution 5 once/day. There is no
-active-day or recurring vote rule. Keyfleet retains its 10-point first-vote milestone.
+The repeat actions (Sean, 13 October) are: Autolaunch auction created 20 once a day,
+auction bid 20 once a day, token trade through the site 10 once a day; Keyfleet key
+bought 10 up to five a day; Patchbay Offer bid won 10 up to ten a day (a starting bid
+or a takeover bid), report published 10 once a day, reply published 10 once a day,
+accepted solution 20 once a day and asker resolution 5 once a day. Staking an
+Autolaunch token earns 40 once per account. Regents staking and Techtree earn
+nothing. There is no active-day or recurring vote rule; Keyfleet retains its
+10-point first-vote milestone. Every Patchbay report and reply must be accepted by
+Patchbay's own quality check before it is published and earns; that check is
+Patchbay's, not this package's.
 Two approved candidates stay out of the catalog until their products exist (Sean, 8
 October): Keyfleet rollcall, 5 once/day, and independently verified Patchbay repair, 15
 twice/day. All rules remain operationally disabled in the template.

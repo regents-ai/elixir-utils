@@ -7,9 +7,6 @@ defmodule RegentPoints.Rules do
   @unit 1_000_000
   @milestones [
     {"account.email_verified", 5, "Email verified"},
-    {"regents.first_stake", 10, "First stake on Regents"},
-    {"regents.first_reward_claim", 10, "First staking reward claimed"},
-    {"regents.first_redemption", 10, "First redemption on Regents"},
     {"account.activated", 25, "Account activated"},
     {"account.profile_completed", 10, "Profile completed"},
     {"social.x", 10, "X account linked"},
@@ -29,11 +26,10 @@ defmodule RegentPoints.Rules do
     {"patchbay.first_solution", 25, "First Patchbay solution"},
     {"patchbay.first_paid_assist", 10, "First paid Patchbay assist"},
     {"patchbay.first_resolved_priority_report", 15, "First priority Patchbay report resolved"},
-    {"techtree.first_signing_key", 10, "First Techtree signing key"},
-    {"techtree.first_non_demo_result", 25, "First Techtree result"},
     {"autolaunch.first_launch", 20, "First Autolaunch launch"},
     {"autolaunch.first_graduation", 50, "First Autolaunch graduation"},
     {"autolaunch.first_settled_auction", 10, "First Autolaunch auction settled"},
+    {"autolaunch.token_staked", 40, "Autolaunch token staked"},
     {"keyfleet.first_membership", 10, "First Keyfleet membership"},
     {"keyfleet.first_reveal", 5, "First Keyfleet key revealed"},
     {"keyfleet.first_authorized_agent", 10, "First agent authorized on Keyfleet"},
@@ -46,8 +42,13 @@ defmodule RegentPoints.Rules do
     {"template.first_agent_note", 10, "First note written by your agent"}
   ]
   @activity [
+    {"autolaunch.auction_created", 20, 1, "day", "Autolaunch auction created"},
+    {"autolaunch.auction_bid", 20, 1, "day", "Autolaunch auction bid"},
+    {"autolaunch.token_traded", 10, 1, "day", "Autolaunch token trade"},
+    {"keyfleet.key_bought", 10, 5, "day", "Keyfleet key bought"},
+    {"patchbay.offer_bid_won", 10, 10, "day", "Patchbay Offer bid won"},
     {"patchbay.report_published", 10, 1, "day", "Patchbay report published"},
-    {"patchbay.reply_published", 5, 2, "day", "Patchbay reply published"},
+    {"patchbay.reply_published", 10, 1, "day", "Patchbay reply published"},
     {"patchbay.solution_accepted", 20, 1, "day", "Patchbay solution accepted"},
     {"patchbay.report_resolved", 5, 1, "day", "Patchbay report resolved"}
   ]
@@ -62,7 +63,7 @@ defmodule RegentPoints.Rules do
   @doc "The customer name of every catalog rule, including the source app."
   def label(id), do: Map.fetch!(@labels, id)
 
-  def catalog(at \\ DateTime.utc_now()) do
+  def catalog do
     milestones =
       Enum.map(@milestones, fn {id, points, _label} ->
         rule(id, "milestone", points, 1, "lifetime")
@@ -76,7 +77,6 @@ defmodule RegentPoints.Rules do
     {credits, _label} = @credits
 
     [rule(credits, "credits", nil, nil, "day") | milestones ++ activity]
-    |> Enum.map(&version(&1, at))
   end
 
   def config, do: Application.get_all_env(:regent_points)
@@ -98,8 +98,8 @@ defmodule RegentPoints.Rules do
          true <- DateTime.compare(at, start) != :lt,
          true <- DateTime.compare(at, DateTime.utc_now()) != :gt,
          true <- enabled?(id),
-         %{} = rule <- Enum.find(catalog(at), &(&1["id"] == id)) do
-      {:ok, Map.put(rule, "effective_at", DateTime.to_iso8601(effective_at(rule, start)))}
+         %{} = rule <- Enum.find(catalog(), &(&1["id"] == id)) do
+      {:ok, Map.put(rule, "effective_at", DateTime.to_iso8601(start))}
     else
       _ -> {:error, :rule_not_active}
     end
@@ -145,10 +145,14 @@ defmodule RegentPoints.Rules do
 
   def base_micro(_, _), do: {:error, :invalid_rule_snapshot}
 
-  def allowance_scope(%{"category" => "credits"}, _actor), do: "credits"
-  def allowance_scope(%{"category" => "activity", "version" => 2}, _actor), do: "activity:account"
-  def allowance_scope(%{"category" => "activity"}, actor), do: "activity:#{actor}"
-  def allowance_scope(_, _), do: nil
+  @doc """
+  The daily limit a rule's points count against: Credits bought have their
+  own, and every repeat action shares one, whoever acted, the person or any
+  of their agents. One-time rules count against none.
+  """
+  def allowance_scope(%{"category" => "credits"}), do: "credits"
+  def allowance_scope(%{"category" => "activity"}), do: "activity:account"
+  def allowance_scope(_rule), do: nil
 
   def window("lifetime", _at), do: {~D[1970-01-01], nil}
 
@@ -157,10 +161,8 @@ defmodule RegentPoints.Rules do
     {day, Date.add(day, 1)}
   end
 
-  def daily_cap("activity:human"), do: 50 * @unit
-
-  def daily_cap(scope) when scope in ["credits", "activity:agent", "activity:account"],
-    do: 100 * @unit
+  def daily_cap("credits"), do: 50 * @unit
+  def daily_cap("activity:account"), do: 100 * @unit
 
   @doc "The apps the daily rules among `rules` come from."
   def daily_apps(rules) do
@@ -171,56 +173,8 @@ defmodule RegentPoints.Rules do
 
   def activity_app?(app), do: app in daily_apps(catalog())
 
-  @doc "Shared per-action allowance for v2; historical v1 keeps its original actor pools."
-  def count_scope(%{"category" => "activity", "version" => 1, "id" => id}, actor),
-    do: id <> ":" <> actor
-
-  def count_scope(rule, _actor), do: rule["milestone_key"] || rule["id"]
-
-  defp version(rule, at) do
-    case cutover() do
-      nil ->
-        rule
-
-      cutover ->
-        if DateTime.compare(at, cutover) == :lt do
-          rule
-        else
-          %{
-            rule
-            | "version" => 2,
-              "daily_caps_micro" => Map.new(["credits", "activity:account"], &{&1, daily_cap(&1)})
-          }
-        end
-    end
-  end
-
-  defp effective_at(%{"version" => 2}, _start), do: cutover()
-  defp effective_at(_rule, start), do: start
-
-  # Explicit configuration does not enable any program or approved rule. All
-  # services must deploy compatible code before setting the same UTC midnight.
-  defp cutover do
-    case Keyword.get(config(), :unified_activity_starts_at) do
-      nil ->
-        nil
-
-      %DateTime{time_zone: "Etc/UTC", hour: 0, minute: 0, second: 0, microsecond: {0, _}} = at ->
-        case Keyword.get(config(), :starts_at) do
-          %DateTime{} = start ->
-            if DateTime.compare(at, start) == :lt,
-              do: raise(ArgumentError, "unified activity cannot precede the program start")
-
-          _ ->
-            :ok
-        end
-
-        at
-
-      _ ->
-        raise ArgumentError, "unified_activity_starts_at must be a UTC midnight"
-    end
-  end
+  @doc "What a rule's count is kept under: one count per action for the person and their agents."
+  def count_scope(rule), do: rule["milestone_key"] || rule["id"]
 
   defp rule(id, category, points, count, period),
     do: %{
@@ -230,9 +184,8 @@ defmodule RegentPoints.Rules do
       "points" => points,
       "count" => count,
       "period" => period,
-      "daily_caps_micro" =>
-        Map.new(["credits", "activity:human", "activity:agent"], &{&1, daily_cap(&1)}),
-      "micro_points_per_atomic_usdc" => if(category == "credits", do: 10),
+      "daily_caps_micro" => Map.new(["credits", "activity:account"], &{&1, daily_cap(&1)}),
+      "micro_points_per_atomic_usdc" => if(category == "credits", do: 1),
       "milestone_key" => if(category == "milestone", do: id)
     }
 end

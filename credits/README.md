@@ -177,13 +177,14 @@ RegentCredits.hold(key, privy_user_id, amount, "offer_bid",
 ```
 
 - `tool` is the tool or page name as the site's capability list names it, at most
-  120 characters. A person's own press sends `tool` alone.
+  120 characters. A person's own press sends `tool` alone. It is the site's own
+  constant, never text from a request: a `tool` that is too long refuses the hold.
 - `request` is the tool's arguments as the agent sent them, at most 4,000 bytes.
   Send it only for a tool whose accepted arguments always fit and hold nothing a
   visitor typed about themselves: a bid, yes; a post or a fix request, no. For those
   the entry's `key` is the site's own id of the post or request, where the words
-  already are. A `request` over 4,000 bytes, or one holding a zero byte, is not kept
-  and the hold is placed without it: a record-keeping limit never refuses a spend.
+  already are. A `request` over 4,000 bytes, or one holding a zero byte or bytes that
+  are not UTF-8, is not kept and the hold is placed without it: a record-keeping limit never refuses a spend.
   The database holds the same limit.
 - Never send sign-in headers, proofs, signatures or tokens. An agent may put a key
   in its arguments, so pass only the arguments the site means to keep.

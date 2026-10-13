@@ -46,8 +46,7 @@ defmodule RegentCredits.Holds do
   defp cause(args, site) do
     request = args[:request]
 
-    kept? =
-      is_nil(request) or (byte_size(request) <= @request_bytes and request =~ ~r/\A[^\0]*\z/s)
+    kept? = is_nil(request) or (byte_size(request) <= @request_bytes and storable?(request))
 
     if request,
       do:
@@ -59,6 +58,9 @@ defmodule RegentCredits.Holds do
 
     %{tool: args[:tool], request: if(kept?, do: request)}
   end
+
+  # Postgres text refuses a zero byte and anything that is not UTF-8.
+  defp storable?(request), do: String.valid?(request) and not String.contains?(request, <<0>>)
 
   defp place(accounts, actor, key, details, cause) do
     %{privy_user_id: owner, amount: amount} = details

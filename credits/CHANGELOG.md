@@ -58,5 +58,6 @@ shared by every Regent site.
   `request`, kept on the hold (two new columns on `regent_credits.holds`, added
   by migration `20261013202732_hold_cause`, which must run before any site sends
   them) and shown on the history entry with the hold's `key`. A `request` over
-  4,000 bytes is not kept and the hold is still placed. An agent is given
+  4,000 bytes, or one Postgres cannot store as text, is not kept and the hold
+  is still placed. An agent is given
   `request` only on a hold it placed itself.

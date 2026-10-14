@@ -61,3 +61,4 @@ shared by every Regent site.
   4,000 bytes, or one Postgres cannot store as text, is not kept and the hold
   is still placed. An agent is given
   `request` only on a hold it placed itself.
+- Runs on Ash 3.36 and AshOban 0.10. Ash postgres stays at 2.13.0.

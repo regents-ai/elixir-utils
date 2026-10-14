@@ -18,3 +18,4 @@
   names, routes, settings, mix tasks and migrations are unchanged.
 - elixir-utils siblings are path dependencies, and the package runs the
   elixir-utils `mix check`.
+- Runs on Ash 3.36. Ash postgres stays at 2.13.0.

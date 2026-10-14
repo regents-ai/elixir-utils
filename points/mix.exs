@@ -27,7 +27,7 @@ defmodule RegentPoints.MixProject do
   defp deps do
     [
       {:regent_agents, path: "../ash_components/agents"},
-      {:ash, "~> 3.34 and >= 3.34.6"},
+      {:ash, "~> 3.36"},
       {:ash_postgres, "== 2.13.0"},
       {:simple_sat, "~> 0.1"},
       {:oban, "~> 2.24"},

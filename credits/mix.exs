@@ -33,12 +33,12 @@ defmodule RegentCredits.MixProject do
 
   defp deps do
     [
-      {:ash, "~> 3.34 and >= 3.34.6"},
+      {:ash, "~> 3.36"},
       # 2.13.1 and later build upserts against the wrong schema.
       {:ash_postgres, "== 2.13.0"},
       {:ash_double_entry, "~> 1.0.19"},
       {:ash_money, "~> 0.2.6"},
-      {:ash_oban, "~> 0.9.0"},
+      {:ash_oban, "~> 0.10.0"},
       {:ex_money_sql, "~> 2.1"},
       {:simple_sat, "~> 0.1"},
       {:postgrex, "~> 0.22"},

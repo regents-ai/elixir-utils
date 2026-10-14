@@ -1,12 +1,14 @@
 defmodule RegentAgents.Person do
   @moduledoc """
   A signed-in person, named by their Privy user ID. The site builds it only
-  from its own verified session.
+  from its own verified session. A site's team page builds it with
+  `role: :admin`; `RegentAgents.Checks.Admin` then also asks that the
+  `:admins` setting names the person.
   """
   @enforce_keys [:privy_user_id]
-  defstruct [:privy_user_id]
+  defstruct [:privy_user_id, role: :person]
 
-  @type t :: %__MODULE__{privy_user_id: String.t()}
+  @type t :: %__MODULE__{privy_user_id: String.t(), role: :person | :admin}
 end
 
 defmodule RegentAgents.Agent do
@@ -50,5 +52,47 @@ defmodule RegentAgents.Checks.Agent do
 
   @impl true
   def match?(%RegentAgents.Agent{wallet: wallet}, _context, _opts), do: is_binary(wallet)
+  def match?(_actor, _context, _opts), do: false
+end
+
+defmodule RegentAgents.Checks.OwnsAgent do
+  @moduledoc "The actor is the signed-in person whose agent the change names in `paired_agent_id`."
+  use Ash.Policy.SimpleCheck
+
+  require Ash.Query
+
+  @impl true
+  def describe(_opts), do: "actor owns the paired agent"
+
+  @impl true
+  def match?(%RegentAgents.Person{privy_user_id: id}, %{changeset: changeset}, _opts)
+      when is_binary(id) do
+    agent_id = Ash.Changeset.get_attribute(changeset, :paired_agent_id)
+
+    # This check is the authorization: the filter names the actor's own
+    # Privy account, so it can only find an agent the actor owns.
+    RegentAgents.PairedAgent
+    |> Ash.Query.filter(id == ^agent_id and privy_user_id == ^id)
+    |> Ash.exists?(authorize?: false)
+  end
+
+  def match?(_actor, _context, _opts), do: false
+end
+
+defmodule RegentAgents.Checks.Admin do
+  @moduledoc """
+  A team actor (`role: :admin`) whose Privy account the site's
+  `config :regent_agents, admins: [...]` names. With no `:admins` setting, no
+  one is.
+  """
+  use Ash.Policy.SimpleCheck
+
+  @impl true
+  def describe(_opts), do: "actor is a Regent team member"
+
+  @impl true
+  def match?(%RegentAgents.Person{role: :admin, privy_user_id: id}, _context, _opts),
+    do: id in Application.get_env(:regent_agents, :admins, [])
+
   def match?(_actor, _context, _opts), do: false
 end

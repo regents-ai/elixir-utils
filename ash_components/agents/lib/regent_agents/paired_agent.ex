@@ -153,6 +153,10 @@ defmodule RegentAgents.PairedAgent do
   it for good, and each verified request naming that person saves their agent
   count (`RegentAgents.HumanBacking`). The person's number only groups their
   agents.
+
+  `picture_updated_at` is when the agent's picture (`RegentAgents.AgentPicture`)
+  was last set, and nil when it has none; a page links the picture with it as
+  `?v=` in unix seconds, so a new picture is fetched afresh.
   """
 
   use Ash.Resource,
@@ -193,6 +197,14 @@ defmodule RegentAgents.PairedAgent do
       public? true
       constraints min: 1
     end
+  end
+
+  relationships do
+    has_one :picture, RegentAgents.AgentPicture, destination_attribute: :paired_agent_id
+  end
+
+  aggregates do
+    first :picture_updated_at, :picture, :updated_at, public?: true
   end
 
   actions do

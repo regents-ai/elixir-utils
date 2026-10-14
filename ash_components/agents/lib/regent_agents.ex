@@ -45,6 +45,13 @@ defmodule RegentAgents do
       define :get_my_agent, action: :mine_by_id, args: [:id], not_found_error?: false
       define :unpair_agent, action: :unpair
     end
+
+    resource RegentAgents.AgentPicture do
+      define :set_agent_picture, action: :set, args: [:paired_agent_id, :bytes]
+      define :remove_agent_picture, action: :remove, get_by: [:paired_agent_id]
+      define :remove_agent_picture_by_team, action: :remove_by_team, get_by: [:paired_agent_id]
+      define :agent_picture, action: :by_wallet, args: [:wallet], not_found_error?: false
+    end
   end
 
   @doc false

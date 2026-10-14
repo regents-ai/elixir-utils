@@ -21,3 +21,14 @@
 - elixir-utils siblings are path dependencies, and the package runs the
   elixir-utils `mix check`.
 - Runs on Ash 3.36. Ash postgres stays at 2.13.0.
+- `RegentAgents.AgentPicture`: the picture a person chose for one of their
+  paired agents. The person sets it (`set_agent_picture/3`, a WebP of at most
+  65,536 bytes, judged by its first bytes) and removes it
+  (`remove_agent_picture/2`); a team member, a `RegentAgents.Person` with
+  `role: :admin` whom `config :regent_agents, admins: [...]` names, may only
+  remove it (`remove_agent_picture_by_team/2`). Anyone may read it by the
+  agent's wallet (`agent_picture/2`). `RegentAgents.PairedAgent` gains
+  `picture_updated_at`, nil when the agent has no picture. Unpairing removes
+  the picture. Migration `20261014150000_agent_pictures` adds
+  `regent_agents.agent_pictures` and must run before any site uses this
+  version.

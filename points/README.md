@@ -147,8 +147,8 @@ the tier held at period end, and Oban retries a Base outage. The tier is never r
 again for that period: an award checked after the tally, or a correction, moves the
 period's earned total and bonus at the saved tier in the same locked transaction as
 its ledger entry. An account's balance is its entries plus its period bonuses. Version 2 daily
-activity and Credits rewards together are at most 200 base Points, excluding milestones. The proposed milestone catalog
-totals 510 (Sean, 9 October: the 10-point first agent note). Sean approved the trial
+activity and Credits rewards together are at most 200 base Points, excluding milestones. The milestone catalog
+totals 435 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
 `tracked/0` lists the rules this site has a source adapter for, and a site's Points

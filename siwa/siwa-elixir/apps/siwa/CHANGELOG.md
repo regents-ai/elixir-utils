@@ -31,6 +31,10 @@ All notable changes to `siwa` should be recorded here.
 - `Siwa.RequestAuth.ReplayStore` keeps its record in a table callers write to
   directly, cleared of expired entries once a minute, in place of one process
   holding a map.
+- A signed request's single-use entry, in any replay store, is kept until the
+  earlier of its `expires` and the second after its `created` time leaves the
+  signature tolerance, when the request is refused anyway. A far-off `expires`
+  no longer keeps an entry for that long.
 - `Siwa.verify_authenticated_request/2` takes the request's `body_digest`
   (`Siwa.content_digest_for_body/1` of the body the caller read, or `nil`)
   instead of its body, and `Siwa.required_authenticated_request_headers/1` and

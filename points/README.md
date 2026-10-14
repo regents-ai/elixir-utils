@@ -87,12 +87,12 @@ Any site that lists `RegentCredits` may credit any purchase, and its listener of
 key is the same wherever it credits. Approve that rule and its start time on every
 Credits host in one change; a host with it off would let a purchase it credits earn nothing.
 Agent evidence contains `"attribution_link_id"`; Keyfleet additionally needs
-`"key_id"` and `"ownership_epoch"`; social/registration milestones need a stable
+`"key_id"` and `"ownership_epoch"`; social milestones need a stable
 restricted `"subject_key"`. Reports through WebMCP, HTTP, CLI, MCP or the site UI
 must use the same business source identity for the same completed action. Transport
 never establishes agent identity or creates a second award.
 
-Existing verified social, ENS, pairing and registration state may qualify
+Existing verified social, ENS and pairing state may qualify
 once, using its actual verification time after program start, without reconnecting.
 This is not historical activity backfill. The source adapter must prove current
 eligibility and preserve the same account and subject milestone identities.
@@ -137,7 +137,7 @@ again for that period: an award checked after the tally, or a correction, moves 
 period's earned total and bonus at the saved tier in the same locked transaction as
 its ledger entry. An account's balance is its entries plus its period bonuses. Version 2 daily
 activity and Credits rewards together are at most 200 base Points, excluding milestones. The milestone catalog
-totals 360 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
+totals 335 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
 `tracked/0` lists the rules this site has a source adapter for, and a site's Points

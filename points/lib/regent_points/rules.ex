@@ -12,7 +12,6 @@ defmodule RegentPoints.Rules do
     {"social.farcaster", 10, "Farcaster account linked"},
     {"identity.ens_selected", 25, "Verified ENS name chosen"},
     {"agent.activated", 25, "First paired agent"},
-    {"agent.erc8004_registered", 25, "First agent listed on ERC-8004"},
     {"patchbay.first_report", 10, "First Patchbay report"},
     {"patchbay.first_reply", 10, "First Patchbay reply"},
     {"autolaunch.first_launch", 20, "First Autolaunch launch"},

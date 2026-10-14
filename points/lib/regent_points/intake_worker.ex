@@ -99,7 +99,7 @@ defmodule RegentPoints.IntakeWorker do
         else: needed
 
     needed =
-      if String.starts_with?(rule, "social.") or rule == "agent.erc8004_registered",
+      if String.starts_with?(rule, "social."),
         do: ["subject_key" | needed],
         else: needed
 

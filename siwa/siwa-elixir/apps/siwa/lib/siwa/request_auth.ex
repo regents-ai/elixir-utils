@@ -70,8 +70,64 @@ defmodule Siwa.RequestAuth do
          :ok <- ensure_required_headers(request.headers, body_digest),
          {:ok, receipt_payload} <-
            verify_receipt(Map.fetch!(request.headers, @receipt_header), opts),
-         :ok <- ensure_wallet_receipt(receipt_payload, opts),
-         {:ok, parsed_signature_input} <-
+         :ok <- ensure_wallet_receipt(receipt_payload, opts) do
+      verify_signed_request(
+        request,
+        body_digest,
+        receipt_payload,
+        &verify_wallet_signature(&1, &2, receipt_payload, opts),
+        opts
+      )
+    end
+  end
+
+  @doc """
+  Verifies a request signed under a receipt the sign-in server has already
+  checked for this site, without the receipt's secret: a site's lease
+  (`Siwa.AgentAuthPlug.Leases`). `lease` carries the receipt's exact bytes, the
+  claims the sign-in server read from it (`"sub"`, `"key_id"`, `"chain_id"`,
+  `"aud"`) and `:until_ms`, the lease's end in Unix milliseconds, never after the
+  receipt's own.
+
+  The request must carry those exact receipt bytes, `opts[:audience]` must be the
+  claims' audience, and the lease must not have ended. Every other check is the
+  sign-in server's own: the signature window, the covered components, the body
+  and header bindings, the wallet's signature and single use. Only an ordinary
+  wallet's signature is checked here; a smart wallet is never given a lease.
+  """
+  def verify_leased_request(
+        request,
+        %{receipt: receipt, claims: claims, until_ms: until_ms},
+        opts
+      ) do
+    body_digest = request[:body_digest] || request["body_digest"]
+    request = normalize_request(request)
+
+    now_ms =
+      opts
+      |> Keyword.get_lazy(:now, fn -> DateTime.utc_now() end)
+      |> DateTime.to_unix(:millisecond)
+
+    with :ok <- ensure_body_digest(body_digest),
+         :ok <- ensure_required_headers(request.headers, body_digest),
+         :ok <- ensure_leased_receipt(Map.fetch!(request.headers, @receipt_header), receipt),
+         {:ok, audience} <- required_audience(opts),
+         :ok <- ensure_leased_claims(claims, audience, until_ms, now_ms) do
+      verify_signed_request(
+        request,
+        body_digest,
+        claims,
+        &verify_key_signature(&1, &2, claims),
+        opts
+      )
+    else
+      {:error, :audience_required} -> {:error, :receipt_audience_required}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp verify_signed_request(request, body_digest, claims, verify_signature, opts) do
+    with {:ok, parsed_signature_input} <-
            parse_signature_input(Map.fetch!(request.headers, @signature_input_header)),
          :ok <- ensure_signature_window(parsed_signature_input, request.headers, opts),
          :ok <-
@@ -81,7 +137,7 @@ defmodule Siwa.RequestAuth do
              body_digest
            ),
          :ok <- ensure_body_binding(request.headers, body_digest),
-         :ok <- ensure_header_binding(request.headers, receipt_payload),
+         :ok <- ensure_header_binding(request.headers, claims),
          {:ok, signature} <- decode_signature(Map.fetch!(request.headers, @signature_header)),
          signing_message <-
            build_http_signing_message(
@@ -90,11 +146,10 @@ defmodule Siwa.RequestAuth do
              request.headers,
              parsed_signature_input
            ),
-         {:ok, verification_method} <-
-           verify_wallet_signature(signing_message, signature, receipt_payload, opts),
+         {:ok, verification_method} <- verify_signature.(signing_message, signature),
          :ok <-
            consume_replay_window(
-             receipt_payload,
+             claims,
              parsed_signature_input.nonce,
              request.method,
              request.path,
@@ -104,13 +159,11 @@ defmodule Siwa.RequestAuth do
            ) do
       {:ok,
        %{
-         address: receipt_payload["sub"],
-         claims: receipt_payload,
+         address: claims["sub"],
+         claims: claims,
          covered_components: parsed_signature_input.components,
          verification_method: verification_method
        }}
-    else
-      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -616,6 +669,26 @@ defmodule Siwa.RequestAuth do
       {:error, {:lookup_failed, _reason}} -> {:error, :signature_lookup_failed}
     end
   end
+
+  defp verify_key_signature(message, signature, %{"sub" => address}) do
+    case WalletSignature.verify_key(address, message, signature) do
+      :ok -> {:ok, :eoa_recovery}
+      {:error, :signature_invalid} -> {:error, :signature_invalid}
+    end
+  end
+
+  defp ensure_leased_receipt(receipt, receipt) when is_binary(receipt), do: :ok
+  defp ensure_leased_receipt(_receipt, _leased), do: {:error, :invalid_receipt}
+
+  # An ended lease is as good as no receipt: the agent's next request goes to
+  # the sign-in server again.
+  defp ensure_leased_claims(%{"aud" => audience}, audience, until_ms, now_ms)
+       when is_integer(until_ms) do
+    if now_ms < until_ms, do: :ok, else: {:error, :invalid_receipt}
+  end
+
+  defp ensure_leased_claims(_claims, _audience, _until_ms, _now_ms),
+    do: {:error, :receipt_binding_mismatch}
 
   defp signer_module(%module{}), do: module
 end

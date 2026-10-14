@@ -4,6 +4,17 @@ All notable changes to `siwa` should be recorded here.
 
 ## Unreleased
 
+### Added
+
+- Leases for requests that read. `Siwa.AgentAuthPlug` takes `read_only: true`
+  on a route or tool that changes nothing and spends nothing; such a request
+  asks the sign-in server for a lease (`"lease": true`), and while the lease
+  lasts the site checks read-only requests under the same receipt itself with
+  `Siwa.RequestAuth.verify_leased_request/3`, held in
+  `Siwa.AgentAuthPlug.Leases`. Every other request goes to the sign-in server.
+- `Siwa.WalletSignature.verify_key/3`: an ordinary wallet's signature only, with
+  no network call.
+
 ### Removed
 
 - The registry-token sign-in. Wallet receipts (`siwa_wallet_receipt`) are now the
@@ -17,6 +28,9 @@ All notable changes to `siwa` should be recorded here.
 
 ### Changed
 
+- `Siwa.RequestAuth.ReplayStore` keeps its record in a table callers write to
+  directly, cleared of expired entries once a minute, in place of one process
+  holding a map.
 - `Siwa.verify_authenticated_request/2` takes the request's `body_digest`
   (`Siwa.content_digest_for_body/1` of the body the caller read, or `nil`)
   instead of its body, and `Siwa.required_authenticated_request_headers/1` and

@@ -1,34 +1,45 @@
 defmodule Siwa.RequestAuth.ReplayStore do
+  @moduledoc """
+  This node's record of the signed requests it has served, each kept until its
+  signature expires. Callers write straight to the table; this process only owns
+  it and clears expired entries once a minute.
+
+  The record is in memory, so it starts empty after a restart. A site uses it
+  only for requests that read (`Siwa.AgentAuthPlug`'s `read_only: true`); every
+  other request is recorded by the sign-in server, which keeps it on disk.
+  """
+
   use GenServer
 
   @doc "Atomically refuse expired or previously consumed keys. Never extend the signed expiry."
   @callback consume(binary(), pos_integer()) :: :ok | {:error, term()}
 
-  def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, %{}, name: name)
-  end
+  @sweep_ms 60_000
 
-  def child_spec(opts) do
-    %{id: Keyword.get(opts, :name, __MODULE__), start: {__MODULE__, :start_link, [opts]}}
-  end
+  def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
   def consume(key, expires_at_unix) do
-    GenServer.call(__MODULE__, {:consume, key, expires_at_unix})
-  end
-
-  @impl true
-  def init(state), do: {:ok, state}
-
-  @impl true
-  def handle_call({:consume, key, expires_at_unix}, _from, state) do
-    now = System.system_time(:second)
-    state = Map.reject(state, fn {_k, exp} -> exp <= now end)
-
     cond do
-      expires_at_unix <= now -> {:reply, {:error, :request_expired}, state}
-      Map.has_key?(state, key) -> {:reply, {:error, :replayed_request}, state}
-      true -> {:reply, :ok, Map.put(state, key, expires_at_unix)}
+      expires_at_unix <= System.system_time(:second) -> {:error, :request_expired}
+      :ets.insert_new(__MODULE__, {key, expires_at_unix}) -> :ok
+      true -> {:error, :replayed_request}
     end
   end
+
+  @impl true
+  def init(_opts) do
+    :ets.new(__MODULE__, [:named_table, :public, :set, write_concurrency: true])
+    schedule_sweep()
+    {:ok, nil}
+  end
+
+  @impl true
+  def handle_info(:sweep, state) do
+    now = System.system_time(:second)
+    :ets.select_delete(__MODULE__, [{{:_, :"$1"}, [{:"=<", :"$1", now}], [true]}])
+    schedule_sweep()
+    {:noreply, state}
+  end
+
+  defp schedule_sweep, do: Process.send_after(self(), :sweep, @sweep_ms)
 end

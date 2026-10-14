@@ -62,6 +62,24 @@ defmodule Siwa.WalletSignature do
     end
   end
 
+  @doc """
+  `:ok` when the ordinary wallet at `address` signed `message`, recovered here
+  with no network call. A smart wallet's signature is never one.
+  """
+  @spec verify_key(String.t(), String.t(), String.t()) :: :ok | {:error, :signature_invalid}
+  def verify_key(address, message, signature) do
+    with {:ok, wallet} <- wallet(address),
+         true <- is_binary(message),
+         {:ok, bytes} <- signature_bytes(signature),
+         {:ok, recovered} <-
+           EvmPersonalSign.recover_address(EvmPersonalSign.personal_hash(message), hex(bytes)),
+         true <- String.downcase(recovered) == hex(wallet) do
+      :ok
+    else
+      _invalid -> {:error, :signature_invalid}
+    end
+  end
+
   defp wallet(address) when is_binary(address) do
     if Regex.match?(@address, address),
       do: Base.decode16(String.trim_leading(address, "0x"), case: :mixed),

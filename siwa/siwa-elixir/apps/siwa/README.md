@@ -139,8 +139,38 @@ keys separate wallets by chain and audience.
 
 Use a durable replay store in the deployed broker. Its atomic consume must reject
 expired entries against the storage clock, even if verification passed before a
-pause or delay. Never extend the signed expiration when recording a replay key. The bundled in-memory store is
-for local/library use.
+pause or delay. Never extend the signed expiration when recording a replay key. The bundled in-memory store
+(`Siwa.RequestAuth.ReplayStore`, one table per node, empty after a restart) is
+for a site's leased reads and for local/library use.
+
+## Leases For Requests That Read
+
+A site marks a route or tool that changes nothing and spends nothing with
+`read_only: true` on `Siwa.AgentAuthPlug`. Such a request asks the sign-in server
+for a lease; for an agent signing with its own key, the server answers with
+`leaseExpiresAt`, never past the receipt's expiry. Until then the site checks
+read-only requests under that receipt itself:
+
+```elixir
+Siwa.AgentAuthPlug.call(conn,
+  client: MyBroker,
+  hooks: MyHooks,
+  audience: "patchbay",
+  read_only: true
+)
+```
+
+The check on a lease (`Siwa.RequestAuth.verify_leased_request/3`) is the sign-in
+server's own, against the claims the server read, except for the receipt's
+secret: the exact receipt bytes, the audience, the lease's end, the signature
+window, covered components, body and header bindings, the key's signature, and
+single use in `Siwa.RequestAuth.ReplayStore`. A smart wallet is never given a
+lease. Every request without `read_only: true` goes to the sign-in server, which
+keeps its single use on disk.
+
+Leases and the record of reads served on them live in memory, so a restart ends
+every lease, and a read already served on a lease can be served once more after
+a restart, within its signature's two minutes. That is why only reads use them.
 
 ## Wallet Actions
 

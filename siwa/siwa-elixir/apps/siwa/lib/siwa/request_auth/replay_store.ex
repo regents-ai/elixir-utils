@@ -1,8 +1,9 @@
 defmodule Siwa.RequestAuth.ReplayStore do
   @moduledoc """
-  This node's record of the signed requests it has served, each kept until its
-  signature expires. Callers write straight to the table; this process only owns
-  it and clears expired entries once a minute.
+  This node's record of the signed requests it has served, each kept until the
+  request could no longer be accepted (see `Siwa.RequestAuth`). Callers write
+  straight to the table; this process only owns it and clears ended entries once
+  a minute.
 
   The record is in memory, so it starts empty after a restart. A site uses it
   only for requests that read (`Siwa.AgentAuthPlug`'s `read_only: true`); every

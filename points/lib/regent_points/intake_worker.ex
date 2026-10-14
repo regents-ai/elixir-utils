@@ -66,8 +66,7 @@ defmodule RegentPoints.IntakeWorker do
            ),
          :ok <- identity(facts),
          :ok <- time(facts),
-         :ok <- proof(facts, rule),
-         :ok <- solution_parties(facts, rule) do
+         :ok <- proof(facts, rule) do
       :ok
     else
       {:error, _} = error -> error
@@ -108,35 +107,6 @@ defmodule RegentPoints.IntakeWorker do
       do: :ok,
       else: {:error, :missing_attribution_or_subject_proof}
   end
-
-  # The source adapter resolves both parties to canonical humans, including any
-  # linked wallets and connected agents. A different signer is not independence.
-  defp solution_parties(facts, rule)
-       when rule in ["patchbay.first_solution", "patchbay.first_resolved_priority_report"] do
-    asker = facts.evidence["asker_account_id"]
-    solver = facts.evidence["solver_account_id"]
-
-    beneficiary =
-      if rule == "patchbay.first_solution",
-        do: solver,
-        else: asker
-
-    cond do
-      not (is_integer(asker) and asker > 0 and is_integer(solver) and solver > 0) ->
-        {:error, :missing_solution_parties}
-
-      asker == solver ->
-        {:error, :self_acceptance}
-
-      facts.account_id != beneficiary ->
-        {:error, :solution_beneficiary_mismatch}
-
-      true ->
-        :ok
-    end
-  end
-
-  defp solution_parties(_, _), do: :ok
 
   defp record(facts, rule) do
     Store.lock_account(facts.account_id)

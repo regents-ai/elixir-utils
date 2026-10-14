@@ -92,18 +92,7 @@ restricted `"subject_key"`. Reports through WebMCP, HTTP, CLI, MCP or the site U
 must use the same business source identity for the same completed action. Transport
 never establishes agent identity or creates a second award.
 
-Patchbay's two one-time solution awards (first solution, first priority report
-resolved) require integer `"asker_account_id"` and `"solver_account_id"` in verified evidence.
-The adapter must resolve both to canonical human accounts across wallets and agents.
-Intake rejects matching accounts and a beneficiary other than the solver (solution)
-or asker (resolution). Different canonical accounts do not prove independent control.
-Before enabling these rules, the source adapter must reject duplicate/spam content,
-preserve the original solution identity across selection changes, and provide review
-of reciprocal selection patterns. Use linked negative corrections to invalidate an
-award later; corrections do not reopen spent limits. These product adapters and
-pattern review are not shipped by this foundation.
-
-Existing verified profile, social, ENS, pairing and registration state may qualify
+Existing verified social, ENS, pairing and registration state may qualify
 once, using its actual verification time after program start, without reconnecting.
 This is not historical activity backfill. The source adapter must prove current
 eligibility and preserve the same account and subject milestone identities.
@@ -148,7 +137,7 @@ again for that period: an award checked after the tally, or a correction, moves 
 period's earned total and bonus at the saved tier in the same locked transaction as
 its ledger entry. An account's balance is its entries plus its period bonuses. Version 2 daily
 activity and Credits rewards together are at most 200 base Points, excluding milestones. The milestone catalog
-totals 435 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
+totals 375 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
 `tracked/0` lists the rules this site has a source adapter for, and a site's Points

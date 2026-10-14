@@ -62,3 +62,13 @@ shared by every Regent site.
   is still placed. An agent is given
   `request` only on a hold it placed itself.
 - Runs on Ash 3.36 and AshOban 0.10. Ash postgres stays at 2.13.0.
+- Credits tells the site about purchases with Ash signals
+  (`RegentCredits.Signals`): `:purchase_credited` when a purchase is credited
+  to an account, and `:purchase_attributed` when a payment credited while it
+  waited under its wallet goes to the account that signed in with that wallet.
+  Both carry `purchase_id` and `privy_user_id` and are emitted in the credit's
+  transaction. `RegentCredits.Credited` and the `on_credited` setting are gone:
+  a site that pins this version removes its `on_credited` setting and its
+  module, and listens to both signals instead. A checked purchase is credited
+  by its own action, `:credit_checked`; `:finish` only records one that will
+  not be credited.

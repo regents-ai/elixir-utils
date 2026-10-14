@@ -25,7 +25,6 @@ config :regent_credits,
   pubsub: MySite.PubSub,
   admins: ["did:privy:..."],
   chain_client: MySite.Chain.Client,
-  on_credited: MySite.Credits.Credited,
   chains: %{
     base: %{chain_id: 8453, name: "Base", rpc_url: "https://..."},
     ethereum: %{chain_id: 1, name: "Ethereum", rpc_url: "https://..."}
@@ -40,11 +39,15 @@ config :regent_credits,
   blocks), all read at `latest`. A JSON-RPC error answer comes back as
   `{:error, {:rpc, error}}`; the deposit reader reads a span refused that way
   again in halves.
-- `on_credited` implements `RegentCredits.Credited`: `credited(purchase)` runs
-  inside the credit's transaction once a purchase is credited and returns `:ok`.
-  Work it queues commits with the credit; it must never fail the credit. Every
-  site that lists the `RegentCredits` domain may credit any purchase, so each
-  one's module does the same work.
+- Credits tells the site about purchases through `RegentCredits.Signals`:
+  `:purchase_credited` and `:purchase_attributed`, each with `purchase_id`
+  and `privy_user_id`. The site listens with `signals_in` on a resource of
+  its own and adds the `:ash_signals` compiler (and, with the code reloader,
+  `reloadable_compilers`). A listener with the default delivery runs inside
+  the credit's transaction: work it queues commits with the credit, and a
+  listener that fails rolls the credit back. Every site that lists the
+  `RegentCredits` domain may credit any purchase, so each one's listener does
+  the same work.
 - The site's Oban needs a `:regent_credits` queue, and its AshOban
   configuration lists the `RegentCredits` domain. The library starts no Oban
   of its own.

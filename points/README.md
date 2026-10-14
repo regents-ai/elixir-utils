@@ -81,8 +81,9 @@ Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_
 `evidence_ref` and `evidence`. Both times are UTC DateTimes. Freeze the beneficiary
 at action time. Source identity must match the job.
 Credits evidence contains settled non-promotional `"purchased_usdc_atomic"`.
-Any site that lists `RegentCredits` may credit any purchase, and its `on_credited`
-module records `credits.purchase_settled` with `source_app: "regents"`, so the award
+Any site that lists `RegentCredits` may credit any purchase, and its listener of
+`RegentCredits.Signals` (`:purchase_credited` and `:purchase_attributed`) records
+`credits.purchase_settled` with `source_app: "regents"`, so the award
 key is the same wherever it credits. Approve that rule and its start time on every
 Credits host in one change; a host with it off would let a purchase it credits earn nothing.
 Agent evidence contains `"attribution_link_id"`; Keyfleet additionally needs

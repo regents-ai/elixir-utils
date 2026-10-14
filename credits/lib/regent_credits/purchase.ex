@@ -142,9 +142,20 @@ defmodule RegentCredits.Purchase do
       change filter(expr(status == :checking))
     end
 
+    # A checked purchase that will not be credited.
     update :finish do
-      accept [:status, :reason, :credited_at]
+      accept [:status, :reason]
       change filter(expr(status == :checking))
+    end
+
+    # A checked purchase the chain holds, credited.
+    update :credit_checked do
+      change filter(expr(status == :checking))
+      change set_attribute(:status, :credited)
+      change set_attribute(:credited_at, &DateTime.utc_now/0)
+
+      emit RegentCredits.Signals, :purchase_credited,
+        fields: [purchase_id: :id, privy_user_id: :privy_user_id]
     end
 
     # A deposit read from the chain, credited as it is saved.
@@ -152,6 +163,12 @@ defmodule RegentCredits.Purchase do
       accept [:privy_user_id, :wallet, :chain, :amount, :number, :tx_hash]
       change set_attribute(:status, :credited)
       change set_attribute(:credited_at, &DateTime.utc_now/0)
+
+      # A deposit no account holds yet waits under its wallet; claiming it
+      # later attributes it instead.
+      emit RegentCredits.Signals, :purchase_credited,
+        fields: [purchase_id: :id, privy_user_id: :privy_user_id],
+        where: [present(:privy_user_id)]
     end
 
     # The person's own report of a deposit read from the chain: credited
@@ -161,11 +178,17 @@ defmodule RegentCredits.Purchase do
       change set_attribute(:status, :credited)
       change set_attribute(:reason, nil)
       change set_attribute(:credited_at, &DateTime.utc_now/0)
+
+      emit RegentCredits.Signals, :purchase_credited,
+        fields: [purchase_id: :id, privy_user_id: :privy_user_id]
     end
 
     # The account that signed in with the wallet a waiting deposit came from.
     update :claim do
       accept [:privy_user_id]
+
+      emit RegentCredits.Signals, :purchase_attributed,
+        fields: [purchase_id: :id, privy_user_id: :privy_user_id]
     end
 
     # Not in a transaction: the report reads the chain before it saves.

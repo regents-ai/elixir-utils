@@ -4,8 +4,8 @@ defmodule RegentCredits.Purchases do
 
   `check/1` reads the chain outside any transaction, then credits in a
   transaction of its own (`credit/1`), which locks the person's accounts and
-  re-reads the purchase so it credits once, and tells the site's
-  `RegentCredits.Credited` module in that same transaction.
+  re-reads the purchase so it credits once. The purchase's own actions emit
+  `RegentCredits.Signals` in that same transaction.
 
   `credit_deposit/1` credits a Base deposit `RegentCredits.Deposits` read
   from the chain, under the same lock, so a deposit and its report credit
@@ -112,10 +112,6 @@ defmodule RegentCredits.Purchases do
         report = account && Enum.find(found, &(&1.privy_user_id == account))
         purchase = save_deposit(report, deposit, account)
         Ledger.move(accounts, {from, to}, purchase.amount, "purchase:#{purchase.id}")
-
-        if account,
-          do: :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
-
         {:ok, purchase}
     end
   end
@@ -131,25 +127,22 @@ defmodule RegentCredits.Purchases do
   end
 
   @doc """
-  Gives `owner` the credited deposits waiting under these wallets, and tells
-  the site of each as it would of any credit. The caller has locked the
+  Gives `owner` the credited deposits waiting under these wallets, each
+  attributed to them (`RegentCredits.Signals`). The caller has locked the
   waiting accounts, which every credit into them also locks, and moved the
   Credits. `owner` has no purchase of these payments: a report from the
   wallet takes its waiting deposit instead.
   """
   def claim(owner, addresses) do
-    on_credited = Application.fetch_env!(:regent_credits, :on_credited)
-
     # Internal: written by the authorized attach action.
     Purchase
     |> Ash.Query.filter(is_nil(privy_user_id) and wallet in ^addresses and status == :credited)
     |> Ash.bulk_update!(:claim, %{privy_user_id: owner},
-      return_records?: true,
       strategy: [:atomic, :stream],
       authorize?: false
     )
-    |> Map.fetch!(:records)
-    |> Enum.each(&(:ok = on_credited.credited(&1)))
+
+    :ok
   end
 
   defp holder(nil, wallet) do
@@ -198,19 +191,9 @@ defmodule RegentCredits.Purchases do
       # Internal: written by the authorized credit. Not through decided/2: a
       # purchase that stopped being checked fails the credit, which rolls back
       # the move.
-      credited =
-        purchase
-        |> Ash.Changeset.for_update(
-          :finish,
-          %{status: :credited, credited_at: DateTime.utc_now()},
-          authorize?: false
-        )
-        |> Ash.update()
-
-      with {:ok, purchase} <- credited do
-        :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
-        {:ok, purchase}
-      end
+      purchase
+      |> Ash.Changeset.for_update(:credit_checked, %{}, authorize?: false)
+      |> Ash.update()
     end
   end
 
@@ -334,13 +317,9 @@ defmodule RegentCredits.Purchases do
 
   defp take(deposit, owner) do
     # Internal: written by the authorized report action.
-    purchase =
-      deposit
-      |> Ash.Changeset.for_update(:claim, %{privy_user_id: owner}, authorize?: false)
-      |> Ash.update!()
-
-    :ok = Application.fetch_env!(:regent_credits, :on_credited).credited(purchase)
-    {:ok, purchase}
+    deposit
+    |> Ash.Changeset.for_update(:claim, %{privy_user_id: owner}, authorize?: false)
+    |> Ash.update()
   end
 
   defp seen(purchase, number, hash) do

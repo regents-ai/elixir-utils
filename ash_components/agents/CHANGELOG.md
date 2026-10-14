@@ -28,7 +28,7 @@
   `role: :admin` whom `config :regent_agents, admins: [...]` names, may only
   remove it (`remove_agent_picture_by_team/2`). Anyone may read it by the
   agent's wallet (`agent_picture/2`). `RegentAgents.PairedAgent` gains
-  `picture_updated_at`, nil when the agent has no picture. Unpairing removes
-  the picture. Migration `20261014150000_agent_pictures` adds
+  `picture_updated_at`, nil when the agent has no picture. Each set and
+  remove tells every site, as a pairing does. Unpairing removes the picture. Migration `20261014150000_agent_pictures` adds
   `regent_agents.agent_pictures` and must run before any site uses this
   version.

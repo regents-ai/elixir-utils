@@ -56,11 +56,11 @@ defmodule AgentEns.PrimaryName do
   the name publishes an avatar record and the service answers with a picture;
   otherwise it is `nil`. Nothing is fetched from an address the record names.
 
-  A service that does not answer in time, or answers busy or broken (408, 429
-  or any 5xx), is `{:error, reason}`, like a chain read that fails: it says
+  The service says there is no picture with a 404 (a name without one), a 400
+  (a name it refuses) or a redirect, which is never followed. A service that
+  does not answer in time, or gives any other answer (busy, broken, or refusing
+  this caller), is `{:error, reason}`, like a chain read that fails: it says
   nothing about the picture, so the caller keeps what it holds and asks again.
-  Its other answers that are not a picture (404 for a name without one, 400 for
-  a name it refuses, a redirect) mean no picture.
 
   Takes the options of `verified_primary_name/2`, and:
 
@@ -122,12 +122,15 @@ defmodule AgentEns.PrimaryName do
       {:ok, %{status: 200}} ->
         {:ok, url}
 
-      # Busy or broken says nothing about the picture, the same as no answer.
-      {:ok, %{status: status}} when status in [408, 429] or status >= 500 ->
-        {:error, {:avatar_service_status, status}}
-
-      {:ok, _no_picture} ->
+      # The service's own answers about the name: none (404), a name it
+      # refuses (400), or a redirect, which is never followed.
+      {:ok, %{status: status}} when status in [400, 404] or status in 300..399 ->
         {:ok, nil}
+
+      # Busy, broken or refusing this caller says nothing about the picture,
+      # the same as no answer.
+      {:ok, %{status: status}} ->
+        {:error, {:avatar_service_status, status}}
 
       {:error, reason} ->
         {:error, reason}

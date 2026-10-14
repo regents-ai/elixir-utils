@@ -57,8 +57,12 @@ defmodule Siwa.AgentAuthPlug do
   in `Siwa.RequestAuth.ReplayStore`. A smart wallet is never given a lease.
 
   `accept/3` runs on every request, leased or not, with the answer the sign-in
-  server gave when the lease began. Leases are held in memory
-  (`Siwa.AgentAuthPlug.Leases`), so a restart ends them all.
+  server gave when the lease began, so what that answer says about the agent
+  (`agentRegistration`, `agentBook`) can be up to the lease's length old on a
+  leased read. The site's own checks in `accept/3`, such as pairing, still read
+  its own records each time.
+  Leases are held in memory (`Siwa.AgentAuthPlug.Leases`), so a restart ends
+  them all.
 
   A refusal made on a lease reaches `deny/2` in the same shape as the sign-in
   server's (`:"siwa_http_<status>"`, `:siwa_status`, `:siwa_code` and

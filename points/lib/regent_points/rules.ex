@@ -34,9 +34,9 @@ defmodule RegentPoints.Rules do
     {"autolaunch.auction_bid", 20, 1, "day", "Autolaunch auction bid"},
     {"autolaunch.token_traded", 10, 1, "day", "Autolaunch token trade"},
     {"keyfleet.key_bought", 10, 5, "day", "Keyfleet key bought"},
-    {"patchbay.offer_bid_placed", 10, 10, "day", "Patchbay Offer placed"},
+    {"patchbay.offer_bid_placed", 5, 10, "day", "Patchbay Offer placed"},
     {"patchbay.report_published", 10, 1, "day", "Patchbay report published"},
-    {"patchbay.reply_published", 10, 1, "day", "Patchbay reply published"}
+    {"patchbay.reply_published", 5, 1, "day", "Patchbay reply published"}
   ]
 
   @credits {"credits.purchase_settled", "Credits bought"}

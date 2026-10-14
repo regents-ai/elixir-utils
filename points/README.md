@@ -109,15 +109,16 @@ and remain once per canonical account.
 
 The repeat actions (Sean, 13 October) are: Autolaunch auction created 20 once a day,
 auction bid 20 once a day, token trade through the site 10 once a day; Keyfleet key
-bought 10 up to five a day; Patchbay Offer placed 10 up to ten a day, report published
-10 once a day and reply published 10 once a day. A Patchbay bid, starting or takeover,
-earns at the moment its Offer starts showing, once for that bid; a bid that only
-leads and is then replaced earns nothing. Staking an Autolaunch token earns 40 once
-per account. Regents staking, Techtree, the first use of a site, and Patchbay's
-accepted solution and resolved report earn nothing. There is no active-day or
-recurring vote rule; Keyfleet retains its 10-point first-vote milestone. Every
-Patchbay report and reply must be accepted by Patchbay's own quality check before it
-is published and earns; that check is Patchbay's, not this package's.
+bought 10 up to five a day; Patchbay Offer placed 5 up to ten a day, report published
+10 once a day and reply published 5 once a day (Patchbay values, Sean, 14 October).
+A Patchbay bid, starting or takeover, earns at the moment its Offer starts showing,
+once for that bid; a bid that only leads and is then replaced earns nothing. Staking
+an Autolaunch token earns 40 once per account. Regents staking, Techtree, the first
+use of a site, and Patchbay's accepted solution and resolved report earn nothing.
+There is no active-day or recurring vote rule; Keyfleet retains its 10-point
+first-vote milestone. Every Patchbay report and reply must be accepted by Patchbay's
+own quality check before it is published and earns; that check is Patchbay's, not
+this package's.
 Once Points has started, a rule that has ever earned is never removed from the
 catalog: the points it awarded are still read against it. A rule that should stop
 earning is given no adapter, and a new rule gets a new id.

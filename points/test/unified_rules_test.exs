@@ -32,7 +32,7 @@ defmodule RegentPoints.UnifiedRulesTest do
 
     assert Rules.count_scope(rule) == "patchbay.reply_published"
     assert Rules.allowance_scope(rule) == "activity:account"
-    assert rule["points"] == 10 and rule["count"] == 1
+    assert rule["points"] == 5 and rule["count"] == 1
     assert Rules.period(1) == {~U[2020-01-01 00:00:00Z], ~U[2020-01-31 00:00:00Z]}
     Application.put_env(:regent_points, :approved_rules, [])
 

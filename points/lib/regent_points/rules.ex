@@ -6,13 +6,11 @@ defmodule RegentPoints.Rules do
   """
   @unit 1_000_000
   @milestones [
-    {"account.email_verified", 5, "Email verified"},
     {"account.activated", 25, "Account activated"},
     {"social.x", 10, "X account linked"},
     {"social.github", 10, "GitHub account linked"},
     {"social.farcaster", 10, "Farcaster account linked"},
     {"identity.ens_selected", 25, "Verified ENS name chosen"},
-    {"agent.paired", 10, "First agent connected"},
     {"agent.activated", 25, "First paired agent"},
     {"agent.erc8004_registered", 25, "First agent listed on ERC-8004"},
     {"patchbay.first_report", 10, "First Patchbay report"},

@@ -137,7 +137,7 @@ again for that period: an award checked after the tally, or a correction, moves 
 period's earned total and bonus at the saved tier in the same locked transaction as
 its ledger entry. An account's balance is its entries plus its period bonuses. Version 2 daily
 activity and Credits rewards together are at most 200 base Points, excluding milestones. The milestone catalog
-totals 375 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
+totals 360 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
 `tracked/0` lists the rules this site has a source adapter for, and a site's Points

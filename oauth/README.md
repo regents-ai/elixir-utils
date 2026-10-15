@@ -44,7 +44,10 @@ the credential's client and revokes that account's connection, including rotated
 successors; unknown or already-revoked credentials and a different client change
 nothing. An old disconnected app cannot revoke a later fresh consent. Consent
 and token calls pass only validated parameters to Boruta, never request objects
-from another part of the HTTP request.
+from another part of the HTTP request. The optional `ui_locales` display hint is
+ignored before validation and never reaches Boruta or the saved consent; the
+original query still counts toward the request size limit. Other unsupported
+parameters and request objects remain rejected.
 
 Resource servers call `RegentOAuth.verify/2` and map its verified subject to an
 existing product principal. A bearer grants only the configured scope; it must

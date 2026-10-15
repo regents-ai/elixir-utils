@@ -1,5 +1,9 @@
 defmodule RegentMCPAgents.Plug do
-  @moduledoc "Stateless MCP reference door for identity tools; no posting or finance."
+  @moduledoc """
+  Stateless MCP reference door for identity tools; no posting or finance.
+  It speaks MCP 2026-07-28 only: `server/discover`, then `tools/list` and
+  `tools/call`, with no `initialize` handshake or session.
+  """
   @behaviour Plug
   import Plug.Conn
   alias RegentMCPAgents.Tools
@@ -15,28 +19,14 @@ defmodule RegentMCPAgents.Plug do
          _opts
        ) do
     case method do
-      "initialize" ->
-        answer(conn, %{
-          protocolVersion: "2025-11-25",
-          serverInfo: %{name: "regent-identity", version: "0.1.0"},
-          capabilities: %{tools: %{}}
-        })
-
       "server/discover" ->
-        answer(conn, %{
-          resultType: "complete",
-          supportedVersions: ["2026-07-28"],
-          capabilities: %{tools: %{}}
-        })
+        answer(conn, public(%{supportedVersions: ["2026-07-28"], capabilities: %{tools: %{}}}))
 
       "tools/list" ->
-        answer(conn, %{tools: Tools.list()})
+        answer(conn, public(%{tools: Tools.list()}))
 
       "tools/call" ->
         run(conn, body["params"])
-
-      "notifications/initialized" ->
-        send_resp(conn, 202, "")
 
       _ ->
         error(conn)
@@ -72,14 +62,15 @@ defmodule RegentMCPAgents.Plug do
         isError: failed?
       })
 
-  defp answer(conn, result) do
-    modern? = get_req_header(conn, "mcp-protocol-version") == ["2026-07-28"]
-    result = if modern?, do: Map.put(result, :resultType, "complete"), else: result
+  # Discovery and tool definitions hold no account data; a zero lifetime makes a
+  # deployment's changed definitions immediately stale. Tool results get no cache fields.
+  defp public(result), do: Map.merge(result, %{cacheScope: "public", ttlMs: 0})
 
+  defp answer(conn, result) do
     RegentOAuth.Protocol.json(conn, 200, %{
       jsonrpc: "2.0",
       id: conn.body_params["id"],
-      result: result
+      result: Map.put(result, :resultType, "complete")
     })
   end
 

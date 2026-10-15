@@ -59,6 +59,7 @@ defmodule RegentMCPAgents.Tools do
             %{type: "text", text: "Connect your Regents account and approve this permission."}
           ],
           isError: true,
+          resultType: "complete",
           _meta: %{"mcp/www_authenticate" => [challenge]}
         }
 

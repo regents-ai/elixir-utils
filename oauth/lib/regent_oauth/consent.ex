@@ -52,18 +52,20 @@ defmodule RegentOAuth.Consent do
       "created_at" => System.system_time(:second)
     }
 
-    conn = put_session(conn, @session_key, pending)
+    conn =
+      conn |> put_session(@session_key, pending) |> allow_callback(authorization.redirect_uri)
+
     host = URI.parse(authorization.redirect_uri).host
 
     page(conn, "Connect #{authorization.client.name}", """
       <p>This app is asking to #{escape(Keyword.fetch!(RegentOAuth.config(), :permission_description))}.</p>
       <p>It cannot post, select a solution, pay or change your wallet. Public reads stay free.</p>
       <p>You will return to #{escape(host)}.</p>
-      <form method="post" action="/oauth/authorize">
+      <form method="post" action="/oauth/authorize" class="rg-feature__actions">
         <input type="hidden" name="_csrf_token" value="#{escape(Plug.CSRFProtection.get_csrf_token())}">
         <input type="hidden" name="approval_key" value="#{nonce}">
-        <button name="decision" value="allow">Allow updates</button>
-        <button name="decision" value="deny">Cancel</button>
+        <button class="rg-button rg-button--primary" name="decision" value="allow">Allow updates</button>
+        <button class="rg-button rg-button--secondary" name="decision" value="deny">Cancel</button>
       </form>
       <p><a href="/oauth/connections">Manage connected apps</a></p>
     """)
@@ -109,7 +111,16 @@ defmodule RegentOAuth.Consent do
           Protocol.json(conn, 400, %{error: "invalid_request"})
       end
     else
-      _ -> Protocol.json(conn, 401, %{error: "consent_required"})
+      _ ->
+        page(
+          conn,
+          "Start the connection again",
+          """
+          <p>This connection request has expired or was already used.</p>
+          <p>Return to the app and start connecting again. No new access was granted by this request.</p>
+          """,
+          401
+        )
     end
   rescue
     _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
@@ -146,7 +157,7 @@ defmodule RegentOAuth.Consent do
               <form method="post" action="/oauth/connections/revoke">
                 <input type="hidden" name="_csrf_token" value="#{csrf}">
                 <input type="hidden" name="client_id" value="#{app.id}">
-                <button>Disconnect</button>
+                <button class="rg-button rg-button--secondary">Disconnect</button>
               </form>
             </li>
             """
@@ -178,19 +189,65 @@ defmodule RegentOAuth.Consent do
     _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
   end
 
-  defp page(conn, title, body) do
+  defp page(conn, title, body, status \\ 200) do
+    brand = Keyword.get(RegentOAuth.config(), :brand, "platform")
+    theme = conn.assigns[:theme]
+    theme_attr = if theme in ["light", "dark"], do: ~s( data-theme="#{theme}"), else: ""
+    host = URI.parse(RegentOAuth.issuer()).host
+
     html = """
-    <!doctype html><html lang="en"><head><meta charset="utf-8">
+    <!doctype html><html lang="en" data-brand="#{escape(brand)}"#{theme_attr}><head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>#{escape(title)}</title></head><body><main>
-    <h1>#{escape(title)}</h1>#{body}</main></body></html>
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="/assets/js/app.css">
+    <title>#{escape(title)}</title></head><body>
+    <main class="rg-sheet rg-frame" style="max-width:42rem;margin:clamp(2rem,10vh,6rem) auto">
+    <section class="rg-panel rg-panel--surface" style="padding:var(--rg-panel-padding,2rem)">
+    <p style="margin-bottom:var(--space-3,1.5rem)"><a href="/">#{escape(host)}</a> / Connected apps</p>
+    <h1 style="font-size:1.75rem;line-height:1.2;margin-bottom:var(--space-3,1.5rem)">#{escape(title)}</h1>
+    <div style="display:grid;gap:var(--space-3,1.5rem)">#{body}</div>
+    </section></main></body></html>
     """
 
     conn
     |> put_resp_header("cache-control", "no-store")
     |> put_resp_header("referrer-policy", "no-referrer")
     |> put_resp_content_type("text/html")
-    |> send_resp(200, html)
+    |> send_resp(status, html)
+  end
+
+  # Chromium checks the return redirect against the submitting document's policy.
+  # Only this validated client's origin is added, only to this consent document.
+  # Encode untrusted URI characters so client metadata cannot add CSP directives.
+  defp allow_callback(conn, redirect_uri) do
+    uri = URI.parse(redirect_uri)
+
+    source =
+      %URI{scheme: uri.scheme, host: uri.host, port: uri.port}
+      |> URI.to_string()
+      |> URI.encode(&(URI.char_unreserved?(&1) or &1 in ~c":/[]"))
+
+    policies =
+      case get_resp_header(conn, "content-security-policy") do
+        [] -> ["default-src 'none'; base-uri 'none'; frame-ancestors 'none'"]
+        existing -> existing
+      end
+
+    policies =
+      policies
+      |> Enum.flat_map(&String.split(&1, ",", trim: true))
+      |> Enum.map_join(", ", fn policy ->
+        directives =
+          policy
+          |> String.split(";", trim: true)
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.reject(&String.match?(&1, ~r/\Aform-action(?:\s|\z)/i))
+
+        Enum.join(directives ++ ["form-action 'self' #{source}"], "; ")
+      end)
+
+    put_resp_header(conn, "content-security-policy", policies)
   end
 
   defp redirect(conn, url),

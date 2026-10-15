@@ -31,6 +31,20 @@ pipeline. All credential-bearing routes disable request logging. Add `code`,
 Phoenix's filtered parameter names. Consent expires in ten minutes and is bound
 to the account that saw it. App names are escaped and redirect URIs match exactly.
 
+Consent pages load the site's existing `/assets/js/app.css`, shared controls and
+fonts. Set `brand: "patchbay"` for Patchbay; the template uses `brand: "platform"`.
+The site's assigned light/dark theme is retained. No new script is loaded. The
+browser pipeline must keep the normal shared style attribute policy for layout.
+
+Only the consent document adds the preauthorized registered callback origin to
+its `form-action` policy: Chromium also checks the redirect after the approval
+POST. Other directives and independent policies are preserved. Client URI data
+is encoded before entering CSP; never remove the site's browser policy globally
+to make OAuth redirects work. Approval still checks the exact callback, account,
+scope, S256 challenge, nonce, CSRF and lifetime. A consumed or expired request
+returns a readable HTTP 401 page; restart from the connecting app rather than
+resubmitting the old form. Consent and redirects stay no-store/no-referrer.
+
 The initial flow supports public OAuth clients (`none`), DCR, S256 PKCE and the
 `authorization_code` and `refresh_token` grants. It does not accept password or
 client-credentials grants, remote request objects, wildcard redirects or client

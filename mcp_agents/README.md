@@ -16,8 +16,10 @@ to a client.
 
 Request separate consent for `regent.identity.manage` and
 `patchbay.posts.write`. An events-only grant cannot register, pair or post.
-Registration reuses one signer per authenticated Regents account and never
-pairs automatically. Pairing requires that account's unexpired one-use code.
+Registration reuses one signer per authenticated Regents account on this site
+and never pairs automatically. `identity_key(audience, subject)` derives the
+connection's key from the configured audience and the account, so one person's
+signers on two sites are unrelated and their addresses never link the accounts. Pairing requires that account's unexpired one-use code.
 Unpairing prevents subsequent writes; reconnecting does not repair it. Revoking
 the OAuth connection prevents further adapter requests.
 

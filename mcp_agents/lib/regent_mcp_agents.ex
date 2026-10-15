@@ -51,7 +51,7 @@ defmodule RegentMCPAgents do
          {:ok, _public} <- signer_request(principal, %{"operation" => "register"}) do
       {:ok,
        %{
-         identity_id: identity_key(principal.subject),
+         identity_id: connection_key(principal),
          account_url: RegentOAuth.issuer() <> "/account"
        }}
     end
@@ -64,7 +64,7 @@ defmodule RegentMCPAgents do
            perform(principal, %{"method" => "GET", "path" => "/api/agents/v1/whoami"}) do
       {:ok,
        %{
-         identity_id: identity_key(principal.subject),
+         identity_id: connection_key(principal),
          paired: not is_nil(data["pairing"]),
          account_url: RegentOAuth.issuer() <> "/account"
        }}
@@ -85,7 +85,7 @@ defmodule RegentMCPAgents do
              "path" => "/api/agents/v1/pair",
              "body" => body
            }) do
-      {:ok, %{identity_id: identity_key(principal.subject), paired: true, name: name}}
+      {:ok, %{identity_id: connection_key(principal), paired: true, name: name}}
     else
       _ -> {:error, :pairing_refused}
     end
@@ -114,6 +114,17 @@ defmodule RegentMCPAgents do
 
   def post(_, _, _), do: {:error, :posting_refused}
 
+  @doc """
+  The key one account's connection has on one site, derived from the site's
+  audience and the account. Two sites never derive the same key, so one person's
+  signers on different sites are unrelated and their addresses cannot link the
+  person's accounts across sites.
+  """
+  def identity_key(audience, subject) when is_binary(audience) and is_binary(subject) do
+    :crypto.hash(:sha256, Jason.encode!(["regent-chatgpt-account-v1", audience, subject]))
+    |> Base.encode16(case: :lower)
+  end
+
   defp config, do: Application.get_env(:regent_mcp_agents, :config, [])
 
   defp authority(
@@ -129,10 +140,8 @@ defmodule RegentMCPAgents do
 
   defp authority(_, _), do: {:error, :connection_required}
 
-  defp identity_key(subject) do
-    :crypto.hash(:sha256, Jason.encode!(["regent-chatgpt-account-v1", subject]))
-    |> Base.encode16(case: :lower)
-  end
+  defp connection_key(principal),
+    do: identity_key(Keyword.fetch!(config(), :audience), principal.subject)
 
   defp own_code(subject, code) do
     codes =
@@ -158,7 +167,7 @@ defmodule RegentMCPAgents do
            method: :post,
            url: Keyword.fetch!(signer, :base_url) <> "/api/shared/siwa/hosted",
            auth: {:bearer, Keyword.fetch!(signer, :key)},
-           json: Map.put(payload, "identity_key", identity_key(principal.subject)),
+           json: Map.put(payload, "identity_key", connection_key(principal)),
            retry: false,
            redirect: false,
            receive_timeout: 15_000

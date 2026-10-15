@@ -12,6 +12,7 @@ defmodule RegentAgents.Harness do
       pi: [label: "Pi"],
       claude_code: [label: "Claude Code"],
       codex: [label: "Codex"],
+      chatgpt: [label: "ChatGPT"],
       cursor: [label: "Cursor"],
       gemini_cli: [label: "Gemini CLI"],
       dots: [label: "Dots"],

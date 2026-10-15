@@ -3,7 +3,7 @@ defmodule RegentOAuth do
   Boruta authorization-code/PKCE integration for one site's MCP resource.
 
   The site supplies a verified Privy subject, its existing account checks, its
-  schema and the permitted scope. Boruta owns codes, tokens, PKCE and refresh.
+  schema and the permitted scopes. Boruta owns codes, tokens, PKCE and refresh.
   A provider instance issues for exactly one fixed resource: authorize and token
   requests must name it, and the resource server refuses any other audience.
   Opaque tokens are issuer-bound to this provider's own database schema.
@@ -24,6 +24,27 @@ defmodule RegentOAuth do
   def resource, do: Keyword.fetch!(config(), :resource)
   def issuer, do: Keyword.fetch!(config(), :issuer)
   def scope, do: Keyword.fetch!(config(), :scope)
+  def scopes, do: [scope() | Map.keys(Keyword.get(config(), :additional_scopes, %{}))]
+
+  def valid_scopes?(value) when is_binary(value) do
+    requested = String.split(value)
+
+    requested != [] and length(requested) == length(Enum.uniq(requested)) and
+      Enum.all?(requested, &(&1 in scopes()))
+  end
+
+  def valid_scopes?(_), do: false
+
+  def permission_descriptions(value) do
+    descriptions =
+      Map.put(
+        Keyword.get(config(), :additional_scopes, %{}),
+        scope(),
+        Keyword.fetch!(config(), :permission_description)
+      )
+
+    value |> String.split() |> Enum.map(&Map.fetch!(descriptions, &1))
+  end
 
   @doc "Configure before the site's supervision tree starts; never starts a server or migrates."
   def configure(site) do
@@ -47,6 +68,19 @@ defmodule RegentOAuth do
               "OAuth requires a fixed HTTPS issuer, resource and scope (loopback HTTP is local-only)"
       end
     end
+
+    additional = Keyword.get(config, :additional_scopes, %{})
+
+    unless is_map(additional) and
+             Enum.all?(additional, fn {name, description} ->
+               is_binary(name) and Regex.match?(~r/\A[a-z][a-z0-9_.:-]{0,127}\z/, name) and
+                 is_binary(description) and byte_size(description) in 1..500
+             end),
+           do:
+             raise(
+               ArgumentError,
+               "OAuth additional scopes require bounded names and permission descriptions"
+             )
 
     Application.put_env(:regent_oauth, :site, site)
     Application.put_env(:regent_oauth, :prefix, site.repo().default_prefix())
@@ -79,7 +113,7 @@ defmodule RegentOAuth do
     %{
       resource: resource(),
       authorization_servers: [issuer()],
-      scopes_supported: [scope()],
+      scopes_supported: scopes(),
       bearer_methods_supported: ["header"]
     }
   end
@@ -96,27 +130,30 @@ defmodule RegentOAuth do
       grant_types_supported: ["authorization_code", "refresh_token"],
       token_endpoint_auth_methods_supported: ["none"],
       code_challenge_methods_supported: ["S256"],
-      scopes_supported: [scope()]
+      scopes_supported: scopes()
     }
   end
 
-  def challenge do
-    ~s(Bearer resource_metadata="#{issuer()}/.well-known/oauth-protected-resource", scope="#{scope()}")
+  def challenge(required_scope \\ scope()) do
+    ~s(Bearer resource_metadata="#{issuer()}/.well-known/oauth-protected-resource", scope="#{required_scope}")
   end
 
   @doc "Verify with Boruta, then recheck the authoritative row to defeat stale cache entries."
-  def verify(bearer, expected_resource) when is_binary(bearer) and byte_size(bearer) in 1..4096 do
+  def verify(bearer, expected_resource, required_scope \\ scope())
+
+  def verify(bearer, expected_resource, required_scope)
+      when is_binary(bearer) and byte_size(bearer) in 1..4096 do
     with true <- enabled?() and expected_resource == resource(),
          {:ok, _} <- Boruta.Oauth.Authorization.AccessToken.authorize(value: bearer),
          %Token{} = token <- Repo.get_by(Token, value: bearer, type: "access_token"),
-         true <- live?(token) do
+         true <- live?(token) and required_scope in String.split(token.scope) do
       {:ok, principal(token)}
     else
       _ -> {:error, :unauthorized}
     end
   end
 
-  def verify(_, _), do: {:error, :unauthorized}
+  def verify(_, _, _), do: {:error, :unauthorized}
 
   @doc "Recheck delivery authority without retaining a bearer token in a subscription."
   def live_token?(id, subject, client_id) do
@@ -138,7 +175,7 @@ defmodule RegentOAuth do
        })
        when is_binary(subject) and is_integer(expires_at) do
     bound?(id) and expires_at > System.system_time(:second) and
-      scope() in String.split(granted || "") and
+      valid_scopes?(granted) and
       site().active_subject?(subject) and public_client?(Repo.get(Client, client_id))
   end
 
@@ -169,7 +206,8 @@ defmodule RegentOAuth do
       client_id: token.client_id,
       expires_at: DateTime.from_unix!(token.expires_at),
       resource: resource(),
-      issuer: issuer()
+      issuer: issuer(),
+      scopes: String.split(token.scope)
     }
   end
 

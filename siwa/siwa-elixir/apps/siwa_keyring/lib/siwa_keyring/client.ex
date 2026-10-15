@@ -18,6 +18,8 @@ defmodule SiwaKeyring.Client do
   def has_wallet?(client), do: request(client, :post, @prefix <> "/has-wallet", %{})
   def get_address(client), do: request(client, :post, @prefix <> "/get-address", %{})
 
+  def hosted(client, payload), do: request(client, :post, @prefix <> "/hosted", payload)
+
   def sign_message(client, message),
     do: request(client, :post, @prefix <> "/sign-message", %{message: message})
 

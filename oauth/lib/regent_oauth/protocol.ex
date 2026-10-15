@@ -36,7 +36,7 @@ defmodule RegentOAuth.Protocol do
              "authorization_code",
              "refresh_token"
            ],
-         true <- Map.get(params, "scope", RegentOAuth.scope()) == RegentOAuth.scope(),
+         true <- RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())),
          name when is_binary(name) <- Map.get(params, "client_name", "Connected app"),
          true <- String.length(name) in 1..100,
          uris when is_list(uris) and length(uris) in 1..5 <- params["redirect_uris"],
@@ -52,7 +52,7 @@ defmodule RegentOAuth.Protocol do
              supported_grant_types: ["authorization_code", "refresh_token", "revoke"],
              token_endpoint_auth_methods: [],
              authorize_scope: true,
-             authorized_scopes: [%{name: RegentOAuth.scope()}],
+             authorized_scopes: Enum.map(RegentOAuth.scopes(), &%{name: &1}),
              access_token_ttl: 3600,
              authorization_code_ttl: 60,
              refresh_token_ttl: 2_592_000
@@ -64,7 +64,7 @@ defmodule RegentOAuth.Protocol do
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
         token_endpoint_auth_method: "none",
-        scope: RegentOAuth.scope()
+        scope: Enum.join(RegentOAuth.scopes(), " ")
       })
     else
       _ -> json(conn, 400, %{error: "invalid_client_metadata"})
@@ -76,7 +76,7 @@ defmodule RegentOAuth.Protocol do
 
     with true <- bounded_map?(params, @token_keys),
          true <- params["resource"] == RegentOAuth.resource(),
-         true <- Map.get(params, "scope", RegentOAuth.scope()) == RegentOAuth.scope(),
+         true <- RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())),
          true <- params["grant_type"] in ["authorization_code", "refresh_token"],
          {:ok, _} <- Ecto.UUID.cast(params["client_id"]) do
       # The row lock serializes code consumption and refresh rotation, even if
@@ -217,7 +217,7 @@ defmodule RegentOAuth.Protocol do
   @doc false
   def authorize_params?(params) do
     bounded_map?(params, @authorize_keys) and
-      params["resource"] == RegentOAuth.resource() and params["scope"] == RegentOAuth.scope() and
+      params["resource"] == RegentOAuth.resource() and RegentOAuth.valid_scopes?(params["scope"]) and
       params["response_type"] == "code" and params["code_challenge_method"] == "S256" and
       is_binary(params["state"]) and byte_size(params["state"]) > 0 and
       is_binary(params["code_challenge"]) and
@@ -229,10 +229,33 @@ defmodule RegentOAuth.Protocol do
     with {:ok, id} <- Ecto.UUID.cast(params["client_id"]),
          %Client{confidential: false, pkce: true} = client <- Repo.get(Client, id),
          true <- params["redirect_uri"] in client.redirect_uris do
-      {:ok, client}
+      ensure_client_scopes(client)
     else
       _ -> {:error, :invalid_client}
     end
+  end
+
+  # Eligible client scopes are not user grants. Existing DCR clients can ask for
+  # a newly supported permission, but Boruta still requires fresh human consent
+  # and keeps code/refresh tokens limited to their actual granted scopes.
+  defp ensure_client_scopes(client) do
+    Repo.transaction(fn ->
+      locked = Repo.one!(from(c in Client, where: c.id == ^client.id, lock: "FOR UPDATE"))
+      current = Repo.preload(locked, :authorized_scopes)
+      existing = Enum.map(current.authorized_scopes, & &1.name) |> Enum.sort()
+      configured = Enum.sort(RegentOAuth.scopes())
+
+      if existing == configured do
+        current
+      else
+        case Boruta.Ecto.Admin.Clients.update_client(current, %{
+               authorized_scopes: Enum.map(configured, &%{name: &1})
+             }) do
+          {:ok, updated} -> updated
+          {:error, _} -> Repo.rollback(:invalid_client)
+        end
+      end
+    end)
   end
 
   defp redirect_uri?(value) when is_binary(value) and byte_size(value) <= 2048 do

@@ -57,14 +57,30 @@ defmodule RegentOAuth.Consent do
 
     host = URI.parse(authorization.redirect_uri).host
 
+    requested = conn.query_params["scope"]
+
+    permissions =
+      requested |> RegentOAuth.permission_descriptions() |> Enum.map_join("; ", &escape/1)
+
+    posting? = "patchbay.posts.write" in String.split(requested)
+
+    limit =
+      if posting?,
+        do:
+          "Free questions and replies only. Payments, wallet changes and selecting solutions are not permitted.",
+        else:
+          "This permission does not allow posting, selecting solutions, payments or wallet changes."
+
+    label = if posting?, do: "Allow free posting", else: "Allow connection"
+
     page(conn, "Connect #{authorization.client.name}", """
-      <p>This app is asking to #{escape(Keyword.fetch!(RegentOAuth.config(), :permission_description))}.</p>
-      <p>It cannot post, select a solution, pay or change your wallet. Public reads stay free.</p>
+      <p>This app is asking to #{permissions}.</p>
+      <p>#{limit} Public reads stay free.</p>
       <p>You will return to #{escape(host)}.</p>
       <form method="post" action="/oauth/authorize" class="rg-feature__actions">
         <input type="hidden" name="_csrf_token" value="#{escape(Plug.CSRFProtection.get_csrf_token())}">
         <input type="hidden" name="approval_key" value="#{nonce}">
-        <button class="rg-button rg-button--primary" name="decision" value="allow">Allow updates</button>
+        <button class="rg-button rg-button--primary" name="decision" value="allow">#{label}</button>
         <button class="rg-button rg-button--secondary" name="decision" value="deny">Cancel</button>
       </form>
       <p><a href="/oauth/connections">Manage connected apps</a></p>

@@ -6,7 +6,6 @@ defmodule RegentOAuth.Protocol do
   alias RegentOAuth.Repo
 
   @behaviour Boruta.Oauth.TokenApplication
-  @behaviour Boruta.Oauth.RevokeApplication
   @authorize_keys ~w(client_id redirect_uri response_type scope state resource code_challenge code_challenge_method)
   @token_keys ~w(client_id redirect_uri grant_type scope resource code code_verifier refresh_token)
   @register_keys ~w(client_name redirect_uris grant_types response_types token_endpoint_auth_method scope)
@@ -104,7 +103,11 @@ defmodule RegentOAuth.Protocol do
             %Token{revoked_at: nil} = row ->
               if RegentOAuth.bound?(row.id) and RegentOAuth.site().active_subject?(row.sub) and
                    active_credential?(row, params) do
-                case Boruta.Oauth.token(conn, RegentOAuth.TokenResult) do
+                # Token requests use only the allowlisted form body. In particular,
+                # query request objects must never trigger HTTP under these locks.
+                request = %{conn | query_params: %{}, query_string: "", params: params}
+
+                case Boruta.Oauth.token(request, RegentOAuth.TokenResult) do
                   {:ok, response} -> response
                   {:error, error} -> Repo.rollback(error)
                 end
@@ -132,8 +135,33 @@ defmodule RegentOAuth.Protocol do
     params = conn.body_params
 
     if bounded_map?(params, ~w(client_id token token_type_hint)) and
-         match?({:ok, _}, Ecto.UUID.cast(params["client_id"])) do
-      Boruta.Oauth.revoke(conn, __MODULE__)
+         match?({:ok, _}, Ecto.UUID.cast(params["client_id"])) and
+         is_binary(params["token"]) and byte_size(params["token"]) in 1..4096 do
+      {:ok, :ok} =
+        Repo.transaction(fn ->
+          client_id = params["client_id"]
+          Repo.one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
+
+          token =
+            Repo.one(
+              from(t in Token,
+                where:
+                  t.client_id == ^client_id and t.type == "access_token" and
+                    (t.value == ^params["token"] or t.refresh_token == ^params["token"])
+              )
+            )
+
+          if token && RegentOAuth.bound?(token.id) do
+            # A refresh may already have rotated this credential. Revoke the
+            # connection under the issuance lock so no successor survives.
+            {:ok, :ok} = RegentOAuth.revoke_client(token.sub, client_id)
+          end
+
+          :ok
+        end)
+
+      # Unknown tokens and tokens belonging to another client reveal nothing.
+      json(conn, 200, %{})
     else
       json(conn, 400, %{error: "invalid_request"})
     end
@@ -185,10 +213,6 @@ defmodule RegentOAuth.Protocol do
 
   @impl true
   def token_error(conn, error), do: json(conn, 400, %{error: error_name(error)})
-  @impl true
-  def revoke_success(conn), do: json(conn, 200, %{})
-  @impl true
-  def revoke_error(conn, _), do: json(conn, 400, %{error: "invalid_request"})
 
   @doc false
   def authorize_params?(params) do

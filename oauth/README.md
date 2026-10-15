@@ -39,7 +39,11 @@ exchange locks the actual credential row and commits before sending a response,
 so duplicate code or refresh requests cannot race through cached authority.
 A spent refresh token revokes that subject's app connection and requires new
 consent. Issuance and disconnect also lock the client row, so a concurrent refresh
-cannot escape revocation with an unseen successor.
+cannot escape revocation with an unseen successor. Protocol revocation verifies
+the credential's client and revokes that account's connection, including rotated
+successors; unknown credentials or a different client change nothing. Consent
+and token calls pass only validated parameters to Boruta, never request objects
+from another part of the HTTP request.
 
 Resource servers call `RegentOAuth.verify/2` and map its verified subject to an
 existing product principal. A bearer grants only the configured scope; it must

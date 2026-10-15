@@ -16,7 +16,11 @@ defmodule RegentOAuth.Consent do
       case RegentOAuth.site().current_subject(conn) do
         subject when is_binary(subject) ->
           if RegentOAuth.site().active_subject?(subject) do
-            Boruta.Oauth.preauthorize(conn, %Boruta.Oauth.ResourceOwner{sub: subject}, __MODULE__)
+            Boruta.Oauth.preauthorize(
+              authorization_conn(conn, params),
+              %Boruta.Oauth.ResourceOwner{sub: subject},
+              __MODULE__
+            )
           else
             Protocol.json(conn, 401, %{error: "login_required"})
           end
@@ -69,8 +73,11 @@ defmodule RegentOAuth.Consent do
     subject = RegentOAuth.site().current_subject(conn)
 
     with true <- RegentOAuth.enabled?(),
+         true <- is_map(conn.body_params) and not is_struct(conn.body_params),
+         true <- Map.keys(conn.body_params) -- ~w(_csrf_token approval_key decision) == [],
          %{"subject" => ^subject, "nonce" => nonce, "params" => params, "created_at" => created} <-
            pending,
+         true <- Protocol.authorize_params?(params),
          true <- is_binary(subject) and RegentOAuth.site().active_subject?(subject),
          true <- (System.system_time(:second) - created) in 0..600,
          key when is_binary(key) <- conn.body_params["approval_key"],
@@ -79,7 +86,7 @@ defmodule RegentOAuth.Consent do
       case conn.body_params["decision"] do
         "allow" ->
           Boruta.Oauth.authorize(
-            %{conn | query_params: params},
+            authorization_conn(conn, params),
             %Boruta.Oauth.ResourceOwner{sub: subject},
             __MODULE__
           )
@@ -190,6 +197,11 @@ defmodule RegentOAuth.Consent do
       |> put_resp_header("cache-control", "no-store")
       |> put_resp_header("location", url)
       |> send_resp(303, "")
+
+  # Boruta also accepts request objects from GET bodies and approval POST bodies.
+  # Pass only the validated request the person saw, never fresh grant parameters.
+  defp authorization_conn(conn, params),
+    do: %{conn | query_params: params, body_params: %{}, params: params}
 
   defp escape(value),
     do: value |> to_string() |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()

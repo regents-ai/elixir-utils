@@ -114,10 +114,10 @@ defmodule RegentOAuth.Consent do
       _ ->
         page(
           conn,
-          "Start the connection again",
+          "This connection link no longer works",
           """
-          <p>This connection request has expired or was already used.</p>
-          <p>Return to the app and start connecting again. No new access was granted by this request.</p>
+          <p>It expired or has already been used. Return to the app and start connecting again.</p>
+          <p class="rg-utility__note">No new access was granted.</p>
           """,
           401
         )
@@ -201,12 +201,11 @@ defmodule RegentOAuth.Consent do
     <meta name="color-scheme" content="light dark">
     <link rel="stylesheet" href="/assets/js/app.css">
     <title>#{escape(title)}</title></head><body>
-    <main class="rg-sheet rg-frame" style="max-width:42rem;margin:clamp(2rem,10vh,6rem) auto">
-    <section class="rg-panel rg-panel--surface" style="padding:var(--rg-panel-padding,2rem)">
-    <p style="margin-bottom:var(--space-3,1.5rem)"><a href="/">#{escape(host)}</a> / Connected apps</p>
-    <h1 style="font-size:1.75rem;line-height:1.2;margin-bottom:var(--space-3,1.5rem)">#{escape(title)}</h1>
-    <div style="display:grid;gap:var(--space-3,1.5rem)">#{body}</div>
-    </section></main></body></html>
+    <main class="rg-utility rg-utility--message">
+    <p class="rg-utility__context"><a href="/">#{escape(host)}</a> / Connected apps</p>
+    <h1>#{escape(title)}</h1>
+    <div class="rg-utility__body">#{body}</div>
+    </main></body></html>
     """
 
     conn

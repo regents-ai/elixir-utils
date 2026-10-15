@@ -7,11 +7,13 @@ defmodule RegentOAuth.Consent do
 
   def authorize(conn) do
     conn = fetch_query_params(conn)
-    params = conn.query_params
+    # ChatGPT sends this display hint. It grants no authority and is never
+    # forwarded to Boruta or retained in the consent request.
+    params = Map.delete(conn.query_params, "ui_locales")
 
     with true <- RegentOAuth.enabled?(),
          true <- Protocol.authorize_params?(params),
-         true <- byte_size(Jason.encode!(params)) <= 2048,
+         true <- byte_size(Jason.encode!(conn.query_params)) <= 2048,
          {:ok, _client} <- Protocol.request_client(params) do
       case RegentOAuth.site().current_subject(conn) do
         subject when is_binary(subject) ->

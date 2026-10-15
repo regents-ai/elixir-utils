@@ -75,19 +75,6 @@ defmodule SiwaKeyring.Router do
     send_json(conn, 200, %{status: "ok"})
   end
 
-  post @prefix <> "/hosted" do
-    result =
-      case Application.get_env(:siwa_keyring, :hosted_requests) do
-        nil -> {:error, :hosted_request_not_allowed}
-        handler -> run_keyring_request(:hosted, fn -> handler.handle(conn.body_params) end)
-      end
-
-    case result do
-      {:ok, response} -> send_json(conn, 200, response)
-      {:error, _} -> send_error(conn, 422, "hosted_request_refused")
-    end
-  end
-
   post @prefix <> "/create-wallet" do
     keyring = keyring_module()
 

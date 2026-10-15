@@ -35,4 +35,3 @@ defmodule RegentAgents.PairingMessage do
     """
   end
 end
-

@@ -1,13 +1,13 @@
 defmodule RegentMCPAgents do
   @moduledoc """
   A persistent ChatGPT connection to a Regents account identity, shared across
-  chats. OAuth authorizes the connection; the shared keyring holds its signer.
-  Every protected product request still passes exact-request SIWA verification.
-  Conversation IDs, tool arguments and MCP sessions never select the signer.
+  chats. OAuth authorizes the connection; the SIWA service's hosted signing holds
+  its signer, asked with this site's own hosted signing key. Every protected
+  product request still passes exact-request SIWA verification. Conversation IDs,
+  tool arguments and MCP sessions never select the signer.
   """
   require Ash.Query
   alias RegentAgents.{PairingCode, Person}
-  alias SiwaKeyring.Client
 
   @identity_scope "regent.identity.manage"
   @posting_scope "patchbay.posts.write"
@@ -17,9 +17,9 @@ defmodule RegentMCPAgents do
     opts = config()
 
     if opts[:enabled?] == true do
-      keyring = Keyword.fetch!(opts, :keyring)
-      uri = URI.parse(Keyword.fetch!(keyring, :base_url))
-      secret = Keyword.fetch!(keyring, :secret)
+      signer = Keyword.fetch!(opts, :hosted_signer)
+      uri = URI.parse(Keyword.fetch!(signer, :base_url))
+      key = Keyword.fetch!(signer, :key)
 
       safe_origin? =
         uri.scheme == "https" or
@@ -28,12 +28,12 @@ defmodule RegentMCPAgents do
       unless RegentOAuth.enabled?() and @identity_scope in RegentOAuth.scopes() and safe_origin? and
                is_binary(uri.host) and uri.path in [nil, ""] and
                is_nil(uri.query) and is_nil(uri.fragment) and is_nil(uri.userinfo) and
-               is_binary(secret) and byte_size(secret) >= 32 and
+               is_binary(key) and Regex.match?(~r/\A[A-Za-z0-9_-]{32,}\z/, key) and
                opts[:audience] in ["patchbay", "ash-template"],
              do:
                raise(
                  ArgumentError,
-                 "Hosted identity requires a fixed HTTPS signer, internal credential and known audience"
+                 "Hosted identity requires a fixed HTTPS signer, this site's hosted signing key and a known audience"
                )
     end
 
@@ -149,9 +149,23 @@ defmodule RegentMCPAgents do
        ), do: :ok, else: {:error, :pairing_refused}
   end
 
+  # The SIWA service takes the audience from this site's hosted signing key and
+  # binds every signer to it; the request names no site.
   defp signer_request(principal, payload) do
-    client = Client.new(Keyword.fetch!(config(), :keyring))
-    Client.hosted(client, Map.put(payload, "identity_key", identity_key(principal.subject)))
+    signer = Keyword.fetch!(config(), :hosted_signer)
+
+    case Req.request(
+           method: :post,
+           url: Keyword.fetch!(signer, :base_url) <> "/api/shared/siwa/hosted",
+           auth: {:bearer, Keyword.fetch!(signer, :key)},
+           json: Map.put(payload, "identity_key", identity_key(principal.subject)),
+           retry: false,
+           redirect: false,
+           receive_timeout: 15_000
+         ) do
+      {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
+      _ -> {:error, :identity_request_refused}
+    end
   end
 
   defp perform(principal, request) do
@@ -159,11 +173,7 @@ defmodule RegentMCPAgents do
       if request["path"] == "/chatgpt/agent/mcp", do: @posting_scope, else: @identity_scope
 
     with {:ok, envelope} <-
-           signer_request(principal, %{
-             "operation" => "sign",
-             "audience" => Keyword.fetch!(config(), :audience),
-             "request" => request
-           }),
+           signer_request(principal, %{"operation" => "sign", "request" => request}),
          :ok <- authority(principal, required),
          true <-
            envelope["method"] == request["method"] and envelope["path"] == request["path"] and

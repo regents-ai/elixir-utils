@@ -4,10 +4,15 @@ Connect ChatGPT to a persistent Regents account identity. All chats on the
 connection reuse its hosted signer. This is free identity setup, not an on-chain
 registry listing. No command-line installation is required.
 
-Enable only after configuring RegentOAuth, the shared SIWA hosted signer and
-its internal HMAC credential. Sites supply `config :regent_mcp_agents, :config,
-enabled?: true, audience: "…", keyring: [base_url: "…", secret: "…"]`.
-The package is disabled by default. Never expose the HMAC credential to a client.
+Enable only after configuring RegentOAuth and this site's hosted signing key
+with the SIWA service. Sites supply `config :regent_mcp_agents, :config,
+enabled?: true, audience: "…", hosted_signer: [base_url:
+"https://siwa-server.fly.dev", key: "…"]`. The library asks
+`POST /api/shared/siwa/hosted` with `Authorization: Bearer <key>`. The SIWA
+service names the calling site from its key, signs everything for that site's
+audience and keeps each site's signers apart, so the key's site must be the
+configured `audience`. The package is disabled by default. Never expose the key
+to a client.
 
 Request separate consent for `regent.identity.manage` and
 `patchbay.posts.write`. An events-only grant cannot register, pair or post.

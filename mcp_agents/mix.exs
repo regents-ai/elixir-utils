@@ -17,8 +17,6 @@ defmodule RegentMCPAgents.MixProject do
     [
       {:regent_oauth, path: "../oauth"},
       {:regent_agents, path: "../ash_components/agents"},
-      {:siwa, path: "../siwa/siwa-elixir/apps/siwa", override: true},
-      {:siwa_keyring, path: "../siwa/siwa-elixir/apps/siwa_keyring", runtime: false},
       {:req, "~> 0.7"},
       {:ex_hash_ring, "== 6.0.4", override: true},
       {:bandit,

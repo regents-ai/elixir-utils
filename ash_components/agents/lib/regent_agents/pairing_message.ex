@@ -16,6 +16,17 @@ defmodule RegentAgents.PairingMessage do
       "SIWA_BROKER=https://siwa-server.fly.dev and try again."
   end
 
+  def text(code, site, origin, :chatgpt) do
+    """
+    Connect ChatGPT to my existing #{site} account using this site's connected plugin.
+    Use register_identity, then get_identity. Reuse this connection across chats.
+    If pairing is needed, I approve pair_identity with this one-use code and the name ChatGPT.
+    Pairing code: #{code}
+    My account page is #{origin}/account. Never repeat this code in your reply.
+    If the plugin's identity tools are unavailable, report that setup is needed.
+    """
+  end
+
   def text(code, site, origin, _harness) do
     """
     Pair with my #{site} account.
@@ -24,3 +35,4 @@ defmodule RegentAgents.PairingMessage do
     """
   end
 end
+

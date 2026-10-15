@@ -41,7 +41,8 @@ A spent refresh token revokes that subject's app connection and requires new
 consent. Issuance and disconnect also lock the client row, so a concurrent refresh
 cannot escape revocation with an unseen successor. Protocol revocation verifies
 the credential's client and revokes that account's connection, including rotated
-successors; unknown credentials or a different client change nothing. Consent
+successors; unknown or already-revoked credentials and a different client change
+nothing. An old disconnected app cannot revoke a later fresh consent. Consent
 and token calls pass only validated parameters to Boruta, never request objects
 from another part of the HTTP request.
 

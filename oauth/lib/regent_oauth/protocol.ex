@@ -146,7 +146,7 @@ defmodule RegentOAuth.Protocol do
             Repo.one(
               from(t in Token,
                 where:
-                  t.client_id == ^client_id and t.type == "access_token" and
+                  t.client_id == ^client_id and t.type == "access_token" and is_nil(t.revoked_at) and
                     (t.value == ^params["token"] or t.refresh_token == ^params["token"])
               )
             )

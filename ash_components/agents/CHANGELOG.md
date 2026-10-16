@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- The pair request accepts only the harnesses the site offers
+  (`RegentAgents.Harness.offered/0`), and its `harness_unknown` hint lists
+  those, so a site without `chatgpt_pairing: true` refuses `chatgpt`.
 - New `RegentAgents.Refusal.describe/2`: the status, code, message and hint an
   agent gets when its signed request is refused, for a site's own
   `Siwa.AgentAuthPlug` `deny/2` hook to call with its sign-in hint. The pairing

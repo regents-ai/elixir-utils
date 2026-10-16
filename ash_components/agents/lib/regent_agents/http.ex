@@ -26,10 +26,10 @@ defmodule RegentAgents.HTTP do
   alias RegentAgents.PairedAgent.AgentLimit
 
   @sign_in_hint "Sign the request with your agent key as https://siwa.regents.sh/skill.md describes, then send it again."
-  @harnesses Enum.map_join(Harness.values(), ", ", &Atom.to_string/1)
 
   # The refusals made here: a code for programs, a message and a hint for people.
-  # `RegentAgents.Refusal` words a request whose signature was refused.
+  # `RegentAgents.Refusal` words a request whose signature was refused. An unknown
+  # harness is refused by `error/2`'s own clause, which names the harnesses this site offers.
   @errors %{
     "pairing_failed" =>
       {400, "The pairing code could not be used.",
@@ -37,9 +37,6 @@ defmodule RegentAgents.HTTP do
     "agent_limit" =>
       {409, "This account already has 100 paired agents.",
        "Ask your person to unpair an agent on their Regents account page, then pair again. The same code works until it expires."},
-    "harness_unknown" =>
-      {400, "That harness is not one we know.",
-       "Send one of: #{@harnesses}. Send other if yours is not listed."},
     "not_paired" =>
       {404, "This agent is not paired with an account.",
        "Ask your person for a pairing code, then pair again."},
@@ -112,9 +109,11 @@ defmodule RegentAgents.HTTP do
   end
 
   defp harness(value) do
-    case Harness.match(value) do
-      {:ok, harness} -> {:ok, harness}
-      :error -> {:error, :harness_unknown}
+    with {:ok, harness} <- Harness.match(value),
+         true <- harness in Harness.offered() do
+      {:ok, harness}
+    else
+      _not_offered -> {:error, :harness_unknown}
     end
   end
 
@@ -162,8 +161,22 @@ defmodule RegentAgents.HTTP do
     apply(module, function, [agent.privy_user_id])
   end
 
+  defp error(conn, "harness_unknown") do
+    harnesses = Enum.map_join(Harness.offered(), ", ", &Atom.to_string/1)
+
+    refusal(
+      conn,
+      {400, "harness_unknown", "That harness is not one we know.",
+       "Send one of: #{harnesses}. Send other if yours is not listed."}
+    )
+  end
+
   defp error(conn, code) do
     {status, message, hint} = Map.fetch!(@errors, code)
+    refusal(conn, {status, code, message, hint})
+  end
+
+  defp refusal(conn, {status, code, message, hint}) do
     conn |> put_status(status) |> answer(%{error: %{code: code, message: message, hint: hint}})
   end
 

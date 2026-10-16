@@ -22,7 +22,7 @@ https://siwa.regents.sh/skill.md.
   uses these two names. The person's World ID number is saved only to group
   their agents; it is never shown, logged or answered.
 - A refusal is `{error: {code, message, hint}}`: `pairing_failed` (400),
-  `harness_unknown` (400, the hint lists the accepted names), `not_paired` (404),
+  `harness_unknown` (400, also for a harness the site does not offer; the hint lists `Harness.offered/0`), `not_paired` (404),
   `verification_failed` (401), `duplicate_proof`, `unsupported_query` or
   `missing_signed_body` (401, the shared plug's own refusals: a repeated
   signature header, a query string, a body it did not capture whole),
@@ -68,8 +68,8 @@ config :regent_agents,
 
 A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT pairs through a
 connected plugin and the `register_identity`, `get_identity` and `pair_identity`
-tools, so it is listed only on a site that serves them and sets
-`chatgpt_pairing: true` here.
+tools, so it is listed, and the pair request accepts it, only on a site that
+serves them and sets `chatgpt_pairing: true` here.
 
 Mount the two requests behind the site's own rate limit (Regents allows 10
 pair requests and 60 check-ins a minute from one address). Mount them outside

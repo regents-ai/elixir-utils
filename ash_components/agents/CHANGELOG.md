@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.Harness.featured/0` lists the five agents the side panel offers:
+  any agent, Codex, Grok Bot, Muse and Hermes.
+- Every pairing message says the code works once, for ten minutes, and to ask for
+  a new one if it fails. Codex's adds what to do when its sandbox blocks the
+  network and where pair.json goes; Grok Bot's says never to post the code in
+  public; Hermes's says to keep one key; Muse's keeps the SIWA service's other
+  address.
 - A check-in before the person's first sign-in on the site answers
   `person_not_here` (403), the code every Regent site gives an agent whose person
   has not signed in there yet, asking the agent to have its person sign in

@@ -104,9 +104,11 @@ and `unpair_agent`, and subscribes to
 person's agents are paired, check in or are unpaired on any
 Regent site.
 
-The message a person pastes to their agent is
-`RegentAgents.PairingMessage.text(code, site_name, origin, harness)`, the same
-words on every site.
+The side panel offers the five agents in `RegentAgents.Harness.featured/0`:
+any agent, Codex, Grok Bot, Muse and Hermes. The message a person pastes to their
+agent is `RegentAgents.PairingMessage.text(code, site_name, origin, harness)`, the
+same words on every site, with one more line for each of those agents but the first,
+for the mistake it most often makes on its first pairing.
 
 `RegentAgents.Activity.recent(agent, operations)` reads what a paired agent has
 done across the Regent sites, newest first, 20 at a time; pass the page's `next`

@@ -82,6 +82,11 @@ defmodule RegentOAuth do
                "OAuth additional scopes require bounded names and permission descriptions"
              )
 
+    note = Keyword.get(config, :consent_note)
+
+    unless is_nil(note) or (is_binary(note) and byte_size(note) in 1..500),
+      do: raise(ArgumentError, "OAuth consent_note must be bounded text")
+
     Application.put_env(:regent_oauth, :site, site)
     Application.put_env(:regent_oauth, :prefix, site.repo().default_prefix())
 

@@ -8,6 +8,11 @@
 - The check-in looks up the account before it records contact, so an
   `account_missing` refusal leaves the agent's last contact unchanged and
   announces nothing.
+- `check_in_agent/2` takes the person's Privy user ID and records contact only
+  when the agent's pairing is still with that person; otherwise it answers
+  `not_paired`. The check-in request passes the person whose account it looked
+  up, so an agent unpaired and paired to someone else in between never answers
+  with the previous person's account.
 - The pair request accepts only the harnesses the site offers
   (`RegentAgents.Harness.offered/0`), and its `harness_unknown` hint lists
   those, so a site without `chatgpt_pairing: true` refuses `chatgpt`.

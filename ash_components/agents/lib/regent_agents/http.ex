@@ -84,7 +84,7 @@ defmodule RegentAgents.HTTP do
     with {:ok, agent, conn} <- verify(conn),
          {:ok, %{privy_user_id: privy_user_id}} <- RegentAgents.current_pairing(actor: agent),
          %{} = account <- account(privy_user_id),
-         {:ok, paired} <- RegentAgents.check_in_agent(actor: agent) do
+         {:ok, paired} <- RegentAgents.check_in_agent(privy_user_id, actor: agent) do
       answer(conn, %{data: Map.put(present(paired, agent), :account, account)})
     else
       {:refused, conn} -> conn

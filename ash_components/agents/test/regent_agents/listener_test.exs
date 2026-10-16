@@ -20,7 +20,7 @@ defmodule RegentAgents.ListenerTest do
         paired = RegentAgents.pair_agent!(code, "Heard", :hermes, actor: agent)
         assert_receive :agents_changed
 
-        RegentAgents.check_in_agent!(actor: agent)
+        RegentAgents.check_in_agent!(owner.privy_user_id, actor: agent)
         assert_receive :agents_changed
 
         RegentAgents.unpair_agent!(paired, actor: owner)

@@ -94,12 +94,16 @@ defmodule RegentAgents.PairingTest do
     owner = person("check")
     paired = RegentAgents.pair_agent!(code!(owner), "Muse", :muse, actor: %Agent{wallet: @wallet})
 
-    assert {:ok, checked_in} = RegentAgents.check_in_agent(actor: %Agent{wallet: @wallet})
+    assert {:ok, checked_in} =
+             RegentAgents.check_in_agent(owner.privy_user_id, actor: %Agent{wallet: @wallet})
+
     assert checked_in.id == paired.id
     assert DateTime.compare(checked_in.last_contact_at, paired.last_contact_at) == :gt
 
     assert {:error, _not_paired} =
-             RegentAgents.check_in_agent(actor: %Agent{wallet: @other_wallet})
+             RegentAgents.check_in_agent(owner.privy_user_id,
+               actor: %Agent{wallet: @other_wallet}
+             )
   end
 
   test "only the owner sees or unpairs an agent" do

@@ -109,14 +109,16 @@ defmodule RegentAgents.PairedAgent.Actions.CheckIn do
   alias RegentAgents.{Agent, PairedAgent}
 
   @impl true
-  def run(_input, _opts, %{actor: %Agent{} = actor}) do
+  def run(input, _opts, %{actor: %Agent{} = actor}) do
+    privy_user_id = input.arguments.privy_user_id
+
     result =
       Ash.DataLayer.transaction(PairedAgent, fn ->
-        with {:ok, agent} when not is_nil(agent) <- by_wallet(actor),
+        with {:ok, %{privy_user_id: ^privy_user_id} = agent} <- by_wallet(actor),
              {:ok, agent} <- touch(agent, actor) do
           agent
         else
-          {:ok, nil} -> Ash.DataLayer.rollback(PairedAgent, :not_paired)
+          {:ok, _not_this_person} -> Ash.DataLayer.rollback(PairedAgent, :not_paired)
           {:error, error} -> Ash.DataLayer.rollback(PairedAgent, error)
         end
       end)
@@ -216,8 +218,11 @@ defmodule RegentAgents.PairedAgent do
       run RegentAgents.PairedAgent.Actions.Pair
     end
 
+    # Records contact only for the pairing with the person the caller named, so a
+    # wallet paired again to someone else in between is not touched.
     action :check_in, :struct do
       constraints instance_of: __MODULE__
+      argument :privy_user_id, :string, allow_nil?: false
       run RegentAgents.PairedAgent.Actions.CheckIn
     end
 

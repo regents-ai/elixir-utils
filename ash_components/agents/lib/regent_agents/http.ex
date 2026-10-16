@@ -15,7 +15,9 @@ defmodule RegentAgents.HTTP do
 
   A check-in names the person's account as the site's own pages name it, from
   the site's `config :regent_agents, account: {Module, :function}`, called with
-  the person's Privy user ID and returning a JSON-ready map.
+  the person's Privy user ID and returning a JSON-ready map, or nil when this
+  site has no account for that person; the check-in is then refused with
+  `account_missing`.
   """
 
   @behaviour Plug
@@ -40,6 +42,9 @@ defmodule RegentAgents.HTTP do
     "not_paired" =>
       {404, "This agent is not paired with an account.",
        "Ask your person for a pairing code, then pair again."},
+    "account_missing" =>
+      {404, "The account this agent is paired with is not on this site.",
+       "Ask your person to sign in on this site, then check in again."},
     "not_found" =>
       {404, "There is no such agent request.",
        "Agents pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}
@@ -75,11 +80,13 @@ defmodule RegentAgents.HTTP do
   # The proof is checked first; the shared plug refuses a query string.
   defp me(conn) do
     with {:ok, agent, conn} <- verify(conn),
-         {:ok, paired} <- RegentAgents.check_in_agent(actor: agent) do
-      answer(conn, %{data: Map.put(present(paired, agent), :account, account(paired))})
+         {:ok, paired} <- RegentAgents.check_in_agent(actor: agent),
+         %{} = account <- account(paired) do
+      answer(conn, %{data: Map.put(present(paired, agent), :account, account)})
     else
       {:refused, conn} -> conn
       {:error, _not_paired} -> error(conn, "not_paired")
+      nil -> error(conn, "account_missing")
     end
   end
 

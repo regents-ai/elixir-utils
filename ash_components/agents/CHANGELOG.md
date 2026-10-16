@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- A check-in whose person has no account on this site is refused with
+  `account_missing` (404) instead of crashing: the site's `account` callback
+  returns nil for a missing account. Every site's callback returns a map or nil.
 - The pair request accepts only the harnesses the site offers
   (`RegentAgents.Harness.offered/0`), and its `harness_unknown` hint lists
   those, so a site without `chatgpt_pairing: true` refuses `chatgpt`.

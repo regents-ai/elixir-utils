@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.Activity.recent/1` answers `{:error, :bad_day}` when any day from
+  the SIWA service is missing a field or has a value it cannot read, such as an
+  empty time. Before, such a day raised, and the side panel page that asked closed
+  with it. A day at a site outside the Regent family is still left out.
 - `RegentAgents.Activity` names the SIWA service's `regents-mobile` audience
   "Regents mobile app", so an agent's requests through the Regents mobile app
   show among its sites instead of being skipped.

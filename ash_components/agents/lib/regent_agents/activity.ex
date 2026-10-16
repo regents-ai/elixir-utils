@@ -42,7 +42,9 @@ defmodule RegentAgents.Activity do
 
   @doc """
   The agent's days on the Regent sites since it was paired, newest day first and
-  each day's sites by name, and its registry listing.
+  each day's sites by name, and its registry listing. A day missing a field, or
+  with a value that does not read as a date or time, makes the whole read
+  `{:error, :bad_day}`.
   """
   @spec recent(PairedAgent.t()) :: {:ok, reading()} | {:error, term()}
   def recent(%PairedAgent{} = agent) do
@@ -61,8 +63,9 @@ defmodule RegentAgents.Activity do
              auth: {:bearer, config.token},
              json: %{wallet_address: agent.wallet, since: DateTime.to_iso8601(agent.paired_at)}
            ),
-         {:ok, listing} <- listing(registration) do
-      {:ok, %{days: Enum.flat_map(days, &day/1), listing: listing}}
+         {:ok, listing} <- listing(registration),
+         {:ok, days} <- days(days) do
+      {:ok, %{days: days, listing: listing}}
     else
       {:ok, %Req.Response{status: status}} -> {:error, {:unexpected_status, status}}
       {:error, reason} -> {:error, reason}
@@ -87,22 +90,40 @@ defmodule RegentAgents.Activity do
 
   defp listing(_other), do: {:error, :registration_unreadable}
 
-  # Days at sites outside the Regent family are left out.
+  # Days at sites outside the Regent family are left out. A day in any other shape
+  # makes the whole reading unreadable.
+  defp days(days) do
+    read = Enum.map(days, &day/1)
+
+    if {:error, :bad_day} in read,
+      do: {:error, :bad_day},
+      else: {:ok, for({:ok, %{} = day} <- read, do: day)}
+  end
+
   defp day(%{
          "audience" => audience,
          "day" => day,
          "first_seen_at" => first_seen_at,
          "last_seen_at" => last_seen_at
-       }) do
-    with {:ok, site} <- Map.fetch(@sites, audience),
-         {:ok, day} <- Date.from_iso8601(day),
+       })
+       when is_binary(audience) and is_binary(day) and is_binary(first_seen_at) and
+              is_binary(last_seen_at) do
+    with {:ok, day} <- Date.from_iso8601(day),
          {:ok, first_seen_at, _offset} <- DateTime.from_iso8601(first_seen_at),
          {:ok, last_seen_at, _offset} <- DateTime.from_iso8601(last_seen_at) do
-      [%{site: site, day: day, first_seen_at: first_seen_at, last_seen_at: last_seen_at}]
+      case Map.fetch(@sites, audience) do
+        {:ok, site} ->
+          {:ok, %{site: site, day: day, first_seen_at: first_seen_at, last_seen_at: last_seen_at}}
+
+        :error ->
+          {:ok, nil}
+      end
     else
-      _other -> []
+      _unreadable -> {:error, :bad_day}
     end
   end
+
+  defp day(_other), do: {:error, :bad_day}
 
   defp config do
     base_url = Application.fetch_env!(:regent_agents, :siwa)[:url]

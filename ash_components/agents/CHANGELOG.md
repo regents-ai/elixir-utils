@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.Activity.recent/1` answers `{:error, :bad_days}` when the SIWA
+  service answers 200 without a list of days, instead of
+  `{:error, {:unexpected_status, 200}}`, which named the wrong problem.
 - `RegentAgents.Activity.recent/1` answers `{:error, :bad_day}` when any day from
   the SIWA service is missing a field or has a value it cannot read, such as an
   empty time. Before, such a day raised, and the side panel page that asked closed

@@ -44,7 +44,7 @@ defmodule RegentAgents.Activity do
   The agent's days on the Regent sites since it was paired, newest day first and
   each day's sites by name, and its registry listing. A day missing a field, or
   with a value that does not read as a date or time, makes the whole read
-  `{:error, :bad_day}`.
+  `{:error, :bad_day}`; an answer without a list of days is `{:error, :bad_days}`.
   """
   @spec recent(PairedAgent.t()) :: {:ok, reading()} | {:error, term()}
   def recent(%PairedAgent{} = agent) do
@@ -67,6 +67,7 @@ defmodule RegentAgents.Activity do
          {:ok, days} <- days(days) do
       {:ok, %{days: days, listing: listing}}
     else
+      {:ok, %Req.Response{status: 200}} -> {:error, :bad_days}
       {:ok, %Req.Response{status: status}} -> {:error, {:unexpected_status, status}}
       {:error, reason} -> {:error, reason}
     end

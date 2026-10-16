@@ -18,11 +18,7 @@ defmodule RegentMCPAgents.MixProject do
       {:regent_oauth, path: "../oauth"},
       {:regent_agents, path: "../ash_components/agents"},
       {:req, "~> 0.7"},
-      {:ex_hash_ring, "== 6.0.4", override: true},
-      {:bandit,
-       git: "https://github.com/mtrudel/bandit.git",
-       ref: "d88b21953c65061f21136ea76a89a4f95a2ac7a1",
-       override: true}
+      {:ex_hash_ring, "== 6.0.4", override: true}
     ]
   end
 end

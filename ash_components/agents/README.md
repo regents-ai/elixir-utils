@@ -111,11 +111,12 @@ and Pi. The message a person pastes to their agent is
 words on every site, with one more line for Codex, Grok Bot, Hermes and Muse, for
 the mistake each most often makes on its first pairing.
 
-`RegentAgents.Activity.recent(agent, operations)` reads what a paired agent has
-done across the Regent sites, newest first, 20 at a time; pass the page's `next`
-as a third argument to read the page after it. `operations` names the site's own
-requests, built from its capability list: `[%{method: "POST", path:
-"/tools/notes/{id}/pin", words: "Pinned a note"}, ...]`. Any other request is worded from its method alone. It needs the
+`RegentAgents.Activity.recent(agent)` reads where a paired agent has been
+active across the Regent sites since it paired: a line per site and day for the
+last 30 days, newest day first, with its first and last request that day, and
+its registry listing. `RegentAgents.Activity.latest/1` picks the newest of them.
+The SIWA service answers a site's reads up to 600 a minute, so a site keeps each
+agent's reading for a few minutes and shares it with every page. It needs the
 site's own reader key from the SIWA service:
 
 ```elixir

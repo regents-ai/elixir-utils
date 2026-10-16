@@ -1,10 +1,10 @@
 defmodule RegentAgents.Activity do
   @moduledoc """
-  What a paired agent has done across the Regent sites since it was paired, in
-  plain words and 20 requests at a time, newest first, and its listing in the
-  agent registry, if it has one. The SIWA service keeps both: every request an
-  agent signs is verified there, whichever site it went to, and an agent lists
-  itself through it.
+  Where a paired agent has been active across the Regent sites since it was
+  paired, a line per site and day for the last 30 days, newest day first, and its
+  listing in the agent registry, if it has one. The SIWA service keeps both: it
+  counts each request it verifies for an agent under the site and the day, and
+  an agent lists itself through it.
 
   A site reads them with its own reader key, which the SIWA service lists among
   its activity readers:
@@ -14,12 +14,9 @@ defmodule RegentAgents.Activity do
   Without the key, or without an https SIWA address, every read answers
   `{:error, :not_configured}`.
 
-  The site names its own requests: for each operation an agent may sign there,
-  it passes the method, the path as its API description writes it
-  (`/tools/notes/{id}/pin`) and what the request did in its person's words
-  ("Pinned a note"). A request to another site, or one the site does not name,
-  is worded from its method alone. Whether a person stands behind the agent is saved
-  on the agent at its own requests and is not read here.
+  The SIWA service answers each site's reads up to 600 a minute, all of a site
+  machine's reads together, so a site keeps each agent's reading for a few
+  minutes and shares it with every page that shows that agent.
   """
 
   alias RegentAgents.{Broker, PairedAgent}
@@ -33,58 +30,51 @@ defmodule RegentAgents.Activity do
     "keyfleet" => "Keyfleet"
   }
 
-  @type entry :: %{site: String.t(), action: String.t(), occurred_at: DateTime.t()}
-  @type listing :: %{url: String.t(), number: String.t()}
-  @type operation :: %{method: String.t(), path: String.t(), words: String.t()}
-
-  @type page :: %{
-          entries: [entry()],
-          next: String.t() | nil,
-          listing: listing() | nil
+  @type day :: %{
+          site: String.t(),
+          day: Date.t(),
+          first_seen_at: DateTime.t(),
+          last_seen_at: DateTime.t()
         }
+  @type listing :: %{url: String.t(), number: String.t()}
+  @type reading :: %{days: [day()], listing: listing() | nil}
 
   @doc """
-  The newest page of the agent's activity, or with `after_cursor` set to an earlier
-  page's `next`, the page after it. `next` is nil on the last page, which ends
-  with the pairing itself.
+  The agent's days on the Regent sites since it was paired, newest day first and
+  each day's sites by name, and its registry listing.
   """
-  @spec recent(PairedAgent.t(), [operation()], String.t() | nil) ::
-          {:ok, page()} | {:error, term()}
-  def recent(%PairedAgent{} = agent, operations, after_cursor \\ nil) do
+  @spec recent(PairedAgent.t()) :: {:ok, reading()} | {:error, term()}
+  def recent(%PairedAgent{} = agent) do
     with {:ok, config} <- config(),
          {:ok,
           %Req.Response{
             status: 200,
-            body: %{
-              "data" => %{
-                "activity" => activity,
-                "next" => next,
-                "agentRegistration" => registration
-              }
-            }
+            body: %{"data" => %{"days" => days, "agentRegistration" => registration}}
           }}
-         when is_nil(next) or (is_binary(next) and next != "") <-
+         when is_list(days) <-
            Broker.request(
              method: :post,
              url: config.base_url <> "/api/shared/siwa/activity",
              receive_timeout: 5_000,
              connect_options: [timeout: 2_000],
              auth: {:bearer, config.token},
-             json: body(agent, after_cursor)
+             json: %{wallet_address: agent.wallet, since: DateTime.to_iso8601(agent.paired_at)}
            ),
          {:ok, listing} <- listing(registration) do
-      {:ok,
-       %{
-         entries:
-           Enum.flat_map(activity, &describe(&1, Broker.audience(), operations)) ++
-             pairing(agent, next),
-         next: next,
-         listing: listing
-       }}
+      {:ok, %{days: Enum.flat_map(days, &day/1), listing: listing}}
     else
       {:ok, %Req.Response{status: status}} -> {:error, {:unexpected_status, status}}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  @doc "Where and when the agent was last active, or nil before its first request."
+  @spec latest(reading()) :: %{site: String.t(), at: DateTime.t()} | nil
+  def latest(%{days: []}), do: nil
+
+  def latest(%{days: days}) do
+    newest = Enum.max_by(days, & &1.last_seen_at, DateTime)
+    %{site: newest.site, at: newest.last_seen_at}
   end
 
   # The registry page and the number the registry gave the agent.
@@ -96,68 +86,22 @@ defmodule RegentAgents.Activity do
 
   defp listing(_other), do: {:error, :registration_unreadable}
 
-  # The pairing itself is the agent's own record here; the request that made
-  # it was verified a moment before the agent existed. It is the oldest entry,
-  # so it closes the last page. A pairing holds on every Regent site, and the
-  # record does not say which one made it.
-  defp pairing(agent, nil),
-    do: [
-      %{site: "Regent sites", action: "Paired with your account", occurred_at: agent.paired_at}
-    ]
-
-  defp pairing(_agent, _next), do: []
-
-  # Requests to sites outside the Regent family, and the pairing request
-  # already shown by the pairing itself, are left out.
-  defp describe(
-         %{"audience" => audience, "method" => method, "path" => path, "occurred_at" => at},
-         own,
-         operations
-       ) do
-    with {:ok, name} <- Map.fetch(@sites, audience),
-         {:ok, action} <- action(method, path, audience == own, operations),
-         {:ok, occurred_at, _offset} <- DateTime.from_iso8601(at) do
-      [%{site: name, action: action, occurred_at: occurred_at}]
+  # Days at sites outside the Regent family are left out.
+  defp day(%{
+         "audience" => audience,
+         "day" => day,
+         "first_seen_at" => first_seen_at,
+         "last_seen_at" => last_seen_at
+       }) do
+    with {:ok, site} <- Map.fetch(@sites, audience),
+         {:ok, day} <- Date.from_iso8601(day),
+         {:ok, first_seen_at, _offset} <- DateTime.from_iso8601(first_seen_at),
+         {:ok, last_seen_at, _offset} <- DateTime.from_iso8601(last_seen_at) do
+      [%{site: site, day: day, first_seen_at: first_seen_at, last_seen_at: last_seen_at}]
     else
       _other -> []
     end
   end
-
-  defp action("GET", "/api/agents/v1/me", _own?, _operations), do: {:ok, "Checked in"}
-  defp action("POST", "/api/agents/v1/pair", _own?, _operations), do: :skip
-
-  defp action(method, path, true, operations) do
-    segments = segments(path)
-
-    case Enum.find(operations, &(&1.method == method and matches?(segments(&1.path), segments))) do
-      %{words: words} -> {:ok, words}
-      nil -> {:ok, method_words(method)}
-    end
-  end
-
-  defp action(method, _path, false, _operations), do: {:ok, method_words(method)}
-
-  # A POST may only read, so a request no site names is called a change only
-  # when its method always is one.
-  defp method_words(method) when method in ["GET", "HEAD"], do: "Looked something up"
-
-  defp method_words(method) when method in ["PUT", "PATCH", "DELETE"],
-    do: "Asked to make a change"
-
-  defp method_words(_method), do: "Sent a request"
-
-  defp segments(path), do: path |> String.split("?", parts: 2) |> hd() |> String.split("/")
-
-  # A `{name}` segment of the API description's path stands for any one segment.
-  defp matches?(pattern, segments) when length(pattern) == length(segments),
-    do:
-      Enum.zip(pattern, segments)
-      |> Enum.all?(fn {want, got} -> got == want or (placeholder?(want) and got != "") end)
-
-  defp matches?(_pattern, _segments), do: false
-
-  defp placeholder?(segment),
-    do: String.starts_with?(segment, "{") and String.ends_with?(segment, "}")
 
   defp config do
     base_url = Application.fetch_env!(:regent_agents, :siwa)[:url]
@@ -171,9 +115,4 @@ defmodule RegentAgents.Activity do
         {:error, :not_configured}
     end
   end
-
-  defp body(agent, nil),
-    do: %{wallet_address: agent.wallet, since: DateTime.to_iso8601(agent.paired_at)}
-
-  defp body(agent, after_cursor), do: Map.put(body(agent, nil), :after, after_cursor)
 end

@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- One check covers how `RegentAgents.Activity` reads the SIWA service's answer:
+  Regent days come back newest first with their site names, a day at another site
+  is left out, an unreadable day gives `{:error, :bad_day}` and an answer without a
+  list of days gives `{:error, :bad_days}` (agreed with Sean, 16 Oct 2026).
 - `RegentAgents.Activity.recent/1` answers `{:error, :bad_days}` when the SIWA
   service answers 200 without a list of days, instead of
   `{:error, {:unexpected_status, 200}}`, which named the wrong problem.

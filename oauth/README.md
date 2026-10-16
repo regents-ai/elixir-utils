@@ -9,7 +9,10 @@ Implement `RegentOAuth`'s site callbacks: `config/0`, `repo/0`,
 `current_subject/1` and `active_subject?/1`. The subject must come from the site's
 verified Privy browser session, never a request field or caller-supplied header.
 Configuration names one issuer origin, one exact resource URL, one scope and a
-plain-language permission description. The issuer and resource must be HTTPS in
+plain-language permission description. `additional_scopes` maps any further scope
+to its description, and an optional `consent_note` is one sentence in the site's
+own words that the consent page shows under the requested permissions, such as
+what no connection can do there. The issuer and resource must be HTTPS in
 production. A loopback HTTP issuer is only for local checks.
 
 Call `RegentOAuth.configure(Site.OAuth)` before starting the site, and supervise

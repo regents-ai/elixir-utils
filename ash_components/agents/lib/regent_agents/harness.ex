@@ -18,4 +18,15 @@ defmodule RegentAgents.Harness do
       dots: [label: "Dots"],
       other: [label: "Other"]
     ]
+
+  @doc """
+  The agents a site's pairing box offers. ChatGPT pairs through a connected plugin
+  and identity tools that only some sites serve, so it is offered only where the
+  site sets `config :regent_agents, chatgpt_pairing: true`.
+  """
+  def offered do
+    if Application.get_env(:regent_agents, :chatgpt_pairing, false),
+      do: values(),
+      else: values() -- [:chatgpt]
+  end
 end

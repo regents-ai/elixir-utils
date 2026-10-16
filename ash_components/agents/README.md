@@ -66,6 +66,11 @@ config :regent_agents,
   siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
 ```
 
+A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT pairs through a
+connected plugin and the `register_identity`, `get_identity` and `pair_identity`
+tools, so it is listed only on a site that serves them and sets
+`chatgpt_pairing: true` here.
+
 Mount the two requests behind the site's own rate limit (Regents allows 10
 pair requests and 60 check-ins a minute from one address). Mount them outside
 any agent sign-in pipeline: the package checks the signature itself, and a

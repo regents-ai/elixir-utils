@@ -3,11 +3,12 @@
 ## 0.1.0 (unreleased)
 
 - A check-in before the person's first sign-in on the site answers
-  `person_sign_in_needed` (409), asking the agent to have its person sign in
+  `person_not_here` (403), the code every Regent site gives an agent whose person
+  has not signed in there yet, asking the agent to have its person sign in
   there once, instead of crashing: the site's `account` callback returns nil
   until that sign-in. Every site's callback returns a map or nil.
-- The check-in looks up the account before it records contact, so an
-  `person_sign_in_needed` answer leaves the agent's last contact unchanged and
+- The check-in looks up the account before it records contact, so a
+  `person_not_here` answer leaves the agent's last contact unchanged and
   announces nothing.
 - `check_in_agent/2` takes the person's Privy user ID and records contact only
   when the agent's pairing is still with that person; otherwise it answers

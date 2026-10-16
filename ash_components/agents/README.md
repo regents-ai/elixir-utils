@@ -23,7 +23,7 @@ https://siwa.regents.sh/skill.md.
   their agents; it is never shown, logged or answered.
 - A refusal is `{error: {code, message, hint}}`: `pairing_failed` (400),
   `harness_unknown` (400, also for a harness the site does not offer; the hint lists `Harness.offered/0`), `not_paired` (404),
-  `person_sign_in_needed` (409, a check-in before the person's first sign-in on this site),
+  `person_not_here` (403, a check-in before the person's first sign-in on this site),
   `verification_failed` (401), `duplicate_proof`, `unsupported_query` or
   `missing_signed_body` (401, the shared plug's own refusals: a repeated
   signature header, a query string, a body it did not capture whole),
@@ -58,7 +58,7 @@ Depend on it the way the site depends on `regent_identity`:
 Configure it with the site's repository, PubSub, SIWA audience, and how a
 check-in names the person's account (a function taking the Privy user ID and
 returning a JSON-ready map, or nil until the person first signs in on the site,
-which answers the check-in with `person_sign_in_needed`):
+which answers the check-in with `person_not_here`):
 
 ```elixir
 config :regent_agents,

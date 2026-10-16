@@ -17,7 +17,8 @@ defmodule RegentAgents.HTTP do
   the site's `config :regent_agents, account: {Module, :function}`, called with
   the person's Privy user ID and returning a JSON-ready map, or nil until the
   person first signs in on this site; the check-in then asks for that sign-in
-  with `person_sign_in_needed`.
+  with `person_not_here`, the code every Regent site gives an agent whose person
+  has not signed in there yet.
   """
 
   @behaviour Plug
@@ -42,8 +43,8 @@ defmodule RegentAgents.HTTP do
     "not_paired" =>
       {404, "This agent is not paired with an account.",
        "Ask your person for a pairing code, then pair again."},
-    "person_sign_in_needed" =>
-      {409, "Your person has one step left on this site before you can check in.",
+    "person_not_here" =>
+      {403, "The person this agent is paired with hasn't signed in on this site yet.",
        "Ask your person to sign in on this site once, then check in again."},
     "not_found" =>
       {404, "There is no such agent request.",
@@ -89,7 +90,7 @@ defmodule RegentAgents.HTTP do
     else
       {:refused, conn} -> conn
       {:ok, nil} -> error(conn, "not_paired")
-      nil -> error(conn, "person_sign_in_needed")
+      nil -> error(conn, "person_not_here")
       {:error, _not_paired} -> error(conn, "not_paired")
     end
   end

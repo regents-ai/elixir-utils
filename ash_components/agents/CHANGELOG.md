@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.Activity` names the SIWA service's `regents-mobile` audience
+  "Regents mobile app", so an agent's requests through the Regents mobile app
+  show among its sites instead of being skipped.
 - `RegentAgents.Activity.recent/1` reads the SIWA service's daily lines: for each
   Regent site and day in the last 30, when the agent's first and last request
   there was verified, newest day first, with its registry listing.

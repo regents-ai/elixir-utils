@@ -24,6 +24,7 @@ defmodule RegentAgents.Activity do
   @sites %{
     "ash-template" => "Ash Template",
     "regents" => "Regents Labs",
+    "regents-mobile" => "Regents mobile app",
     "autolaunch" => "Autolaunch",
     "techtree" => "Techtree",
     "patchbay" => "Patchbay",

@@ -17,15 +17,19 @@ defmodule RegentMCPAgents do
     opts = config()
 
     if opts[:enabled?] == true do
-      signer = Keyword.fetch!(opts, :hosted_signer)
-      uri = URI.parse(Keyword.fetch!(signer, :base_url))
-      key = Keyword.fetch!(signer, :key)
+      # Never fetch!: its KeyError prints the settings it searched, key included.
+      signer = opts[:hosted_signer]
+      signer = if Keyword.keyword?(signer), do: signer, else: []
+      base_url = signer[:base_url]
+      key = signer[:key]
+      uri = URI.parse(if is_binary(base_url), do: base_url, else: "")
 
       safe_origin? =
         uri.scheme == "https" or
           (uri.scheme == "http" and uri.host in ["localhost", "127.0.0.1"])
 
-      unless RegentOAuth.enabled?() and @identity_scope in RegentOAuth.scopes() and safe_origin? and
+      unless is_binary(base_url) and RegentOAuth.enabled?() and
+               @identity_scope in RegentOAuth.scopes() and safe_origin? and
                is_binary(uri.host) and uri.path in [nil, ""] and
                is_nil(uri.query) and is_nil(uri.fragment) and is_nil(uri.userinfo) and
                is_binary(key) and Regex.match?(~r/\A[A-Za-z0-9_-]{32,}\z/, key) and

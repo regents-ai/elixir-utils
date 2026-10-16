@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `short_relative_time/2` says the same as `relative_time/2` in a few letters,
+  `"now"`, `"3m"`, `"2h"`, `"5d"`, `"2w"`, `"4mo"` or `"1y"`, for a narrow list.
+
 ## 0.2.0
 
 - `short_address/1` is the one short form for an address, `0x1234..abcd`.

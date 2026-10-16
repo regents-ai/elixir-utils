@@ -179,12 +179,12 @@ defmodule RegentFormat do
   @hour 60 * @minute
   @day 24 * @hour
   @relative_units [
-    {365 * @day, "year"},
-    {30 * @day, "month"},
-    {7 * @day, "week"},
-    {@day, "day"},
-    {@hour, "hour"},
-    {@minute, "minute"}
+    {365 * @day, "year", "y"},
+    {30 * @day, "month", "mo"},
+    {7 * @day, "week", "w"},
+    {@day, "day", "d"},
+    {@hour, "hour", "h"},
+    {@minute, "minute", "m"}
   ]
 
   @doc """
@@ -203,9 +203,24 @@ defmodule RegentFormat do
   def relative_time(%DateTime{} = at, %DateTime{} = now) do
     seconds = DateTime.diff(at, now)
 
-    case Enum.find(@relative_units, fn {size, _word} -> abs(seconds) >= size end) do
+    case Enum.find(@relative_units, fn {size, _word, _short} -> abs(seconds) >= size end) do
       nil -> "just now"
-      {size, word} -> relative_words(div(abs(seconds), size), word, seconds < 0)
+      {size, word, _short} -> relative_words(div(abs(seconds), size), word, seconds < 0)
+    end
+  end
+
+  @doc """
+  `relative_time/2` in a few letters, for a narrow list: `"now"` within a minute,
+  then the largest whole unit as `"3m"`, `"2h"`, `"5d"`, `"2w"`, `"4mo"` or `"1y"`,
+  whichever side of `now` `at` is.
+  """
+  @spec short_relative_time(DateTime.t(), DateTime.t()) :: String.t()
+  def short_relative_time(%DateTime{} = at, %DateTime{} = now) do
+    seconds = abs(DateTime.diff(at, now))
+
+    case Enum.find(@relative_units, fn {size, _word, _short} -> seconds >= size end) do
+      nil -> "now"
+      {size, _word, short} -> "#{div(seconds, size)}#{short}"
     end
   end
 

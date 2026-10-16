@@ -2,8 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
-- `RegentAgents.Harness.featured/0` lists the five agents the side panel offers:
-  any agent, Codex, Grok Bot, Muse and Hermes.
+- `RegentAgents.Harness.featured/0` lists the ten agents the side panel offers:
+  any agent, Codex, Grok Bot, Muse, Hermes, Dots, NemoClaw, OpenClaw, Claude Code
+  and Pi.
 - Every pairing message says the code works once, for ten minutes, and to ask for
   a new one if it fails. Codex's adds what to do when its sandbox blocks the
   network and where pair.json goes; Grok Bot's says never to post the code in

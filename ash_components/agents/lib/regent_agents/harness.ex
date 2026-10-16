@@ -20,11 +20,23 @@ defmodule RegentAgents.Harness do
     ]
 
   @doc """
-  The five agents the side panel offers, in its order: any agent, then OpenAI's
-  Codex, Grok Bot, Muse and Hermes. Every site offers all five, and each has its
-  own pairing message (`RegentAgents.PairingMessage`).
+  The ten agents the side panel offers, in its order: any agent, OpenAI's Codex,
+  Grok Bot, Muse, Hermes, Dots, NemoClaw, OpenClaw, Claude Code and Pi. Every
+  site offers all ten (`RegentAgents.PairingMessage` has their words).
   """
-  def featured, do: [:other, :codex, :grok_bot, :muse, :hermes]
+  def featured,
+    do: [
+      :other,
+      :codex,
+      :grok_bot,
+      :muse,
+      :hermes,
+      :dots,
+      :nemoclaw,
+      :openclaw,
+      :claude_code,
+      :pi
+    ]
 
   @doc """
   The agents a site's pairing box offers. ChatGPT pairs through a connected plugin

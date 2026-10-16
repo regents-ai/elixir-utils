@@ -1,9 +1,9 @@
 defmodule RegentAgents.PairingMessage do
   @moduledoc """
   What a person pastes to their agent to pair it: the site's name, the pairing
-  code, where the pairing steps are and how long the code lasts. The agents in
-  `RegentAgents.Harness.featured/0` each get one more line for the mistake that
-  agent most often makes on its first pairing. Muse runs where siwa.regents.sh
+  code, where the pairing steps are and how long the code lasts. Codex, Grok Bot,
+  Hermes and Muse each get one more line for the mistake that agent most often
+  makes on its first pairing. Muse runs where siwa.regents.sh
   may not answer, so its line names the SIWA service's other address.
   """
 

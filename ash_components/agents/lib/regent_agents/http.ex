@@ -77,16 +77,20 @@ defmodule RegentAgents.HTTP do
 
   defp pair(conn), do: error(conn, "pairing_failed")
 
-  # The proof is checked first; the shared plug refuses a query string.
+  # The proof is checked first; the shared plug refuses a query string. The
+  # account is looked up before contact is recorded, so a refused check-in
+  # leaves the agent's last contact as it was.
   defp me(conn) do
     with {:ok, agent, conn} <- verify(conn),
-         {:ok, paired} <- RegentAgents.check_in_agent(actor: agent),
-         %{} = account <- account(paired) do
+         {:ok, %{privy_user_id: privy_user_id}} <- RegentAgents.current_pairing(actor: agent),
+         %{} = account <- account(privy_user_id),
+         {:ok, paired} <- RegentAgents.check_in_agent(actor: agent) do
       answer(conn, %{data: Map.put(present(paired, agent), :account, account)})
     else
       {:refused, conn} -> conn
-      {:error, _not_paired} -> error(conn, "not_paired")
+      {:ok, nil} -> error(conn, "not_paired")
       nil -> error(conn, "account_missing")
+      {:error, _not_paired} -> error(conn, "not_paired")
     end
   end
 
@@ -163,9 +167,9 @@ defmodule RegentAgents.HTTP do
     |> Map.merge(HumanBacking.describe(paired))
   end
 
-  defp account(agent) do
+  defp account(privy_user_id) do
     {module, function} = Application.fetch_env!(:regent_agents, :account)
-    apply(module, function, [agent.privy_user_id])
+    apply(module, function, [privy_user_id])
   end
 
   defp error(conn, "harness_unknown") do

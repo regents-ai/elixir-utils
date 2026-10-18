@@ -8,7 +8,9 @@ repository, opens no alternate database and changes no product authorization.
 Call `sync/1` only with `RegentPrivy.Session.verify/2` evidence during explicit
 sign-in or account linking. Read using `get_my_profile(actor: evidence)`, edit
 using `edit_profile(profile, attrs, actor: evidence)`, and serialize with
-`present/1`. Never construct the actor from request JSON or an unverified cookie.
+`present/1`. A site shows each person's chosen name on its own account
+resource with the calculation `{RegentIdentity.ProfileName, otp_app: :product_app}`,
+which reads only the name, whoever asks. Never construct the actor from request JSON or an unverified cookie.
 Shared IDs are additive: existing product IDs and signed payment payloads remain
 unchanged. Personal Privy X proof does not replace Autolaunch company-role OAuth.
 

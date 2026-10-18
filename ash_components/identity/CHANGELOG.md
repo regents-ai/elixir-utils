@@ -8,3 +8,6 @@
 - elixir-utils siblings are path dependencies, and the package runs the
   elixir-utils `mix check`.
 - Runs on Ash 3.36. Ash postgres stays at 2.13.0.
+- `RegentIdentity.ProfileName`: the calculation a site puts on its account
+  resource to show the name a person set in their shared profile. Each site
+  used to keep its own copy of the profiles table to read it.

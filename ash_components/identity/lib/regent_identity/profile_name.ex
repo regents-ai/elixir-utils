@@ -12,8 +12,6 @@ defmodule RegentIdentity.ProfileName do
 
   use Ash.Resource.Calculation
 
-  require Ash.Query
-
   @impl true
   def load(_query, _opts, _context), do: [:privy_user_id]
 
@@ -29,7 +27,7 @@ defmodule RegentIdentity.ProfileName do
 
     # Names are public, so they are read whoever asks; only the name leaves.
     RegentIdentity.Profile
-    |> Ash.Query.filter(app_id == ^app_id and privy_user_id in ^people)
+    |> Ash.Query.for_read(:names, %{app_id: app_id, privy_user_ids: people})
     |> Ash.Query.select([:privy_user_id, :display_name])
     |> Ash.read(authorize?: false)
     |> case do

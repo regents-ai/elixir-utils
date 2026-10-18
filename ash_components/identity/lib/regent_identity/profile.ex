@@ -45,6 +45,14 @@ defmodule RegentIdentity.Profile do
       filter expr(app_id == ^actor(:app_id) and privy_user_id == ^actor(:privy_user_id))
     end
 
+    # Only `RegentIdentity.ProfileName` reads this, unauthorized: names are
+    # public, and it selects nothing but the name.
+    read :names do
+      argument :app_id, :string, allow_nil?: false
+      argument :privy_user_ids, {:array, :string}, allow_nil?: false
+      filter expr(app_id == ^arg(:app_id) and privy_user_id in ^arg(:privy_user_ids))
+    end
+
     create :register do
       accept []
       change RegentIdentity.ProofAttributes

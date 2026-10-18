@@ -6,6 +6,16 @@ All notable changes to `siwa` should be recorded here.
 
 ### Added
 
+- Declared bodies. `Siwa.AgentAuthPlug` takes `body: :declared` on a route
+  whose body is too large to read before the signature is checked: the plug
+  never reads the body, sends the request's signed `content-digest` as the
+  payload's `"body_digest"`, refuses (`source: :siwa_plug`) a body something
+  read or parsed before it (`:declared_body_read`) and a request without one
+  `content-digest` holding a single sha-256 value in its one spelling
+  (`:missing_content_digest`, `:invalid_content_digest`, or `:duplicate_proof`
+  when it is sent twice), and assigns the verified value as
+  `conn.assigns.siwa_body_digest`. The site streams the body itself and checks
+  it with `Siwa.AgentAuthPlug.declared_body_matches?/2` before acting on it.
 - Leases for requests that read. `Siwa.AgentAuthPlug` takes `read_only: true`
   on a route or tool that changes nothing and spends nothing; such a request
   asks the sign-in server for a lease (`"lease": true`), and while the lease

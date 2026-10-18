@@ -9,13 +9,18 @@ defmodule Siwa.AgentAuthPlug do
     * `:unsupported_query` — a query string, unless the site signs queries
       (`query: :signed`);
     * `:missing_signed_body` — a body whose exact bytes `read_body/3` did not
-      capture whole, so the signature would not cover what the site reads.
+      capture whole, so the signature would not cover what the site reads;
+    * with `body: :declared`, in its place: `:declared_body_read` when the
+      body was already read or parsed before the plug, and
+      `:missing_content_digest` or `:invalid_content_digest` for a request
+      without one `content-digest` header holding a single sha-256 value in
+      its one spelling (`Siwa.content_digest_for_body/1`'s).
 
   It then builds the canonical `POST /api/shared/siwa/http-verify` payload
   carrying only the signed headers and, for a request with a body, that body's
-  digest (`Siwa.content_digest_for_body/1`) from the bytes this site read. The
-  body itself never leaves the site. It sends the payload through the
-  app-provided client,
+  digest (`Siwa.content_digest_for_body/1`) from the bytes this site read, or
+  with `body: :declared` the digest the request declares. The body itself never
+  leaves the site. It sends the payload through the app-provided client,
   and hands every app-specific decision to the app's hooks module:
 
     * `c:Siwa.AgentAuthPlug.Hooks.before_verify/2` runs before the broker
@@ -39,8 +44,8 @@ defmodule Siwa.AgentAuthPlug do
     * `:query` — `:refuse` (default) or `:signed` (the query string is part of
       the signed path)
     * `:body` — `:if_present` (default: omit the payload `"body_digest"` when
-      no raw body was captured) or `:always` (send the digest of the captured
-      raw body, or of `""`)
+      no raw body was captured), `:always` (send the digest of the captured
+      raw body, or of `""`) or `:declared`, described below
     * `:read_only` — `true` only on a route or tool that changes nothing and
       spends nothing (default `false`). Such a request may be checked on a lease,
       described below; every other request goes to the sign-in server.
@@ -68,6 +73,18 @@ defmodule Siwa.AgentAuthPlug do
   server's (`:"siwa_http_<status>"`, `:siwa_status`, `:siwa_code` and
   `:siwa_message` from `Siwa.Contract.refusal/1`), with `source: :siwa_lease`
   and no `:siwa_hint`: the site's own hint is the one shown.
+
+  ## Declared bodies, for bodies too large to read first
+
+  With `body: :declared` the plug never reads the body, and the body must not
+  have been read or parsed before it, so the plug goes before `Plug.Parsers`
+  on such a route. The signed
+  `content-digest` header is the body's digest: the plug sends it as the
+  payload's `"body_digest"`, so the sign-in server checks the signature covers
+  it, and on a verified request assigns it as `conn.assigns.siwa_body_digest`
+  before `accept/3` runs. The site then streams the body itself and must refuse
+  it unless `declared_body_matches?/2` holds for the sha-256 of the bytes it
+  received, before it acts on any of them.
 
   A site's body reader passes each signed route's body to `read_body/3`. Deny
   metadata is a map with `:reason` and `:source` plus optional detail keys (`:siwa_status`, `:siwa_code`,
@@ -110,6 +127,7 @@ defmodule Siwa.AgentAuthPlug do
   end
 
   @http_verify_path "/api/shared/siwa/http-verify"
+  @declared_digest ~r/\A#{Contract.body_algorithm()}=:([A-Za-z0-9+\/]{43}=):\z/
 
   @impl Plug
   def init(opts), do: opts
@@ -118,13 +136,14 @@ defmodule Siwa.AgentAuthPlug do
   def call(conn, opts) do
     hooks = Keyword.fetch!(opts, :hooks)
     headers = downcase_headers(conn.req_headers)
+    body_mode = Keyword.get(opts, :body, :if_present)
 
     with :ok <- refuse_repeats(conn),
          :ok <- refuse_query(conn, Keyword.get(opts, :query, Contract.query_default())),
-         :ok <- refuse_unsigned_body(conn),
+         {:ok, body_digest} <- body_digest(conn, headers, body_mode),
          {:ok, context} <- hooks.before_verify(conn, headers),
-         {:ok, data} <- verify(conn, headers, opts),
-         {:ok, conn} <- hooks.accept(conn, data, context) do
+         {:ok, data} <- verify(conn, headers, body_digest, opts),
+         {:ok, conn} <- hooks.accept(assign_declared(conn, body_mode, body_digest), data, context) do
       conn
     else
       {:error, deny_meta} when is_map(deny_meta) -> hooks.deny(conn, deny_meta)
@@ -187,11 +206,77 @@ defmodule Siwa.AgentAuthPlug do
     end
   end
 
-  defp refuse_unsigned_body(conn) do
-    if body_sent?(conn) and not body_captured?(conn),
-      do: {:error, %{reason: :missing_signed_body, source: :siwa_plug}},
-      else: :ok
+  @doc """
+  Whether `sha256`, the 32-byte sha-256 of the body bytes a site received on a
+  `body: :declared` route, is the body the request declared in
+  `conn.assigns.siwa_body_digest`.
+  """
+  @spec declared_body_matches?(binary(), String.t()) :: boolean()
+  def declared_body_matches?(<<_::binary-size(32)>> = sha256, content_digest)
+      when is_binary(content_digest),
+      do: declared_sha256(content_digest) == {:ok, sha256}
+
+  # The digest the signature covers: what the request declares, or what this
+  # site worked out from the bytes it read.
+  defp body_digest(conn, headers, :declared) do
+    with :ok <- refuse_read_body(conn),
+         {:ok, content_digest} <- fetch_content_digest(headers),
+         {:ok, _sha256} <- declared_sha256(content_digest) do
+      {:ok, content_digest}
+    else
+      :error -> {:error, %{reason: :invalid_content_digest, source: :siwa_plug}}
+      {:error, deny_meta} -> {:error, deny_meta}
+    end
   end
+
+  defp body_digest(conn, _headers, body_mode) do
+    cond do
+      body_sent?(conn) and not body_captured?(conn) ->
+        {:error, %{reason: :missing_signed_body, source: :siwa_plug}}
+
+      is_binary(conn.assigns[:raw_body]) ->
+        {:ok, Siwa.RequestAuth.content_digest_for_body(conn.assigns.raw_body)}
+
+      body_mode == :always ->
+        {:ok, Siwa.RequestAuth.content_digest_for_body("")}
+
+      body_mode == :if_present ->
+        {:ok, nil}
+    end
+  end
+
+  # Bytes something read before the plug are bytes the site can no longer check
+  # against the declared digest.
+  defp refuse_read_body(conn) do
+    if Map.has_key?(conn.assigns, :raw_body) or
+         conn.body_params not in [%{}, %Plug.Conn.Unfetched{aspect: :body_params}],
+       do: {:error, %{reason: :declared_body_read, source: :siwa_plug}},
+       else: :ok
+  end
+
+  defp fetch_content_digest(headers) do
+    case Map.fetch(headers, Contract.body_component()) do
+      {:ok, content_digest} -> {:ok, content_digest}
+      :error -> {:error, %{reason: :missing_content_digest, source: :siwa_plug}}
+    end
+  end
+
+  defp declared_sha256(content_digest) do
+    # Base64 of 32 bytes has two spare bits, so only the spelling that encodes
+    # back to itself is the declared digest.
+    with [_whole, encoded] <- Regex.run(@declared_digest, content_digest),
+         {:ok, <<_::binary-size(32)>> = sha256} <- Base.decode64(encoded),
+         ^encoded <- Base.encode64(sha256) do
+      {:ok, sha256}
+    else
+      _not_one_sha256 -> :error
+    end
+  end
+
+  defp assign_declared(conn, :declared, body_digest),
+    do: Plug.Conn.assign(conn, :siwa_body_digest, body_digest)
+
+  defp assign_declared(conn, _body_mode, _body_digest), do: conn
 
   defp body_captured?(%Plug.Conn{
          assigns: %{raw_body: body},
@@ -209,24 +294,25 @@ defmodule Siwa.AgentAuthPlug do
       conn.body_params not in [%{}, %Plug.Conn.Unfetched{aspect: :body_params}]
   end
 
-  defp verify(conn, headers, opts) do
+  defp verify(conn, headers, body_digest, opts) do
     if Keyword.get(opts, :read_only, false),
-      do: verify_read(conn, headers, opts),
-      else: verify_envelope(conn, headers, opts, %{})
+      do: verify_read(conn, headers, body_digest, opts),
+      else: verify_envelope(conn, headers, body_digest, opts, %{})
   end
 
-  defp verify_read(conn, headers, opts) do
+  defp verify_read(conn, headers, body_digest, opts) do
     audience = Keyword.fetch!(opts, :audience)
     receipt = Map.get(headers, Contract.header_for("receipt"))
     now = DateTime.utc_now()
 
     case Leases.fetch(audience, receipt, DateTime.to_unix(now, :millisecond)) do
       {:ok, lease} ->
-        check_on_lease(conn, headers, lease, now, opts)
+        check_on_lease(conn, headers, body_digest, lease, now, opts)
 
       :none ->
-        with {:ok, data} <- verify_envelope(conn, headers, opts, %{"lease" => true}) do
-          begin_lease(conn, headers, receipt, data, now, opts)
+        with {:ok, data} <-
+               verify_envelope(conn, headers, body_digest, opts, %{"lease" => true}) do
+          begin_lease(conn, headers, body_digest, receipt, data, now, opts)
         end
     end
   end
@@ -236,6 +322,7 @@ defmodule Siwa.AgentAuthPlug do
   defp begin_lease(
          conn,
          headers,
+         body_digest,
          receipt,
          %{"leaseExpiresAt" => lease_expires_at} = data,
          now,
@@ -243,11 +330,11 @@ defmodule Siwa.AgentAuthPlug do
        ) do
     with {:ok, lease} <- lease(receipt, data, lease_expires_at) do
       :ok = Leases.keep(Keyword.fetch!(opts, :audience), lease)
-      check_on_lease(conn, headers, lease, now, opts)
+      check_on_lease(conn, headers, body_digest, lease, now, opts)
     end
   end
 
-  defp begin_lease(_conn, _headers, _receipt, data, _now, _opts), do: {:ok, data}
+  defp begin_lease(_conn, _headers, _body_digest, _receipt, data, _now, _opts), do: {:ok, data}
 
   defp lease(receipt, data, lease_expires_at) do
     with %{
@@ -275,8 +362,8 @@ defmodule Siwa.AgentAuthPlug do
     end
   end
 
-  defp check_on_lease(conn, headers, lease, now, opts) do
-    request = http_verify_payload(conn, headers, opts)
+  defp check_on_lease(conn, headers, body_digest, lease, now, opts) do
+    request = http_verify_payload(conn, headers, body_digest)
 
     case Siwa.RequestAuth.verify_leased_request(request, lease,
            audience: Keyword.fetch!(opts, :audience),
@@ -299,9 +386,9 @@ defmodule Siwa.AgentAuthPlug do
     }
   end
 
-  defp verify_envelope(conn, headers, opts, extra) do
+  defp verify_envelope(conn, headers, body_digest, opts, extra) do
     client = Keyword.fetch!(opts, :client)
-    payload = conn |> http_verify_payload(headers, opts) |> Map.merge(extra)
+    payload = conn |> http_verify_payload(headers, body_digest) |> Map.merge(extra)
 
     case client.verify_http_request(payload, audience: Keyword.fetch!(opts, :audience)) do
       {:ok,
@@ -333,22 +420,14 @@ defmodule Siwa.AgentAuthPlug do
     end
   end
 
-  defp http_verify_payload(conn, headers, opts) do
+  defp http_verify_payload(conn, headers, body_digest) do
     payload = %{
       "method" => conn.method,
       "path" => signed_path(conn),
       "headers" => Map.take(headers, Contract.forwarded_headers())
     }
 
-    case {Keyword.get(opts, :body, :if_present), conn.assigns[:raw_body]} do
-      {_mode, body} when is_binary(body) -> put_body_digest(payload, body)
-      {:always, _missing} -> put_body_digest(payload, "")
-      {:if_present, _missing} -> payload
-    end
-  end
-
-  defp put_body_digest(payload, body) do
-    Map.put(payload, "body_digest", Siwa.RequestAuth.content_digest_for_body(body))
+    if body_digest, do: Map.put(payload, "body_digest", body_digest), else: payload
   end
 
   defp signed_path(%Plug.Conn{request_path: path, query_string: ""}), do: path

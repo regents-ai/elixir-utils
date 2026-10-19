@@ -44,6 +44,12 @@ defmodule RegentCredits.Hold do
     schema "regent_credits"
     table "holds"
 
+    custom_indexes do
+      # An agent's spend today and a site's total for one agent both read one
+      # owner's holds, so this keeps them off the whole ledger.
+      index [:privy_user_id, :held_at], concurrently: true
+    end
+
     check_constraints do
       check_constraint :request, "request_fits",
         check: "octet_length(request) <= 4000",

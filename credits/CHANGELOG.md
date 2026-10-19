@@ -73,3 +73,8 @@ shared by every Regent site.
   module, and listens to both signals instead. A checked purchase is credited
   by its own action, `:credit_checked`; `:finish` only records one that will
   not be credited.
+- Holds have an index on the owner and the time they were held
+  (`holds_privy_user_id_held_at_index`, built concurrently). An agent's spend
+  today and a site's total for one agent read only that owner's holds instead
+  of the whole ledger. Each site runs the new migration through
+  `RegentCredits.Migrator.up/1` when it re-pins.

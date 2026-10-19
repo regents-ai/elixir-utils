@@ -82,6 +82,33 @@ defmodule RegentIdentity.HTTPTest do
     assert request(:patch, "/", tokens, %{profile_id: "other"}).status == 422
   end
 
+  # Invariant: a name that would hide characters or turn the text around it
+  # (founder, 2026-10-19) is refused with its own code, and the saved name stays.
+  test "a name with a control or text-direction character is refused", tokens do
+    assert request(:post, "/sync", tokens).status == 200
+    assert request(:patch, "/", tokens, %{display_name: "Ada"}).status == 200
+
+    for name <- [
+          "Ada\u202Egnp.exe",
+          "Ada\u2066Lovelace",
+          "Ada\u200FL",
+          "Ada\nLovelace",
+          "Ada\u0000"
+        ] do
+      refused = request(:patch, "/", tokens, %{display_name: name})
+      assert refused.status == 422
+      assert Jason.decode!(refused.resp_body)["error"]["code"] == "invalid_display_name"
+    end
+
+    assert Jason.decode!(request(:get, "/", tokens).resp_body)["profile"]["display_name"] == "Ada"
+
+    # Emoji joined by a zero-width joiner, accents and right-to-left letters stay allowed.
+    for name <- ["Ada 👩\u200D💻", "Zoë", "عائشة"] do
+      saved = request(:patch, "/", tokens, %{display_name: name})
+      assert Jason.decode!(saved.resp_body)["profile"]["display_name"] == name
+    end
+  end
+
   test "missing or swapped proof never creates a profile", tokens do
     refused = conn(:get, "/") |> RegentIdentity.HTTP.call(:identity_http_fixture)
     assert refused.status == 401

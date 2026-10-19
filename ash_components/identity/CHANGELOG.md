@@ -11,3 +11,7 @@
 - `RegentIdentity.ProfileName`: the calculation a site puts on its account
   resource to show the name a person set in their shared profile. Each site
   used to keep its own copy of the profiles table to read it.
+- A display name may not hold control characters or characters that turn the
+  text around them to run the other way (founder, 2026-10-19). `PATCH /` refuses
+  one with the code `invalid_display_name`; letters in any script, accents and
+  emoji stay allowed.

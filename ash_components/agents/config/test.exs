@@ -4,6 +4,11 @@ config :regent_agents,
   repo: RegentAgents.TestRepo,
   pubsub: RegentAgents.TestPubSub,
   account: {RegentAgents.Test.Site, :account},
+  allowed: %{
+    "not_paired" => ["Read public pages."],
+    "person_not_here" => ["Read public pages."],
+    "paired" => ["Read public pages.", "Act for your person."]
+  },
   siwa: [url: "https://siwa.test", audience: "test"],
   req_options: [plug: {Req.Test, RegentAgents.Broker}]
 

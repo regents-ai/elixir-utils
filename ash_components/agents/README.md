@@ -2,12 +2,20 @@
 
 One pairing between a person and their agent, shared by every Regent site.
 
-A person makes a pairing code on their regents.sh Account page and gives it to
-their agent. The agent pairs on any Regent site, signing the request with its
+A person signs in on a Regent site and makes a pairing code with Pair New Agent
+in its side panel, then gives the code to their agent. The agent pairs on any Regent site, signing the request with its
 SIWA key, and afterwards every site's check-in answers with that same pairing.
 The agent's side is described in the sign-in guide at
 https://siwa.regents.sh/skill.md.
 
+- `GET /api/agents/v1/whoami` answers `200 {data: {agent, audience,
+  authenticated, pairing, status, allowed, next_step}}` for every signed agent,
+  without checking in. `status` is `not_paired` (paired to nobody),
+  `person_not_here` (paired, but its person has never signed in on this site) or
+  `paired` (it acts for its person); `allowed` is the site's list of short
+  sentences for that status; `next_step` is one sentence, null when `paired`.
+  `pairing` is `{id, paired_at}` or null. `RegentAgents.HTTP.next_step/1` gives
+  the same next step for a site's own agent guides.
 - `POST /api/agents/v1/pair` with `{code, name, harness}` answers `201 {data: agent}`.
 - `GET /api/agents/v1/me` answers `200 {data: agent + account}`.
 - Both answers carry `registry_listing`: the agent's page in the agent registry,
@@ -22,7 +30,8 @@ https://siwa.regents.sh/skill.md.
   uses these two names. The person's World ID number is saved only to group
   their agents; it is never shown, logged or answered.
 - A refusal is `{error: {code, message, hint}}`: `pairing_failed` (400),
-  `harness_unknown` (400, also for a harness the site does not offer; the hint lists `Harness.offered/0`), `not_paired` (404),
+  `harness_unknown` (400, also for a harness the site does not offer; the hint lists `Harness.offered/0`),
+  `agent_not_paired` (403, a check-in from an agent paired to nobody),
   `person_not_here` (403, a check-in before the person's first sign-in on this site),
   `verification_failed` (401), `duplicate_proof`, `unsupported_query` or
   `missing_signed_body` (401, the shared plug's own refusals: a repeated
@@ -58,16 +67,23 @@ Depend on it the way the site depends on `regent_identity`:
 {:regent_agents, git: @regents, ref: @regents_ref, sparse: "agents"}
 ```
 
-Configure it with the site's repository, PubSub, SIWA audience, and how a
+Configure it with the site's repository, PubSub, SIWA audience, how a
 check-in names the person's account (a function taking the Privy user ID and
 returning a JSON-ready map, or nil until the person first signs in on the site,
-which answers the check-in with `person_not_here`):
+which answers the check-in with `person_not_here`), and what an agent may do on
+the site in each status, as `whoami` tells it. There is no default list: every
+site writes its own, true to its routes and policies.
 
 ```elixir
 config :regent_agents,
   repo: MySite.Repo,
   pubsub: MySite.PubSub,
   account: {MySite.Agents, :account},
+  allowed: %{
+    "not_paired" => ["Read public pages and public tools.", "Pair with a code from your person."],
+    "person_not_here" => ["Read public pages and public tools."],
+    "paired" => ["Read public pages and public tools.", "Read and write your person's notes."]
+  },
   siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
 ```
 
@@ -76,7 +92,7 @@ connected plugin and the `register_identity`, `get_identity` and `pair_identity`
 tools, so it is listed, and the pair request accepts it, only on a site that
 serves them and sets `chatgpt_pairing: true` here.
 
-Mount the two requests behind the site's own rate limit (Regents allows 10
+Mount the requests behind the site's own rate limit (Regents allows 10
 pair requests and 60 check-ins a minute from one address). Mount them outside
 any agent sign-in pipeline: the package checks the signature itself, and a
 second check would spend the signed request, so the agent would be told

@@ -199,20 +199,46 @@ defmodule RegentAgents.HTTPTest do
              send_request(:post, "/api/agents/v1/pair", body)
   end
 
-  test "an agent nobody paired is told to ask for a code" do
+  # Invariant: every signed agent is told which of the three statuses it is in,
+  # what the site lets it do in that status and its next step, and a check-in is
+  # refused until it acts for its person.
+  test "whoami names the agent's status, what it may do and its next step" do
     siwa_verifies()
+    allowed = Application.fetch_env!(:regent_agents, :allowed)
 
-    assert {200,
-            %{
-              "data" => %{
-                "authenticated" => true,
-                "pairing" => nil,
-                "effective_access" => %{"paired" => false}
-              }
-            }} = send_request(:get, "/api/agents/v1/whoami")
+    assert {200, %{"data" => unpaired}} = send_request(:get, "/api/agents/v1/whoami")
 
-    assert {404, %{"error" => %{"code" => "not_paired"}}} =
+    assert %{"authenticated" => true, "pairing" => nil, "status" => "not_paired"} = unpaired
+    assert unpaired["allowed"] == allowed["not_paired"]
+    assert is_binary(unpaired["next_step"])
+    refute Map.has_key?(unpaired, "effective_access")
+
+    assert {403, %{"error" => %{"code" => "agent_not_paired"}}} =
              send_request(:get, "/api/agents/v1/me")
+
+    away = person("away")
+    body = %{"code" => code!(away), "name" => "Sol", "harness" => "codex"}
+    assert {201, _paired} = send_request(:post, "/api/agents/v1/pair", body)
+
+    assert {200, %{"data" => %{"status" => "person_not_here", "pairing" => %{}} = waiting}} =
+             send_request(:get, "/api/agents/v1/whoami")
+
+    assert waiting["allowed"] == allowed["person_not_here"]
+    assert is_binary(waiting["next_step"])
+
+    assert {403, %{"error" => %{"code" => "person_not_here"}}} =
+             send_request(:get, "/api/agents/v1/me")
+
+    [agent] = RegentAgents.list_my_agents!(actor: away)
+    RegentAgents.unpair_agent!(agent, actor: away)
+    body = %{body | "code" => code!(person("here"))}
+    assert {201, _paired} = send_request(:post, "/api/agents/v1/pair", body)
+
+    assert {200, %{"data" => %{"status" => "paired", "next_step" => nil} = acting}} =
+             send_request(:get, "/api/agents/v1/whoami")
+
+    assert acting["allowed"] == allowed["paired"]
+    assert {200, %{"data" => _checked_in}} = send_request(:get, "/api/agents/v1/me")
   end
 
   test "the SIWA service's refusal reaches the agent as the SIWA service wrote it" do

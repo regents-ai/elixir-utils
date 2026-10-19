@@ -2,6 +2,15 @@
 
 ## 0.1.0 (unreleased)
 
+- `GET /whoami` tells every signed agent its `status` on the site (`not_paired`,
+  `person_not_here` or `paired`), what it may do in it (`allowed`, from the
+  site's required `config :regent_agents, :allowed`) and its `next_step` (null
+  when paired). `effective_access` is gone.
+- A check-in from an agent paired to nobody answers `agent_not_paired` (403),
+  the code every Regent site gives such an agent, in place of `not_paired`
+  (404). Its hint, and the `pairing_failed` and `agent_limit` hints, point the
+  person at Pair New Agent in this site's side panel.
+
 - One check covers how `RegentAgents.Activity` reads the SIWA service's answer:
   Regent days come back newest first with their site names, a day at another site
   is left out, an unreadable day gives `{:error, :bad_day}` and an answer without a

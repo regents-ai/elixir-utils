@@ -1,11 +1,13 @@
 defmodule RegentAgents.HTTP do
   @moduledoc """
-  The two requests an agent signs with its SIWA key, the same on every site:
-  `POST /pair` joins a person's account with the code they gave it, and
-  `GET /me` checks in and answers with the pairing. Both answers carry the
-  page of the agent's listing in the agent registry, or null, whether a person
-  verified with World ID stands behind the agent, and how many agents that same
-  person stands behind, or null when none does, as this request saved them.
+  The requests an agent signs with its SIWA key, the same on every site:
+  `GET /whoami` tells the agent its status on this site, what it may do in it and
+  its next step; `POST /pair` joins a person's account with the code they gave
+  it; and `GET /me` checks in and answers with the pairing. The pair and
+  check-in answers carry the page of the agent's listing in the agent registry,
+  or null, whether a person verified with World ID stands behind the agent, and
+  how many agents that same person stands behind, or null when none does, as
+  this request saved them.
 
   Mount it with `forward "/api/agents/v1", RegentAgents.HTTP` behind the site's
   own rate limit and a body reader that keeps the raw body in
@@ -13,12 +15,19 @@ defmodule RegentAgents.HTTP do
   service verifies every request for this site's audience; when it refuses
   one, the agent gets its status, code, message and hint back unchanged.
 
+  An agent has one of three statuses on a site: `not_paired` (paired to nobody),
+  `person_not_here` (paired, but its person has never signed in on this site)
+  and `paired` (it acts for its person). The site names what each status may do
+  in `config :regent_agents, allowed: %{"not_paired" => [...],
+  "person_not_here" => [...], "paired" => [...]}`, short plain sentences that
+  `whoami` answers as they are.
+
   A check-in names the person's account as the site's own pages name it, from
   the site's `config :regent_agents, account: {Module, :function}`, called with
   the person's Privy user ID and returning a JSON-ready map, or nil until the
-  person first signs in on this site; the check-in then asks for that sign-in
-  with `person_not_here`, the code every Regent site gives an agent whose person
-  has not signed in there yet.
+  person first signs in on this site. Until then the agent's status is
+  `person_not_here` and a check-in is refused with that code; an agent paired to
+  nobody is refused with `agent_not_paired`.
   """
 
   @behaviour Plug
@@ -39,20 +48,33 @@ defmodule RegentAgents.HTTP do
        "Send a name of 1 to 80 characters with no hidden characters: no control, line-break, text-direction or zero-width characters, except a zero-width joiner between two visible characters, as in an emoji. The same code works until it expires."},
     "pairing_failed" =>
       {400, "The pairing code could not be used.",
-       "Ask your person for a new pairing code. Each code works once and expires ten minutes after it was made."},
+       "Ask your person for a new code from Pair New Agent in the side panel on this site. Each code works once and expires ten minutes after it was made."},
     "agent_limit" =>
       {409, "This account already has 100 paired agents.",
-       "Ask your person to unpair an agent on their Regents account page, then pair again. The same code works until it expires."},
-    "not_paired" =>
-      {404, "This agent is not paired with an account.",
-       "Ask your person for a pairing code, then pair again."},
+       "Ask your person to unpair an agent in the side panel on this site, then pair again. The same code works until it expires."},
+    "agent_not_paired" =>
+      {403, "This agent is not paired with an account.",
+       "Ask your person to sign in on this site and pair you with Pair New Agent in the side panel, then check in again."},
     "person_not_here" =>
       {403, "The person this agent is paired with hasn't signed in on this site yet.",
        "Ask your person to sign in on this site once, then check in again."},
     "not_found" =>
       {404, "There is no such agent request.",
-       "Agents pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}
+       "Agents see their status with GET /api/agents/v1/whoami, pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}
   }
+
+  @next_steps %{
+    "not_paired" =>
+      "Ask your person to sign in on this site and pair you with Pair New Agent in the side panel.",
+    "person_not_here" => "Ask your person to sign in on this site once.",
+    "paired" => nil
+  }
+
+  @doc """
+  What an agent in `status` does next, one sentence, the same on every site, or
+  nil when it acts for its person. A site's agent guides quote it.
+  """
+  def next_step(status), do: Map.fetch!(@next_steps, status)
 
   @impl true
   def init(opts), do: opts
@@ -100,9 +122,9 @@ defmodule RegentAgents.HTTP do
       answer(conn, %{data: Map.put(present(paired, agent), :account, account)})
     else
       {:refused, conn} -> conn
-      {:ok, nil} -> error(conn, "not_paired")
+      {:ok, nil} -> error(conn, "agent_not_paired")
       nil -> error(conn, "person_not_here")
-      {:error, _not_paired} -> error(conn, "not_paired")
+      {:error, _no_longer_paired} -> error(conn, "agent_not_paired")
     end
   end
 
@@ -110,25 +132,29 @@ defmodule RegentAgents.HTTP do
   defp whoami(conn) do
     with {:ok, agent, conn} <- verify(conn),
          {:ok, pairing} <- RegentAgents.current_pairing(actor: agent) do
+      status = status(pairing)
+
       answer(conn, %{
         data: %{
           agent: %{wallet: agent.wallet, registry_listing: agent.registry_listing},
           audience: Broker.audience(),
           authenticated: true,
           pairing: if(pairing, do: %{id: pairing.id, paired_at: pairing.paired_at}, else: nil),
-          effective_access: %{
-            paired: not is_nil(pairing),
-            product_permissions:
-              if(pairing, do: "subject_to_product_authorization", else: "public_only"),
-            account_management: false,
-            spending: "requires_current_pairing_grant"
-          }
+          status: status,
+          allowed: Map.fetch!(Application.fetch_env!(:regent_agents, :allowed), status),
+          next_step: next_step(status)
         }
       })
     else
       {:refused, conn} -> conn
       {:error, _error} -> refuse(conn, %{reason: :siwa_request_failed})
     end
+  end
+
+  defp status(nil), do: "not_paired"
+
+  defp status(%{privy_user_id: privy_user_id}) do
+    if account(privy_user_id), do: "paired", else: "person_not_here"
   end
 
   defp harness(value) do

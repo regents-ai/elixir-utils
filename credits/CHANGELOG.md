@@ -42,7 +42,8 @@ shared by every Regent site.
   a `direction` and the facts that apply. A hold's transfers are added
   together, and a page never ends inside one. The entries no longer carry
   `operation`, `available_delta` or `held_delta`.
-  `RegentCredits.History.Words` holds the words every site shows for them.
+  `RegentCredits.History.Words` holds the words every site shows for them,
+  including the purpose `note_pin` ("Note pinned") for a note an agent pinned.
 - A refund no longer asks whether the account has ever used Credits (Sean, 13
   October 2026: exceptions are decided case by case). `start_refund` takes a
   purchase's Credits out whenever that many purchased Credits are still in the

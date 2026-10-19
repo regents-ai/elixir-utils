@@ -22,7 +22,8 @@ defmodule RegentCredits.History.Words do
   @purposes %{
     "offer_bid" => "Offer bid",
     "fix" => "Fix",
-    "priority_post" => "Priority post"
+    "priority_post" => "Priority post",
+    "note_pin" => "Note pinned"
   }
 
   # Patchbay Offers gives a bid back for these.

@@ -101,7 +101,14 @@ defmodule RegentIdentity.HTTPTest do
           "Ada\u2060",
           "Ada\u00AD",
           "Ada\u200D",
-          "Ada\u{E0041}"
+          "Ada\u{E0041}",
+          # Six a looser rule once let through (Sentinel's read, 19 Oct).
+          "Ada\u{E0067}\u{E0062}\u{E007F}",
+          "A\u200Bda",
+          "Ada\u200D Lovelace",
+          "Ada \u{1F3F4}\u{E0067}\u{E0001}\u{E0062}\u{E007F}",
+          "Ada \u{1F3F4}\u{E0067}\u{E007F}\u{E0062}\u{E007F}",
+          "Ada \u{1F3F4}\u{E0067}\u{E0062}\u{E007F}\u200Db"
         ] do
       refused = request(:patch, "/", tokens, %{display_name: name})
       assert refused.status == 422

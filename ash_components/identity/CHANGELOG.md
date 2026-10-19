@@ -21,3 +21,7 @@
   letters in any script, accents and emoji stay allowed. The rule is
   `RegentFormat.Name`, shared with agents' names; `regent_format` is a new path
   dependency.
+- The name check now names six cases a looser rule once let through: tag
+  characters outside a flag, a zero-width space, a joiner before a space, and
+  three broken flags (a stray tag-block character, a flag that ends twice, a flag
+  followed by a joiner). Each of six looser rules fails `test/http_test.exs`.

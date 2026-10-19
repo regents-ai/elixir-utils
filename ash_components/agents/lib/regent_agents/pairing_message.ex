@@ -1,20 +1,21 @@
 defmodule RegentAgents.PairingMessage do
   @moduledoc """
-  What a person pastes to their agent to pair it: the site's name, the pairing
-  code, where the pairing steps are and how long the code lasts. Codex, Grok Bot,
-  Hermes and Muse each get one more line for the mistake that agent most often
-  makes on its first pairing. Muse runs where siwa.regents.sh
-  may not answer, so its line names the SIWA service's other address.
+  What a person pastes to their agent to pair it: that the account is their
+  Regents Labs account and which site they pair it on, the pairing code, where
+  the pairing steps are and how long the code lasts. Codex, Grok Bot, Hermes and
+  Muse each get one more line for the mistake that agent most often makes on its
+  first pairing. Muse runs where siwa.regents.sh may not answer, so its line
+  names the SIWA service's other address.
   """
 
   @doc """
-  The message for `code`, made on the site called `site` at `origin` (its
-  address with no trailing slash), for an agent on `harness`.
+  The message for `code`, made on the site at `origin` (its address with no
+  trailing slash), for an agent on `harness`.
   """
-  @spec text(String.t(), String.t(), String.t(), RegentAgents.Harness.t() | nil) :: String.t()
-  def text(code, site, origin, :chatgpt) do
+  @spec text(String.t(), String.t(), RegentAgents.Harness.t() | nil) :: String.t()
+  def text(code, origin, :chatgpt) do
     """
-    Connect ChatGPT to my existing #{site} account using this site's connected plugin.
+    Connect ChatGPT to my existing Regents Labs account on #{URI.parse(origin).host} using this site's connected plugin.
     Use register_identity, then get_identity. Reuse this connection across chats.
     If pairing is needed, I approve pair_identity with this one-use code and the name ChatGPT.
     Pairing code: #{code}
@@ -23,9 +24,9 @@ defmodule RegentAgents.PairingMessage do
     """
   end
 
-  def text(code, site, origin, harness) do
+  def text(code, origin, harness) do
     """
-    Pair with my #{site} account.
+    Pair with my Regents Labs account on #{URI.parse(origin).host}
     Pairing code: #{code}
     Follow the "Pair with a person's account" steps at #{origin}/llms.txt
     The code works once, for ten minutes. If it fails, ask me for a new one.\

@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- The pairing message opens "Pair with my Regents Labs account on <host>" (for
+  example techtree.sh), and the ChatGPT one "Connect ChatGPT to my existing
+  Regents Labs account on <host>", so agents learn the account is the person's
+  Regents Labs account (Sean, 19 Oct 2026). `PairingMessage.text/3` takes
+  `(code, origin, harness)`; the site name argument is gone, since the host
+  comes from the origin.
 - `GET /whoami` tells every signed agent its `status` on the site (`not_paired`,
   `person_not_here` or `paired`), what it may do in it (`allowed`, from the
   site's required `config :regent_agents, :allowed`) and its `next_step` (null

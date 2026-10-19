@@ -19,12 +19,17 @@ defmodule RegentIdentity.Profile do
     uuid_primary_key :id
     attribute :app_id, :string, allow_nil?: false, sensitive?: true
     attribute :privy_user_id, :string, allow_nil?: false, sensitive?: true
-    # A name shows on every Regent site, so it holds no control characters and none
-    # that turn the text around it to run the other way (founder, 2026-10-19).
+    # A name shows on every Regent site, so it holds no hidden characters (founder,
+    # 2026-10-19): no control, line or paragraph separator, or format character,
+    # which covers the marks that turn the text around them the other way. Two
+    # format characters are kept where they draw something: a zero-width joiner or
+    # non-joiner between two visible characters (emoji joins, Persian script), and
+    # tag characters inside a complete flag, from U+1F3F4 to U+E007F.
     attribute :display_name, :string,
       constraints: [
         max_length: 80,
-        match: ~r/\A[^\p{Cc}\x{061C}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]*\z/u
+        match:
+          ~r/\A(?:\x{1F3F4}[\x{E0020}-\x{E007E}]+\x{E007F}|(?<=[^\p{Cc}\p{Cf}\p{Z}])[\x{200C}\x{200D}](?=[^\p{Cc}\p{Cf}\p{Z}])|[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}])*\z/u
       ]
 
     attribute :wallet_address, :string, sensitive?: true

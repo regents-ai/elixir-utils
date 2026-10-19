@@ -17,7 +17,7 @@ defmodule RegentIdentity.HTTP do
       {"Your sign-in could not be matched to your profile.", "Sign in again, then retry."},
     "invalid_display_name" =>
       {"That name can't be used.",
-       "Send a display_name of at most 80 characters, with no control or text-direction characters."},
+       "Send a display_name of at most 80 characters with no hidden characters: no control, line-break, text-direction or zero-width characters, except a zero-width joiner between two visible characters, as in an emoji."},
     "invalid_profile_json" => {"The request body is not valid JSON.", "Send one JSON object."},
     "invalid_profile_update" =>
       {"The profile change could not be made.",

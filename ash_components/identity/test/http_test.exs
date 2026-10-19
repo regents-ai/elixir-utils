@@ -84,7 +84,7 @@ defmodule RegentIdentity.HTTPTest do
 
   # Invariant: a name that would hide characters or turn the text around it
   # (founder, 2026-10-19) is refused with its own code, and the saved name stays.
-  test "a name with a control or text-direction character is refused", tokens do
+  test "a name with a hidden character is refused", tokens do
     assert request(:post, "/sync", tokens).status == 200
     assert request(:patch, "/", tokens, %{display_name: "Ada"}).status == 200
 
@@ -93,7 +93,15 @@ defmodule RegentIdentity.HTTPTest do
           "Ada\u2066Lovelace",
           "Ada\u200FL",
           "Ada\nLovelace",
-          "Ada\u0000"
+          "Ada\u0000",
+          "Ada\u2028L",
+          "Ada\u2029L",
+          "Ada\u200B",
+          "Ada\uFEFF",
+          "Ada\u2060",
+          "Ada\u00AD",
+          "Ada\u200D",
+          "Ada\u{E0041}"
         ] do
       refused = request(:patch, "/", tokens, %{display_name: name})
       assert refused.status == 422
@@ -102,8 +110,15 @@ defmodule RegentIdentity.HTTPTest do
 
     assert Jason.decode!(request(:get, "/", tokens).resp_body)["profile"]["display_name"] == "Ada"
 
-    # Emoji joined by a zero-width joiner, accents and right-to-left letters stay allowed.
-    for name <- ["Ada 👩\u200D💻", "Zoë", "عائشة"] do
+    # Emoji joined by a zero-width joiner, a flag drawn with tag characters, Persian
+    # with a zero-width non-joiner, accents and right-to-left letters stay allowed.
+    for name <- [
+          "Ada 👩\u200D💻",
+          "Ada \u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+          "می\u200Cخواهم",
+          "Zoë",
+          "عائشة"
+        ] do
       saved = request(:patch, "/", tokens, %{display_name: name})
       assert Jason.decode!(saved.resp_body)["profile"]["display_name"] == name
     end

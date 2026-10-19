@@ -48,8 +48,11 @@ A product may forward `/api/v1/profile` to `RegentIdentity.HTTP`, passing
 reconciles a verified, explicit sign-in/link event; `PATCH /` accepts only
 `display_name` and `wallet_address`. All return `{profile: ...}` on success,
 and every refusal returns `{error: {code, message, hint}}`. A `display_name`
-with a control or text-direction character, or over 80 characters, is refused
-with `invalid_display_name`.
+with a hidden character, or over 80 characters, is refused with
+`invalid_display_name`: a control character, a line or paragraph separator, or a
+format character, such as a text-direction mark, a zero-width space or a soft
+hyphen. A zero-width joiner or non-joiner between two visible characters and the
+tag characters of a complete flag stay allowed.
 Each request requires `Authorization: Bearer <access token>` and
 `privy-id-token: <identity token>` headers; these proofs belong in a credential
 adapter, never ordinary WebMCP tool parameters or CLI command-line arguments.

@@ -11,7 +11,11 @@
 - `RegentIdentity.ProfileName`: the calculation a site puts on its account
   resource to show the name a person set in their shared profile. Each site
   used to keep its own copy of the profiles table to read it.
-- A display name may not hold control characters or characters that turn the
-  text around them to run the other way (founder, 2026-10-19). `PATCH /` refuses
-  one with the code `invalid_display_name`; letters in any script, accents and
-  emoji stay allowed.
+- A display name may not hold hidden characters (founder, 2026-10-19): control
+  characters, line and paragraph separators, or format characters, which include
+  the marks that turn the text around them to run the other way, zero-width
+  spaces, the byte-order mark, the word joiner and the soft hyphen. A zero-width
+  joiner or non-joiner stays allowed between two visible characters (emoji joins,
+  Persian script), and tag characters inside a complete flag, from U+1F3F4 to
+  U+E007F. `PATCH /` refuses any other with the code `invalid_display_name`;
+  letters in any script, accents and emoji stay allowed.

@@ -160,34 +160,95 @@ defmodule RegentIdentity.ProfileTest do
              )
   end
 
-  # Control characters, and the marks that turn the text around them the other way.
-  @hidden Enum.concat([0..31, 127..159, [0x061C, 0x200E, 0x200F], 0x202A..0x202E, 0x2066..0x2069])
+  # Hidden characters: controls, the line and paragraph separators, and format
+  # characters, among them the marks that turn the text around them the other way,
+  # zero-width spaces, the byte-order mark, the word joiner and the soft hyphen.
+  @controls Enum.concat(0..31, 127..159)
+  @separators [0x2028, 0x2029]
+  @formats Enum.concat([
+             [0x00AD, 0x061C, 0x06DD, 0x070F, 0x180E, 0xFEFF, 0x110BD, 0xE0001],
+             0x0600..0x0605,
+             [0x200B, 0x200E, 0x200F],
+             0x202A..0x202E,
+             0x2060..0x2064,
+             0x2066..0x206F,
+             0xFFF9..0xFFFB,
+             0x1D173..0x1D17A
+           ])
+  @joiners [0x200C, 0x200D]
+  @flag 0x1F3F4
+  @tags 0xE0020..0xE007E
+  @flag_end 0xE007F
+
+  # One character from anywhere in Unicode that a name may hold on its own, and one
+  # of those that also shows something (no space of any kind).
+  defp plain,
+    do: filter(string(:utf8, length: 1), &(not Regex.match?(~r/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u, &1)))
+
+  defp visible, do: filter(plain(), &(not Regex.match?(~r/\p{Z}/u, &1)))
+  defp joiner, do: map(member_of(@joiners), &<<&1::utf8>>)
+  defp tag, do: map(member_of(Enum.concat(@tags, [@flag_end])), &<<&1::utf8>>)
+
+  defp flag do
+    map(list_of(member_of(@tags), min_length: 1, max_length: 5), fn tags ->
+      <<@flag::utf8>> <> List.to_string(tags) <> <<@flag_end::utf8>>
+    end)
+  end
+
+  # A hidden character inside a name (a tab or line end at either end is trimmed
+  # away before saving), a joiner beside no visible character, or a tag character
+  # outside a complete flag.
+  defp hidden_name do
+    around = string(:printable, max_length: 30)
+    hidden = map(member_of(Enum.concat([@controls, @separators, @formats])), &<<&1::utf8>>)
+
+    one_of([
+      map({around, hidden, around}, fn {before, mark, after_it} ->
+        before <> "a" <> mark <> "b" <> after_it
+      end),
+      map({joiner(), around}, fn {mark, after_it} -> mark <> "b" <> after_it end),
+      map({around, joiner()}, fn {before, mark} -> before <> "a" <> mark end),
+      map({around, joiner(), around}, fn {before, mark, after_it} ->
+        before <> "a " <> mark <> "b" <> after_it
+      end),
+      map({around, joiner(), around}, fn {before, mark, after_it} ->
+        before <> "a" <> mark <> mark <> "b" <> after_it
+      end),
+      map({around, tag(), around}, fn {before, mark, after_it} ->
+        before <> "a" <> mark <> "b" <> after_it
+      end),
+      map({around, list_of(member_of(@tags), min_length: 1, max_length: 5)}, fn {before, tags} ->
+        before <> <<@flag::utf8>> <> List.to_string(tags) <> "b"
+      end)
+    ])
+  end
 
   # Invariant: a name shows on every Regent site, so one holding a hidden
   # character is never saved (founder, 2026-10-19).
-  property "a name holding a control or text-direction character is never saved", %{actor: actor} do
+  property "a name holding a hidden character is never saved", %{actor: actor} do
     assert {:ok, profile} = Identity.sync(actor)
 
-    check all(
-            before <- string(:printable, max_length: 30),
-            hidden <- member_of(@hidden),
-            after_it <- string(:printable, max_length: 30)
-          ) do
-      # Inside the name: a tab or line end at either end is trimmed away before saving.
-      name = before <> "a" <> <<hidden::utf8>> <> "b" <> after_it
+    check all(name <- hidden_name()) do
       assert {:error, _} = Identity.edit_profile(profile, %{display_name: name}, actor: actor)
     end
   end
 
   # Invariant: every other name of up to 80 characters saves as the person typed
-  # it, trimmed, in any script.
+  # it, trimmed, in any script: any character from all of Unicode but a hidden one,
+  # a joiner between two visible characters, and complete flags.
   property "any other name saves as typed", %{actor: actor} do
     assert {:ok, profile} = Identity.sync(actor)
 
-    check all(
-            name <- string(:printable, max_length: 80),
-            not Enum.any?(String.to_charlist(name), &(&1 in @hidden))
-          ) do
+    part =
+      one_of([
+        plain(),
+        map({visible(), joiner(), visible()}, fn {left, mark, right} -> left <> mark <> right end),
+        flag()
+      ])
+
+    # A part holds at most seven characters (a flag), so eleven stay within 80.
+    check all(parts <- list_of(part, max_length: 11)) do
+      name = Enum.join(parts)
       assert {:ok, saved} = Identity.edit_profile(profile, %{display_name: name}, actor: actor)
       assert saved.display_name == if(String.trim(name) == "", do: nil, else: String.trim(name))
     end

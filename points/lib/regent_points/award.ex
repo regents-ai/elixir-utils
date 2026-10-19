@@ -45,8 +45,22 @@ defmodule RegentPoints.Award do
 
   defp award_amount(event, rule, requested) do
     caps = caps(event, rule)
-    {base, reason} = allowed(caps, requested, rule)
 
+    case {rule, allowed(caps, requested, rule)} do
+      # A one-time award already earned: the account's one entry for it stands.
+      {%{"category" => "milestone"}, {0, reason}} ->
+        Points.finish_event!(event, %{processing_status: :capped, reason_code: reason},
+          actor: Store.system()
+        )
+
+        %{id: event.id, status: :capped}
+
+      {_rule, {base, reason}} ->
+        append(event, rule, requested, caps, base, reason)
+    end
+  end
+
+  defp append(event, rule, requested, caps, base, reason) do
     if base > 0 do
       Enum.each(caps, fn {_kind, cap} ->
         Points.consume_cap!(cap, base, actor: Store.system())

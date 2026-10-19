@@ -105,7 +105,13 @@ Repeat actions share one limit of 100 points per UTC day for the account and all
 paired agents, across every interface, with one count per action for the account
 whoever acted; a person can therefore earn up to 150 points a day. The actions add up
 to more than 100 on purpose: the limit decides. One-time actions use no daily limit
-and remain once per canonical account.
+and remain once per canonical account: one ledger entry, however many qualifying
+actions arrive. Once the account has earned one, or while that award is still
+being checked, a later qualifying action records no event and queues no award;
+the check runs under the account's lock, so actions arriving together still earn
+once. A repeat action over its limit still writes a 0-point entry that shows the
+reduction. `RegentPoints.summary/1` lists only the daily allowances that a rule
+earning now on this site counts against.
 
 The repeat actions (Sean, 13 October) are: Autolaunch auction created 20 once a day,
 auction bid 20 once a day, token trade through the site 10 once a day; Keyfleet key

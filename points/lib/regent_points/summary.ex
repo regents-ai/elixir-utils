@@ -90,9 +90,14 @@ defmodule RegentPoints.Summary do
   defp balance(nil), do: 0
   defp balance(account), do: account.balance_micro
 
+  # Only the daily allowances a rule earning right now counts against.
   defp allowances(caps) do
     Enum.map(
-      Rules.catalog() |> hd() |> Map.fetch!("daily_caps_micro") |> Map.keys() |> Enum.sort(),
+      Rules.active()
+      |> Enum.map(&Rules.allowance_scope/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.sort(),
       fn scope ->
         used =
           case Enum.find(caps, &(&1.cap_scope == scope)) do

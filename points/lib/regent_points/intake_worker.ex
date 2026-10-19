@@ -1,8 +1,9 @@
 defmodule RegentPoints.IntakeWorker do
   @moduledoc "Verifies committed source facts and records Points work. Oban owns retries."
   use Oban.Worker, queue: :points, max_attempts: 10
+  require Ash.Query
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, Rules, Store, Worker}
+  alias RegentPoints.{Account, Event, Rules, Store, Worker}
 
   @required ~w(source_app source_kind source_event_key account_id actor_kind actor_id source_action_at qualified_at evidence_ref evidence)a
 
@@ -127,13 +128,31 @@ defmodule RegentPoints.IntakeWorker do
         payload_digest: Store.digest(stored)
       })
 
-    event = Points.create_event!(attrs, actor: Store.system())
-
-    if event.payload_digest == attrs.payload_digest do
-      %{event_id: event.id} |> Worker.new() |> Oban.insert!()
-      %{id: event.id, status: event.processing_status}
+    if earned?(facts.account_id, rule) do
+      %{status: :earned}
     else
-      %{rejected: :source_identity_conflict}
+      event = Points.create_event!(attrs, actor: Store.system())
+
+      if event.payload_digest == attrs.payload_digest do
+        %{event_id: event.id} |> Worker.new() |> Oban.insert!()
+        %{id: event.id, status: event.processing_status}
+      else
+        %{rejected: :source_identity_conflict}
+      end
     end
   end
+
+  # Under the account's lock: a one-time award the account has already earned,
+  # or one already on its way, records nothing more and queues no award.
+  defp earned?(account_id, %{"category" => "milestone", "id" => id}) do
+    Event
+    |> Ash.Query.filter(
+      account_id == ^account_id and rule_id == ^id and
+        processing_status in [:pending, :confirmed]
+    )
+    |> Ash.Query.for_read(:read, %{}, actor: Store.system())
+    |> Ash.exists?()
+  end
+
+  defp earned?(_account_id, _rule), do: false
 end

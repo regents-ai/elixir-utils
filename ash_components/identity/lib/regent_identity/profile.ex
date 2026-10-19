@@ -19,7 +19,14 @@ defmodule RegentIdentity.Profile do
     uuid_primary_key :id
     attribute :app_id, :string, allow_nil?: false, sensitive?: true
     attribute :privy_user_id, :string, allow_nil?: false, sensitive?: true
-    attribute :display_name, :string, constraints: [max_length: 80]
+    # A name shows on every Regent site, so it holds no control characters and none
+    # that turn the text around it to run the other way (founder, 2026-10-19).
+    attribute :display_name, :string,
+      constraints: [
+        max_length: 80,
+        match: ~r/\A[^\p{Cc}\x{061C}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]*\z/u
+      ]
+
     attribute :wallet_address, :string, sensitive?: true
 
     attribute :wallet_addresses, {:array, :string},

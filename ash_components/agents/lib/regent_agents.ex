@@ -43,6 +43,7 @@ defmodule RegentAgents do
       define :current_pairing, action: :by_wallet, not_found_error?: false
       define :list_my_agents, action: :mine
       define :get_my_agent, action: :mine_by_id, args: [:id], not_found_error?: false
+      define :rename_agent, action: :rename, args: [:name]
       define :unpair_agent, action: :unpair
     end
 

@@ -70,3 +70,8 @@
   remove tells every site, as a pairing does. Unpairing removes the picture. Migration `20261014150000_agent_pictures` adds
   `regent_agents.agent_pictures` and must run before any site uses this
   version.
+- The person who paired an agent may rename it (`rename_agent/3`, the
+  `RegentAgents.PairedAgent` `:rename` action), on every Regent site at once since
+  the pairing is shared. Only that person may; the agent itself may not. The name is
+  trimmed, may not be blank and holds at most 80 characters; the pairing history
+  keeps the new name. Each rename tells every site, as a pairing does.

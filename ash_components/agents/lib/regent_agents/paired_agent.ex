@@ -148,8 +148,9 @@ end
 defmodule RegentAgents.PairedAgent do
   @moduledoc """
   An agent a person paired with their account. The agent proved it holds its
-  key through SIWA; the name and runtime are what it said about itself, and
-  the person may correct the runtime. One key belongs to one person.
+  key through SIWA; the name and runtime are what it said about itself. The
+  person may rename it, on every Regent site at once, since the pairing is
+  shared. One key belongs to one person.
 
   The first World ID person the SIWA service names behind the agent stays on
   it for good, and each verified request naming that person saves their agent
@@ -285,6 +286,12 @@ defmodule RegentAgents.PairedAgent do
              )
     end
 
+    update :rename do
+      accept [:name]
+      require_atomic? false
+      change after_action(&announce/3)
+    end
+
     destroy :unpair do
       require_atomic? false
       change after_action(&announce/3)
@@ -305,11 +312,11 @@ defmodule RegentAgents.PairedAgent do
       authorize_if expr(privy_user_id == ^actor(:privy_user_id))
     end
 
-    policy action([:mine, :mine_by_id, :unpair]) do
+    policy action([:mine, :mine_by_id, :rename, :unpair]) do
       authorize_if RegentAgents.Checks.Person
     end
 
-    policy action([:mine, :mine_by_id, :unpair]) do
+    policy action([:mine, :mine_by_id, :rename, :unpair]) do
       authorize_if expr(privy_user_id == ^actor(:privy_user_id))
     end
   end

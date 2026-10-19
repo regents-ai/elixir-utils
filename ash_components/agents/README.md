@@ -98,11 +98,12 @@ drops the listening.
 
 A page acting for a signed-in person passes
 `%RegentAgents.Person{privy_user_id: ...}`, built only from the site's own
-verified session, to `issue_pairing_code`, `list_my_agents`, `get_my_agent`
-and `unpair_agent`, and subscribes to
+verified session, to `issue_pairing_code`, `list_my_agents`, `get_my_agent`,
+`rename_agent` and `unpair_agent`, and subscribes to
 `RegentAgents.topic(privy_user_id)` to hear `:agents_changed` whenever that
-person's agents are paired, check in or are unpaired on any
-Regent site.
+person's agents are paired, renamed, check in or are unpaired on any
+Regent site. An agent picks its own name when it pairs; the person may rename it,
+and the new name shows on every Regent site.
 
 The side panel offers the ten agents in `RegentAgents.Harness.featured/0`:
 any agent, Codex, Grok Bot, Muse, Hermes, Dots, NemoClaw, OpenClaw, Claude Code

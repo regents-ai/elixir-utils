@@ -15,6 +15,9 @@ defmodule RegentIdentity.HTTP do
        "Send the access token as a Bearer token and the identity token in privy-id-token, both from the same sign-in."},
     "identity_evidence_conflict" =>
       {"Your sign-in could not be matched to your profile.", "Sign in again, then retry."},
+    "invalid_display_name" =>
+      {"That name can't be used.",
+       "Send a display_name of at most 80 characters, with no control or text-direction characters."},
     "invalid_profile_json" => {"The request body is not valid JSON.", "Send one JSON object."},
     "invalid_profile_update" =>
       {"The profile change could not be made.",
@@ -140,10 +143,18 @@ defmodule RegentIdentity.HTTP do
          {:ok, updated} <- RegentIdentity.edit_profile(profile, conn.body_params, actor: actor) do
       answer(conn, 200, %{profile: RegentIdentity.present(updated)})
     else
-      {:error, error} -> failure(conn, error, 422, "invalid_profile_update")
+      {:error, error} -> failure(conn, error, 422, edit_refusal(error))
       _ -> error(conn, 422, "invalid_profile_update")
     end
   end
+
+  defp edit_refusal(%Ash.Error.Invalid{errors: errors}) do
+    if Enum.any?(errors, &match?(%{field: :display_name}, &1)),
+      do: "invalid_display_name",
+      else: "invalid_profile_update"
+  end
+
+  defp edit_refusal(_error), do: "invalid_profile_update"
 
   defp expected_profile?(conn, profile) do
     case get_req_header(conn, "x-regent-profile-id") do

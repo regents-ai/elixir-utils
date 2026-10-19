@@ -1,5 +1,6 @@
 defmodule RegentIdentity.ProfileTest do
   use ExUnit.Case, async: false
+  use ExUnitProperties
   alias RegentIdentity, as: Identity
   @wallet "0x1111111111111111111111111111111111111111"
   @other_wallet "0x2222222222222222222222222222222222222222"
@@ -157,6 +158,38 @@ defmodule RegentIdentity.ProfileTest do
                %{display_name: "a" <> String.duplicate(<<0xCC, 0x81>>, 200)},
                actor: actor
              )
+  end
+
+  # Control characters, and the marks that turn the text around them the other way.
+  @hidden Enum.concat([0..31, 127..159, [0x061C, 0x200E, 0x200F], 0x202A..0x202E, 0x2066..0x2069])
+
+  # Invariant: a name shows on every Regent site, so one holding a hidden
+  # character is never saved (founder, 2026-10-19).
+  property "a name holding a control or text-direction character is never saved", %{actor: actor} do
+    assert {:ok, profile} = Identity.sync(actor)
+
+    check all(
+            before <- string(:printable, max_length: 30),
+            hidden <- member_of(@hidden),
+            after_it <- string(:printable, max_length: 30)
+          ) do
+      name = before <> <<hidden::utf8>> <> after_it
+      assert {:error, _} = Identity.edit_profile(profile, %{display_name: name}, actor: actor)
+    end
+  end
+
+  # Invariant: every other name of up to 80 characters saves as the person typed
+  # it, trimmed, in any script.
+  property "any other name saves as typed", %{actor: actor} do
+    assert {:ok, profile} = Identity.sync(actor)
+
+    check all(
+            name <- string(:printable, max_length: 80),
+            not Enum.any?(String.to_charlist(name), &(&1 in @hidden))
+          ) do
+      assert {:ok, saved} = Identity.edit_profile(profile, %{display_name: name}, actor: actor)
+      assert saved.display_name == if(String.trim(name) == "", do: nil, else: String.trim(name))
+    end
   end
 
   test "a direct refresh from an old record applies every field of newer proof", %{actor: actor} do

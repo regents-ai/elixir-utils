@@ -43,7 +43,10 @@ The person is named by their Privy user ID and the agent by its key's address.
 One key belongs to one person. A code works once, for ten minutes. A new code
 leaves the person's earlier ones working until they expire, and a person may
 make as many as they like. One account holds at most 100 paired agents; past
-that, pairing answers `agent_limit` and the code stays unused. Pairing only
+that, pairing answers `agent_limit` and the code stays unused. An agent's name
+follows the one rule for names on every Regent site (`RegentFormat.Name`): 1 to
+80 characters with no hidden characters. Pairing with any other answers
+`invalid_name` and the code stays unused. Pairing only
 says whose agent this is: what a paired agent may do on a site stays that
 site's decision.
 
@@ -98,11 +101,12 @@ drops the listening.
 
 A page acting for a signed-in person passes
 `%RegentAgents.Person{privy_user_id: ...}`, built only from the site's own
-verified session, to `issue_pairing_code`, `list_my_agents`, `get_my_agent`
-and `unpair_agent`, and subscribes to
+verified session, to `issue_pairing_code`, `list_my_agents`, `get_my_agent`,
+`rename_agent` and `unpair_agent`, and subscribes to
 `RegentAgents.topic(privy_user_id)` to hear `:agents_changed` whenever that
-person's agents are paired, check in or are unpaired on any
-Regent site.
+person's agents are paired, renamed, check in or are unpaired on any
+Regent site. An agent picks its own name when it pairs; the person may rename it,
+and the new name shows on every Regent site.
 
 The side panel offers the ten agents in `RegentAgents.Harness.featured/0`:
 any agent, Codex, Grok Bot, Muse, Hermes, Dots, NemoClaw, OpenClaw, Claude Code

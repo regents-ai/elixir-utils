@@ -162,6 +162,38 @@ defmodule RegentAgents.PairingTest do
     assert {:ok, nil} = RegentAgents.current_pairing(actor: %Agent{wallet: @wallet})
   end
 
+  # Invariant: only the agent's own person renames it, a name holding a hidden
+  # character is refused, and the kept history follows the new name.
+  test "only the owner renames an agent, and its history keeps the new name" do
+    owner = person("namer")
+    other = person("not-namer")
+
+    agent =
+      RegentAgents.pair_agent!(code!(owner), "Hermes", :hermes, actor: %Agent{wallet: @wallet})
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             RegentAgents.rename_agent(agent, "Taken", actor: other)
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             RegentAgents.rename_agent(agent, "Self", actor: %Agent{wallet: @wallet})
+
+    for name <- ["  ", String.duplicate("a", 81), "Night\u202EShift", "Night\u200BShift"] do
+      assert {:error, %Ash.Error.Invalid{}} = RegentAgents.rename_agent(agent, name, actor: owner)
+    end
+
+    assert {:ok, %{name: "Night Shift 👩\u200D💻"}} =
+             RegentAgents.rename_agent(agent, "  Night Shift 👩\u200D💻 ", actor: owner)
+
+    assert {:ok, %{name: "Night Shift 👩\u200D💻"}} =
+             RegentAgents.get_my_agent(agent.id, actor: owner)
+
+    assert %{rows: [["Night Shift 👩\u200D💻"]]} =
+             RegentAgents.TestRepo.query!(
+               "SELECT name FROM regent_agents.pairing_history WHERE id = $1",
+               [Ecto.UUID.dump!(agent.id)]
+             )
+  end
+
   test "a person's agents need a signed-in person" do
     assert {:error, _error} = RegentAgents.list_my_agents(actor: %Agent{wallet: @wallet})
     assert {:error, _error} = RegentAgents.issue_pairing_code(actor: %Agent{wallet: @wallet})

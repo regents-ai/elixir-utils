@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `RegentFormat.Name.pattern/0` is the one rule for a name a person or an agent
+  picks (founder, 2026-10-19): no control, line or paragraph separator, or
+  format character, except a zero-width joiner or non-joiner between two visible
+  characters and tag characters inside a complete flag. `regent_identity` and
+  `regent_agents` use it.
 - `short_relative_time/2` says the same as `relative_time/2` in a few letters,
   `"now"`, `"3m"`, `"2h"`, `"5d"`, `"2w"`, `"4mo"` or `"1y"`, for a narrow list.
 

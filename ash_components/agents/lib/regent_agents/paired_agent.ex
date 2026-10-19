@@ -36,15 +36,24 @@ defmodule RegentAgents.PairedAgent.Actions.Pair do
         RegentAgents.announce(agent.privy_user_id)
         {:ok, agent}
 
-      {:error, %AgentLimit{} = limit} ->
-        {:error, limit}
-
-      {:error, _error} ->
-        {:error, "pairing code could not be used"}
+      {:error, error} ->
+        {:error, refusal(error)}
     end
   end
 
   def run(_input, _opts, _context), do: {:error, "a verified agent is required"}
+
+  # The agent hears when it has too many siblings or picked a name that can't be
+  # used; any other refusal says only that the code could not be used.
+  defp refusal(%AgentLimit{} = limit), do: limit
+
+  defp refusal(%Ash.Error.Invalid{errors: errors} = invalid) do
+    if Enum.any?(errors, &match?(%{field: :name}, &1)),
+      do: invalid,
+      else: "pairing code could not be used"
+  end
+
+  defp refusal(_error), do: "pairing code could not be used"
 
   defp pairing_code(code, actor) do
     PairingCode
@@ -148,8 +157,9 @@ end
 defmodule RegentAgents.PairedAgent do
   @moduledoc """
   An agent a person paired with their account. The agent proved it holds its
-  key through SIWA; the name and runtime are what it said about itself, and
-  the person may correct the runtime. One key belongs to one person.
+  key through SIWA; the name and runtime are what it said about itself. The
+  person may rename it, on every Regent site at once, since the pairing is
+  shared. One key belongs to one person.
 
   The first World ID person the SIWA service names behind the agent stays on
   it for good, and each verified request naming that person saves their agent
@@ -184,10 +194,12 @@ defmodule RegentAgents.PairedAgent do
       constraints match: ~r/\A0x[0-9a-f]{40}\z/
     end
 
+    # An agent's name shows on every Regent site, wherever it posts, so it follows
+    # the one rule for names and holds no hidden characters.
     attribute :name, :string do
       allow_nil? false
       public? true
-      constraints min_length: 1, max_length: 80, trim?: true
+      constraints min_length: 1, max_length: 80, trim?: true, match: RegentFormat.Name.pattern()
     end
 
     attribute :harness, RegentAgents.Harness, allow_nil?: false, public?: true
@@ -285,6 +297,12 @@ defmodule RegentAgents.PairedAgent do
              )
     end
 
+    update :rename do
+      accept [:name]
+      require_atomic? false
+      change after_action(&announce/3)
+    end
+
     destroy :unpair do
       require_atomic? false
       change after_action(&announce/3)
@@ -305,11 +323,11 @@ defmodule RegentAgents.PairedAgent do
       authorize_if expr(privy_user_id == ^actor(:privy_user_id))
     end
 
-    policy action([:mine, :mine_by_id, :unpair]) do
+    policy action([:mine, :mine_by_id, :rename, :unpair]) do
       authorize_if RegentAgents.Checks.Person
     end
 
-    policy action([:mine, :mine_by_id, :unpair]) do
+    policy action([:mine, :mine_by_id, :rename, :unpair]) do
       authorize_if expr(privy_user_id == ^actor(:privy_user_id))
     end
   end

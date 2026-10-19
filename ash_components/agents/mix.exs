@@ -44,6 +44,7 @@ defmodule RegentAgents.MixProject do
       {:jason, "~> 1.4"},
       {:phoenix_pubsub, "~> 2.1"},
       {:siwa, path: "../../siwa/siwa-elixir/apps/siwa"},
+      {:regent_format, path: "../../format"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

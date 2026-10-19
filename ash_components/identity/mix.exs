@@ -40,6 +40,7 @@ defmodule RegentIdentity.MixProject do
       {:simple_sat, "~> 0.1"},
       {:plug, "~> 1.19"},
       {:regent_privy, path: "../../privy"},
+      {:regent_format, path: "../../format"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

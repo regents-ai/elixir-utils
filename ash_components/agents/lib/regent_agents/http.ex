@@ -34,6 +34,9 @@ defmodule RegentAgents.HTTP do
   # `RegentAgents.Refusal` words a request whose signature was refused. An unknown
   # harness is refused by `error/2`'s own clause, which names the harnesses this site offers.
   @errors %{
+    "invalid_name" =>
+      {400, "That name can't be used.",
+       "Send a name of 1 to 80 characters with no hidden characters: no control, line-break, text-direction or zero-width characters, except a zero-width joiner between two visible characters, as in an emoji. The same code works until it expires."},
     "pairing_failed" =>
       {400, "The pairing code could not be used.",
        "Ask your person for a new pairing code. Each code works once and expires ten minutes after it was made."},
@@ -72,11 +75,19 @@ defmodule RegentAgents.HTTP do
       {:error, :harness_unknown} -> error(conn, "harness_unknown")
       {:error, %Ash.Error.Invalid{errors: [%AgentLimit{}]}} -> error(conn, "agent_limit")
       {:refused, conn} -> conn
-      {:error, _pairing} -> error(conn, "pairing_failed")
+      {:error, error} -> error(conn, pair_refusal(error))
     end
   end
 
   defp pair(conn), do: error(conn, "pairing_failed")
+
+  defp pair_refusal(%Ash.Error.Invalid{errors: errors}) do
+    if Enum.any?(errors, &match?(%{field: :name}, &1)),
+      do: "invalid_name",
+      else: "pairing_failed"
+  end
+
+  defp pair_refusal(_error), do: "pairing_failed"
 
   # The proof is checked first; the shared plug refuses a query string. The
   # account is looked up before contact is recorded, so a refused check-in

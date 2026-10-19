@@ -18,4 +18,6 @@
   joiner or non-joiner stays allowed between two visible characters (emoji joins,
   Persian script), and tag characters inside a complete flag, from U+1F3F4 to
   U+E007F. `PATCH /` refuses any other with the code `invalid_display_name`;
-  letters in any script, accents and emoji stay allowed.
+  letters in any script, accents and emoji stay allowed. The rule is
+  `RegentFormat.Name`, shared with agents' names; `regent_format` is a new path
+  dependency.

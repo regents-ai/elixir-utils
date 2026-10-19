@@ -169,6 +169,19 @@ defmodule RegentAgents.HTTPTest do
     refute_received {:verified, _path, _audience, _envelope}
   end
 
+  # Invariant: an agent's name shows on every Regent site, so a name holding a
+  # hidden character is refused with its own code and the code stays unused.
+  test "a name with a hidden character cannot pair, and the code still works" do
+    siwa_verifies()
+    body = %{"code" => code!(person("hidden")), "name" => "Sol\u202Eexe", "harness" => "muse"}
+
+    assert {400, %{"error" => %{"code" => "invalid_name", "hint" => hint}}} =
+             send_request(:post, "/api/agents/v1/pair", body)
+
+    assert hint =~ "hidden characters"
+    assert {201, _paired} = send_request(:post, "/api/agents/v1/pair", %{body | "name" => "Sol"})
+  end
+
   test "a missing field, an extra field or a used code cannot pair" do
     siwa_verifies()
     code = code!(person("used"))

@@ -9,7 +9,7 @@ defmodule RegentAgents.ListenerTest do
 
   @wallet "0x4444444444444444444444444444444444444444"
 
-  test "pairing, a check-in and unpairing are heard through the shared database" do
+  test "pairing, a check-in, a rename and unpairing are heard through the shared database" do
     owner = %Person{privy_user_id: "did:privy:heard-#{System.unique_integer([:positive])}"}
     agent = %Agent{wallet: @wallet}
     Phoenix.PubSub.subscribe(RegentAgents.TestPubSub, RegentAgents.topic(owner.privy_user_id))
@@ -21,6 +21,9 @@ defmodule RegentAgents.ListenerTest do
         assert_receive :agents_changed
 
         RegentAgents.check_in_agent!(owner.privy_user_id, actor: agent)
+        assert_receive :agents_changed
+
+        paired = RegentAgents.rename_agent!(paired, "Heard Again", actor: owner)
         assert_receive :agents_changed
 
         RegentAgents.unpair_agent!(paired, actor: owner)

@@ -4,7 +4,8 @@ Shared display formatting helpers for Regent Elixir apps.
 
 `RegentFormat` is the single home for null-safe display values, `0x`
 address/hash truncation, decimal and currency rendering, timestamp
-formatting, relative times, and identity monograms. Every short address
+formatting, relative times, identity monograms, and the one rule for a name a
+person or an agent picks (`RegentFormat.Name`). Every short address
 takes one form, `0x1234..abcd`: `0x`, the first four and the last four
 characters, joined by two full stops. Product copy, CSS tone classes, and
 domain-specific labels stay in the consuming app.

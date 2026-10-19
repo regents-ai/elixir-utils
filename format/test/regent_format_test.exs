@@ -2,6 +2,7 @@ defmodule RegentFormatTest do
   use ExUnit.Case, async: true
 
   doctest RegentFormat
+  doctest RegentFormat.Name
 
   describe "blank_to_nil/1" do
     test "converts blanks and passes values through" do

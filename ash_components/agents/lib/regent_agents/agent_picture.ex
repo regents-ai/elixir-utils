@@ -1,7 +1,7 @@
 defmodule RegentAgents.AgentPicture.WebP do
   @moduledoc """
   The picture is a WebP file of at most #{65_536} bytes, judged by its first
-  bytes ("RIFF", four bytes of length, "WEBP"). regents.sh re-makes every
+  bytes ("RIFF", four bytes of length, "WEBP"). Every site re-makes each
   upload as a 256 by 256 WebP before it gets here.
   """
   use Ash.Resource.Validation
@@ -54,7 +54,7 @@ defmodule RegentAgents.AgentPicture do
   @moduledoc """
   The picture a person chose for one of their paired agents, shown beside what
   the agent posts on every Regent site. The person sets and removes it on
-  regents.sh/account; a team member (`RegentAgents.Checks.Admin`) may only
+  any Regent site's Account page; a team member (`RegentAgents.Checks.Admin`) may only
   remove it. Unpairing the agent removes its picture with it. Each change
   tells every site, as a pairing does (`RegentAgents.topic/1`).
 

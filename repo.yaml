@@ -23,6 +23,7 @@ owns:
   - agent_pairing
   - shared_profiles
   - payment_records
+  - regent_names
 source_of_truth:
   repo_contract: repo.yaml
   http_contracts: []
@@ -68,6 +69,8 @@ code_map:
     owns: agent_pairing
   - path: ash_components/identity
     owns: shared_profiles
+  - path: ash_components/names
+    owns: regent_names
   - path: ash_components/payments
     owns: payment_records
 local_path_dependencies: []
@@ -107,6 +110,8 @@ acceptance_commands:
   - cwd: elixir-utils/ash_components/agents
     command: mix check
   - cwd: elixir-utils/ash_components/identity
+    command: mix check
+  - cwd: elixir-utils/ash_components/names
     command: mix check
   - cwd: elixir-utils/ash_components/payments
     command: mix check

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `verify_token/2` and `RegentPrivy.Session` now name two wallets apart:
+  `embedded_wallet_address`, the wallet Privy made for the person (its
+  `wallet_client_type` is `privy`), and `user_wallet_address`, the most recently
+  verified wallet the person brought themselves. Each is nil when there is none.
+  `wallet_address` and `wallet_addresses` are unchanged.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. `verify_token/2` drops a catch-all clause
   that Elixir 1.20's type checker proves can never run; every result it returns is

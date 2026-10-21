@@ -14,6 +14,8 @@ defmodule RegentPrivy.Session do
     :session_id,
     :wallet_address,
     :wallet_addresses,
+    :embedded_wallet_address,
+    :user_wallet_address,
     :issued_at,
     :expires_at,
     linked_socials: []
@@ -25,6 +27,8 @@ defmodule RegentPrivy.Session do
           session_id: String.t(),
           wallet_address: String.t() | nil,
           wallet_addresses: [String.t()],
+          embedded_wallet_address: String.t() | nil,
+          user_wallet_address: String.t() | nil,
           issued_at: integer() | nil,
           expires_at: integer(),
           linked_socials: [RegentPrivy.linked_social()]
@@ -49,6 +53,8 @@ defmodule RegentPrivy.Session do
          session_id: sid,
          wallet_address: evidence.wallet_address,
          wallet_addresses: evidence.wallet_addresses,
+         embedded_wallet_address: evidence.embedded_wallet_address,
+         user_wallet_address: evidence.user_wallet_address,
          linked_socials: evidence.linked_socials,
          issued_at: evidence.claims["iat"],
          expires_at: min(authenticated.claims["exp"], evidence.claims["exp"])

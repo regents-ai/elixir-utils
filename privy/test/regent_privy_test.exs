@@ -48,6 +48,8 @@ defmodule RegentPrivyTest do
               privy_user_id: "did:privy:user-1",
               wallet_address: nil,
               wallet_addresses: [],
+              embedded_wallet_address: nil,
+              user_wallet_address: nil,
               claims: %{"iss" => "privy.io"}
             }} = verify(token, ctx)
   end
@@ -87,6 +89,65 @@ defmodule RegentPrivyTest do
                 "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
                 "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
               ]
+            }} = verify(token, ctx)
+  end
+
+  test "names the Regents embedded wallet and the person's own wallet apart", ctx do
+    identity =
+      Map.put(
+        base_claims(),
+        "linked_accounts",
+        Jason.encode!([
+          %{
+            "type" => "wallet",
+            "address" => "0xF39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "wallet_client_type" => "metamask",
+            "lv" => 1_700_000_000
+          },
+          %{
+            "type" => "wallet",
+            "address" => "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+            "wallet_client_type" => "coinbase_wallet",
+            "lv" => 1_700_000_100
+          },
+          %{
+            "type" => "wallet",
+            "address" => "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "wallet_client_type" => "privy",
+            "lv" => 1_700_000_200
+          }
+        ])
+      )
+
+    assert {:ok,
+            %RegentPrivy.Session{
+              wallet_address: "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+              embedded_wallet_address: "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+              user_wallet_address: "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+            }} = verify_pair(Map.put(base_claims(), "sid", "session-1"), identity, ctx)
+  end
+
+  test "an email sign-in has an embedded wallet and no wallet of its own", ctx do
+    token =
+      base_claims()
+      |> Map.put(
+        "linked_accounts",
+        Jason.encode!([
+          %{"type" => "email", "address" => "a@b.c", "lv" => 1_700_000_000},
+          %{
+            "type" => "wallet",
+            "address" => "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "wallet_client_type" => "privy",
+            "lv" => 1_700_000_100
+          }
+        ])
+      )
+      |> sign(ctx.private_pem)
+
+    assert {:ok,
+            %{
+              embedded_wallet_address: "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+              user_wallet_address: nil
             }} = verify(token, ctx)
   end
 

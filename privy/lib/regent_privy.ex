@@ -11,6 +11,11 @@ defmodule RegentPrivy do
   Privy's verification time (`lv`); `wallet_address` is the wallet Privy verified
   most recently, which is the wallet the person signed in with.
 
+  `embedded_wallet_address` is the wallet Privy made for the person (its
+  `wallet_client_type` is `privy`), and `user_wallet_address` is the most
+  recently verified wallet the person brought themselves. Either is nil when the
+  person has no such wallet.
+
   Apps own their Privy configuration (app id, verification key) and pass it
   per call; this library holds no configuration or secrets.
   """
@@ -30,6 +35,8 @@ defmodule RegentPrivy do
           privy_user_id: String.t(),
           wallet_address: String.t() | nil,
           wallet_addresses: [String.t()],
+          embedded_wallet_address: String.t() | nil,
+          user_wallet_address: String.t() | nil,
           linked_socials: [linked_social()]
         }
 
@@ -68,7 +75,9 @@ defmodule RegentPrivy do
          claims: claims,
          privy_user_id: privy_user_id,
          wallet_address: signed_in_wallet(wallets),
-         wallet_addresses: wallets |> Enum.map(&elem(&1, 0)) |> Enum.uniq(),
+         wallet_addresses: wallets |> Enum.map(& &1.address) |> Enum.uniq(),
+         embedded_wallet_address: embedded_wallet(wallets),
+         user_wallet_address: wallets |> Enum.reject(& &1.embedded?) |> signed_in_wallet(),
          linked_socials: linked_socials
        }}
     end
@@ -171,9 +180,13 @@ defmodule RegentPrivy do
 
   defp signed_in_wallet([]), do: nil
 
-  defp signed_in_wallet(wallets) do
-    {address, _verified_at} = Enum.max_by(wallets, &elem(&1, 1))
-    address
+  defp signed_in_wallet(wallets), do: Enum.max_by(wallets, & &1.verified_at).address
+
+  defp embedded_wallet(wallets) do
+    case Enum.find(wallets, & &1.embedded?) do
+      nil -> nil
+      wallet -> wallet.address
+    end
   end
 
   defp fetch_linked_socials(linked_accounts) do
@@ -253,7 +266,13 @@ defmodule RegentPrivy do
        when is_binary(address) and is_integer(verified_at) and verified_at > 0 do
     with "ethereum" <- Map.get(account, "chain_type", "ethereum"),
          normalized when is_binary(normalized) <- normalize_wallet_address(address) do
-      [{normalized, verified_at}]
+      [
+        %{
+          address: normalized,
+          verified_at: verified_at,
+          embedded?: Map.get(account, "wallet_client_type") == "privy"
+        }
+      ]
     else
       _other -> []
     end

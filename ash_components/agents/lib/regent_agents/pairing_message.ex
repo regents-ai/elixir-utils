@@ -44,7 +44,7 @@ defmodule RegentAgents.PairingMessage do
         "Pair from your own tools, then tell me it worked."
 
   defp first_pairing(:hermes),
-    do: "\nKeep the key regents-cli makes and use it in every chat. Never make a second one."
+    do: "\nKeep the key you pair with and use it in every chat. Never make a second one."
 
   defp first_pairing(:muse),
     do:

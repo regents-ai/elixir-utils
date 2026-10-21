@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- Hermes's first-pairing line says "Keep the key you pair with" instead of
+  naming regents-cli, since agents make their key with the SIWA client
+  (siwa_agent.py keygen) or sign with their own wallet.
 - The side panel offers IronClaw in NemoClaw's place, so the ten agents are any
   agent, Codex, Grok Bot, Muse, Hermes, Dots, IronClaw, OpenClaw, Claude Code and
   Pi (Sean, 21 Oct 2026, for Keyfleet's nine-agent pilot). NemoClaw agents pair

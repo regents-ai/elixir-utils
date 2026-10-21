@@ -5,8 +5,10 @@ Shared Privy identity-token verification for Regent Elixir apps.
 `RegentPrivy.verify_token/2` verifies the ES256 signature against the app's
 Privy verification key, validates issuer, audience, and time claims, and
 returns the verified claims, the Privy user id, and normalized linked wallet
-addresses. `wallet_address` is the wallet Privy verified most recently: the wallet
-the person signed in with. Apps pass their own Privy configuration per call:
+addresses. `user_wallet_address` is the person's own wallet, `embedded_wallet_address`
+the Regents wallet Privy made for them, and `wallet_address`, their main wallet, is
+their own wallet when they have one and the Regents wallet otherwise. Apps pass
+their own Privy configuration per call:
 
 ```elixir
 RegentPrivy.verify_token(token,

@@ -6,7 +6,11 @@
   `embedded_wallet_address`, the wallet Privy made for the person (its
   `wallet_client_type` is `privy`), and `user_wallet_address`, the most recently
   verified wallet the person brought themselves. Each is nil when there is none.
-  `wallet_address` and `wallet_addresses` are unchanged.
+  `wallet_addresses` is unchanged.
+- `wallet_address`, the person's main wallet, is now their own wallet when they
+  have one and the Regents embedded wallet otherwise. Before, it was whichever
+  wallet Privy verified most recently, so Privy making the embedded wallet during
+  a sign-in could take the main wallet (and its ENS name) from the person's own.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. `verify_token/2` drops a catch-all clause
   that Elixir 1.20's type checker proves can never run; every result it returns is

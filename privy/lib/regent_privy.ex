@@ -8,13 +8,15 @@ defmodule RegentPrivy do
   in the future, and optional `iat` may be at most 60 seconds in the future.
   Wallet addresses are extracted from the `linked_accounts` claim when
   present, normalized to trimmed lowercase `0x` hex. Every wallet entry carries
-  Privy's verification time (`lv`); `wallet_address` is the wallet Privy verified
-  most recently, which is the wallet the person signed in with.
+  Privy's verification time (`lv`).
 
   `embedded_wallet_address` is the wallet Privy made for the person (its
   `wallet_client_type` is `privy`), and `user_wallet_address` is the most
   recently verified wallet the person brought themselves. Either is nil when the
-  person has no such wallet.
+  person has no such wallet. `wallet_address`, the person's main wallet, is
+  their own wallet when they have one and the Regents embedded wallet otherwise,
+  so Privy making the embedded wallet during a sign-in never takes the main
+  wallet from the person's own.
 
   Apps own their Privy configuration (app id, verification key) and pass it
   per call; this library holds no configuration or secrets.
@@ -70,14 +72,17 @@ defmodule RegentPrivy do
          {:ok, linked_accounts} <- fetch_linked_accounts(claims),
          {:ok, wallets} <- fetch_wallets(linked_accounts),
          {:ok, linked_socials} <- fetch_linked_socials(linked_accounts) do
+      user_wallet = wallets |> Enum.reject(& &1.embedded?) |> signed_in_wallet()
+      embedded_wallet = embedded_wallet(wallets)
+
       {:ok,
        %{
          claims: claims,
          privy_user_id: privy_user_id,
-         wallet_address: signed_in_wallet(wallets),
+         wallet_address: user_wallet || embedded_wallet,
          wallet_addresses: wallets |> Enum.map(& &1.address) |> Enum.uniq(),
-         embedded_wallet_address: embedded_wallet(wallets),
-         user_wallet_address: wallets |> Enum.reject(& &1.embedded?) |> signed_in_wallet(),
+         embedded_wallet_address: embedded_wallet,
+         user_wallet_address: user_wallet,
          linked_socials: linked_socials
        }}
     end

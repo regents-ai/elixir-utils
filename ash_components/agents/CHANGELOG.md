@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- The side panel offers IronClaw in NemoClaw's place, so the ten agents are any
+  agent, Codex, Grok Bot, Muse, Hermes, Dots, IronClaw, OpenClaw, Claude Code and
+  Pi (Sean, 21 Oct 2026, for Keyfleet's nine-agent pilot). NemoClaw agents pair
+  as any agent.
 - The pairing message opens "Pair with my Regents Labs account on <host>" (for
   example techtree.sh), and the ChatGPT one "Connect ChatGPT to my existing
   Regents Labs account on <host>", so agents learn the account is the person's

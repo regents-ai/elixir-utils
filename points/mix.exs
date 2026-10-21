@@ -5,7 +5,7 @@ defmodule RegentPoints.MixProject do
     [
       app: :regent_points,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       elixirc_paths: paths(Mix.env()),
       deps: deps(),
       aliases: [

@@ -5,7 +5,7 @@ defmodule RegentOAuth.MixProject do
     [
       app: :regent_oauth,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       deps: [
         {:boruta, "== 2.3.8"},
         {:plug, "~> 1.18"},

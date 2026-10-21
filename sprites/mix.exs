@@ -8,7 +8,7 @@ defmodule RegentSprites.MixProject do
     [
       app: :regent_sprites,
       version: @version,
-      elixir: "~> 1.19.5",
+      elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       description: @description,
       package: package(),

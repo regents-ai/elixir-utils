@@ -8,7 +8,7 @@ defmodule CredoAsh.MixProject do
     [
       app: :credo_ash,
       version: @version,
-      elixir: "~> 1.19.5",
+      elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       description: @description,
       package: package(),

@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. phoenix 1.8.16.
 - The pairing message opens "Pair with my Regents Labs account on <host>" (for
   example techtree.sh), and the ChatGPT one "Connect ChatGPT to my existing
   Regents Labs account on <host>", so agents learn the account is the person's

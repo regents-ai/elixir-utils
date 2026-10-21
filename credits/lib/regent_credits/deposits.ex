@@ -25,8 +25,6 @@ defmodule RegentCredits.Deposits do
   database transaction; each deposit is credited in a transaction of its own.
   """
 
-  require Ash.Query
-
   alias RegentChain.{Abi, Address, Event}
   alias RegentCredits.{Chains, DepositCursor, Purchase}
 

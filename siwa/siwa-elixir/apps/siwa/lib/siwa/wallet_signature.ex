@@ -122,7 +122,7 @@ defmodule Siwa.WalletSignature do
     wrapped_size = byte_size(bytes) - 32
 
     case bytes do
-      <<wrapped::binary-size(wrapped_size), @erc6492_suffix>> -> decode_wrapper(wrapped)
+      <<wrapped::binary-size(^wrapped_size), @erc6492_suffix>> -> decode_wrapper(wrapped)
       _unwrapped -> :not_wrapped
     end
   end
@@ -142,7 +142,7 @@ defmodule Siwa.WalletSignature do
 
   defp dynamic_bytes_at(data, offset) do
     case data do
-      <<_head::binary-size(offset), size::256, value::binary-size(size), _rest::binary>> ->
+      <<_head::binary-size(^offset), size::256, value::binary-size(size), _rest::binary>> ->
         {:ok, value}
 
       _malformed ->
@@ -192,8 +192,8 @@ defmodule Siwa.WalletSignature do
   defp wallet_answer("0x" <> hex) do
     with {:ok, <<32::256, count::256, rest::binary>>} when count > 0 <-
            Base.decode16(hex, case: :mixed),
-         <<_heads::binary-size(32 * (count - 1)), offset::256, _tail::binary>> <- rest,
-         <<_skipped::binary-size(offset), success::256, 64::256, size::256,
+         <<_heads::binary-size(32 * (^count - 1)), offset::256, _tail::binary>> <- rest,
+         <<_skipped::binary-size(^offset), success::256, 64::256, size::256,
            answer::binary-size(size), _padding::binary>>
          when success in [0, 1] <- rest do
       {:ok, {success, answer}}

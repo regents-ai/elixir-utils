@@ -5,7 +5,7 @@ defmodule RegentMCPEvents.MixProject do
     [
       app: :regent_mcp_events,
       version: "0.1.0",
-      elixir: "~> 1.19.5",
+      elixir: "~> 1.20",
       description: "MCP events identity, signed callbacks and safe delivery for Regent products",
       deps: [
         {:jason, "~> 1.4"},

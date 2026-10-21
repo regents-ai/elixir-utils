@@ -6,7 +6,6 @@ defmodule RegentMCPAgents do
   product request still passes exact-request SIWA verification. Conversation IDs,
   tool arguments and MCP sessions never select the signer.
   """
-  require Ash.Query
   alias RegentAgents.{PairingCode, Person}
 
   @identity_scope "regent.identity.manage"

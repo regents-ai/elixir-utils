@@ -59,14 +59,14 @@ defmodule AgentEns.ERC7930 do
           {:error, Error.new({:truncated_payload, chain_ref_len + 6, byte_size(bytes)})}
 
         true ->
-          <<chain_ref::binary-size(chain_ref_len), address_len::8, address_and_tail::binary>> =
+          <<chain_ref::binary-size(^chain_ref_len), address_len::8, address_and_tail::binary>> =
             rest
 
           if byte_size(address_and_tail) < address_len do
             {:error,
              Error.new({:truncated_payload, chain_ref_len + address_len + 6, byte_size(bytes)})}
           else
-            <<address::binary-size(address_len), _tail::binary>> = address_and_tail
+            <<address::binary-size(^address_len), _tail::binary>> = address_and_tail
 
             if chain_ref_len == 0 and address_len == 0 do
               {:error, Error.new(:empty_address)}

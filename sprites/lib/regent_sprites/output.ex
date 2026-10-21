@@ -28,7 +28,7 @@ defmodule RegentSprites.Output do
     size = byte_size(body) - 2
 
     case body do
-      <<frames::binary-size(size), @exit, code>>
+      <<frames::binary-size(^size), @exit, code>>
       when frames == "" or binary_part(frames, 0, 1) in [<<@stdout>>, <<@stderr>>] ->
         {stdout, stderr} = split(frames, nil, [], [])
         {:ok, %__MODULE__{exit_code: code, stdout: stdout, stderr: stderr}}

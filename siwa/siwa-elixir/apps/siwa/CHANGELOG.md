@@ -4,6 +4,10 @@ All notable changes to `siwa` should be recorded here.
 
 ## Unreleased
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. `Siwa.WalletSignature` pins the sizes it
+  reads from outside a binary match, as Elixir 1.20 asks.
+
 ### Added
 
 - Declared bodies. `Siwa.AgentAuthPlug` takes `body: :declared` on a route

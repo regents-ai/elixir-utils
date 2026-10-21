@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. `RegentCredits.Deposits` drops an unused
+  `require Ash.Query`; ash_oban 0.10.2.
+
 First version of Regent Credits: one prepaid balance per Privy account,
 shared by every Regent site.
 

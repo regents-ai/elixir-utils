@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions.
+
 ## 0.1.0 (2026-10-04)
 
 - Initial release: `RegentJev.decide/3` asks Jev one or more choice questions in one

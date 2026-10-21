@@ -8,7 +8,7 @@ defmodule AgentEns.MixProject do
     [
       app: :ens_elixir,
       version: @version,
-      elixir: "~> 1.19.5",
+      elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       compilers: [:elixir, :app],
       description: @description,

@@ -8,7 +8,7 @@ defmodule RegentCredits.MixProject do
     [
       app: :regent_credits,
       version: @version,
-      elixir: "~> 1.19.5",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       description: @description,

@@ -5,7 +5,7 @@ defmodule RegentMCPAgents.MixProject do
     [
       app: :regent_mcp_agents,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       deps: deps(),
       aliases: [check: ["compile --warnings-as-errors", "format --check-formatted"]]
     ]

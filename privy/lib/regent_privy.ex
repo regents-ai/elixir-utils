@@ -71,9 +71,6 @@ defmodule RegentPrivy do
          wallet_addresses: wallets |> Enum.map(&elem(&1, 0)) |> Enum.uniq(),
          linked_socials: linked_socials
        }}
-    else
-      {:error, reason} -> {:error, reason}
-      _other -> {:error, :invalid_token}
     end
   rescue
     _error -> {:error, :invalid_token}

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. `RegentSprites.Output.from_frames/1` pins
+  the size it reads from outside a binary match, as Elixir 1.20 asks.
+
 ## 0.1.0 (2026-10-04)
 
 - Initial release: `RegentSprites.create/2`, `get/1`, `delete/1`, `checkpoint/2` (found

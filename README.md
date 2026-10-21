@@ -1,8 +1,8 @@
 # Regent Elixir Utilities
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
-[![Elixir 1.19.5](https://img.shields.io/badge/elixir-1.19.5-lightgrey)](https://elixir-lang.org)
-[![OTP 28](https://img.shields.io/badge/otp-28-lightgrey)](https://www.erlang.org)
+[![Elixir 1.20.4](https://img.shields.io/badge/elixir-1.20.4-lightgrey)](https://elixir-lang.org)
+[![OTP 29](https://img.shields.io/badge/otp-29-lightgrey)](https://www.erlang.org)
 
 This repository holds the shared Elixir packages used by the Regent Phoenix apps and the shared
 SIWA service, maintained by Regents Labs. Apps use every package from a local checkout of this

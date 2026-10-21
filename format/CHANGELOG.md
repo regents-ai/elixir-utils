@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions.
 - `RegentFormat.Name.pattern/0` is the one rule for a name a person or an agent
   picks (founder, 2026-10-19): no control, line or paragraph separator, or
   format character, except a zero-width joiner or non-joiner between two visible

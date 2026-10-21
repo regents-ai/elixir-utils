@@ -111,7 +111,7 @@ defmodule RegentChain.Abi do
     padded = 32 * div(length + 31, 32)
 
     with {:ok, body} <- slice(data, at, padded),
-         <<value::binary-size(length), padding::binary>> <- body,
+         <<value::binary-size(^length), padding::binary>> <- body,
          true <- padding == <<0::size(8 * (padded - length))>> do
       {:ok, value, padded}
     else

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. `RegentChain.Abi` pins the length it reads
+  from outside a binary match, as Elixir 1.20 asks; ex_abi 0.8.5 and ethereumex
+  0.15.0.
 - New `RegentChain.Transaction`: `sign/2` signs an EIP-1559 (type 2) transaction
   with a key the app holds and returns the raw bytes and their hash, which the app
   keeps before it broadcasts; `address/1` is the key's account. Pure: the app reads

@@ -43,7 +43,7 @@ defmodule RegentChain.AbiTest do
       <<head::binary-size(32), _offset::256, rest::binary>> = bytes
       assert Abi.decode(head <> <<0x60::256>> <> rest, [:address, :bytes]) == :error
 
-      <<body::binary-size(byte_size(bytes) - 1), _last>> = bytes
+      <<body::binary-size(byte_size(^bytes) - 1), _last>> = bytes
       assert Abi.decode(body <> <<1>>, [:address, :bytes]) == :error
     end
 

@@ -4,6 +4,9 @@ All notable changes to `siwa_keyring` should be recorded here.
 
 ## Unreleased
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions.
+
 ## 0.1.1 - 2026-05-06
 
 ### Added

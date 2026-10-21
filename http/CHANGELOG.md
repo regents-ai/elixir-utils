@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions.
+
 ### Fixed
 
 - `redact/1` also hides Anthropic API keys (`sk-ant-…`), so one can never reach a log through

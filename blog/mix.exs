@@ -5,7 +5,7 @@ defmodule RegentBlog.MixProject do
     [
       app: :regent_blog,
       version: "0.2.0",
-      elixir: "~> 1.19.5",
+      elixir: "~> 1.20",
       description: "File-authored Markdown blog catalogs for Regent Phoenix products",
       deps: [
         {:mdex, "== 0.14.2"},

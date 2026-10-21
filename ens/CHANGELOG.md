@@ -4,6 +4,10 @@ All notable changes to `ens_elixir` should be recorded here.
 
 ## Unreleased
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. `AgentEns.ERC7930.decode/1` pins the
+  lengths it reads from outside a binary match, as Elixir 1.20 asks.
+
 ### Added
 
 - `AgentEns.PrimaryName.verified_primary_identity/2`: a wallet's verified primary name and

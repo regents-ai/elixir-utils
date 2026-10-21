@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. phoenix 1.8.16.
 - Moved here from the Regents repository (Regents main b258ae02) into
   elixir-utils `ash_components/identity`, owned by the ash-template lane. Module
   names, routes, settings, mix tasks and migrations are unchanged.

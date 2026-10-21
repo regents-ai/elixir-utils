@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions.
 - Delegated agent intents freeze private agent, beneficiary and pairing
   attribution. Preparing and first settlement atomically check the original
   pairing. Payment verification runs outside database locks. Already authorized

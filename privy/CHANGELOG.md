@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
+  updated to their newest allowed versions. `verify_token/2` drops a catch-all clause
+  that Elixir 1.20's type checker proves can never run; every result it returns is
+  unchanged. joken 2.7.0.
+
 ## 0.2.1
 
 - A verification key that is not a readable PEM (for example one written on a

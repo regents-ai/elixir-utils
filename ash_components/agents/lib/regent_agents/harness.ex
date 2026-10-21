@@ -21,8 +21,9 @@ defmodule RegentAgents.Harness do
 
   @doc """
   The ten agents the side panel offers, in its order: any agent, OpenAI's Codex,
-  Grok Bot, Muse, Hermes, Dots, NemoClaw, OpenClaw, Claude Code and Pi. Every
-  site offers all ten (`RegentAgents.PairingMessage` has their words).
+  Grok Bot, Muse, Hermes, Dots, IronClaw, OpenClaw, Claude Code and Pi. Every
+  site offers all ten (`RegentAgents.PairingMessage` has their words). An agent
+  on any other harness, NemoClaw among them, pairs as any agent.
   """
   def featured,
     do: [
@@ -32,7 +33,7 @@ defmodule RegentAgents.Harness do
       :muse,
       :hermes,
       :dots,
-      :nemoclaw,
+      :ironclaw,
       :openclaw,
       :claude_code,
       :pi

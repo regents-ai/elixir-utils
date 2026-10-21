@@ -125,7 +125,7 @@ Regent site. An agent picks its own name when it pairs; the person may rename it
 and the new name shows on every Regent site.
 
 The side panel offers the ten agents in `RegentAgents.Harness.featured/0`:
-any agent, Codex, Grok Bot, Muse, Hermes, Dots, NemoClaw, OpenClaw, Claude Code
+any agent, Codex, Grok Bot, Muse, Hermes, Dots, IronClaw, OpenClaw, Claude Code
 and Pi. The message a person pastes to their agent is
 `RegentAgents.PairingMessage.text(code, origin, harness)`, the same words on
 every site. It opens "Pair with my Regents Labs account on <site's host>", so the

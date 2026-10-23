@@ -4,8 +4,10 @@ defmodule RegentCredits.DepositCursor do
   read. Base has the one row, opened by the library's migrations at the first
   block of 6 October 2026, before any Credits purchase existed.
 
-  The site's Oban reads on from it every minute (`RegentCredits.Deposits`),
-  so every Credits deposit is credited whether or not a page reported it.
+  The site's Oban reads on from it every five minutes (`RegentCredits.Deposits`),
+  so every Credits deposit is credited whether or not a page reported it. A
+  person's own Buy is credited sooner, by its purchase check
+  (`RegentCredits.Purchase`).
   """
   use Ash.Resource,
     otp_app: :regent_credits,
@@ -24,7 +26,7 @@ defmodule RegentCredits.DepositCursor do
     triggers do
       trigger :read do
         action :read_due
-        scheduler_cron "* * * * *"
+        scheduler_cron "*/5 * * * *"
         queue :regent_credits
         max_attempts 3
         worker_module_name RegentCredits.DepositCursor.AshOban.Worker.Read

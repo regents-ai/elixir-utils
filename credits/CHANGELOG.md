@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- Credits deposits on Base are read from the chain every five minutes instead of
+  every minute, since each read is a paid node call on every site. A person's own
+  Buy is still credited by its purchase check within a minute.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. `RegentCredits.Deposits` drops an unused
   `require Ash.Query`; ash_oban 0.10.2.
@@ -23,7 +26,7 @@ shared by every Regent site.
   the page and by the site's Oban through an AshOban trigger. A person reports
   only payments from the wallets the site's sign-in verified for them, and a
   report is saved only once the chain holds it as that purchase's Buy.
-- Every Credits deposit on Base is read from the chain once a minute and
+- Every Credits deposit on Base is read from the chain every five minutes and
   credited exactly as it landed, reported or not, so a paid Buy whose page
   closed is still credited. A deposit from a wallet no account holds goes to
   the account that reported it, or waits under the wallet until a sign-in

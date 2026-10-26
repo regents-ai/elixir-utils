@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- ash_postgres comes from Regent's copy of 2.15.2 (regents-ai/ash_postgres at
+  cc886ab3), which carries ash-project/ash_postgres#910: upserts are written to the
+  schema the site's repo picks, as on 2.13.0. It clears the two 2.13.0 advisories.
+  Ash 3.37.2, ash_sql 0.8.4.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. phoenix 1.8.16.
 - Moved here from the Regents repository (Regents main b258ae02) into
@@ -9,7 +13,6 @@
   names, routes, settings, mix tasks and migrations are unchanged.
 - elixir-utils siblings are path dependencies, and the package runs the
   elixir-utils `mix check`.
-- Runs on Ash 3.36. Ash postgres stays at 2.13.0.
 - `RegentIdentity.ProfileName`: the calculation a site puts on its account
   resource to show the name a person set in their shared profile. Each site
   used to keep its own copy of the profiles table to read it.

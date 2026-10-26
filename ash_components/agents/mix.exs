@@ -34,9 +34,11 @@ defmodule RegentAgents.MixProject do
   defp deps do
     [
       {:ash, "~> 3.36"},
-      # 2.13.1 through 2.14.2 send upserts to the public schema, ignoring the
-      # repo's prefix that picks each site's schema on the shared database.
-      {:ash_postgres, "== 2.13.0"},
+      # Regent's copy of 2.15.2 with ash-project/ash_postgres#910: upserts use the
+      # repo's prefix, which picks each site's schema on the shared database.
+      {:ash_postgres,
+       git: "https://github.com/regents-ai/ash_postgres.git",
+       ref: "cc886ab3efc8b05d51b7b1f57e609341fb6a0873"},
       {:postgrex, "~> 0.22"},
       {:simple_sat, "~> 0.1"},
       {:plug, "~> 1.19"},

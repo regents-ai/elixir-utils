@@ -34,8 +34,13 @@ defmodule RegentCredits.MixProject do
   defp deps do
     [
       {:ash, "~> 3.36"},
-      # 2.13.1 and later build upserts against the wrong schema.
-      {:ash_postgres, "== 2.13.0"},
+      # Regent's copy of 2.15.2 with ash-project/ash_postgres#910: upserts use the
+      # repo's prefix, which picks each site's schema on the shared database. It
+      # stands in for the Hex release that ash_money and ash_double_entry ask for.
+      {:ash_postgres,
+       git: "https://github.com/regents-ai/ash_postgres.git",
+       ref: "cc886ab3efc8b05d51b7b1f57e609341fb6a0873",
+       override: true},
       {:ash_double_entry, "~> 1.0.19"},
       {:ash_money, "~> 0.2.6"},
       {:ash_oban, "~> 0.10.0"},

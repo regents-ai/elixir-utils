@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- ash_postgres comes from Regent's copy of 2.15.2 (regents-ai/ash_postgres at
+  cc886ab3), which carries ash-project/ash_postgres#910: upserts are written to the
+  schema the site's repo picks, as on 2.13.0. It clears the two 2.13.0 advisories.
+  Ash 3.37.2, ash_sql 0.8.4.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
 - Delegated agent intents freeze private agent, beneficiary and pairing

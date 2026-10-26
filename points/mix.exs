@@ -28,7 +28,11 @@ defmodule RegentPoints.MixProject do
     [
       {:regent_agents, path: "../ash_components/agents"},
       {:ash, "~> 3.36"},
-      {:ash_postgres, "== 2.13.0"},
+      # Regent's copy of 2.15.2 with ash-project/ash_postgres#910: upserts use the
+      # repo's prefix, which picks each site's schema on the shared database.
+      {:ash_postgres,
+       git: "https://github.com/regents-ai/ash_postgres.git",
+       ref: "cc886ab3efc8b05d51b7b1f57e609341fb6a0873"},
       {:simple_sat, "~> 0.1"},
       {:oban, "~> 2.24"},
       {:phoenix_pubsub, "~> 2.1"},

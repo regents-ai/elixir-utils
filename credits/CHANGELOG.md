@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- Migration 20261026220000 installs ash_postgres's version 7 `public.ash_required`.
+  Version 6, which the first Credits migration installs, runs with an empty search
+  path and so cannot find `ash_raise_error`: a missing required value raised
+  "function does not exist" instead of Ash's error. Without this, a fresh database
+  got the broken copy back after the site's own fix.
 - ash_postgres comes from Regent's copy of 2.15.2 (regents-ai/ash_postgres at
   cc886ab3), which carries ash-project/ash_postgres#910: upserts are written to the
   schema the site's repo picks, as on 2.13.0. It clears the two 2.13.0 advisories.

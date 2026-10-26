@@ -25,7 +25,10 @@ belongs in the `:documents` function; everything else reaches the router as befo
 exact signed bytes without cookies, redirects or automatic retries. It does not
 sign. Supply SIWA's existing signer separately; a runtime without it is blocked.
 The host supplies its configured trusted origin, audience, operation manifest and
-SIWA's proof-header list. Product endpoints verify through SIWA once, resolve the
+SIWA's proof-header list, and `requestHeaders(operation)`, its own lowercase `x-`
+labels for each call (ash-template names the tool and the visit, for its visit
+log). Labels are never part of the proof and never authority; one that names a
+proof header is refused. Product endpoints verify through SIWA once, resolve the
 current pairing and enforce their own Ash policies.
 
 Inputs use a small JSON Schema subset: `string`, `number`, `integer`, `boolean`,

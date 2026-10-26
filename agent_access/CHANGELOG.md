@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `signedTools` takes a required `requestHeaders(operation)`: the host's own
+  lowercase `x-` labels for each signed call, sent beside the proof and never part
+  of it. A label that is not a lowercase `x-` name, names a proof header or holds a
+  line break is refused with `invalid_request_header` before anything is sent. A
+  host passes `() => ({})` for none. ash-template sends `x-regent-client` and
+  `x-regent-visit` for its visit log.
+
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
 

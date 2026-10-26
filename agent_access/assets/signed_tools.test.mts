@@ -10,6 +10,7 @@ const protocol = JSON.parse(readFileSync(new URL('../../siwa/contract/contract.j
 const config: Parameters<typeof signedTools>[0] = {
   origin: 'https://example.test', trustedOrigins: ['https://example.test'], audience: 'fixture',
   proofHeaders: protocol.forwarded_headers as string[],
+  requestHeaders: operation => ({'x-regent-client': `webmcp/${operation}`}),
   operations: [{name: 'create', route: 'POST /tools/notes', authentication: 'siwa_per_request',
     availability: 'available', operation_id_field: 'operation_id',
     input_schema: {properties: {title: {type: 'string'}, operation_id: {type: 'string'}}, required: ['title', 'operation_id']}},
@@ -53,6 +54,7 @@ test('exact prepared bytes are forwarded once without cookies or unrelated autho
     assert.equal(sent[0].options.redirect, 'error')
     assert.equal((sent[0].options.headers as Record<string, string>).authorization, undefined)
     assert.equal((sent[0].options.headers as Record<string, string>).cookie, undefined)
+    assert.equal((sent[0].options.headers as Record<string, string>)['x-regent-client'], 'webmcp/create')
     for (const [name, values] of [['poll', poll], ['report', report]] as const) {
       const prepared = tools.prepare(name, values)
       await tools.execute(name, {input: values, request: prepared, proof})
@@ -88,6 +90,11 @@ test('changed bytes, operation, origin, path and ambiguous proofs fail before se
     }
     await assert.rejects(tools.execute('create', {input, request, proof: {...proof, 'X-SIWA-SIGNATURE': 'duplicate'}}), /invalid_proof/)
     await assert.rejects(tools.execute('create', {input, request, proof: {}}), /incomplete_proof/)
+    for (const labels of [{accept: 'text/html'}, {cookie: 'a'}, {'X-Upper': 'a'}, {'x-line': 'a\nb'},
+      {[config.proofHeaders[0]]: 'a'}]) {
+      const labelled = signedTools({...config, requestHeaders: () => labels})
+      await assert.rejects(labelled.execute('create', {input, request, proof}), /invalid_request_header/)
+    }
     assert.throws(() => tools.prepare('arbitrary', {}), /operation_unavailable/)
     assert.throws(() => tools.prepare('read', {id: '..'}), /invalid_path_field/)
     assert.throws(() => signedTools({...config, origin: 'https://evil.test'}), /untrusted_origin/)

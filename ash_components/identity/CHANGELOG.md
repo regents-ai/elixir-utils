@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- jose 1.11.13 in the lock, which fixes the eight jose advisories of 26 Oct
+  (EEF-CVE-2026-65625 to -65632, one high).
 - ash_postgres comes from Regent's copy of 2.15.2 (regents-ai/ash_postgres at
   cc886ab3), which carries ash-project/ash_postgres#910: upserts are written to the
   schema the site's repo picks, as on 2.13.0. It clears the two 2.13.0 advisories.

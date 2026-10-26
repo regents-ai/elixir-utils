@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- jose 1.11.13 in the lock, which fixes the eight jose advisories of 26 Oct
+  (EEF-CVE-2026-65625 to -65632, one high).
 - `verify_token/2` and `RegentPrivy.Session` now name two wallets apart:
   `embedded_wallet_address`, the wallet Privy made for the person (its
   `wallet_client_type` is `privy`), and `user_wallet_address`, the most recently

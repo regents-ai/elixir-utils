@@ -147,11 +147,11 @@ with the Payment Element on its own page (`RegentCredits.CardPurchase`):
   `RegentCredits.card_price(credits)` the card fee and total in cents: whole
   dollars of Credits, $5 to $500, plus 2.9% + 30 cents so the Credits arrive whole.
 - `RegentCredits.start_card_purchase(privy_user_id, credits, return_url,
-  actor: person)` opens the Checkout Session and answers its `client_secret` for
-  `stripe.initCheckoutElementsSdk`; the page collects the email with the Contact
-  Details Element. With Stripe's test keys
-  only Credits admins may start one, since a test card adds real Credits to the
-  shared ledger. A person whose Credits are below zero cannot start one.
+  actor: person)` opens the Checkout Session and answers its `session_id` and the
+  `client_secret` for `stripe.initCheckoutElementsSdk`; the page collects the
+  email with the Contact Details Element. With Stripe's test keys only Credits
+  admins may start one, since a test card adds real Credits to the shared
+  ledger. A person whose Credits are below zero cannot start one.
 - The site's webhook passes Stripe's raw body and `Stripe-Signature` header to
   `RegentCredits.card_notice(payload, signature, actor: site)`. A paid session
   adds the Credits once; a refund takes back its share of them and a dispute the

@@ -65,6 +65,7 @@ defmodule RegentCredits.CardPurchases do
       {:ok,
        %{
          id: purchase.id,
+         session_id: session_id,
          client_secret: secret,
          credits: credits,
          fee_cents: fee,

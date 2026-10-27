@@ -96,6 +96,7 @@ defmodule RegentCredits.CardPurchaseTest do
 
     {:ok, started} = start(admin_id(), 25)
     assert started.total_cents == 2_606 and started.fee_cents == 106
+    assert started.session_id == "cs_test_#{started.id}"
     assert started.client_secret == "cs_test_#{started.id}_secret"
 
     assert_received {:opened, params, [key]}

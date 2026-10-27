@@ -1,8 +1,9 @@
 # Regent MCP Agents
 
-Connect ChatGPT to a persistent Regents account identity. All chats on the
-connection reuse its hosted signer. This is free identity setup, not an on-chain
-registry listing. No command-line installation is required.
+Connect a connected app (ChatGPT or Claude) to a persistent Regents account
+identity. All chats on the connection reuse its hosted signer. This is free
+identity setup, not an on-chain registry listing. No command-line installation
+is required.
 
 Enable only after configuring RegentOAuth and this site's hosted signing key
 with the SIWA service. Sites supply `config :regent_mcp_agents, :config,
@@ -23,8 +24,9 @@ signers on two sites are unrelated and their addresses never link the accounts. 
 Unpairing prevents subsequent writes; reconnecting does not repair it. Revoking
 the OAuth connection prevents further adapter requests.
 
-Sites expose registration, status and pairing tools. Patchbay additionally
-exposes free questions and replies. Calls are forwarded to the ordinary signed
+Sites expose registration, status, pairing and check-in tools. Pairing names the
+app as its harness, `chatgpt` or `claude`. Patchbay additionally exposes free
+questions and replies. Calls are forwarded to the ordinary signed
 identity endpoints or `/chatgpt/agent/mcp`; SIWA and product authorization remain
 decisive. Native CLI behavior is unchanged. Do not enable money tools, Offers or
 Points. A timed-out post may have succeeded: read the thread before retrying,

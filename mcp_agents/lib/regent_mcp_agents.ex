@@ -1,12 +1,13 @@
 defmodule RegentMCPAgents do
   @moduledoc """
-  A persistent ChatGPT connection to a Regents account identity, shared across
-  chats. OAuth authorizes the connection; the SIWA service's hosted signing holds
-  its signer, asked with this site's own hosted signing key. Every protected
-  product request still passes exact-request SIWA verification. Conversation IDs,
-  tool arguments and MCP sessions never select the signer.
+  A connected app's (ChatGPT's or Claude's) persistent connection to a Regents
+  account identity, shared across chats. OAuth authorizes the connection; the
+  SIWA service's hosted signing holds its signer, asked with this site's own
+  hosted signing key. Every protected product request still passes exact-request
+  SIWA verification. Conversation IDs, tool arguments and MCP sessions never
+  select the signer.
   """
-  alias RegentAgents.{PairingCode, Person}
+  alias RegentAgents.{Harness, PairingCode, Person}
 
   @identity_scope "regent.identity.manage"
   @posting_scope "patchbay.posts.write"
@@ -32,7 +33,7 @@ defmodule RegentMCPAgents do
                is_binary(uri.host) and uri.path in [nil, ""] and
                is_nil(uri.query) and is_nil(uri.fragment) and is_nil(uri.userinfo) and
                is_binary(key) and Regex.match?(~r/\A[A-Za-z0-9_-]{32,}\z/, key) and
-               opts[:audience] in ["patchbay", "ash-template"],
+               opts[:audience] in ["patchbay", "keyfleet", "ash-template"],
              do:
                raise(
                  ArgumentError,
@@ -74,14 +75,27 @@ defmodule RegentMCPAgents do
     end
   end
 
-  @doc "Redeem only a code made by the authenticated account, using the hosted signer."
-  def pair(principal, %{"code" => code, "name" => name} = args)
-      when map_size(args) == 2 and is_binary(code) and byte_size(code) in 1..128 and
-             is_binary(name) do
+  @doc "Check in with a freshly SIWA-signed request; the person sees the connection is active."
+  def check_in(principal) do
+    with :ok <- authority(principal, @identity_scope),
+         {:ok, %{"data" => data}} <-
+           perform(principal, %{"method" => "GET", "path" => "/api/agents/v1/me"}) do
+      {:ok, Map.put(data, "identity_id", connection_key(principal))}
+    end
+  end
+
+  @doc """
+  Redeem only a code made by the authenticated account, using the hosted signer,
+  as the connected app it names (`RegentAgents.Harness.connected_apps/0`).
+  """
+  def pair(principal, %{"code" => code, "name" => name, "harness" => harness} = args)
+      when map_size(args) == 3 and is_binary(code) and byte_size(code) in 1..128 and
+             is_binary(name) and is_binary(harness) do
     with :ok <- authority(principal, @identity_scope),
          true <- String.length(name) in 1..100,
+         true <- harness in Enum.map(Harness.connected_apps(), &Atom.to_string/1),
          :ok <- own_code(principal.subject, code),
-         body = Jason.encode!(%{code: code, name: name, harness: "chatgpt"}),
+         body = Jason.encode!(%{code: code, name: name, harness: harness}),
          {:ok, %{"data" => _data}} <-
            perform(principal, %{
              "method" => "POST",

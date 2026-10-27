@@ -13,6 +13,7 @@ defmodule RegentAgents.Harness do
       claude_code: [label: "Claude Code"],
       codex: [label: "Codex"],
       chatgpt: [label: "ChatGPT"],
+      claude: [label: "Claude"],
       cursor: [label: "Cursor"],
       gemini_cli: [label: "Gemini CLI"],
       dots: [label: "Dots"],
@@ -39,14 +40,18 @@ defmodule RegentAgents.Harness do
       :pi
     ]
 
+  @doc "The connected apps: they pair through a site's hosted connection, not a key of their own."
+  def connected_apps, do: [:chatgpt, :claude]
+
   @doc """
-  The agents a site's pairing box offers. ChatGPT pairs through a connected plugin
-  and identity tools that only some sites serve, so it is offered only where the
-  site sets `config :regent_agents, chatgpt_pairing: true`.
+  The agents a site's pairing box offers. ChatGPT and Claude pair through the
+  site's hosted connection and its identity tools, which only some sites serve,
+  so they are offered only where the site sets
+  `config :regent_agents, hosted_pairing: true`.
   """
   def offered do
-    if Application.get_env(:regent_agents, :chatgpt_pairing, false),
+    if Application.get_env(:regent_agents, :hosted_pairing, false),
       do: values(),
-      else: values() -- [:chatgpt]
+      else: values() -- connected_apps()
   end
 end

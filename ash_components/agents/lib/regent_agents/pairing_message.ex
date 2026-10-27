@@ -2,7 +2,8 @@ defmodule RegentAgents.PairingMessage do
   @moduledoc """
   What a person pastes to their agent to pair it: that the account is their
   Regents Labs account and which site they pair it on, the pairing code, where
-  the pairing steps are and how long the code lasts. Codex, Grok Bot, Hermes and
+  the pairing steps are and how long the code lasts. ChatGPT and Claude are told
+  to use the site's hosted connection instead. Codex, Grok Bot, Hermes and
   Muse each get one more line for the mistake that agent most often makes on its
   first pairing. Muse runs where siwa.regents.sh may not answer, so its line
   names the SIWA service's other address.
@@ -29,16 +30,11 @@ defmodule RegentAgents.PairingMessage do
     |> Enum.join("\n")
   end
 
-  defp pairing(code, origin, :chatgpt) do
-    """
-    Connect ChatGPT to my existing Regents Labs account on #{URI.parse(origin).host} using this site's connected plugin.
-    Use register_identity, then get_identity. Reuse this connection across chats.
-    If pairing is needed, I approve pair_identity with this one-use code and the name ChatGPT.
-    Pairing code: #{code}
-    My account page is #{origin}/account. Never repeat this code in your reply.
-    If the plugin's identity tools are unavailable, report that setup is needed.\
-    """
-  end
+  defp pairing(code, origin, :chatgpt),
+    do: connected(code, origin, "ChatGPT", "plugin", "chatgpt")
+
+  defp pairing(code, origin, :claude),
+    do: connected(code, origin, "Claude", "connector", "claude")
 
   defp pairing(code, origin, harness) do
     """
@@ -47,6 +43,17 @@ defmodule RegentAgents.PairingMessage do
     Follow the "Pair with a person's account" steps at #{origin}/llms.txt
     The code works once, for ten minutes. If it fails, ask me for a new one.\
     """ <> first_pairing(harness)
+  end
+
+  defp connected(code, origin, app, door, harness) do
+    """
+    Connect #{app} to my existing Regents Labs account on #{URI.parse(origin).host} using this site's #{door}.
+    Use register_identity, then get_identity. Reuse this connection across chats.
+    If pairing is needed, I approve pair_identity with this one-use code, the name #{app} and the harness #{harness}.
+    Pairing code: #{code}
+    My account page is #{origin}/account. Never repeat this code in your reply.
+    If the #{door}'s identity tools are unavailable, report that setup is needed.\
+    """
   end
 
   defp start_line(_origin, nil), do: nil

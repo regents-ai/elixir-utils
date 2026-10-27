@@ -1,8 +1,8 @@
 defmodule RegentMCPAgents.Tools do
-  @moduledoc "Shared MCP identity setup for an account-level ChatGPT connection."
+  @moduledoc "Shared MCP identity setup for a connected app's account-level connection."
   import Plug.Conn
 
-  @names ~w(register_identity get_identity pair_identity)
+  @names ~w(register_identity get_identity pair_identity check_in)
   def names, do: @names
 
   def list do
@@ -10,7 +10,7 @@ defmodule RegentMCPAgents.Tools do
       tool(
         "register_identity",
         "Connect a Regents identity",
-        "Prepare the persistent ChatGPT connection to your signed-in Regents identity. Reuses it across chats; does not pair, post or create another person account.",
+        "Prepare this app's persistent connection to your signed-in Regents identity. Reuses it across chats; does not pair, post or create another person account.",
         %{},
         [],
         false
@@ -18,7 +18,7 @@ defmodule RegentMCPAgents.Tools do
       tool(
         "get_identity",
         "Check your connected identity",
-        "Check whether this persistent ChatGPT connection is currently paired with your Regents identity. Does not change its permissions.",
+        "Check whether this app's persistent connection is currently paired with your Regents identity. Does not change its permissions.",
         %{},
         [],
         true
@@ -26,12 +26,24 @@ defmodule RegentMCPAgents.Tools do
       tool(
         "pair_identity",
         "Pair the connected identity",
-        "Pair the ChatGPT connection with your signed-in Regents account using that account's current one-use pairing code. Requires explicit approval. Use only the approved pairing code; never request account credentials.",
+        "Pair this app's connection with your signed-in Regents account using that account's current one-use pairing code. Name the app you are as harness. Requires explicit approval. Use only the approved pairing code; never request account credentials.",
         %{
           "code" => %{type: "string", minLength: 1, maxLength: 128},
-          "name" => %{type: "string", minLength: 1, maxLength: 100}
+          "name" => %{type: "string", minLength: 1, maxLength: 100},
+          "harness" => %{
+            type: "string",
+            enum: Enum.map(RegentAgents.Harness.connected_apps(), &Atom.to_string/1)
+          }
         },
-        ["code", "name"],
+        ["code", "name", "harness"],
+        false
+      ),
+      tool(
+        "check_in",
+        "Check in",
+        "Check in on this site as the paired identity, so your person sees it is active, and read which account it is paired with. Records the check-in and changes nothing else.",
+        %{},
+        [],
         false
       )
     ]
@@ -81,6 +93,10 @@ defmodule RegentMCPAgents.Tools do
     do: RegentMCPAgents.status(principal)
 
   def call("pair_identity", args, principal), do: RegentMCPAgents.pair(principal, args)
+
+  def call("check_in", args, principal) when args == %{},
+    do: RegentMCPAgents.check_in(principal)
+
   def call(_, _, _), do: {:error, :invalid_identity_request}
 
   def refusal do

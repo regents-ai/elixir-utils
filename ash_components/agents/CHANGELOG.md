@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- New `claude` harness, labelled Claude, for Claude pairing through a site's hosted connection.
+  `hosted_pairing: true` replaces `chatgpt_pairing: true` and offers both ChatGPT and Claude
+  (`RegentAgents.Harness.connected_apps/0`). The pairing message for either names the app, the
+  site's plugin or connector, and the harness to pair as.
 - `PairingMessage.text/4` takes options: `start:`, the page a pairing link names
   (a path on the same site), ends the message "Once paired, start at <page>", so
   an agent brought to one project begins there (the template's /pair?to=<path>);

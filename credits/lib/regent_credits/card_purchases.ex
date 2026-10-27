@@ -39,26 +39,25 @@ defmodule RegentCredits.CardPurchases do
     end
   end
 
+  # The page collects the email with Stripe's Contact Details Element.
   defp open(owner, credits, args, site) do
     id = Ecto.UUID.generate()
     %{fee_cents: fee, total_cents: total} = price(credits)
 
-    params =
-      %{
-        ui_mode: "elements",
-        mode: "payment",
-        allowed_payment_method_types: ["card", "link"],
-        client_reference_id: id,
-        return_url: args.return_url,
-        expires_at: System.system_time(:second) + @open_seconds,
-        line_items: [
-          line("#{credits} Regents Credits", credits * 100),
-          line("Card fee", fee)
-        ],
-        metadata: %{card_purchase_id: id, privy_user_id: owner, site: site},
-        payment_intent_data: %{metadata: %{card_purchase_id: id}}
-      }
-      |> then(&if(args[:email], do: Map.put(&1, :customer_email, args.email), else: &1))
+    params = %{
+      ui_mode: "elements",
+      mode: "payment",
+      allowed_payment_method_types: ["card", "link"],
+      client_reference_id: id,
+      return_url: args.return_url,
+      expires_at: System.system_time(:second) + @open_seconds,
+      line_items: [
+        line("#{credits} Regents Credits", credits * 100),
+        line("Card fee", fee)
+      ],
+      metadata: %{card_purchase_id: id, privy_user_id: owner, site: site},
+      payment_intent_data: %{metadata: %{card_purchase_id: id}}
+    }
 
     with {:ok, %{"id" => session_id, "client_secret" => secret, "livemode" => livemode}} <-
            Stripe.open_session(id, params),

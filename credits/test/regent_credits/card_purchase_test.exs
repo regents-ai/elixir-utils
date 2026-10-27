@@ -40,9 +40,7 @@ defmodule RegentCredits.CardPurchaseTest do
   defp start(owner, credits) do
     stripe(fn -> %{} end)
 
-    RegentCredits.start_card_purchase(owner, credits, @return, %{email: "sean@example.com"},
-      actor: actor(owner)
-    )
+    RegentCredits.start_card_purchase(owner, credits, @return, actor: actor(owner))
   end
 
   defp paid(purchase, changes \\ %{}) do
@@ -105,7 +103,6 @@ defmodule RegentCredits.CardPurchaseTest do
     assert params["ui_mode"] == "elements"
     # Stripe reads lists as numbered fields.
     assert params["allowed_payment_method_types"] == %{"0" => "card", "1" => "link"}
-    assert params["customer_email"] == "sean@example.com"
     assert params["return_url"] == @return
 
     assert %{

@@ -119,7 +119,6 @@ defmodule RegentCredits.CardPurchase do
       argument :privy_user_id, :string, allow_nil?: false
       argument :credits, :integer, allow_nil?: false, constraints: [min: 5, max: 500]
       argument :return_url, :string, allow_nil?: false, constraints: [max_length: 2_048]
-      argument :email, :string, constraints: [max_length: 800]
       run fn input, context -> CardPurchases.start(input.arguments, context.actor) end
     end
 

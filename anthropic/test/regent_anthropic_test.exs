@@ -117,13 +117,13 @@ defmodule RegentAnthropicTest do
       refute_received {:request, _opts}
     end
 
-    test "an Anthropic error names its status and type and never the key" do
+    test "an Anthropic error names its status, type and message and never the key" do
       answer(429, %{
         "type" => "error",
         "error" => %{"type" => "rate_limit_error", "message" => "Slow down"}
       })
 
-      assert {:error, %Error{reason: {:anthropic, 429, "rate_limit_error"}} = error} =
+      assert {:error, %Error{reason: {:anthropic, 429, "rate_limit_error", "Slow down"}} = error} =
                RegentAnthropic.respond(
                  model: "claude-opus-5-5",
                  system: "Hi",
@@ -131,6 +131,7 @@ defmodule RegentAnthropicTest do
                  max_tokens: 10
                )
 
+      assert Exception.message(error) == "Anthropic answered 429 (rate_limit_error): Slow down"
       refute inspect(error) =~ @api_key
       refute Exception.message(error) =~ @api_key
     end

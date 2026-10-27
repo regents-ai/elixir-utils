@@ -4,6 +4,9 @@
 
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
+- An error Anthropic answers keeps its own message: the reason is now
+  `{:anthropic, status, type, message}`, and the error's text ends with it, so a low
+  credit balance shows in the logs instead of only "400 (invalid_request_error)".
 
 ## 0.1.0 (2026-10-12)
 

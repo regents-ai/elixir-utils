@@ -10,7 +10,8 @@ defmodule RegentAnthropic.Error do
 
     * `:api_key_missing`
     * `{:unpriced_model, model}` — refused before sending
-    * `{:anthropic, status, type}` — Anthropic answered with an error
+    * `{:anthropic, status, type, message}` — Anthropic answered with an error; `message`
+      is Anthropic's own words, such as a low credit balance (never the key)
     * `{:transport, message}` — the request did not reach Anthropic or timed out
     * `{:incomplete, stop_reason}` — billed; the reply stopped early, such as at `max_tokens`
     * `:refused` — billed; the model declined
@@ -32,8 +33,8 @@ defmodule RegentAnthropic.Error do
   defp describe(:api_key_missing), do: "the Anthropic API key is not configured"
   defp describe({:unpriced_model, model}), do: "no price is known for #{model}"
 
-  defp describe({:anthropic, status, type}),
-    do: "Anthropic answered #{status} (#{type || "no type"})"
+  defp describe({:anthropic, status, type, message}),
+    do: "Anthropic answered #{status} (#{type || "no type"}): #{message || "no message"}"
 
   defp describe({:transport, message}), do: "Anthropic could not be reached: #{message}"
   defp describe({:incomplete, stop_reason}), do: "the reply stopped early (#{stop_reason})"

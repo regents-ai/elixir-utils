@@ -115,15 +115,22 @@ defmodule RegentAnthropic do
   defp handle_response({:ok, %{status: 200, body: body}}), do: {:ok, body}
 
   defp handle_response({:ok, %{status: status, body: body}}) do
-    {:error, %Error{reason: {:anthropic, status, error_type(body)}}}
+    {:error,
+     %Error{reason: {:anthropic, status, error_field(body, "type"), error_field(body, "message")}}}
   end
 
   defp handle_response({:error, reason}) do
     {:error, %Error{reason: {:transport, RegentHttp.format_error(reason)}}}
   end
 
-  defp error_type(%{"error" => %{"type" => type}}) when is_binary(type), do: type
-  defp error_type(_body), do: nil
+  defp error_field(%{"error" => %{} = error}, field) do
+    case error[field] do
+      value when is_binary(value) -> value
+      _missing -> nil
+    end
+  end
+
+  defp error_field(_body, _field), do: nil
 
   defp reply(
          %{

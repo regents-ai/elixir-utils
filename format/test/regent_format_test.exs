@@ -49,6 +49,8 @@ defmodule RegentFormatTest do
       assert RegentFormat.display_bps_percent(0) == "n/a"
       assert RegentFormat.display_bps_percent(250) == "2.5%"
       assert RegentFormat.display_bps_percent(10_000) == "100%"
+      assert RegentFormat.display_bps_percent(-5) == "-0.05%"
+      assert RegentFormat.display_bps_percent(10 ** 40 + 1) == "1#{String.duplicate("0", 38)}.01%"
     end
   end
 
@@ -201,6 +203,13 @@ defmodule RegentFormatTest do
       assert RegentFormat.parse_decimal("") == nil
       assert RegentFormat.parse_decimal("12 tokens") == nil
       assert RegentFormat.parse_decimal(:atom) == nil
+    end
+
+    test "returns nil for NaN and Infinity, which are not amounts" do
+      assert RegentFormat.parse_decimal("NaN") == nil
+      assert RegentFormat.parse_decimal("-Infinity") == nil
+      assert RegentFormat.parse_decimal(Decimal.new("Infinity")) == nil
+      assert RegentFormat.format_currency("Infinity", 2) == "Unavailable"
     end
   end
 

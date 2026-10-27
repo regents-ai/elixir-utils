@@ -44,8 +44,11 @@ Format.format_datetime("2026-01-05T15:04:05Z", :date, "Unknown")
 ```
 
 Every amount a page shows goes through `amount/1` or `token_amount/2`: two
-decimals from 1 up, three significant digits below 1, never rounded up. Inputs,
-copied values, API bodies and transaction data keep the exact amount.
+decimals from 1 up, three significant digits below 1, never rounded up. They
+are exact at any size, up to the largest token amount a chain holds.
+`NaN` and `Infinity` are not amounts: `parse_decimal/1` returns `nil` for them,
+so `format_currency/2` shows `"Unavailable"`. Inputs, copied values, API bodies
+and transaction data keep the exact amount.
 
 ## Development
 

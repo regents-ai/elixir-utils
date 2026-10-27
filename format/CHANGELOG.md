@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `amount/1`, `token_amount/2`, `format_currency/2`, `decimal_to_string/2` and
+  `display_bps_percent/1` are exact at any size. An amount of 1e32 or more, such
+  as a bid at the largest price a chain allows, raised instead of showing, and a
+  negative amount longer than 34 digits could show rounded up. They now work on
+  the whole-number digits instead of Decimal's 34-digit precision.
+  `parse_decimal/1` returns `nil` for `NaN` and `Infinity`, so `format_currency/2`
+  shows `"Unavailable"` for them, and `amount/1` takes finite amounts only.
 - `amount/1` and `token_amount/2` show every amount the one way (founder,
   2026-10-27): from 1 up, thousands grouped and two decimals; below 1, three
   significant digits; zero as `"0"`. Digits past those are dropped, never rounded

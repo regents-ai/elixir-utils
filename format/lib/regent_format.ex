@@ -79,11 +79,10 @@ defmodule RegentFormat do
   def display_bps_percent(0), do: "n/a"
 
   def display_bps_percent(value) when is_integer(value) do
-    value
-    |> D.new()
-    |> D.div(D.new(100))
-    |> D.normalize()
+    %{D.new(value) | exp: -2}
     |> D.to_string(:normal)
+    |> String.trim_trailing("0")
+    |> String.trim_trailing(".")
     |> Kernel.<>("%")
   end
 
@@ -316,7 +315,8 @@ defmodule RegentFormat do
 
   @doc """
   Parses integers, binaries, and `Decimal` structs into a `Decimal`, returning
-  `nil` for blank or unparseable values.
+  `nil` for blank or unparseable values and for `NaN` and `Infinity`, which are
+  not amounts.
 
       iex> RegentFormat.parse_decimal("9.5E+2")
       Decimal.new("9.5E+2")
@@ -328,11 +328,11 @@ defmodule RegentFormat do
   def parse_decimal(nil), do: nil
   def parse_decimal(""), do: nil
   def parse_decimal(value) when is_integer(value), do: D.new(value)
-  def parse_decimal(%D{} = value), do: value
+  def parse_decimal(%D{coef: coef} = value) when is_integer(coef), do: value
 
   def parse_decimal(value) when is_binary(value) do
     case D.parse(value) do
-      {decimal, ""} -> decimal
+      {%D{coef: coef} = decimal, ""} when is_integer(coef) -> decimal
       _ -> nil
     end
   end
@@ -355,7 +355,7 @@ defmodule RegentFormat do
       decimal ->
         "$" <>
           (decimal
-           |> D.round(places)
+           |> to_places(places, :half_up)
            |> decimal_to_string(places)
            |> add_delimiters())
     end
@@ -365,7 +365,8 @@ defmodule RegentFormat do
   Renders an amount for people to read, the one way every Regent page shows
   one. From 1 up: thousands grouped and exactly two decimals. Below 1: three
   significant digits. Zero is `"0"`. Digits past those shown are dropped, never
-  rounded up, so a page never shows more than is there.
+  rounded up, so a page never shows more than is there. Worked out exactly for
+  a finite amount of any size.
 
   For display only: typed inputs, copied values, API and JSON bodies, agent
   tool results and transaction data keep the exact amount.
@@ -382,12 +383,12 @@ defmodule RegentFormat do
   @spec amount(Decimal.t() | integer()) :: String.t()
   def amount(value) when is_integer(value), do: amount(D.new(value))
 
-  def amount(%D{} = value) do
+  def amount(%D{sign: sign, coef: coef} = value) when is_integer(coef) do
     cond do
-      D.eq?(value, 0) -> "0"
-      D.lt?(value, 0) -> "-" <> amount(D.negate(value))
+      coef == 0 -> "0"
+      sign == -1 -> "-" <> amount(%{value | sign: 1})
       D.lt?(value, 1) -> value |> significant(3)
-      true -> value |> D.round(2, :down) |> decimal_to_string(2) |> add_delimiters()
+      true -> value |> to_places(2, :down) |> decimal_to_string(2) |> add_delimiters()
     end
   end
 
@@ -410,15 +411,31 @@ defmodule RegentFormat do
   defp significant(%D{coef: coef, exp: exp} = value, digits) do
     leading = length(Integer.digits(coef)) + exp - 1
     places = digits - 1 - leading
-    value |> D.round(places, :down) |> decimal_to_string(places)
+    value |> to_places(places, :down) |> decimal_to_string(places)
   end
+
+  # `value` at `places` decimal places, cut toward zero (`:down`) or rounded half
+  # away from zero (`:half_up`). Worked out on the whole-number coefficient, so it
+  # is exact at any size: `Decimal.round/3` stops at the context's 34 digits.
+  defp to_places(%D{coef: coef, exp: exp} = value, places, _mode)
+       when is_integer(coef) and exp >= -places,
+       do: value
+
+  defp to_places(%D{coef: coef, exp: exp} = value, places, mode) when is_integer(coef) do
+    unit = Integer.pow(10, -exp - places)
+    %{value | coef: div(coef + half(mode, unit), unit), exp: -places}
+  end
+
+  defp half(:down, _unit), do: 0
+  defp half(:half_up, unit), do: div(unit, 2)
 
   @doc """
   Renders a `Decimal` in plain notation padded or truncated to `places`
   decimal places.
   """
   @spec decimal_to_string(Decimal.t(), non_neg_integer()) :: String.t()
-  def decimal_to_string(decimal, 0), do: decimal |> D.round(0) |> D.to_string(:normal)
+  def decimal_to_string(decimal, 0),
+    do: decimal |> to_places(0, :half_up) |> D.to_string(:normal)
 
   def decimal_to_string(decimal, places) do
     string = D.to_string(decimal, :normal)

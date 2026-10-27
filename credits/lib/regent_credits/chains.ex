@@ -3,7 +3,8 @@ defmodule RegentCredits.Chains do
   Where purchase money goes, and the wallet steps that send it.
 
     * Base: approve, then `depositUSDC` into REGENT staking with the purchase
-      number attached. Staking passes it on to the treasury.
+      number attached. Staking pays stakers their share of all REGENT and keeps
+      the rest for the treasury.
     * Ethereum: one USDC transfer straight to the Treasury Safe.
 
   The site names each chain's RPC and its chain client:

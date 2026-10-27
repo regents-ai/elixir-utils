@@ -5,10 +5,12 @@
 - Every pairing message but ChatGPT's gains the line "If other agents share your
   computer, use your own key: begin every shell with export
   SIWA_AGENT_HOME=~/.siwa-agent/<runtime>", the folder named after the agent's
-  runtime (`claude-code`, `codex`, `openclaw`, `grok-bot` and so on), so agents
+  runtime (`claude-code`, `codex`, `openclaw`, `muse` and so on), so agents
   sharing one computer each keep their own key and pair as separate agents
   (Sean, 27 Oct 2026, AGENT-KEY-HOME a). Any other agent, and a message with no
-  runtime named, gets `YOUR-RUNTIME` to fill in. The line follows the pairing
+  runtime named, gets `YOUR-RUNTIME` to fill in. Grok Bot is told
+  `/workspace/.siwa-agent` instead, the folder its agent guide names, because
+  only `/workspace` survives a Grok Bot restart. The line follows the pairing
   lines, before the site's `setup:` lines. Keyfleet's own copy of the line can go
   from its `setup:` once it uses this version.
 - Pairing, check-in and making a code run in `Ash.transact/2` instead of

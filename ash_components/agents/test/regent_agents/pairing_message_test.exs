@@ -55,7 +55,14 @@ defmodule RegentAgents.PairingMessageTest do
 
     named = for {harness, home} <- homes, harness not in [nil, :other], do: home
     assert Enum.uniq(named) == named
-    assert Enum.all?(named, &(&1 =~ ~r{\A~/\.siwa-agent/[a-z][a-z-]*\z}))
+
+    assert Enum.all?(
+             List.delete(named, homes[:grok_bot]),
+             &(&1 =~ ~r{\A~/\.siwa-agent/[a-z][a-z-]*\z})
+           )
+
+    # Grok Bot's guide: only /workspace survives a restart.
+    assert homes[:grok_bot] == "/workspace/.siwa-agent"
     assert homes[nil] == homes[:other]
     refute homes[:other] in named
 

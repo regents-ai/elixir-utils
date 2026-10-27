@@ -5,7 +5,9 @@ defmodule RegentAgents.PairingMessage do
   the pairing steps are and how long the code lasts. Every agent but ChatGPT is
   told to keep its own key, in a folder named after its runtime under
   `~/.siwa-agent`, so agents sharing one computer pair as separate agents; an
-  agent on an unlisted runtime, or on none named, names the folder itself.
+  agent on an unlisted runtime, or on none named, names the folder itself. Grok
+  Bot keeps its key in `/workspace/.siwa-agent`, the one folder its computer
+  keeps after a restart, as its agent guide says.
   Codex, Grok Bot, Hermes and Muse each get one more line for the mistake that
   agent most often makes on its first pairing. Muse runs where siwa.regents.sh
   may not answer, so its line names the SIWA service's other address.
@@ -49,14 +51,17 @@ defmodule RegentAgents.PairingMessage do
     Pairing code: #{code}
     Follow the "Pair with a person's account" steps at #{origin}/llms.txt
     The code works once, for ten minutes. If it fails, ask me for a new one.
-    If other agents share your computer, use your own key: begin every shell with export SIWA_AGENT_HOME=~/.siwa-agent/#{key_folder(harness)}\
+    If other agents share your computer, use your own key: begin every shell with export SIWA_AGENT_HOME=#{key_home(harness)}\
     """ <> first_pairing(harness)
   end
 
   # The runtime's own folder; an agent on any other runtime, or on none the site
-  # named, picks its own name.
-  defp key_folder(harness) when harness in [nil, :other], do: "YOUR-RUNTIME"
-  defp key_folder(harness), do: harness |> Atom.to_string() |> String.replace("_", "-")
+  # named, picks its own name. Only /workspace survives a Grok Bot restart.
+  defp key_home(:grok_bot), do: "/workspace/.siwa-agent"
+  defp key_home(harness) when harness in [nil, :other], do: "~/.siwa-agent/YOUR-RUNTIME"
+
+  defp key_home(harness),
+    do: "~/.siwa-agent/" <> (harness |> Atom.to_string() |> String.replace("_", "-"))
 
   defp start_line(_origin, nil), do: nil
   defp start_line(origin, start), do: "Once paired, start at #{origin}#{start}"

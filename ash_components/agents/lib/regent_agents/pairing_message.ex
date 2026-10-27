@@ -2,47 +2,55 @@ defmodule RegentAgents.PairingMessage do
   @moduledoc """
   What a person pastes to their agent to pair it: that the account is their
   Regents Labs account and which site they pair it on, the pairing code, where
-  the pairing steps are and how long the code lasts. A pairing link that names the
-  page the agent should begin on (`start`, a path on the same site) adds a line
-  sending it there once it is paired. Codex, Grok Bot, Hermes and
+  the pairing steps are and how long the code lasts. Codex, Grok Bot, Hermes and
   Muse each get one more line for the mistake that agent most often makes on its
   first pairing. Muse runs where siwa.regents.sh may not answer, so its line
   names the SIWA service's other address.
+
+  A site may add its own lines for that agent (`setup`), such as how it checks
+  in. A pairing link that names the page the agent should begin on (`start`, a
+  path on the same site) ends the message by sending it there once it is paired.
   """
 
   @doc """
   The message for `code`, made on the site at `origin` (its address with no
-  trailing slash), for an agent on `harness`, and the page it begins on once
-  paired when `start` names one.
-  """
-  @spec text(String.t(), String.t(), RegentAgents.Harness.t() | nil, String.t() | nil) ::
-          String.t()
-  def text(code, origin, harness, start \\ nil)
+  trailing slash), for an agent on `harness`. Options:
 
-  def text(code, origin, :chatgpt, start) do
+    * `:setup` - the site's own lines for this agent, after the pairing lines
+    * `:start` - the page the agent begins on once paired, always the last line
+  """
+  @spec text(String.t(), String.t(), RegentAgents.Harness.t() | nil,
+          setup: String.t() | nil,
+          start: String.t() | nil
+        ) :: String.t()
+  def text(code, origin, harness, opts \\ []) do
+    [pairing(code, origin, harness), opts[:setup], start_line(origin, opts[:start])]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
+  end
+
+  defp pairing(code, origin, :chatgpt) do
     """
     Connect ChatGPT to my existing Regents Labs account on #{URI.parse(origin).host} using this site's connected plugin.
     Use register_identity, then get_identity. Reuse this connection across chats.
     If pairing is needed, I approve pair_identity with this one-use code and the name ChatGPT.
     Pairing code: #{code}
     My account page is #{origin}/account. Never repeat this code in your reply.
-    If the plugin's identity tools are unavailable, report that setup is needed.
-    """ <> start_line(origin, start, "\n")
+    If the plugin's identity tools are unavailable, report that setup is needed.\
+    """
   end
 
-  def text(code, origin, harness, start) do
+  defp pairing(code, origin, harness) do
     """
     Pair with my Regents Labs account on #{URI.parse(origin).host}
     Pairing code: #{code}
     Follow the "Pair with a person's account" steps at #{origin}/llms.txt
     The code works once, for ten minutes. If it fails, ask me for a new one.\
-    """ <> first_pairing(harness) <> start_line(origin, start, "")
+    """ <> first_pairing(harness)
   end
 
-  defp start_line(_origin, nil, _end), do: ""
-
-  defp start_line(origin, start, line_end),
-    do: "\nOnce paired, start at #{origin}#{start}" <> line_end
+  defp start_line(_origin, nil), do: nil
+  defp start_line(origin, start), do: "Once paired, start at #{origin}#{start}"
 
   defp first_pairing(:codex),
     do:

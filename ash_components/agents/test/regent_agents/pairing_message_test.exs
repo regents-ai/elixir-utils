@@ -28,10 +28,36 @@ defmodule RegentAgents.PairingMessageTest do
 
   test "a pairing link's page is where the agent starts once paired" do
     for harness <- [:codex, :other, :chatgpt] do
-      message = PairingMessage.text("ABCD-1234", "https://keyfleet.ai", harness, "/classic/1")
+      message =
+        PairingMessage.text("ABCD-1234", "https://keyfleet.ai", harness, start: "/classic/1")
 
-      assert message =~ "\nOnce paired, start at https://keyfleet.ai/classic/1"
+      assert message =~ ~r/\nOnce paired, start at https:\/\/keyfleet.ai\/classic\/1\z/
       refute PairingMessage.text("ABCD-1234", "https://keyfleet.ai", harness) =~ "Once paired"
+    end
+  end
+
+  test "the site's own lines come after the pairing lines and before the start line" do
+    for harness <- [:muse, :other, :chatgpt] do
+      lines =
+        "ABCD-1234"
+        |> PairingMessage.text("https://keyfleet.ai", harness,
+          setup: "Check in every 30 minutes.\nYour full setup: https://keyfleet.ai/agents/x",
+          start: "/classic/1"
+        )
+        |> String.split("\n")
+
+      assert [
+               "Check in every 30 minutes.",
+               "Your full setup: " <> _,
+               "Once paired, start at " <> _
+             ] =
+               Enum.take(lines, -3)
+
+      assert lines -- Enum.take(lines, -3) ==
+               String.split(
+                 PairingMessage.text("ABCD-1234", "https://keyfleet.ai", harness),
+                 "\n"
+               )
     end
   end
 

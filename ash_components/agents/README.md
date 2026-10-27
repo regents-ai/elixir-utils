@@ -134,12 +134,14 @@ and the new name shows on every Regent site.
 The side panel offers the ten agents in `RegentAgents.Harness.featured/0`:
 any agent, Codex, Grok Bot, Muse, Hermes, Dots, IronClaw, OpenClaw, Claude Code
 and Pi. The message a person pastes to their agent is
-`RegentAgents.PairingMessage.text(code, origin, harness, start)`, the same words on
+`RegentAgents.PairingMessage.text(code, origin, harness, opts)`, the same words on
 every site. It opens "Pair with my Regents Labs account on <site's host>", so the
 agent learns the account is the person's one Regents Labs account and which site
 it pairs on, with one more line for Codex, Grok Bot, Hermes and Muse, for the
-mistake each most often makes on its first pairing. `start`, a path on the same
-site taken from a pairing link, adds "Once paired, start at <page>"; nil leaves it out.
+mistake each most often makes on its first pairing. `setup:` adds the site's own
+lines for that agent after those. `start:`, a path on the same site taken from a
+pairing link, ends the message "Once paired, start at <page>"; without it the
+line is left out.
 
 `RegentAgents.Activity.recent(agent)` reads where a paired agent has been
 active across the Regent sites since it paired: a line per site and day for the

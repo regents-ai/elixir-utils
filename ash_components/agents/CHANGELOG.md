@@ -2,9 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
-- `PairingMessage.text/4` takes the page a pairing link names (`start`, a path on
-  the same site) and ends the message "Once paired, start at <page>", so an agent
-  brought to one project begins there (the template's /pair?to=<path>).
+- `PairingMessage.text/4` takes options: `start:`, the page a pairing link names
+  (a path on the same site), ends the message "Once paired, start at <page>", so
+  an agent brought to one project begins there (the template's /pair?to=<path>);
+  `setup:`, the site's own lines for that agent (such as Keyfleet's check-in
+  steps), goes after the pairing lines and before the start line.
 - `RegentAgents.Listener` listens on the site's own `Postgrex.Notifications`
   connection, named in the required `notifications:` setting, instead of opening
   one with the repository's settings. The site opens that connection on the

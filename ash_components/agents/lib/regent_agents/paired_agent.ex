@@ -16,19 +16,18 @@ defmodule RegentAgents.PairedAgent.Actions.Pair do
 
   @impl true
   def run(%{arguments: arguments}, _opts, %{actor: %Agent{} = actor}) do
+    # `Ash.transact/2` sends what the actions inside it notify once it commits,
+    # and rolls back on any `{:error, _}`: a refused pairing writes nothing.
     result =
-      Ash.DataLayer.transaction(PairedAgent, fn ->
+      Ash.transact(PairedAgent, fn ->
         now = DateTime.utc_now()
 
         with {:ok, pairing_code} <- pairing_code(arguments.code, actor),
              :ok <- admit_code(pairing_code, now),
              :ok <- admit_agent(pairing_code.privy_user_id, actor),
              {:ok, agent} <- create_agent(pairing_code, arguments, now, actor),
-             {:ok, _pairing_code} <- consume(pairing_code, now, actor) do
-          agent
-        else
-          {:error, error} -> Ash.DataLayer.rollback(PairedAgent, error)
-        end
+             {:ok, _pairing_code} <- consume(pairing_code, now, actor),
+             do: agent
       end)
 
     case result do
@@ -121,14 +120,16 @@ defmodule RegentAgents.PairedAgent.Actions.CheckIn do
   def run(input, _opts, %{actor: %Agent{} = actor}) do
     privy_user_id = input.arguments.privy_user_id
 
+    # A refused check-in returns `{:error, _}`, which `Ash.transact/2` rolls
+    # back; one that commits sends what `:touch` notifies.
     result =
-      Ash.DataLayer.transaction(PairedAgent, fn ->
+      Ash.transact(PairedAgent, fn ->
         with {:ok, %{privy_user_id: ^privy_user_id} = agent} <- by_wallet(actor),
              {:ok, agent} <- touch(agent, actor) do
           agent
         else
-          {:ok, _not_this_person} -> Ash.DataLayer.rollback(PairedAgent, :not_paired)
-          {:error, error} -> Ash.DataLayer.rollback(PairedAgent, error)
+          {:ok, _not_this_person} -> {:error, :not_paired}
+          {:error, error} -> {:error, error}
         end
       end)
 

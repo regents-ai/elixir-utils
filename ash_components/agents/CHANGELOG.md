@@ -2,6 +2,24 @@
 
 ## 0.1.0 (unreleased)
 
+- Every pairing message but ChatGPT's gains the line "If other agents share your
+  computer, use your own key: begin every shell with export
+  SIWA_AGENT_HOME=~/.siwa-agent/<runtime>", the folder named after the agent's
+  runtime (`claude-code`, `codex`, `openclaw`, `grok-bot` and so on), so agents
+  sharing one computer each keep their own key and pair as separate agents
+  (Sean, 27 Oct 2026, AGENT-KEY-HOME a). Any other agent, and a message with no
+  runtime named, gets `YOUR-RUNTIME` to fill in. The line follows the pairing
+  lines, before the site's `setup:` lines. Keyfleet's own copy of the line can go
+  from its `setup:` once it uses this version.
+- Pairing, check-in and making a code run in `Ash.transact/2` instead of
+  `Ash.DataLayer.transaction/2`, so Ash sends what their actions notify once the
+  transaction commits. Every agent check-in used to log "Missed 1 notifications
+  in action RegentAgents.PairedAgent.touch" in production. A refused pairing or
+  check-in still writes nothing: `Ash.transact/2` rolls back on `{:error, _}`,
+  and an agent over the limit still hears `agent_limit`. The test settings now
+  raise on a missed notification (`config :ash, :missed_notifications, :raise`),
+  so the suite fails if one comes back.
+
 - `PairingMessage.text/4` takes options: `start:`, the page a pairing link names
   (a path on the same site), ends the message "Once paired, start at <page>", so
   an agent brought to one project begins there (the template's /pair?to=<path>);

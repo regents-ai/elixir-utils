@@ -23,5 +23,6 @@ config :regent_agents, RegentAgents.TestRepo,
 
 config :logger, level: :warning
 
-# No resource here has notifiers; transactions report none.
-config :ash, :missed_notifications, :ignore
+# Every write inside a transaction runs in one Ash started (`Ash.transact/2`),
+# so a notification left unsent fails the test instead of warning in production.
+config :ash, :missed_notifications, :raise

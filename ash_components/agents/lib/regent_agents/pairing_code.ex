@@ -20,16 +20,15 @@ defmodule RegentAgents.PairingCode.Actions.Issue do
     now = DateTime.utc_now()
     expires_at = DateTime.add(now, @ttl_seconds, :second)
 
-    Ash.DataLayer.transaction(PairingCode, fn ->
+    # `Ash.transact/2` rolls back on `{:error, _}`, so a code that could not be
+    # stored leaves the spent ones in place too.
+    Ash.transact(PairingCode, fn ->
       RegentAgents.lock(actor.privy_user_id)
 
       with {:ok, codes} <- Ash.read(PairingCode, action: :for_person, actor: actor),
            :ok <- discard(spent(codes, now), actor),
-           {:ok, _record} <- store(code, now, expires_at, actor) do
-        %PairingCode.Issued{code: code, issued_at: now, expires_at: expires_at}
-      else
-        {:error, error} -> Ash.DataLayer.rollback(PairingCode, error)
-      end
+           {:ok, _record} <- store(code, now, expires_at, actor),
+           do: %PairingCode.Issued{code: code, issued_at: now, expires_at: expires_at}
     end)
   end
 

@@ -137,7 +137,11 @@ and Pi. The message a person pastes to their agent is
 `RegentAgents.PairingMessage.text(code, origin, harness, opts)`, the same words on
 every site. It opens "Pair with my Regents Labs account on <site's host>", so the
 agent learns the account is the person's one Regents Labs account and which site
-it pairs on, with one more line for Codex, Grok Bot, Hermes and Muse, for the
+it pairs on. Every agent but ChatGPT is told to keep its own key: "begin every
+shell with export SIWA_AGENT_HOME=~/.siwa-agent/<runtime>", the folder named
+after its runtime (`claude-code`, `codex`, `grok-bot` and so on, and
+`YOUR-RUNTIME` for any agent or none named), so agents sharing one computer pair
+as separate agents. Codex, Grok Bot, Hermes and Muse get one more line, for the
 mistake each most often makes on its first pairing. `setup:` adds the site's own
 lines for that agent after those. `start:`, a path on the same site taken from a
 pairing link, ends the message "Once paired, start at <page>"; without it the

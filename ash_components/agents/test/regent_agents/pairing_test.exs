@@ -237,7 +237,12 @@ defmodule RegentAgents.PairingLimitTest do
 
     assert Enum.count(results, fn {_, result} -> match?({:ok, _}, result) end) == 1
     assert length(RegentAgents.list_my_agents!(actor: owner)) == 100
-    {unused, _} = Enum.find(results, fn {_, result} -> match?({:error, _}, result) end)
+    {unused, refused} = Enum.find(results, fn {_, result} -> match?({:error, _}, result) end)
+
+    # The refusal keeps its kind through the rolled-back transaction, so the
+    # agent hears `agent_limit`.
+    assert {:error, %Ash.Error.Invalid{errors: [%RegentAgents.PairedAgent.AgentLimit{}]}} =
+             refused
 
     assert %{rows: [[nil]]} =
              TestRepo.query!(

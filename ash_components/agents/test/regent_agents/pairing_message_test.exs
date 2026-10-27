@@ -14,7 +14,7 @@ defmodule RegentAgents.PairingMessageTest do
     assert message =~ "SIWA_BROKER=https://siwa-server.fly.dev"
   end
 
-  test "an agent with no extra line gets the four lines only" do
+  test "an agent with no extra line gets the four lines and its key's folder only" do
     lines =
       "ABCD-1234" |> PairingMessage.text("http://localhost:4000", :other) |> String.split("\n")
 
@@ -22,8 +22,45 @@ defmodule RegentAgents.PairingMessageTest do
              "Pair with my Regents Labs account on localhost",
              "Pairing code: ABCD-1234",
              _steps,
-             "The code works once, for ten minutes. If it fails, ask me for a new one."
+             "The code works once, for ten minutes. If it fails, ask me for a new one.",
+             _key_home
            ] = lines
+  end
+
+  # Sean 27 Oct 2026 (AGENT-KEY-HOME a): agents sharing one computer each keep
+  # their own key, so each pairs as a separate agent.
+  test "every agent but ChatGPT keeps its key in its own runtime's folder, before the site's lines" do
+    homes =
+      for harness <- [nil | RegentAgents.Harness.values()], harness != :chatgpt do
+        lines =
+          "ABCD-1234"
+          |> PairingMessage.text("https://keyfleet.ai", harness,
+            setup: "Check in every 30 minutes.",
+            start: "/classic/1"
+          )
+          |> String.split("\n")
+
+        assert [home] =
+                 for(
+                   line <- lines,
+                   [_, home] <- [Regex.run(~r/SIWA_AGENT_HOME=(\S+)$/, line)],
+                   do: home
+                 )
+
+        assert Enum.find_index(lines, &(&1 =~ "SIWA_AGENT_HOME")) <
+                 Enum.find_index(lines, &(&1 == "Check in every 30 minutes."))
+
+        {harness, home}
+      end
+
+    named = for {harness, home} <- homes, harness not in [nil, :other], do: home
+    assert Enum.uniq(named) == named
+    assert Enum.all?(named, &(&1 =~ ~r{\A~/\.siwa-agent/[a-z][a-z-]*\z}))
+    assert homes[nil] == homes[:other]
+    refute homes[:other] in named
+
+    refute PairingMessage.text("ABCD-1234", "https://patchbay.sh", :chatgpt) =~
+             "SIWA_AGENT_HOME"
   end
 
   test "a pairing link's page is where the agent starts once paired" do

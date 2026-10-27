@@ -2,10 +2,13 @@ defmodule RegentAgents.PairingMessage do
   @moduledoc """
   What a person pastes to their agent to pair it: that the account is their
   Regents Labs account and which site they pair it on, the pairing code, where
-  the pairing steps are and how long the code lasts. Codex, Grok Bot, Hermes and
-  Muse each get one more line for the mistake that agent most often makes on its
-  first pairing. Muse runs where siwa.regents.sh may not answer, so its line
-  names the SIWA service's other address.
+  the pairing steps are and how long the code lasts. Every agent but ChatGPT is
+  told to keep its own key, in a folder named after its runtime under
+  `~/.siwa-agent`, so agents sharing one computer pair as separate agents; an
+  agent on an unlisted runtime, or on none named, names the folder itself.
+  Codex, Grok Bot, Hermes and Muse each get one more line for the mistake that
+  agent most often makes on its first pairing. Muse runs where siwa.regents.sh
+  may not answer, so its line names the SIWA service's other address.
 
   A site may add its own lines for that agent (`setup`), such as how it checks
   in. A pairing link that names the page the agent should begin on (`start`, a
@@ -45,9 +48,15 @@ defmodule RegentAgents.PairingMessage do
     Pair with my Regents Labs account on #{URI.parse(origin).host}
     Pairing code: #{code}
     Follow the "Pair with a person's account" steps at #{origin}/llms.txt
-    The code works once, for ten minutes. If it fails, ask me for a new one.\
+    The code works once, for ten minutes. If it fails, ask me for a new one.
+    If other agents share your computer, use your own key: begin every shell with export SIWA_AGENT_HOME=~/.siwa-agent/#{key_folder(harness)}\
     """ <> first_pairing(harness)
   end
+
+  # The runtime's own folder; an agent on any other runtime, or on none the site
+  # named, picks its own name.
+  defp key_folder(harness) when harness in [nil, :other], do: "YOUR-RUNTIME"
+  defp key_folder(harness), do: harness |> Atom.to_string() |> String.replace("_", "-")
 
   defp start_line(_origin, nil), do: nil
   defp start_line(origin, start), do: "Once paired, start at #{origin}#{start}"

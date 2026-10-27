@@ -4,6 +4,10 @@ All notable changes to `siwa` should be recorded here.
 
 ## Unreleased
 
+- `Siwa.sign_request/4` signs a request on the agent's side, from the sign-in
+  server's answer (receipt, `key_id`, wallet address and chain), without the
+  receipt's secret. `Siwa.sign_authenticated_request/4` still checks the receipt
+  first, for callers that hold the secret.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. `Siwa.WalletSignature` pins the sizes it
   reads from outside a binary match, as Elixir 1.20 asks.

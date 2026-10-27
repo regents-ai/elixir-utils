@@ -91,6 +91,24 @@ defmodule Siwa.RequestAuthTest do
     assert {:error, :replayed_request} = verify(signed, @opts)
   end
 
+  # An agent never holds the receipt's secret: Sentinel's signed walks found that
+  # the only signer checked it (27 Oct 2026).
+  test "an agent signs with its sign-in answer alone, and the verifier accepts it", ctx do
+    sign_in = %{
+      receipt: ctx.receipt.token,
+      key_id: ctx.signer.address,
+      wallet_address: ctx.signer.address,
+      chain_id: 8453
+    }
+
+    assert {:ok, signed} =
+             RequestAuth.sign_request(request(), sign_in, ctx.signer, created_at: @now)
+
+    assert {:ok, verified} = verify(signed, @opts)
+    assert verified.claims["sub"] == ctx.signer.address
+    assert {:error, :replayed_request} = verify(signed, @opts)
+  end
+
   test "signing needs the same audience opt-in", ctx do
     assert {:error, :wallet_principal_not_allowed} =
              RequestAuth.sign_authenticated_request(

@@ -26,15 +26,46 @@ defmodule Siwa.RequestAuth do
   @base_components Contract.component_names()
   @signature_components @base_components ++ [@body_component]
 
+  @doc """
+  Signs a request on the agent's side. `sign_in` is the sign-in server's answer
+  to a wallet sign-in: the receipt and the `key_id`, `wallet_address` and
+  `chain_id` it was issued for. Only the sign-in server holds the receipt's
+  secret, so the receipt is not checked here; the site's verifier checks it.
+  """
+  def sign_request(
+        request,
+        %{receipt: receipt, key_id: key_id, wallet_address: wallet_address, chain_id: chain_id},
+        signer,
+        opts \\ []
+      )
+      when is_binary(receipt) and is_binary(key_id) and is_binary(wallet_address) and
+             is_integer(chain_id) do
+    request = normalize_request(request)
+    claims = %{"key_id" => key_id, "sub" => wallet_address, "chain_id" => chain_id}
+
+    with :ok <- ensure_request_body(request) do
+      sign(request, receipt, claims, signer, opts)
+    end
+  end
+
+  @doc """
+  Signs a request where the receipt's secret is known (the sign-in server's own
+  hosted signing, and tests): the receipt is checked against `opts` first.
+  """
   def sign_authenticated_request(request, receipt, signer, opts \\ []) do
     request = normalize_request(request)
 
     with :ok <- ensure_request_body(request),
          {:ok, receipt_payload} <- verify_receipt(receipt, opts),
-         :ok <- ensure_wallet_receipt(receipt_payload, opts),
-         {:ok, created} <- created_unix_seconds(opts),
+         :ok <- ensure_wallet_receipt(receipt_payload, opts) do
+      sign(request, receipt, receipt_payload, signer, opts)
+    end
+  end
+
+  defp sign(request, receipt, claims, signer, opts) do
+    with {:ok, created} <- created_unix_seconds(opts),
          {:ok, expires} <- expires_unix_seconds(created, opts),
-         unsigned_headers <- unsigned_headers(request, receipt, receipt_payload, created),
+         unsigned_headers <- unsigned_headers(request, receipt, claims, created),
          signature_input <-
            build_signature_input(
              required_components_for_headers(unsigned_headers, request_body_digest(request.body)),
@@ -42,7 +73,7 @@ defmodule Siwa.RequestAuth do
                "created" => created,
                "expires" => expires,
                "nonce" => Keyword.get_lazy(opts, :nonce, &signature_nonce/0),
-               "key_id" => receipt_payload["key_id"]
+               "key_id" => claims["key_id"]
              }
            ),
          {:ok, signing_message} <-
@@ -212,13 +243,13 @@ defmodule Siwa.RequestAuth do
     |> required_components_for_headers(body_digest)
   end
 
-  defp unsigned_headers(request, receipt, receipt_payload, created) do
+  defp unsigned_headers(request, receipt, claims, created) do
     values = %{
       "receipt" => receipt,
-      "key_id" => receipt_payload["key_id"],
+      "key_id" => claims["key_id"],
       "created" => Integer.to_string(created),
-      "wallet_address" => receipt_payload["sub"],
-      "chain_id" => Integer.to_string(receipt_payload["chain_id"])
+      "wallet_address" => claims["sub"],
+      "chain_id" => Integer.to_string(claims["chain_id"])
     }
 
     headers =

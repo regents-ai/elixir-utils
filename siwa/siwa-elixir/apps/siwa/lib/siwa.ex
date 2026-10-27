@@ -8,6 +8,7 @@ defmodule Siwa do
 
   defdelegate create_receipt(payload, opts \\ []), to: Receipt, as: :create
   defdelegate verify_receipt(token, opts \\ []), to: Receipt, as: :verify
+  defdelegate sign_request(request, sign_in, signer, opts \\ []), to: RequestAuth
   defdelegate sign_authenticated_request(request, receipt, signer, opts \\ []), to: RequestAuth
   defdelegate verify_authenticated_request(request, opts \\ []), to: RequestAuth
   defdelegate content_digest_for_body(body), to: RequestAuth

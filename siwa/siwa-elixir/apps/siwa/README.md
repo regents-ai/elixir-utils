@@ -29,7 +29,8 @@ end
 | --- | --- |
 | Create a receipt | `Siwa.create_receipt/2` |
 | Verify a receipt | `Siwa.verify_receipt/2` |
-| Sign a protected request | `Siwa.sign_authenticated_request/4` |
+| Sign a protected request as an agent | `Siwa.sign_request/4` |
+| Sign a protected request where the receipt's secret is known | `Siwa.sign_authenticated_request/4` |
 | Verify a protected request | `Siwa.verify_authenticated_request/2` |
 | Compute body digest headers | `Siwa.content_digest_for_body/1` |
 | List the headers a request must carry | `Siwa.required_authenticated_request_headers/1` |
@@ -73,11 +74,24 @@ request = %{
 }
 
 {:ok, signed_request} =
-  Siwa.sign_authenticated_request(request, receipt.token, signer,
-    audience: "platform",
-    wallet_audiences: ["platform"]
+  Siwa.sign_request(
+    request,
+    %{
+      receipt: data["receipt"],
+      key_id: data["keyId"],
+      wallet_address: signer.address,
+      chain_id: 8453
+    },
+    signer
   )
 ```
+
+An agent signs with the sign-in server's answer to its wallet sign-in (`data` from
+`POST /api/shared/siwa/wallet/verify`) and its own signer, such as
+`Siwa.LocalSigner`. It cannot check the receipt: only the sign-in server holds its
+secret. Where that secret is known, `Siwa.sign_authenticated_request/4` takes the
+receipt alone and checks it against the `audience` and `wallet_audiences` it is given
+before signing.
 
 The request signature is bound to the method, path, selected headers, timestamp,
 receipt, and exact body digest.

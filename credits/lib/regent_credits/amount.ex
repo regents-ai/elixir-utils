@@ -1,8 +1,8 @@
 defmodule RegentCredits.Amount do
   @moduledoc """
   Credits amounts. One Credit is one US dollar; the ledger keeps amounts to
-  the millionth of a Credit (`XRC` with six digits) and people see them to
-  the hundredth: "12.40 Credits".
+  the millionth of a Credit (`XRC` with six digits) and people see them the
+  one Regent way: "12.40 Credits".
   """
 
   @places 6
@@ -32,14 +32,10 @@ defmodule RegentCredits.Amount do
   def share(amount, percent),
     do: amount |> Decimal.mult(percent) |> Decimal.div(100) |> Decimal.round(@places, :down)
 
-  @doc "An amount as people read it, to the hundredth: \"12.40 Credits\"."
+  @doc """
+  An amount as people read it, the one Regent way (`RegentFormat.amount/1`):
+  "12.40 Credits", "0.400 Credits".
+  """
   @spec format(Decimal.t()) :: String.t()
-  def format(amount) do
-    shown = amount |> Decimal.round(2, :down) |> Decimal.to_string(:normal)
-
-    case String.split(shown, ".") do
-      [whole] -> "#{whole}.00 Credits"
-      [whole, cents] -> "#{whole}.#{String.pad_trailing(cents, 2, "0")} Credits"
-    end
-  end
+  def format(amount), do: RegentFormat.amount(amount) <> " Credits"
 end

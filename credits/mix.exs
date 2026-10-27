@@ -50,6 +50,7 @@ defmodule RegentCredits.MixProject do
       {:phoenix_pubsub, "~> 2.1"},
       {:telemetry, "~> 1.0"},
       {:regent_chain, path: "../chain"},
+      {:regent_format, path: "../format"},
       {:regent_agents, path: "../ash_components/agents"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false},

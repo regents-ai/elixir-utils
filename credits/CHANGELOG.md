@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentCredits.Amount.format/1` shows Credits the one Regent way
+  (`RegentFormat.amount/1`): "1,234.50 Credits", "0.400 Credits".
 - `RegentCredits.Listener` listens on the site's own `Postgrex.Notifications`
   connection, named in the required `notifications:` setting, instead of opening
   one with the repository's settings. The site opens that connection on the

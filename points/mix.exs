@@ -37,6 +37,7 @@ defmodule RegentPoints.MixProject do
       {:oban, "~> 2.24"},
       {:phoenix_pubsub, "~> 2.1"},
       {:decimal, "~> 2.0 or ~> 3.0"},
+      {:regent_format, path: "../format"},
       {:postgrex, "~> 0.22"},
       {:sourceror, "~> 1.12", only: [:dev, :test], runtime: false}
     ]

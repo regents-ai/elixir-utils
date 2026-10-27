@@ -48,6 +48,9 @@ defmodule RegentCredits.History.Words do
   @doc "The few words of a history entry's row."
   @spec line(map()) :: String.t()
   def line(%{kind: :bought}), do: "Bought Credits"
+  def line(%{kind: :bought_by_card}), do: "Bought Credits by card"
+  def line(%{kind: :card_refunded}), do: "Card payment refunded"
+  def line(%{kind: :card_disputed}), do: "Card payment disputed"
   def line(%{kind: :gift}), do: "Gift"
   def line(%{kind: :refund, refund_status: :sent}), do: "Refunded"
   def line(%{kind: :refund}), do: "Refund started"

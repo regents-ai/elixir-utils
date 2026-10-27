@@ -49,6 +49,7 @@ defmodule RegentCredits.MixProject do
       {:postgrex, "~> 0.22"},
       {:phoenix_pubsub, "~> 2.1"},
       {:telemetry, "~> 1.0"},
+      {:req, "~> 0.7"},
       {:regent_chain, path: "../chain"},
       {:regent_format, path: "../format"},
       {:regent_agents, path: "../ash_components/agents"},

@@ -23,3 +23,9 @@ config :regent_credits, RegentCredits.TestRepo,
   priv: "priv/repo"
 
 config :logger, level: :warning
+
+# Test keys: tests answer for Stripe through Req.Test.
+config :regent_credits, :stripe,
+  secret_key: "sk_test_regent",
+  webhook_secret: "whsec_regent",
+  req_options: [plug: {Req.Test, RegentCredits.Stripe}, retry: false]

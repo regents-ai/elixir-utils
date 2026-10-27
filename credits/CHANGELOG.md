@@ -2,6 +2,16 @@
 
 ## 0.1.0 (unreleased)
 
+- Credits can be bought by card or Link through Stripe Checkout and the Payment
+  Element (`RegentCredits.CardPurchase`, `RegentCredits.Stripe`): $5 to $500 with
+  the card fee added on top, credited once from Stripe's signed webhook or the
+  page's own read of the paid session. A refund takes back its share of the
+  Credits and a dispute the rest, even below zero, and no new card purchase starts
+  while the balance is below zero. With Stripe's test keys only Credits admins
+  may buy. Migration 20261027170554 adds `regent_credits.card_purchases`. The
+  history has three new kinds: `:bought_by_card`, `:card_refunded` and
+  `:card_disputed`. Adds Req.
+
 - `RegentCredits.Amount.format/1` shows Credits the one Regent way
   (`RegentFormat.amount/1`): "1,234.50 Credits", "0.400 Credits".
 - `RegentCredits.Listener` listens on the site's own `Postgrex.Notifications`

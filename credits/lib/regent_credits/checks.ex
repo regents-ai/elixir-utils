@@ -62,3 +62,23 @@ defmodule RegentCredits.Checks.OwnWallet do
 
   def match?(_actor, _context, _opts), do: false
 end
+
+defmodule RegentCredits.Checks.CardTesting do
+  @moduledoc """
+  Card purchases with Stripe's live keys, or a person the `:admins` setting
+  names: with test keys a test card adds real Credits to the shared ledger, so
+  only Credits admins may try it.
+  """
+  use Ash.Policy.SimpleCheck
+
+  alias RegentCredits.Actor
+
+  @impl true
+  def describe(_opts), do: "card payments are live, or the actor is a Credits admin"
+
+  @impl true
+  def match?(%Actor{privy_user_id: id}, _context, _opts),
+    do: RegentCredits.Stripe.live?() or id in Application.fetch_env!(:regent_credits, :admins)
+
+  def match?(_actor, _context, _opts), do: false
+end

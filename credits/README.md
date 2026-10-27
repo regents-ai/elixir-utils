@@ -2,7 +2,7 @@
 
 One prepaid Credits balance per Privy account, shared by every Regent site.
 One Credit is one US dollar. Credits come from purchases (USDC on Base or
-Ethereum) and admin gifts, and are spent through holds a site places and
+Ethereum, or a card or Link through Stripe) and admin gifts, and are spent through holds a site places and
 closes.
 
 Every site keeps the ledger in the `regent_credits` schema of its own
@@ -133,6 +133,37 @@ reported it from that wallet, else under that wallet until an account signs
 in with it or reports it. Each wallet's payment in a transaction is one
 purchase: it and its report credit once between them, and two wallets paying
 in one transaction are credited separately.
+
+### By card or Link
+
+A site with Stripe keys takes card and Link purchases through Stripe Checkout
+with the Payment Element on its own page (`RegentCredits.CardPurchase`):
+
+    config :regent_credits, :stripe,
+      secret_key: "sk_live_...",
+      webhook_secret: "whsec_..."
+
+- `RegentCredits.card_payments?()` says whether the site has keys, and
+  `RegentCredits.card_price(credits)` the card fee and total in cents: whole
+  dollars of Credits, $5 to $500, plus 2.9% + 30 cents so the Credits arrive whole.
+- `RegentCredits.start_card_purchase(privy_user_id, credits, return_url,
+  %{email: email}, actor: person)` opens the Checkout Session and answers its
+  `client_secret` for `stripe.initCheckoutElementsSdk`. With Stripe's test keys
+  only Credits admins may start one, since a test card adds real Credits to the
+  shared ledger. A person whose Credits are below zero cannot start one.
+- The site's webhook passes Stripe's raw body and `Stripe-Signature` header to
+  `RegentCredits.card_notice(payload, signature, actor: site)`. A paid session
+  adds the Credits once; a refund takes back its share of them and a dispute the
+  rest, even below zero (Sean, 27 October 2026). The webhook listens for
+  `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+  `charge.refunded` and `charge.dispute.created`, and answers an error so Stripe
+  sends the notice again.
+- After the payment confirms, the page calls
+  `RegentCredits.settle_card_purchase(session_id, actor: person)`, which reads the
+  session from Stripe and adds the Credits if the webhook has not yet.
+
+Every Regent site uses the same Stripe account, so each webhook hears every
+site's card payments, and any of them credits one once.
 
 ## Gifts and refunds
 

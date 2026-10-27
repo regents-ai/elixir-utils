@@ -4,7 +4,7 @@ defmodule RegentCredits do
   Regent site. One Credit is one US dollar.
 
   Credits arrive by purchase (`RegentCredits.Purchase`, USDC on Base or
-  Ethereum) or as a gift from an admin (`RegentCredits.Gift`), and leave
+  Ethereum; `RegentCredits.CardPurchase`, card or Link through Stripe) or as a gift from an admin (`RegentCredits.Gift`), and leave
   through holds a site places when someone spends (`RegentCredits.Hold`) or
   a refund (`RegentCredits.Refund`). Every movement is a transfer in a double-entry
   ledger kept in the `regent_credits` schema of the site's own database, so
@@ -63,6 +63,13 @@ defmodule RegentCredits do
       define :purchases, action: :read
     end
 
+    resource RegentCredits.CardPurchase do
+      define :start_card_purchase, action: :start, args: [:privy_user_id, :credits, :return_url]
+      define :settle_card_purchase, action: :settle, args: [:session_id]
+      define :card_notice, action: :notice, args: [:payload, :signature]
+      define :card_purchases, action: :read
+    end
+
     resource RegentCredits.Gift do
       define :give, args: [:key, :to, :amount]
       define :attach_wallets, args: [:privy_user_id, :wallets]
@@ -104,6 +111,14 @@ defmodule RegentCredits do
   def agent_grants_enabled? do
     Application.get_env(:regent_credits, :agent_grants_enabled, false) == true
   end
+
+  @doc "Whether this site takes card purchases: it has Stripe keys (`RegentCredits.Stripe`)."
+  @spec card_payments?() :: boolean()
+  defdelegate card_payments?, to: RegentCredits.Stripe, as: :configured?
+
+  @doc "The card fee and total, in US cents, for whole dollars of Credits bought by card."
+  @spec card_price(pos_integer()) :: %{fee_cents: pos_integer(), total_cents: pos_integer()}
+  defdelegate card_price(credits), to: RegentCredits.CardPurchases, as: :price
 
   @doc """
   The PubSub topic that hears `:credits_changed` when a person's balance

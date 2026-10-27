@@ -32,6 +32,9 @@ defmodule RegentCredits.Errors.Refused do
       account signs in with it, so no account holds them to refund.
     * `:refund_not_proven`: the transaction is not the Treasury Safe's
       successful transfer of exactly the refund to the wallet that paid.
+    * `:below_zero`: a card payment's Credits were taken back and left the
+      balance below zero, so no new card purchase starts until it is above.
+    * `:not_from_stripe`: a webhook notice whose signature is not Stripe's.
   """
   use Splode.Error, fields: [:reason], class: :invalid
 

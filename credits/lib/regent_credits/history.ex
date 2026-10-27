@@ -11,6 +11,11 @@ defmodule RegentCredits.History do
   says what happened:
 
     * `:bought`: a purchase was credited.
+    * `:bought_by_card`: a card or Link purchase was credited.
+    * `:card_refunded`: a card payment was refunded, and its share of the
+      Credits was taken back out.
+    * `:card_disputed`: a card payment was disputed, and the rest of its
+      Credits were taken back out, even below zero.
     * `:gift`: Credits were given, or a gift waiting under a wallet arrived.
     * `:refund`: a purchase's Credits were taken out to be paid back.
     * `:set_aside`: Credits were held for a spend on a site.
@@ -86,6 +91,7 @@ defmodule RegentCredits.History.Read do
   @available ["given", "purchased"]
   @held ["held_given", "held_purchased"]
   @summed [:set_aside, :returned, :spent, :received]
+  @card [:bought_by_card, :card_refunded, :card_disputed]
 
   @blank %{
     site: nil,
@@ -222,6 +228,9 @@ defmodule RegentCredits.History.Read do
   defp kind(from, nil, _operation) when from in @held, do: :spent
   defp kind(from, nil, "refund:" <> _id) when from in @available, do: :refund
   defp kind(nil, to, "purchase:" <> _id) when to in @available, do: :bought
+  defp kind(nil, "purchased", "card:" <> _id), do: :bought_by_card
+  defp kind("purchased", nil, "card_refund:" <> _id), do: :card_refunded
+  defp kind("purchased", nil, "card_dispute:" <> _id), do: :card_disputed
   defp kind(nil, "purchased", "attach:" <> _account), do: :bought
   defp kind(nil, "given", "attach:" <> _account), do: :gift
   defp kind(nil, to, "gift:" <> _key) when to in @available, do: :gift
@@ -232,8 +241,12 @@ defmodule RegentCredits.History.Read do
   defp event(%{kind: kind, operation: operation}) when kind in @summed, do: {operation, kind}
   defp event(%{id: id}), do: id
 
-  defp direction(kind) when kind in [:bought, :gift, :returned, :received], do: :in
-  defp direction(kind) when kind in [:refund, :set_aside], do: :out
+  defp direction(kind) when kind in [:bought, :bought_by_card, :gift, :returned, :received],
+    do: :in
+
+  defp direction(kind) when kind in [:refund, :card_refunded, :card_disputed, :set_aside],
+    do: :out
+
   defp direction(:spent), do: :none
 
   # The person's own records the page's transfers name, each kind read once.
@@ -359,6 +372,9 @@ defmodule RegentCredits.History.Read do
       nil -> %{}
     end
   end
+
+  # A card payment is named by its amount alone.
+  defp facts(%{kind: kind}, _found) when kind in @card, do: %{}
 
   # Credits that waited under a wallet until the account signed in with it.
   defp facts(%{operation: "attach:" <> _account}, _found), do: %{}

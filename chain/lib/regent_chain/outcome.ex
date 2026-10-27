@@ -8,14 +8,16 @@ defmodule RegentChain.Outcome do
   never wait for `safe` or `finalized`.
   """
 
-  alias RegentChain.Address
+  alias RegentChain.{Address, BuilderCode}
 
   @type t :: :pending | :confirmed | :reverted
 
   @doc """
   `:pending` until the receipt exists, then `:confirmed` or `:reverted`. A hash
   whose chain, sender, target, calldata or value is not the step's, as the review
-  built it, is `{:error, :not_this_step}`: it is no answer about the step.
+  built it, is `{:error, :not_this_step}`: it is no answer about the step. The
+  calldata is compared without its builder-code suffix (`RegentChain.BuilderCode.call/1`),
+  which a wallet may rewrite to add its own code.
   """
   @spec of(module(), RegentChain.Review.t(), RegentChain.Review.transaction(), String.t()) ::
           {:ok, t()} | {:error, term()}
@@ -52,7 +54,8 @@ defmodule RegentChain.Outcome do
 
   defp same_step?(tx, %{chain_id: chain_id}, signer, %{to: to, data: data, value: value}) do
     quantity(tx["chainId"]) == chain_id and Address.equal?(tx["from"], signer) and
-      Address.equal?(tx["to"], to) and String.downcase(tx["input"] || "") == data and
+      Address.equal?(tx["to"], to) and
+      BuilderCode.call(String.downcase(tx["input"] || "0x")) == BuilderCode.call(data) and
       quantity(tx["value"]) == quantity(value)
   end
 

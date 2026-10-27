@@ -23,7 +23,7 @@ defmodule RegentChain.Review do
   matches the screen.
   """
 
-  alias RegentChain.Address
+  alias RegentChain.{Address, BuilderCode}
 
   @type chain :: %{chain_id: pos_integer(), name: String.t(), rpc_url: String.t()}
   @type transaction :: %{
@@ -81,7 +81,8 @@ defmodule RegentChain.Review do
 
   @doc """
   One transaction: its name on the page, the contract it calls, the calldata, and
-  the native currency it sends in wei (none unless given).
+  the native currency it sends in wei (none unless given). The step's `data` is
+  the calldata followed by Regent's Base Builder Code (`RegentChain.BuilderCode`).
   """
   @spec step(String.t(), String.t(), String.t(), non_neg_integer()) :: transaction()
   def step(name, to, "0x" <> hex = data, wei \\ 0)
@@ -92,7 +93,7 @@ defmodule RegentChain.Review do
         kind: "transaction",
         step: name,
         to: Address.normalize!(to),
-        data: String.downcase(data),
+        data: data |> String.downcase() |> BuilderCode.append(),
         value: "0x" <> String.downcase(Integer.to_string(wei, 16))
       }
     else

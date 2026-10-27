@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Every transaction step ends with Regent's Base Builder Code. `Review.step/4`
+  appends `RegentChain.BuilderCode.suffix/0`, the ERC-8021 schema 0 suffix for
+  `bc_u09360jo` (`0x62635f7530393336306a6f0b0080218021802180218021802180218021`),
+  to the calldata. Base credits Regent with those transactions, and contracts ignore
+  the extra bytes. `Outcome` compares the sent transaction with the step's `data`,
+  suffix included, so a wallet that adds its own code after ours reads as
+  `:not_this_step`. Signature steps and `Transaction.sign/2` are unchanged.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. `RegentChain.Abi` pins the length it reads
   from outside a binary match, as Elixir 1.20 asks; ex_abi 0.8.5 and ethereumex

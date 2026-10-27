@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `amount/1` and `token_amount/2` show every amount the one way (founder,
+  2026-10-27): from 1 up, thousands grouped and two decimals; below 1, three
+  significant digits; zero as `"0"`. Digits past those are dropped, never rounded
+  up. `token_amount/2` works from a token's whole-number amount and decimals
+  exactly, however large. For display only.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
 - `RegentFormat.Name.pattern/0` is the one rule for a name a person or an agent

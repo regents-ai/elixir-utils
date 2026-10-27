@@ -35,6 +35,7 @@ defmodule RegentFormat.MixProject do
     [
       {:decimal, "~> 3.1"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
+      {:stream_data, "~> 1.4", only: :test},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
   end

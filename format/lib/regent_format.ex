@@ -362,6 +362,58 @@ defmodule RegentFormat do
   end
 
   @doc """
+  Renders an amount for people to read, the one way every Regent page shows
+  one. From 1 up: thousands grouped and exactly two decimals. Below 1: three
+  significant digits. Zero is `"0"`. Digits past those shown are dropped, never
+  rounded up, so a page never shows more than is there.
+
+  For display only: typed inputs, copied values, API and JSON bodies, agent
+  tool results and transaction data keep the exact amount.
+
+      iex> RegentFormat.amount(Decimal.new("41450.907949459360601917"))
+      "41,450.90"
+
+      iex> RegentFormat.amount(Decimal.new("0.000123456"))
+      "0.000123"
+
+      iex> RegentFormat.amount(5)
+      "5.00"
+  """
+  @spec amount(Decimal.t() | integer()) :: String.t()
+  def amount(value) when is_integer(value), do: amount(D.new(value))
+
+  def amount(%D{} = value) do
+    cond do
+      D.eq?(value, 0) -> "0"
+      D.lt?(value, 0) -> "-" <> amount(D.negate(value))
+      D.lt?(value, 1) -> value |> significant(3)
+      true -> value |> D.round(2, :down) |> decimal_to_string(2) |> add_delimiters()
+    end
+  end
+
+  @doc """
+  `amount/1` for a token's whole-number amount (`atoms`) and its `decimals`,
+  worked out exactly however large the amount is.
+
+      iex> RegentFormat.token_amount(41_450_907_949_459_360_601_917, 18)
+      "41,450.90"
+
+      iex> RegentFormat.token_amount(500_000, 6)
+      "0.500"
+  """
+  @spec token_amount(non_neg_integer(), non_neg_integer()) :: String.t()
+  def token_amount(atoms, decimals)
+      when is_integer(atoms) and atoms >= 0 and is_integer(decimals) and decimals >= 0,
+      do: amount(D.new(1, atoms, -decimals))
+
+  # A positive amount below 1 cut to `digits` significant digits.
+  defp significant(%D{coef: coef, exp: exp} = value, digits) do
+    leading = length(Integer.digits(coef)) + exp - 1
+    places = digits - 1 - leading
+    value |> D.round(places, :down) |> decimal_to_string(places)
+  end
+
+  @doc """
   Renders a `Decimal` in plain notation padded or truncated to `places`
   decimal places.
   """

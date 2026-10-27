@@ -4,6 +4,16 @@ All notable changes to `siwa_keyring` should be recorded here.
 
 ## Unreleased
 
+## 0.2.0 - 2026-10-27
+
+### Removed
+
+- The HTTP signing routes (`SiwaKeyring.Router`), their HMAC headers (`SiwaKeyring.Auth`),
+  replay store, remote client and proxy signer. Nothing called them, and they let a holder
+  of one shared secret sign from the internet. The key store is used in-process only.
+- The `:secret`, `:port`, `:host`, `:start_server` and `:replay_store` settings, and the
+  application process that started the routes.
+
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
 

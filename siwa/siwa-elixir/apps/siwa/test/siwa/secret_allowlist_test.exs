@@ -8,14 +8,12 @@ defmodule Siwa.SecretAllowlistTest do
 
     for name <- ~w(
       SIWA_RECEIPT_SECRET
-      KEYRING_PROXY_SECRET
       KEYSTORE_PASSWORD
     ) do
       assert allowlist =~ "  - #{name}"
     end
 
     assert allowlist =~ "  - shared_siwa_receipt_signing"
-    assert allowlist =~ "  - shared_keyring_proxy_hmac"
     assert allowlist =~ "  - product_database_url"
     assert allowlist =~ "  - product_billing_secret"
     refute allowlist =~ "STRIPE_SECRET"

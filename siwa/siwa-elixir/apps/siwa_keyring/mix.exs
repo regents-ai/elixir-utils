@@ -1,8 +1,8 @@
 defmodule SiwaKeyring.MixProject do
   use Mix.Project
 
-  @version "0.1.1"
-  @description "Isolated signing service and Elixir client for SIWA flows that need key separation."
+  @version "0.2.0"
+  @description "Encrypted key store and in-process signing for SIWA flows."
 
   def project do
     [
@@ -23,8 +23,7 @@ defmodule SiwaKeyring.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :crypto, :ssl],
-      mod: {SiwaKeyring.Application, []}
+      extra_applications: [:logger, :crypto]
     ]
   end
 
@@ -32,9 +31,6 @@ defmodule SiwaKeyring.MixProject do
     [
       {:siwa, in_umbrella: true},
       {:jason, "~> 1.4"},
-      {:req, "~> 0.7"},
-      {:plug, "~> 1.16"},
-      {:bandit, "~> 1.5"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end

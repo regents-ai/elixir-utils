@@ -11,7 +11,7 @@ fresh. Product apps still decide what the verified identity may do.
 | App | Package | Purpose |
 | --- | --- | --- |
 | `apps/siwa` | `siwa` | Create and verify wallet sign-in receipts, sign and verify authenticated requests, check wallet signatures (including smart wallets), validate wallet action envelopes, and provide Ethereum helper functions. |
-| `apps/siwa_keyring` | `siwa_keyring` | Keep signing wallets behind an internal service. It can create a wallet, report its address, and sign messages, raw payloads, transaction payloads, and authorization payloads without exposing the private key to callers. |
+| `apps/siwa_keyring` | `siwa_keyring` | Keep signing wallets in an encrypted file and sign with them inside the process that holds it: create a wallet, report its address, and sign messages, raw payloads, transaction payloads and authorization payloads. |
 
 ## Joining With A Self-Generated Key
 
@@ -28,7 +28,7 @@ each audience with `SIWA_WALLET_ORIGINS`.
 Use this workspace when working on:
 
 - the shared SIWA library
-- the keyring service/client
+- the encrypted key store
 - signed HTTP request envelopes
 - replay behavior
 - wallet action signing
@@ -47,16 +47,6 @@ product repos that use these packages.
 4. Later protected requests carry a signed request envelope bound to method,
    path, headers, body digest, timestamp, receipt, and audience.
 5. Product code checks product-local permissions after SIWA verification.
-
-## Keyring Flow
-
-Use `siwa_keyring` when a process needs signing but should not receive a private
-key:
-
-1. The keyring service stores the encrypted wallet.
-2. The caller signs each keyring request with the shared proxy secret.
-3. The keyring verifies request timestamp, HMAC, replay id, and body size.
-4. The keyring signs only the requested message, transaction, or authorization.
 
 ## Development
 

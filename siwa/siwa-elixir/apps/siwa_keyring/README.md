@@ -2,11 +2,9 @@
 
 [Changelog](CHANGELOG.md)
 
-`siwa_keyring` is Regent’s isolated signing service and Elixir client for SIWA
-and wallet-action flows.
-
-Use it when a Regent process needs a wallet address or signature, but should not
-receive or store the private key itself.
+`siwa_keyring` is Regent’s encrypted key store for SIWA and wallet-action flows.
+The process that holds the store creates wallets in it and signs with them in
+place; nothing else reaches the keys.
 
 ## Installation
 
@@ -24,12 +22,10 @@ end
 ```elixir
 config :siwa_keyring,
   path: "/data/siwa-keyring.bin",
-  password: System.fetch_env!("KEYSTORE_PASSWORD"),
-  secret: System.fetch_env!("KEYRING_PROXY_SECRET")
+  password: System.fetch_env!("KEYSTORE_PASSWORD")
 ```
 
-The wallet file is encrypted with AES-256-GCM. The proxy secret signs internal
-requests to the keyring routes.
+The wallet file is encrypted with AES-256-GCM.
 
 ## Local Service Calls
 
@@ -59,67 +55,11 @@ action = %{
 {:ok, signed} = SiwaKeyring.sign_transaction(action)
 ```
 
-## HTTP Routes
-
-Run `SiwaKeyring.Router` at an internal service root.
-
-Available routes:
-
-- `GET /api/shared/keyring/health`
-- `POST /api/shared/keyring/create-wallet`
-- `POST /api/shared/keyring/has-wallet`
-- `POST /api/shared/keyring/get-address`
-- `POST /api/shared/keyring/sign-message`
-- `POST /api/shared/keyring/sign-raw-message`
-- `POST /api/shared/keyring/sign-transaction`
-- `POST /api/shared/keyring/sign-authorization`
-
-Every non-health route requires:
-
-- `x-keyring-timestamp`
-- `x-keyring-request-id`
-- `x-keyring-signature`
-
-Build those headers with `SiwaKeyring.Auth.compute_hmac/5`:
-
-```elixir
-body = Jason.encode!(%{"message" => "Sign in to Regent"})
-
-headers =
-  SiwaKeyring.Auth.compute_hmac(
-    "proxy-secret",
-    "POST",
-    "/api/shared/keyring/sign-message",
-    body
-  )
-```
-
-The request id can be used once during the timestamp freshness window.
-
-## Remote Client
-
-```elixir
-client =
-  SiwaKeyring.Client.new(
-    base_url: "https://siwa.internal",
-    secret: System.fetch_env!("KEYRING_PROXY_SECRET")
-  )
-
-{:ok, %{"address" => address}} =
-  SiwaKeyring.Client.get_address(client)
-
-signer = SiwaKeyring.Client.proxy_signer(client)
-```
-
-Use the proxy signer anywhere a SIWA signer is expected.
-
 ## Security Boundaries
 
-- Keep the keyring service on an internal network.
-- Protect every non-health route with HMAC headers.
-- Preserve the raw request body for HMAC verification.
-- Use a strong keystore password and proxy secret.
-- Do not log private keys, raw signatures, request bodies, or auth headers.
+- The key store is used only inside the process that holds it; there are no HTTP routes.
+- Use a strong keystore password.
+- Do not log private keys, raw signatures or request bodies.
 
 ## Development
 

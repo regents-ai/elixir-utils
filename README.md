@@ -52,7 +52,7 @@ features.
 | [`points`](points/README.md) | `regent_points` | Shared Points ledger, allowances, NFT bonuses and corrections; hosts supply verified source facts. |
 | [`privy`](privy/README.md) | `regent_privy` | Privy identity-token verification: ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses. |
 | [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Wallet sign-in receipts, signed request checks, wallet signature checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
-| [`siwa/siwa-elixir/apps/siwa_keyring`](siwa/siwa-elixir/apps/siwa_keyring/README.md) | `siwa_keyring` | Isolated local wallet creation and signing behind an internal HMAC-protected service. |
+| [`siwa/siwa-elixir/apps/siwa_keyring`](siwa/siwa-elixir/apps/siwa_keyring/README.md) | `siwa_keyring` | An encrypted key store and the signing wallets kept in it, used inside the process that holds it. |
 
 ## Where each package is used
 
@@ -79,8 +79,8 @@ features.
 Use `siwa` when the question is: who signed this Regent request, what audience was it for,
 and is the receipt still valid?
 
-Use `siwa_keyring` when a process needs a signing wallet but should not receive or store the
-private key.
+Use `siwa_keyring` when a process keeps its own signing wallets in an encrypted file and signs
+with them in place.
 
 Use `ens_elixir` when a product needs to read ENS state, prove that an ENS name points at an
 agent, show a wallet's verified primary name, or prepare the next wallet approval for ENS or
@@ -157,7 +157,7 @@ These must pass before a change is proposed. Run the one for the package you tou
 | `siwa/siwa-elixir` | `mix check` |
 
 There are no GitHub Actions; run `mix check` locally for every package you touched. The shared services contract lives in `siwa-server`, which checks it against
-its routes and the `siwa_keyring` router.
+its routes.
 
 ## Current package versions
 

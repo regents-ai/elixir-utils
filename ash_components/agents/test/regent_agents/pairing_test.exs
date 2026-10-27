@@ -60,6 +60,31 @@ defmodule RegentAgents.PairingTest do
     assert {:ok, [%{wallet: @wallet}]} = RegentAgents.list_my_agents(actor: owner)
   end
 
+  # Autolaunch, 27 Oct 2026: with two codes on screen, the pairing box named the
+  # agent under the wrong one.
+  test "each used code names the agent it paired, and only to the person who made it" do
+    owner = person("two-codes")
+    first = code!(owner)
+    second = code!(owner)
+    third = code!(owner)
+
+    assert {:ok, %{id: first_agent}} =
+             RegentAgents.pair_agent(first, "First", :claude_code, actor: %Agent{wallet: @wallet})
+
+    assert {:ok, %{id: third_agent}} =
+             RegentAgents.pair_agent(third, "Third", :codex, actor: %Agent{wallet: @other_wallet})
+
+    assert {:ok, paired} = RegentAgents.agents_paired_with([first, second, third], actor: owner)
+    assert %{^first => %{id: ^first_agent}, ^third => %{id: ^third_agent}} = paired
+    refute Map.has_key?(paired, second)
+
+    assert RegentAgents.agents_paired_with([first, third], actor: person("someone-else")) ==
+             {:ok, %{}}
+
+    assert {:error, _not_a_person} =
+             RegentAgents.agents_paired_with([first], actor: %Agent{wallet: @wallet})
+  end
+
   test "an expired code pairs nobody" do
     owner = person("late")
     code = code!(owner)

@@ -64,6 +64,40 @@ defmodule RegentAgents.PairingCode.Actions.Issue do
   end
 end
 
+defmodule RegentAgents.PairingCode.Actions.PairedWith do
+  @moduledoc false
+  use Ash.Resource.Actions.Implementation
+
+  require Ash.Query
+
+  alias RegentAgents.{PairingCode, Person}
+
+  # A pairing stamps the agent's `paired_at` and its code's `used_at` with the one
+  # time, so each used code names the agent it paired.
+  @impl true
+  def run(input, _opts, %{actor: %Person{} = actor}) do
+    codes = Map.new(input.arguments.codes, &{PairingCode.hash(&1), &1})
+    hashes = Map.keys(codes)
+
+    with {:ok, used} <-
+           PairingCode
+           |> Ash.Query.for_read(:for_person, %{}, actor: actor)
+           |> Ash.Query.filter(code_hash in ^hashes and not is_nil(used_at))
+           |> Ash.read(),
+         {:ok, agents} <- RegentAgents.list_my_agents(actor: actor) do
+      {:ok,
+       for(
+         code <- used,
+         agent <- Enum.filter(agents, &(DateTime.compare(&1.paired_at, code.used_at) == :eq)),
+         into: %{},
+         do: {codes[code.code_hash], agent}
+       )}
+    end
+  end
+
+  def run(_input, _opts, _context), do: {:error, "a signed-in person is required"}
+end
+
 defmodule RegentAgents.PairingCode do
   @moduledoc """
   A short-lived code a signed-in person hands their agent. Only its hash is
@@ -107,6 +141,13 @@ defmodule RegentAgents.PairingCode do
       run RegentAgents.PairingCode.Actions.Issue
     end
 
+    # The person's agents that each of these codes paired, by code; a code not yet
+    # used, or not the person's, is left out.
+    action :paired_with, :map do
+      argument :codes, {:array, :string}, allow_nil?: false
+      run RegentAgents.PairingCode.Actions.PairedWith
+    end
+
     create :store do
       public? false
       accept [:code_hash, :issued_at, :expires_at]
@@ -138,7 +179,7 @@ defmodule RegentAgents.PairingCode do
   end
 
   policies do
-    policy action([:issue, :store, :for_person, :discard]) do
+    policy action([:issue, :paired_with, :store, :for_person, :discard]) do
       authorize_if RegentAgents.Checks.Person
     end
 

@@ -39,6 +39,7 @@ defmodule RegentAgents do
   resources do
     resource RegentAgents.PairingCode do
       define :issue_pairing_code, action: :issue
+      define :agents_paired_with, action: :paired_with, args: [:codes]
     end
 
     resource RegentAgents.PairedAgent do

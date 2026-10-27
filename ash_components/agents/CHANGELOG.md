@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.agents_paired_with(codes, actor: person)` names the agent each
+  of the person's codes paired, by code; a code not yet used, or not the
+  person's, is left out. Pairing stamps the agent's `paired_at` and the code's
+  `used_at` with the one time, which is how a code finds its agent. A pairing box
+  holding codes for several runtimes named the newest agent under whichever code
+  was on screen and offered the spent code again (Autolaunch, 27 Oct 2026); it
+  now asks this once per notice.
 - Every pairing message but ChatGPT's gains the line "If other agents share your
   computer, use your own key: begin every shell with export
   SIWA_AGENT_HOME=~/.siwa-agent/<runtime>", the folder named after the agent's

@@ -26,6 +26,15 @@ defmodule RegentAgents.PairingMessageTest do
            ] = lines
   end
 
+  test "a pairing link's page is where the agent starts once paired" do
+    for harness <- [:codex, :other, :chatgpt] do
+      message = PairingMessage.text("ABCD-1234", "https://keyfleet.ai", harness, "/classic/1")
+
+      assert message =~ "\nOnce paired, start at https://keyfleet.ai/classic/1"
+      refute PairingMessage.text("ABCD-1234", "https://keyfleet.ai", harness) =~ "Once paired"
+    end
+  end
+
   test "ChatGPT connects to the Regents Labs account on the site's host" do
     message = PairingMessage.text("ABCD-1234", "https://patchbay.sh", :chatgpt)
 

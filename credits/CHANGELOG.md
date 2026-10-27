@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentCredits.Listener` listens on the site's own `Postgrex.Notifications`
+  connection, named in the required `notifications:` setting, instead of opening
+  one with the repository's settings. The site opens that connection on the
+  database's direct address, so its repository can serve through the pooler, and
+  Agents' listener shares it: one listening connection per machine, not two.
 - Migration 20261026220000 installs ash_postgres's version 7 `public.ash_required`.
   Version 6, which the first Credits migration installs, runs with an empty search
   path and so cannot find `ash_raise_error`: a missing required value raised

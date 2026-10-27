@@ -103,17 +103,24 @@ second check would spend the signed request, so the agent would be told
 forward "/api/agents/v1", RegentAgents.HTTP
 ```
 
-Start the listener in the application's children, after the repository and
-PubSub:
+The listener hears the changes every site announces through the shared
+database. Listening needs a connection of its own on the database's direct
+address: a pooler that hands out connections per transaction drops it. The
+site opens one `Postgrex.Notifications` connection, names it in the
+`:notifications` setting, and starts the listener after it and PubSub under a
+`:rest_for_one` supervisor, so a new connection brings a new listener. Credits'
+listener shares the same connection:
 
 ```elixir
-RegentAgents.Listener
-```
+config :regent_agents, notifications: MySite.Notifications
 
-It opens one connection of its own with the repository's settings and listens
-for the changes every site announces through the shared database. That needs
-a direct connection: a pooler that hands out connections per transaction
-drops the listening.
+children = [
+  {Postgrex.Notifications, [name: MySite.Notifications] ++ direct_options},
+  RegentAgents.Listener
+]
+
+Supervisor.init(children, strategy: :rest_for_one)
+```
 
 A page acting for a signed-in person passes
 `%RegentAgents.Person{privy_user_id: ...}`, built only from the site's own

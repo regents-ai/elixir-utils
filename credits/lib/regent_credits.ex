@@ -26,8 +26,9 @@ defmodule RegentCredits do
   and the chain settings are described in `RegentCredits.Chains`.
 
   Every change to a person's balance, made on any site, reaches pages showing
-  it: a site starts `RegentCredits.Listener` and its pages subscribe to
-  `topic/1`.
+  it: a site starts `RegentCredits.Listener` on its own
+  `Postgrex.Notifications` connection (the `:notifications` setting) and its
+  pages subscribe to `topic/1`.
 
   The schema is migrated with `RegentCredits.Migrator`: locally by each site,
   and in production only by Regents.

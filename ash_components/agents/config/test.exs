@@ -3,6 +3,7 @@ import Config
 config :regent_agents,
   repo: RegentAgents.TestRepo,
   pubsub: RegentAgents.TestPubSub,
+  notifications: RegentAgents.TestNotifications,
   account: {RegentAgents.Test.Site, :account},
   allowed: %{
     "not_paired" => ["Read public pages."],

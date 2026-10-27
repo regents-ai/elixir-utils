@@ -27,7 +27,8 @@ defmodule RegentAgents do
 
       forward "/api/agents/v1", RegentAgents.HTTP
 
-  and starts `RegentAgents.Listener` after its repository and PubSub, so its
+  and starts `RegentAgents.Listener` after its PubSub and its own
+  `Postgrex.Notifications` connection (the `:notifications` setting), so its
   pages hear agent changes made on every site.
 
   The schema is migrated once, from Regents, with `RegentAgents.Migrator`.

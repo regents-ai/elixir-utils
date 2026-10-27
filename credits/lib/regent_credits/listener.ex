@@ -2,10 +2,11 @@ defmodule RegentCredits.Listener do
   @moduledoc """
   Hears Credits balance changes from every Regent site through the shared
   database and passes each one to this site's PubSub, as `:credits_changed`
-  on `RegentCredits.topic/1`. A site starts one after its repository and
-  PubSub, and names its PubSub in the `:pubsub` setting. It holds one
-  database connection of its own, and reconnects on its own if that
-  connection drops.
+  on `RegentCredits.topic/1`. It listens on the site's own
+  `Postgrex.Notifications` connection, named in the `:notifications` setting,
+  which the site opens on the database's direct address and shares with every
+  listener. The site starts it after that connection and its PubSub, under a
+  `:rest_for_one` supervisor, so a new connection brings a new listener.
   """
 
   use GenServer
@@ -14,13 +15,7 @@ defmodule RegentCredits.Listener do
 
   @impl true
   def init(nil) do
-    repo = Application.fetch_env!(:regent_credits, :repo)
-
-    {:ok, notifications} =
-      repo.config()
-      |> Keyword.drop([:name, :pool, :pool_size])
-      |> Keyword.put(:auto_reconnect, true)
-      |> Postgrex.Notifications.start_link()
+    notifications = Application.fetch_env!(:regent_credits, :notifications)
 
     # Listening starts now, or as soon as the connection is up.
     {_now_or_on_connect, _ref} =

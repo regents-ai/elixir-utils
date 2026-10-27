@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.Listener` listens on the site's own `Postgrex.Notifications`
+  connection, named in the required `notifications:` setting, instead of opening
+  one with the repository's settings. The site opens that connection on the
+  database's direct address, so its repository can serve through the pooler, and
+  Credits' listener shares it: one listening connection per machine, not two.
 - ash_postgres comes from Regent's copy of 2.15.2 (regents-ai/ash_postgres at
   cc886ab3), which carries ash-project/ash_postgres#910: upserts are written to the
   schema the site's repo picks, as on 2.13.0. It clears the two 2.13.0 advisories.

@@ -6,6 +6,13 @@ unless Regex.match?(~r/^regent_agents_test_[a-z0-9_]+$/, name),
 
 {:ok, _} = RegentAgents.TestRepo.start_link()
 {:ok, _} = Phoenix.PubSub.Supervisor.start_link(name: RegentAgents.TestPubSub)
+
+{:ok, _} =
+  RegentAgents.TestRepo.config()
+  |> Keyword.drop([:pool, :pool_size])
+  |> Keyword.put(:name, RegentAgents.TestNotifications)
+  |> Postgrex.Notifications.start_link()
+
 {:ok, _} = RegentAgents.Listener.start_link([])
 
 Ecto.Migrator.run(

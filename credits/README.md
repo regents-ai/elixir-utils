@@ -23,6 +23,7 @@ config :ex_money, custom_currencies: [{:XRC, name: "Credits", digits: 6}]
 config :regent_credits,
   repo: MySite.Repo,
   pubsub: MySite.PubSub,
+  notifications: MySite.Notifications,
   admins: ["did:privy:..."],
   chain_client: MySite.Chain.Client,
   chains: %{
@@ -31,9 +32,12 @@ config :regent_credits,
   }
 ```
 
-- Start `RegentCredits.Listener` after the repository and PubSub. A page
-  showing a balance subscribes to `RegentCredits.topic(privy_user_id)` and
-  hears `:credits_changed` whenever that balance changes on any site.
+- Start `RegentCredits.Listener` after PubSub and the site's own
+  `Postgrex.Notifications` connection on the database's direct address, named
+  in the `notifications:` setting, under a `:rest_for_one` supervisor; Agents'
+  listener shares the same connection. A page showing a balance subscribes to
+  `RegentCredits.topic(privy_user_id)` and hears `:credits_changed` whenever
+  that balance changes on any site.
 - `chain_client` implements `RegentCredits.ChainClient`: `transaction/2`,
   `receipt/2`, `block_number/1` and `logs/2` (`eth_getLogs` over at most 500
   blocks), all read at `latest`. A JSON-RPC error answer comes back as

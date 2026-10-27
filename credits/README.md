@@ -44,8 +44,9 @@ config :regent_credits,
   `{:error, {:rpc, error}}`; the deposit reader reads a span refused that way
   again in halves.
 - Credits tells the site about purchases through `RegentCredits.Signals`:
-  `:purchase_credited` and `:purchase_attributed`, each with `purchase_id`
-  and `privy_user_id`. The site listens with `signals_in` on a resource of
+  `:purchase_credited` and `:purchase_attributed` for USDC purchases and
+  `:card_purchase_credited` for card and Link purchases, each with
+  `purchase_id` and `privy_user_id`. The site listens with `signals_in` on a resource of
   its own and adds the `:ash_signals` compiler (and, with the code reloader,
   `reloadable_compilers`). A listener with the default delivery runs inside
   the credit's transaction: work it queues commits with the credit, and a

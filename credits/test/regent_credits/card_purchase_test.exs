@@ -130,8 +130,11 @@ defmodule RegentCredits.CardPurchaseTest do
     bought = purchase(id)
     before = purchased(admin_id())
 
+    # The site hears of it inside the credit, once.
     assert notice("checkout.session.completed", paid(bought)) == :ok
+    assert_received {:credited, ^id, true}
     assert notice("checkout.session.completed", paid(bought)) == :ok
+    refute_received {:credited, _, _}
     assert Decimal.eq?(Decimal.sub(purchased(admin_id()), before), 25)
 
     stripe(fn -> %{bought.session_id => paid(bought)} end)
@@ -141,6 +144,7 @@ defmodule RegentCredits.CardPurchaseTest do
 
     assert settled.status == :credited and settled.payment_intent_id == "pi_" <> id
     assert Decimal.eq?(Decimal.sub(purchased(admin_id()), before), 25)
+    refute_received {:credited, _, _}
 
     {:ok, %{entries: [entry | _]}} = RegentCredits.history(actor: actor(admin_id()))
     assert %{kind: :bought_by_card, direction: :in} = entry
@@ -167,6 +171,7 @@ defmodule RegentCredits.CardPurchaseTest do
 
     assert settled.status == :credited
     assert Decimal.eq?(Decimal.sub(purchased(admin_id()), before), 7)
+    assert_received {:credited, ^id, true}
   end
 
   test "only a session paid in full for this purchase adds Credits" do

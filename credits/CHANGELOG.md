@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- A card or Link purchase tells the site when its Credits are added
+  (`RegentCredits.Signals`, `:card_purchase_credited`, in the credit's own
+  transaction), so card purchases earn Points as USDC purchases do.
+
 - Credits can be bought by card or Link through Stripe Checkout and the Payment
   Element (`RegentCredits.CardPurchase`, `RegentCredits.Stripe`): $5 to $500 with
   the card fee added on top, credited once from Stripe's signed webhook or the

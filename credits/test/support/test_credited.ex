@@ -19,6 +19,7 @@ defmodule RegentCredits.TestCredited do
     from RegentCredits.Signals do
       on :purchase_credited, :credited_heard, action: :heard
       on :purchase_attributed, :attributed_heard, action: :heard
+      on :card_purchase_credited, :card_heard, action: :heard
     end
   end
 

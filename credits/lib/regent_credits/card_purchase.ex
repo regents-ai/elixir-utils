@@ -106,6 +106,9 @@ defmodule RegentCredits.CardPurchase do
       change filter(expr(status == :open))
       change set_attribute(:status, :credited)
       change set_attribute(:credited_at, &DateTime.utc_now/0)
+
+      emit RegentCredits.Signals, :card_purchase_credited,
+        fields: [purchase_id: :id, privy_user_id: :privy_user_id]
     end
 
     update :took_back do

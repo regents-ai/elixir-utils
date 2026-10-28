@@ -133,7 +133,11 @@ defmodule RegentAgents.HTTPTest do
     assert {200, %{"data" => me}} = send_request(:get, "/api/agents/v1/me")
     assert Map.take(me, Map.keys(backed)) == backed
 
+    assert {200, %{"data" => %{"agent" => agent}}} = send_request(:get, "/api/agents/v1/whoami")
+    assert Map.take(agent, Map.keys(backed)) == backed
+
     refute Jason.encode!(me) =~ String.duplicate("ab", 32)
+    refute Jason.encode!(agent) =~ String.duplicate("ab", 32)
     assert [%{same_person_agent_count: 3} = saved] = RegentAgents.list_my_agents!(actor: owner)
     assert saved.human_id == "0x" <> String.duplicate("ab", 32)
 

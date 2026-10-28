@@ -136,7 +136,11 @@ defmodule RegentAgents.HTTP do
 
       answer(conn, %{
         data: %{
-          agent: %{wallet: agent.wallet, registry_listing: agent.registry_listing},
+          agent:
+            Map.merge(
+              %{wallet: agent.wallet, registry_listing: agent.registry_listing},
+              HumanBacking.describe(agent)
+            ),
           audience: Broker.audience(),
           authenticated: true,
           pairing: if(pairing, do: %{id: pairing.id, paired_at: pairing.paired_at}, else: nil),

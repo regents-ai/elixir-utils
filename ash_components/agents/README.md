@@ -18,15 +18,17 @@ https://siwa.regents.sh/skill.md.
   the same next step for a site's own agent guides.
 - `POST /api/agents/v1/pair` with `{code, name, harness}` answers `201 {data: agent}`.
 - `GET /api/agents/v1/me` answers `200 {data: agent + account}`.
-- Both answers carry `registry_listing`: the agent's page in the agent registry,
-  as the SIWA service names it, or null when the agent has no listing;
+- `whoami`'s `agent` and both answers carry `registry_listing`: the agent's page
+  in the agent registry, as the SIWA service names it, or null when the agent has
+  no listing;
   `human_backed`: whether a person verified with World ID stands behind it; and
   `same_person_agent_count`: how many agents, this one included, that same
   person stands behind, or null when none does. The first person the SIWA
   service's `agentBook` names stays on the paired agent for good; a later `null`,
   or another person, changes nothing, and each request naming the same person
   saves their agent count (`RegentAgents.HumanBacking`). Both fields come from
-  what was saved. Every Regent site
+  what was saved; `whoami` answers them as the SIWA service names them on that
+  request, before any pairing has saved them. Every Regent site
   uses these two names. The person's World ID number is saved only to group
   their agents; it is never shown, logged or answered.
 - A refusal is `{error: {code, message, hint}}`: `pairing_failed` (400),

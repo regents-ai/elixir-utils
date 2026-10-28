@@ -21,6 +21,9 @@
   rewriting a row; it relaxes those four columns and adds a check
   that each receipt is one shape or the other. `FeeForward` answers
   `:paid_with_credits` for a fee paid in Credits.
+- `Purchase.on_offer/3` also finds an intent that is paid (`:settlement_pending`
+  or `:settled`) once its terms have run out, so a door asked again finishes that
+  purchase instead of offering new terms and taking a second payment.
 - Depends on `regent_credits` by sibling path; a site's `regent_credits` pin
   replaces it with `override: true`. Its tests migrate the Credits schema into the
   payments test database, since both share one transaction.

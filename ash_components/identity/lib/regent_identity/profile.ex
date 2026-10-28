@@ -91,5 +91,10 @@ defmodule RegentIdentity.Profile do
     policy action([:mine, :refresh, :edit]) do
       authorize_if expr(app_id == ^actor(:app_id) and privy_user_id == ^actor(:privy_user_id))
     end
+
+    # A person's profile ID is looked up only by `RegentIdentity.profile_id/2`.
+    policy action(:person) do
+      forbid_if always()
+    end
   end
 end

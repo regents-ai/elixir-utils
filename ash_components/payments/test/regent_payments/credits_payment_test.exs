@@ -116,6 +116,30 @@ defmodule RegentPayments.CreditsPaymentTest do
     assert Decimal.eq?(available(c.owner), 9)
   end
 
+  test "a paid purchase whose effect failed is still offered after its terms ran out", c do
+    fund(c.owner, "0", "4")
+    intent = prepare(c.payer, 1_000_000)
+    same? = &(&1.target_id == intent.target_id)
+
+    assert {:settled, settled, _receipt} =
+             Purchase.pay_with_credits(c.payer, intent.id, c.person, %{outcome: :fail})
+
+    assert settled.status == :settled
+
+    TestRepo.query!(
+      "UPDATE regent_payments.payment_intents SET expires_at = now() - interval '1 minute' WHERE id = $1",
+      [Ecto.UUID.dump!(intent.id)]
+    )
+
+    # Asked again for the same thing, the door finds the purchase already paid
+    # instead of offering new terms, and finishing it spends nothing more.
+    assert %{id: id} = Purchase.on_offer(DirectOffer, c.payer, same?)
+    assert id == intent.id
+    assert {:applied, _, _} = Purchase.pay_with_credits(c.payer, id, c.person, %{})
+    assert Effects.carried_out(intent.id) == 1
+    assert Decimal.eq?(available(c.owner), 3)
+  end
+
   defp prepare(payer, amount, credits \\ :accepted) do
     {:ok, intent} =
       RegentPayments.prepare_payment_intent(

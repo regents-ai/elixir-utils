@@ -53,6 +53,16 @@ defmodule RegentIdentity.ProfileTest do
     assert kept.id == made.id
     assert kept.wallet_addresses == [@wallet]
     assert {:ok, nil} = Identity.profile_id("another-app", actor.privy_user_id)
+
+    # Another signed-in person cannot look the profile up themselves.
+    assert {:error, %Ash.Error.Forbidden{}} =
+             RegentIdentity.Profile
+             |> Ash.Query.for_read(
+               :person,
+               %{app_id: actor.app_id, privy_user_id: actor.privy_user_id},
+               actor: actor("someone-else")
+             )
+             |> Ash.read_one()
   end
 
   test "X proof is private and immutable subject owns mutable handle", %{actor: actor} do

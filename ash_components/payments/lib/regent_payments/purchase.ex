@@ -84,8 +84,9 @@ defmodule RegentPayments.Purchase do
 
   @doc """
   The terms of `offer` already on offer to `actor` that `same?` recognises,
-  newest first, while they still stand; `nil` when there are none. A door
-  that is asked again after a timeout answers with the purchase it started.
+  newest first, while they still stand or once paid and not yet carried out;
+  `nil` when there are none. A door that is asked again after a timeout
+  answers with the purchase it started.
   """
   @spec on_offer(module(), struct(), (PaymentIntent.t() -> boolean())) :: PaymentIntent.t() | nil
   def on_offer(offer, actor, same?) do

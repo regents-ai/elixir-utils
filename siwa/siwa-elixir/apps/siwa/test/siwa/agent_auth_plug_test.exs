@@ -20,10 +20,13 @@ defmodule Siwa.AgentAuthPlugTest do
         status: 200,
         body: %{
           "code" => "http_envelope_valid",
-          "data" => %{"agent_claims" => %{"token_id" => "77"}}
+          "data" => verdict("testapp")
         }
       }
     end
+
+    def verdict(audience),
+      do: %{"agent_claims" => %{"token_id" => "77"}, "principal" => %{"audience" => audience}}
   end
 
   defmodule RecordingHooks do
@@ -87,6 +90,27 @@ defmodule Siwa.AgentAuthPlugTest do
     assert payload["headers"]["x-agent-wallet-address"] == "0xabc"
 
     assert_received {:accept, %{"agent_claims" => %{"token_id" => "77"}}, :context}
+  end
+
+  test "a verdict made for another site's audience is refused before accept" do
+    for data <- [RecordingClient.verdict("othersite"), %{"agent_claims" => %{"token_id" => "77"}}] do
+      Process.put(
+        :client_response,
+        {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => data}}}
+      )
+
+      conn = :post |> conn("/v1/things", "{}") |> call()
+
+      assert conn.halted
+      refute_received {:accept, _data, _context}
+
+      assert_received {:deny,
+                       %{
+                         reason: :siwa_http_401,
+                         source: :siwa_plug,
+                         siwa_code: "receipt_binding_mismatch"
+                       }}
+    end
   end
 
   test "only the signed headers are forwarded to the sign-in server" do

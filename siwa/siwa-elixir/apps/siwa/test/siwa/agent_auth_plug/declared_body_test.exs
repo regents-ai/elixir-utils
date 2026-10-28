@@ -36,8 +36,9 @@ defmodule Siwa.AgentAuthPlug.DeclaredBodyTest do
              replay_store: fn _key, _expires -> :ok end,
              chain_rpcs: Process.get(:chain_rpcs)
            ) do
-        {:ok, _verified} ->
-          {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => %{}}}}
+        {:ok, verified} ->
+          data = %{"principal" => %{"audience" => verified.claims["aud"]}}
+          {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => data}}}
 
         {:error, reason} ->
           {status, code, _message} = Siwa.Contract.refusal(reason)

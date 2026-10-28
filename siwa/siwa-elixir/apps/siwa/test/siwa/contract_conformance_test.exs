@@ -41,7 +41,8 @@ defmodule Siwa.ContractConformanceTest do
           data = %{
             "wallet_address" => verified.address,
             "chain_id" => verified.claims["chain_id"],
-            "key_id" => verified.claims["key_id"]
+            "key_id" => verified.claims["key_id"],
+            "principal" => %{"audience" => verified.claims["aud"]}
           }
 
           {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => data}}}
@@ -60,7 +61,10 @@ defmodule Siwa.ContractConformanceTest do
     def before_verify(_conn, _headers), do: {:ok, nil}
 
     @impl true
-    def accept(conn, data, nil), do: {:ok, Plug.Conn.assign(conn, :principal, data)}
+    # The plug has already matched the verdict's audience to its own; the
+    # fixtures name the signer.
+    def accept(conn, data, nil),
+      do: {:ok, Plug.Conn.assign(conn, :principal, Map.delete(data, "principal"))}
 
     @impl true
     def deny(conn, deny_meta), do: Plug.Conn.assign(conn, :denied, deny_meta)

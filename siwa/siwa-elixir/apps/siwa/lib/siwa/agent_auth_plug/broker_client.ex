@@ -11,7 +11,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClient do
 
     * `:http` — HTTP module as described above (required)
     * `:base_url` — broker base URL; a trailing `/` is trimmed (required)
-    * `:site_key` — this site's own verify key from the sign-in server's
+    * `:verify_key` — this site's own verify key from the sign-in server's
       `SIWA_SITE_VERIFY_KEYS`, sent as `Authorization: Bearer <key>`
       (required). The key alone names the audience the request is checked
       for; the request cannot name another.
@@ -35,7 +35,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClient do
         method: :post,
         url: base_url <> Siwa.AgentAuthPlug.http_verify_path(),
         json: payload,
-        auth: {:bearer, Keyword.fetch!(opts, :site_key)}
+        auth: {:bearer, Keyword.fetch!(opts, :verify_key)}
       ]
       |> put_connect_timeout(Keyword.get(opts, :connect_timeout_ms))
       |> put_receive_timeout(Keyword.get(opts, :receive_timeout_ms))

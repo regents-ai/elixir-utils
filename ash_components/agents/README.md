@@ -72,7 +72,8 @@ check-in names the person's account (a function taking the Privy user ID and
 returning a JSON-ready map, or nil until the person first signs in on the site,
 which answers the check-in with `person_not_here`), and what an agent may do on
 the site in each status, as `whoami` tells it. There is no default list: every
-site writes its own, true to its routes and policies.
+site writes its own, true to its routes and policies. The `siwa` settings read
+the verify key from the environment, so they go in `config/runtime.exs`.
 
 ```elixir
 config :regent_agents,
@@ -94,6 +95,8 @@ config :regent_agents,
 `verify_key` is the site's own key in the SIWA service's
 `SIWA_SITE_VERIFY_KEYS`. It is sent with every signed request the site asks the
 service to check, and it names the one audience the service checks it for.
+`audience` and `verify_key` name the same site: an answer made for any other
+audience is refused.
 
 A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT and Claude, the
 hosted runtimes, pair through the site's hosted connection (`regent_mcp_agents`)

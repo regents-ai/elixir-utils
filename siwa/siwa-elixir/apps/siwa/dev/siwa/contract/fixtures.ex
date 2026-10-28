@@ -266,7 +266,8 @@ defmodule Siwa.Contract.Fixtures do
     )
   end
 
-  # The same JSON in other bytes: the signature covers the exact body.
+  # Other bytes for the signed body, however close their meaning: the signature
+  # covers the exact bytes.
   defp body_bytes_case(name, request, body),
     do: refused_case(name, %{request | body: body}, "verifier", :content_digest_mismatch)
 

@@ -40,7 +40,10 @@ defmodule Siwa.AgentAuthPlug do
 
     * `:client` — module implementing `Siwa.AgentAuthPlug.Client` (required)
     * `:hooks` — module implementing `Siwa.AgentAuthPlug.Hooks` (required)
-    * `:audience` — SIWA audience string passed to the client (required)
+    * `:audience` — this site's SIWA audience (required): the one its client's
+      verify key names. A verdict whose principal names another audience is
+      refused as `receipt_binding_mismatch` with `source: :siwa_plug`, and
+      leases are kept per audience.
     * `:query` — `:refuse` (default) or `:signed` (the query string is part of
       the signed path)
     * `:body` — `:if_present` (default: omit the payload `"body_digest"` when
@@ -371,16 +374,16 @@ defmodule Siwa.AgentAuthPlug do
            now: now
          ) do
       {:ok, _verified} -> {:ok, lease.data}
-      {:error, reason} -> {:error, lease_deny_meta(reason)}
+      {:error, reason} -> {:error, refusal_meta(reason, :siwa_lease)}
     end
   end
 
-  defp lease_deny_meta(reason) do
+  defp refusal_meta(reason, source) do
     {status, code, message} = Contract.refusal(reason)
 
     %{
       reason: :"siwa_http_#{status}",
-      source: :siwa_lease,
+      source: source,
       siwa_status: status,
       siwa_code: code,
       siwa_message: message
@@ -398,7 +401,7 @@ defmodule Siwa.AgentAuthPlug do
          body: %{"code" => "http_envelope_valid", "data" => data}
        }}
       when is_map(data) ->
-        {:ok, data}
+        verdict_for(data, Keyword.fetch!(opts, :audience))
 
       {:ok, %{status: status, body: body}} when status in 400..599 ->
         {:error, status_deny_meta(status, body)}
@@ -420,6 +423,14 @@ defmodule Siwa.AgentAuthPlug do
          }}
     end
   end
+
+  # A verdict counts only for the audience this plug serves, so a verify key set
+  # up for another site never lets that site's sign-ins in here.
+  defp verdict_for(%{"principal" => %{"audience" => audience}} = data, audience),
+    do: {:ok, data}
+
+  defp verdict_for(_data, _audience),
+    do: {:error, refusal_meta(:receipt_binding_mismatch, :siwa_plug)}
 
   defp http_verify_payload(conn, headers, body_digest) do
     payload = %{

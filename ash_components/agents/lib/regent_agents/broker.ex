@@ -12,7 +12,7 @@ defmodule RegentAgents.Broker do
     Siwa.AgentAuthPlug.BrokerClient.verify_http_request(payload,
       http: __MODULE__,
       base_url: Keyword.fetch!(config(), :url),
-      site_key: Keyword.fetch!(config(), :verify_key),
+      verify_key: Keyword.fetch!(config(), :verify_key),
       connect_timeout_ms: 2_000,
       receive_timeout_ms: 5_000
     )

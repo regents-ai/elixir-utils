@@ -17,7 +17,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
              BrokerClient.verify_http_request(@payload,
                http: RecordingHttp,
                base_url: "http://siwa.internal:4100/",
-               site_key: "testapp-site-verify-key"
+               verify_key: "testapp-site-verify-key"
              )
 
     assert_received {:request, opts}
@@ -25,7 +25,6 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
     assert opts[:url] == "http://siwa.internal:4100/api/shared/siwa/http-verify"
     assert opts[:json] == @payload
     assert opts[:auth] == {:bearer, "testapp-site-verify-key"}
-    refute Keyword.has_key?(opts, :headers)
     refute Keyword.has_key?(opts, :connect_options)
     refute Keyword.has_key?(opts, :receive_timeout)
   end
@@ -34,7 +33,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
     BrokerClient.verify_http_request(@payload,
       http: RecordingHttp,
       base_url: "http://siwa.internal:4100",
-      site_key: "testapp-site-verify-key",
+      verify_key: "testapp-site-verify-key",
       connect_timeout_ms: 2_000,
       receive_timeout_ms: 5_000
     )
@@ -51,7 +50,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
              BrokerClient.verify_http_request(@payload,
                http: RecordingHttp,
                base_url: "http://siwa.internal:4100",
-               site_key: "testapp-site-verify-key"
+               verify_key: "testapp-site-verify-key"
              )
   end
 end

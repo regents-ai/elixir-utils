@@ -176,13 +176,15 @@ Siwa.AgentAuthPlug.call(conn,
 
 `MyBroker` sends each request to the sign-in server through
 `Siwa.AgentAuthPlug.BrokerClient` with the site's own verify key, which names
-the audience the server checks it for:
+the audience the server checks it for. The plug's `:audience` and that key name
+the same site: the plug refuses a verdict whose principal names any other
+audience (`receipt_binding_mismatch`, `source: :siwa_plug`).
 
 ```elixir
 Siwa.AgentAuthPlug.BrokerClient.verify_http_request(payload,
   http: MyHttp,
   base_url: "https://siwa.regents.sh",
-  site_key: Application.fetch_env!(:my_site, :siwa_site_verify_key)
+  verify_key: Application.fetch_env!(:my_site, :siwa_site_verify_key)
 )
 ```
 

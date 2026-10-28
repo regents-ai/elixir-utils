@@ -3,7 +3,7 @@
 One pairing between a person and their agent, shared by every Regent site.
 
 A person signs in on a Regent site and makes a pairing code with Pair New Agent
-in its side panel, then gives the code to their agent. The agent pairs on any Regent site, signing the request with its
+on its Account page, then gives the code to their agent. The agent pairs on any Regent site, signing the request with its
 SIWA key, and afterwards every site's check-in answers with that same pairing.
 The agent's side is described in the sign-in guide at
 https://siwa.regents.sh/skill.md.
@@ -141,7 +141,7 @@ the codes on screen paired, so a box holding several codes names each agent
 under its own code. An agent picks its own name when it pairs; the person may rename it,
 and the new name shows on every Regent site.
 
-The side panel offers the ten agents in `RegentAgents.Harness.featured/0`:
+The pairing box offers the ten agents in `RegentAgents.Harness.featured/0`:
 any agent, Codex, Grok Bot, Muse, Hermes, Dots, IronClaw, OpenClaw, Claude Code
 and Pi. The message a person pastes to their agent is
 `RegentAgents.PairingMessage.text(code, origin, harness, opts)`, the same words on

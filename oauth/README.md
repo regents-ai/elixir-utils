@@ -20,7 +20,10 @@ Call `RegentOAuth.configure(Site.OAuth)` before starting the site, and supervise
 and prefix with a separate small pool; SQL parameter logging and query telemetry
 are disabled. Never supervise another Oban instance or any delivery loop here.
 The site's migration calls `RegentOAuth.Migration.up(issuer: ..., resource: ...)`.
-This additive migration creates only `oauth_*` tables. Codes and tokens receive
+This additive migration creates only `oauth_*` tables. A second site migration
+calls `RegentOAuth.Migration.V2.up()`, which replaces every stored access and
+refresh token with its SHA-256 hash; it cannot be undone, and an app connected
+before it keeps working with the tokens it holds. Codes and tokens receive
 immutable issuer/audience columns from those schema defaults. Never run Boruta's
 historical rename/drop migrations over an existing site.
 
@@ -66,6 +69,13 @@ ignored before validation and never reaches Boruta or the saved consent; the
 original query still counts toward the request size limit. Other unsupported
 parameters and request objects remain rejected.
 
+Access and refresh tokens are stored only as a lowercase hex SHA-256 hash
+(`RegentOAuth.hash_token/1`); the plain tokens exist once, in the token answer the
+app receives, so a reader of the database cannot use a stored row. They are read
+from the database on every request, never from a cache, so a disconnect stops an
+app at once. Authorization codes stay as Boruta keeps them: each lives a minute
+and is spent once.
+
 Resource servers call `RegentOAuth.verify/2` and map its verified subject to an
 existing product principal. A bearer grants only the configured scope; it must
 never be converted into a paired-agent or wallet actor. Keep anonymous reads
@@ -82,6 +92,7 @@ access by another account's client ID. Native SIWA tools keep their own boundary
 
 Feature flags default off. Building and local verification do not authorize
 publishing, production migrations, live sign-in changes, money tests or Points.
-Run `mix check`. Representative protocol exercises use disposable local accounts
+Run `mix check` (compile, format and the tests, which need a local PostgreSQL 17
+on 127.0.0.1:5432 and make `regent_oauth_test` if it is missing). Representative protocol exercises use disposable local accounts
 and databases; they are separate from real ChatGPT acceptance after an authorized
 release. OAuth credentials and signing keys must never be printed or logged.

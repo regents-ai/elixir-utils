@@ -87,10 +87,18 @@ config :regent_agents,
   siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
 ```
 
-A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT pairs through a
-connected plugin and the `register_identity`, `get_identity` and `pair_identity`
-tools, so it is listed, and the pair request accepts it, only on a site that
-serves them and sets `chatgpt_pairing: true` here.
+A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT and Claude, the
+hosted runtimes, pair through the site's hosted connection (`regent_mcp_agents`)
+and its `register_identity`, `get_identity`, `pair_identity` and `check_in`
+tools. A site lists the ones whose connection it serves, and only those are
+offered and accepted by the pair request:
+
+```elixir
+config :regent_agents, hosted_pairing: [:claude]
+```
+
+Switching on Claude this way does not offer ChatGPT. A site that lists none
+offers every agent but the two.
 
 Mount the requests behind the site's own rate limit (Regents allows 10
 pair requests and 60 check-ins a minute from one address). Mount them outside
@@ -139,7 +147,9 @@ and Pi. The message a person pastes to their agent is
 `RegentAgents.PairingMessage.text(code, origin, harness, opts)`, the same words on
 every site. It opens "Pair with my Regents Labs account on <site's host>", so the
 agent learns the account is the person's one Regents Labs account and which site
-it pairs on. Every agent but ChatGPT is told to keep its own key: "begin every
+it pairs on. ChatGPT and Claude are told to connect through the site's plugin or
+connector and to pair with `pair_identity`, naming their harness. Every other
+agent is told to keep its own key: "begin every
 shell with export SIWA_AGENT_HOME=~/.siwa-agent/<runtime>", the folder named
 after its runtime (`claude-code`, `codex`, `grok-bot` and so on, and
 `YOUR-RUNTIME` for any agent or none named), so agents sharing one computer pair

@@ -2,6 +2,7 @@ defmodule RegentOAuth.Migration do
   @moduledoc """
   Additive initial Boruta 2.3.8 schema. Called by the owning site's migration.
   It creates only oauth_* tables; no historical rename, drop or shared schema change.
+  `RegentOAuth.Migration.V2` follows it, keeping only hashes of access and refresh tokens.
   """
   use Ecto.Migration
 

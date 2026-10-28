@@ -101,7 +101,10 @@ defmodule RegentOAuth do
     Application.put_env(:boruta, Boruta.Oauth,
       repo: Repo,
       issuer: Keyword.fetch!(config, :issuer),
-      contexts: [resource_owners: RegentOAuth.ResourceOwners],
+      contexts: [
+        access_tokens: RegentOAuth.AccessTokens,
+        resource_owners: RegentOAuth.ResourceOwners
+      ],
       max_ttl: [
         authorization_code: 60,
         access_token: 3600,
@@ -113,7 +116,7 @@ defmodule RegentOAuth do
     :ok
   end
 
-  @doc "The resource metadata ChatGPT discovers from a Bearer challenge."
+  @doc "The resource metadata a connected app discovers from a Bearer challenge."
   def resource_metadata do
     %{
       resource: resource(),
@@ -150,7 +153,8 @@ defmodule RegentOAuth do
       when is_binary(bearer) and byte_size(bearer) in 1..4096 do
     with true <- enabled?() and expected_resource == resource(),
          {:ok, _} <- Boruta.Oauth.Authorization.AccessToken.authorize(value: bearer),
-         %Token{} = token <- Repo.get_by(Token, value: bearer, type: "access_token"),
+         %Token{} = token <-
+           Repo.get_by(Token, value: hash_token(bearer), type: "access_token"),
          true <- live?(token) and required_scope in String.split(token.scope) do
       {:ok, principal(token)}
     else
@@ -159,6 +163,13 @@ defmodule RegentOAuth do
   end
 
   def verify(_, _, _), do: {:error, :unauthorized}
+
+  @doc """
+  The stored form of an access or refresh token: its SHA-256 hash in lowercase
+  hex. Only this is kept; the plain token reaches the client once.
+  """
+  def hash_token(token) when is_binary(token),
+    do: :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
 
   @doc "Recheck delivery authority without retaining a bearer token in a subscription."
   def live_token?(id, subject, client_id) do
@@ -242,8 +253,11 @@ defmodule RegentOAuth do
         set: [revoked_at: now, refresh_token_revoked_at: now]
       )
 
-      # The database check above remains decisive even during cache invalidation.
-      Enum.each(tokens, fn token ->
+      # Boruta caches authorization codes; access tokens are never cached
+      # (`RegentOAuth.AccessTokens`). The database check remains decisive.
+      tokens
+      |> Enum.filter(&(&1.type == "code"))
+      |> Enum.each(fn token ->
         token |> Boruta.Ecto.OauthMapper.to_oauth_schema() |> Boruta.Ecto.TokenStore.invalidate()
       end)
 

@@ -142,12 +142,14 @@ defmodule RegentOAuth.Protocol do
           client_id = params["client_id"]
           Repo.one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
 
+          hash = RegentOAuth.hash_token(params["token"])
+
           token =
             Repo.one(
               from(t in Token,
                 where:
                   t.client_id == ^client_id and t.type == "access_token" and is_nil(t.revoked_at) and
-                    (t.value == ^params["token"] or t.refresh_token == ^params["token"])
+                    (t.value == ^hash or t.refresh_token == ^hash)
               )
             )
 
@@ -175,14 +177,16 @@ defmodule RegentOAuth.Protocol do
          )
 
   defp lock_credential(%{"grant_type" => "refresh_token", "refresh_token" => token})
-       when is_binary(token),
-       do:
-         Repo.one(
-           from(t in Token,
-             where: t.type == "access_token" and t.refresh_token == ^token,
-             lock: "FOR UPDATE"
-           )
-         )
+       when is_binary(token) do
+    hash = RegentOAuth.hash_token(token)
+
+    Repo.one(
+      from(t in Token,
+        where: t.type == "access_token" and t.refresh_token == ^hash,
+        lock: "FOR UPDATE"
+      )
+    )
+  end
 
   defp lock_credential(_), do: nil
 

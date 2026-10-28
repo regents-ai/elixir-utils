@@ -1,15 +1,20 @@
 defmodule RegentMCPAgents do
   @moduledoc """
-  A persistent ChatGPT connection to a Regents account identity, shared across
-  chats. OAuth authorizes the connection; the SIWA service's hosted signing holds
-  its signer, asked with this site's own hosted signing key. Every protected
-  product request still passes exact-request SIWA verification. Conversation IDs,
-  tool arguments and MCP sessions never select the signer.
+  A connected app's (ChatGPT's or Claude's) persistent connection to a Regents
+  account identity, shared across chats. OAuth authorizes the connection; the
+  SIWA service's hosted signing holds its signer, asked with this site's own
+  hosted signing key. Every protected product request still passes
+  exact-request SIWA verification. Conversation IDs, tool arguments and MCP
+  sessions never select the signer.
+
+  The connected apps a site offers are `RegentAgents.Harness.hosted/0`; the
+  words a refused tool call gives are the site's `refusal:` setting.
   """
-  alias RegentAgents.{PairingCode, Person}
+  alias RegentAgents.{Harness, PairingCode, Person}
 
   @identity_scope "regent.identity.manage"
   @posting_scope "patchbay.posts.write"
+  @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
 
   @doc "Validate opt-in runtime configuration before accepting connections."
   def configure! do
@@ -32,11 +37,13 @@ defmodule RegentMCPAgents do
                is_binary(uri.host) and uri.path in [nil, ""] and
                is_nil(uri.query) and is_nil(uri.fragment) and is_nil(uri.userinfo) and
                is_binary(key) and Regex.match?(~r/\A[A-Za-z0-9_-]{32,}\z/, key) and
-               opts[:audience] in ["patchbay", "ash-template"],
+               opts[:audience] in ["patchbay", "keyfleet", "ash-template"] and
+               Harness.hosted() != [] and refusal_text?(Keyword.get(opts, :refusal, @refusal)),
              do:
                raise(
                  ArgumentError,
-                 "Hosted identity requires a fixed HTTPS signer, this site's hosted signing key and a known audience"
+                 "Hosted identity requires a fixed HTTPS signer, this site's hosted signing key, a known audience, " <>
+                   "at least one hosted runtime in `config :regent_agents, hosted_pairing:` and refusal words of 1 to 500 bytes"
                )
     end
 
@@ -47,6 +54,11 @@ defmodule RegentMCPAgents do
 
   def identity_scope, do: @identity_scope
   def posting_scope, do: @posting_scope
+
+  @doc "The words a refused tool call gives: the site's `refusal:` setting, or a plain default."
+  def refusal_text, do: Keyword.get(config(), :refusal, @refusal)
+
+  defp refusal_text?(text), do: is_binary(text) and byte_size(text) in 1..500
 
   @doc "Create or return this account's persistent signer, without pairing it."
   def register(principal) do
@@ -74,14 +86,27 @@ defmodule RegentMCPAgents do
     end
   end
 
-  @doc "Redeem only a code made by the authenticated account, using the hosted signer."
-  def pair(principal, %{"code" => code, "name" => name} = args)
-      when map_size(args) == 2 and is_binary(code) and byte_size(code) in 1..128 and
-             is_binary(name) do
+  @doc "Check in with a freshly SIWA-signed request, so the person sees the connection is active."
+  def check_in(principal) do
+    with :ok <- authority(principal, @identity_scope),
+         {:ok, %{"data" => data}} <-
+           perform(principal, %{"method" => "GET", "path" => "/api/agents/v1/me"}) do
+      {:ok, Map.put(data, "identity_id", connection_key(principal))}
+    end
+  end
+
+  @doc """
+  Redeem only a code made by the authenticated account, using the hosted signer,
+  as the connected app it names, one of the site's `RegentAgents.Harness.hosted/0`.
+  """
+  def pair(principal, %{"code" => code, "name" => name, "harness" => harness} = args)
+      when map_size(args) == 3 and is_binary(code) and byte_size(code) in 1..128 and
+             is_binary(name) and is_binary(harness) do
     with :ok <- authority(principal, @identity_scope),
          true <- String.length(name) in 1..100,
+         true <- harness in hosted_names(),
          :ok <- own_code(principal.subject, code),
-         body = Jason.encode!(%{code: code, name: name, harness: "chatgpt"}),
+         body = Jason.encode!(%{code: code, name: name, harness: harness}),
          {:ok, %{"data" => _data}} <-
            perform(principal, %{
              "method" => "POST",
@@ -127,6 +152,9 @@ defmodule RegentMCPAgents do
     :crypto.hash(:sha256, Jason.encode!(["regent-chatgpt-account-v1", audience, subject]))
     |> Base.encode16(case: :lower)
   end
+
+  @doc false
+  def hosted_names, do: Enum.map(Harness.hosted(), &Atom.to_string/1)
 
   defp config, do: Application.get_env(:regent_mcp_agents, :config, [])
 

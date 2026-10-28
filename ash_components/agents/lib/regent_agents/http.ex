@@ -54,10 +54,10 @@ defmodule RegentAgents.HTTP do
        "Ask your person to unpair an agent in the side panel on this site, then pair again. The same code works until it expires."},
     "agent_not_paired" =>
       {403, "This agent is not paired with an account.",
-       "Ask your person to sign in on this site and pair you with Pair New Agent in the side panel, then check in again."},
+       "Ask your person to sign in on this site and pair you with Pair New Agent in the side panel, then check in again. Help: https://patchbay.help/errors/agent_not_paired"},
     "person_not_here" =>
       {403, "The person this agent is paired with hasn't signed in on this site yet.",
-       "Ask your person to sign in on this site once, then check in again."},
+       "Ask your person to sign in on this site once, then check in again. Help: https://patchbay.help/errors/person_not_here"},
     "not_found" =>
       {404, "There is no such agent request.",
        "Agents see their status with GET /api/agents/v1/whoami, pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}

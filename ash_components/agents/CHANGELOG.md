@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- A check-in refused as `agent_not_paired` or `person_not_here` ends its hint
+  with a help page for that refusal, such as "Help:
+  https://patchbay.help/errors/agent_not_paired", so an agent can read what to do
+  next. Sites add the same line to their own signed-request refusals.
 - `RegentAgents.agents_paired_with(codes, actor: person)` names the agent each
   of the person's codes paired, by code; a code not yet used, or not the
   person's, is left out. Pairing stamps the agent's `paired_at` and the code's

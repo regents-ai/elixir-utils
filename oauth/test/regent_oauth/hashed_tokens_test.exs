@@ -91,6 +91,20 @@ defmodule RegentOAuth.HashedTokensTest do
     assert {:error, :unauthorized} = RegentOAuth.verify(access, RegentOAuth.resource())
   end
 
+  test "disconnecting an app revokes its access and refresh tokens, and leaves the person's other apps" do
+    {client_id, %{"access_token" => access, "refresh_token" => refresh}} =
+      Flow.sign_in!("did:privy:sol")
+
+    {_other, %{"access_token" => other}} = Flow.sign_in!("did:privy:sol")
+
+    assert {:ok, :ok} = RegentOAuth.revoke_client("did:privy:sol", client_id)
+
+    assert {:error, :unauthorized} = RegentOAuth.verify(access, RegentOAuth.resource())
+    assert Flow.refresh(client_id, refresh).status == 400
+    refute Enum.any?(RegentOAuth.connected_clients("did:privy:sol"), &(&1.id == client_id))
+    assert {:ok, _} = RegentOAuth.verify(other, RegentOAuth.resource())
+  end
+
   test "revoking with the plain refresh token disconnects the app" do
     {client_id, %{"access_token" => access, "refresh_token" => refresh}} =
       Flow.sign_in!("did:privy:sol")

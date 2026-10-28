@@ -5,6 +5,28 @@ defmodule RegentMCPAgents.Test.Repo do
   def default_prefix, do: "regent_mcp_agents_test"
 end
 
+defmodule RegentMCPAgents.Test.AgentsRepo do
+  @moduledoc "The repository the site hands `RegentAgents`, with Ash's database functions."
+  use AshPostgres.Repo, otp_app: :regent_mcp_agents, warn_on_missing_ash_functions?: false
+  def min_pg_version, do: %Version{major: 14, minor: 0, patch: 0}
+  def installed_extensions, do: ["ash-functions"]
+end
+
+defmodule RegentMCPAgents.Test.AgentsRepo.AshFunctions do
+  @moduledoc "Installs Ash's database functions in the test database, as a site's migrations do."
+  use Ecto.Migration
+
+  def up do
+    AshPostgres.MigrationGenerator.AshFunctions.install(nil)
+    |> Code.eval_string([], __ENV__)
+  end
+end
+
+defmodule RegentMCPAgents.Test.Accounts do
+  @moduledoc "How the test site names a person's account in a check-in; every person has signed in here."
+  def account(privy_user_id), do: %{display_name: "Person " <> privy_user_id}
+end
+
 defmodule RegentMCPAgents.Test.Site do
   @moduledoc "A site whose connector signs people in; every account is active."
   @behaviour RegentOAuth
@@ -59,6 +81,9 @@ defmodule RegentMCPAgents.Test.Limiter do
   end
 
   def keys, do: Agent.get(__MODULE__, &Map.keys/1)
+
+  @doc "Starts every key's count again."
+  def reset, do: Agent.update(__MODULE__, fn _counts -> %{} end)
 end
 
 defmodule RegentMCPAgents.Case do
@@ -75,10 +100,12 @@ defmodule RegentMCPAgents.Case do
 
   setup do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(RegentOAuth.Repo, shared: true)
+    agents = Ecto.Adapters.SQL.Sandbox.start_owner!(RegentMCPAgents.Test.AgentsRepo, shared: true)
     start_supervised!(RegentMCPAgents.Test.Limiter)
     Application.put_env(:regent_agents, :hosted_pairing, [:claude])
 
     on_exit(fn ->
+      Ecto.Adapters.SQL.Sandbox.stop_owner(agents)
       Ecto.Adapters.SQL.Sandbox.stop_owner(pid)
       Application.delete_env(:regent_agents, :hosted_pairing)
     end)
@@ -99,7 +126,13 @@ defmodule RegentMCPAgents.Case do
         )
 
   @doc "A live access token for `subject`, issued to a newly registered app."
-  def token!(subject) do
+  def token!(subject), do: connect!(subject).access
+
+  @doc """
+  Connects a newly registered app for `subject`: its client id, and the plain
+  access and refresh tokens it holds.
+  """
+  def connect!(subject) do
     register =
       conn(:post, "/oauth/register", %{
         "client_name" => "Claude",
@@ -115,7 +148,41 @@ defmodule RegentMCPAgents.Case do
         refresh_token: true
       )
 
-    token.value
+    %{client_id: client.id, access: token.value, refresh: token.refresh_token}
+  end
+
+  @doc "Refreshes an app's tokens through the token endpoint; answers the status and the answer."
+  def refresh(client_id, refresh_token) do
+    params = %{
+      "grant_type" => "refresh_token",
+      "client_id" => client_id,
+      "refresh_token" => refresh_token,
+      "resource" => RegentOAuth.resource()
+    }
+
+    conn =
+      conn(:post, "/oauth/token")
+      |> Map.merge(%{body_params: params, params: params})
+      |> RegentOAuth.Protocol.call(:token)
+
+    {conn.status, Jason.decode!(conn.resp_body)}
+  end
+
+  @doc "The client and access token behind `token`, as the OAuth provider verifies it."
+  def principal!(token) do
+    {:ok, principal} = RegentOAuth.verify(token, RegentOAuth.resource())
+    principal
+  end
+
+  @doc "A one-use pairing code made by `subject`'s account."
+  def code!(subject),
+    do: RegentAgents.issue_pairing_code!(actor: %RegentAgents.Person{privy_user_id: subject}).code
+
+  @doc "Calls one identity tool with `token` and answers its result."
+  def tool(token, name, arguments \\ %{}) do
+    # Each call starts a fresh budget; the budget has its own test.
+    RegentMCPAgents.Test.Limiter.reset()
+    json(mcp(rpc("tools/call", %{"name" => name, "arguments" => arguments}), token))["result"]
   end
 
   @doc "Sends one MCP request to the address, with `token` as its Bearer token when given."

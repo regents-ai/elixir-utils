@@ -87,8 +87,7 @@ defmodule RegentMCPAgents do
   @doc "Read the current pairing through a freshly SIWA-signed, non-awarding identity probe."
   def status(principal) do
     with :ok <- authority(principal, @identity_scope),
-         {:ok, %{"data" => data}} <-
-           perform(principal, %{"method" => "GET", "path" => "/api/agents/v1/whoami"}) do
+         {:ok, %{"data" => data}} <- perform(principal, :whoami) do
       {:ok,
        %{
          identity_id: connection_key(principal),
@@ -101,8 +100,7 @@ defmodule RegentMCPAgents do
   @doc "Check in with a freshly SIWA-signed request, so the person sees the connection is active."
   def check_in(principal) do
     with :ok <- authority(principal, @identity_scope),
-         {:ok, %{"data" => data}} <-
-           perform(principal, %{"method" => "GET", "path" => "/api/agents/v1/me"}) do
+         {:ok, %{"data" => data}} <- perform(principal, :check_in) do
       {:ok, Map.put(data, "identity_id", connection_key(principal))}
     end
   end
@@ -118,13 +116,8 @@ defmodule RegentMCPAgents do
          true <- String.length(name) in 1..100,
          true <- harness in hosted_names(),
          :ok <- own_code(principal.subject, code),
-         body = Jason.encode!(%{code: code, name: name, harness: harness}),
          {:ok, %{"data" => _data}} <-
-           perform(principal, %{
-             "method" => "POST",
-             "path" => "/api/agents/v1/pair",
-             "body" => body
-           }) do
+           perform(principal, {:pair, Jason.encode!(%{code: code, name: name, harness: harness})}) do
       {:ok, %{identity_id: connection_key(principal), paired: true, name: name}}
     else
       _ -> {:error, :pairing_refused}
@@ -146,7 +139,7 @@ defmodule RegentMCPAgents do
           params: %{name: name, arguments: arguments}
         })
 
-      perform(principal, %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body})
+      perform(principal, {:post, body})
     else
       _ -> {:error, :posting_refused}
     end
@@ -218,9 +211,28 @@ defmodule RegentMCPAgents do
     end
   end
 
-  defp perform(principal, request) do
-    required =
-      if request["path"] == "/chatgpt/agent/mcp", do: @posting_scope, else: @identity_scope
+  # The only requests the hosted signer is ever asked to sign, each for this
+  # account's one identity on this site: the identity probe, the check-in, the
+  # pairing and Patchbay's free posts, with the permission each needs. The
+  # method and path come from here alone; a tool's arguments reach only the
+  # pairing's and a post's body, which their own tools build.
+  defp signable(:whoami),
+    do: {@identity_scope, %{"method" => "GET", "path" => "/api/agents/v1/whoami"}}
+
+  defp signable(:check_in),
+    do: {@identity_scope, %{"method" => "GET", "path" => "/api/agents/v1/me"}}
+
+  defp signable({:pair, body}),
+    do: {@identity_scope, %{"method" => "POST", "path" => "/api/agents/v1/pair", "body" => body}}
+
+  defp signable({:post, body}),
+    do: {@posting_scope, %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body}}
+
+  # The connection's own Bearer token never leaves this site: the signer is
+  # asked with the site's hosted signing key, and the signed request carries
+  # only the headers the signer returned.
+  defp perform(principal, operation) do
+    {required, request} = signable(operation)
 
     with {:ok, envelope} <-
            signer_request(principal, %{"operation" => "sign", "request" => request}),

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- The requests the hosted signer may be asked to sign are one explicit list in
+  `RegentMCPAgents`: the identity probe (`GET whoami`), the check-in
+  (`GET me`), the pairing (`POST pair`) and Patchbay's free posts, each with
+  the permission it needs. A tool names one of them; no caller passes a method,
+  path or URL.
+- `hosted_identity_test.exs` runs the hosted identity end to end against the
+  site's own agent records, which the tests now migrate into
+  `regent_mcp_agents_test`: the pairing POST is verified with the exact body
+  the signer signed; a code from another account is refused before anything
+  is signed; only the identity requests are signed, for the account's one
+  identity, and the connection's Bearer token reaches neither the signer nor
+  the SIWA service; a reconnect or refresh keeps the one identity and makes no
+  second agent; only `check_in` moves the agent's last check-in (not ping, the
+  handshake, a refresh or `get_identity`); an unpaired connection is not paired
+  again by a check-in; and disconnecting the app refuses its next call and its
+  refresh token.
+
 - `send_signed/2`'s clauses sit together, so the package compiles with
   warnings as errors again.
 - The hosted identity requests answer a refused tool call, never a failed MCP

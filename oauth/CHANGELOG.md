@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A test disconnects one app with `RegentOAuth.revoke_client/2`: its access
+  token stops verifying, its refresh token is refused and it leaves the
+  connected apps list, while the person's other app stays connected.
+
 - The token tests read the provider's rows in the site's own schema, where they
   are, so the checks that no plain token is stored now look at real rows, and
   the reuse test covers both sides of the 30-second grace.

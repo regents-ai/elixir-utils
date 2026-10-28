@@ -217,6 +217,7 @@ defmodule RegentPayments.RecordsTest do
 
     %{
       payment_intent_id: intent.id,
+      paid_with: :usdc,
       payer_address: payer.wallet_address,
       network: intent.network,
       asset: intent.asset,

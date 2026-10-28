@@ -99,9 +99,16 @@ defmodule RegentPayments.PaymentIntent do
     end
 
     read :offered do
-      description "The actor's own intents of one kind whose terms still stand, newest first."
+      description "The actor's own intents of one kind whose terms still stand, or that are paid and not yet carried out, newest first."
       argument :kind, :atom, allow_nil?: false
-      filter expr(kind == ^arg(:kind) and expires_at > now())
+
+      # A paid intent stays on offer once its terms run out, so it is finished
+      # rather than paid for twice.
+      filter expr(
+               kind == ^arg(:kind) and
+                 (expires_at > now() or status in [:settlement_pending, :settled])
+             )
+
       prepare build(sort: [inserted_at: :desc])
     end
 

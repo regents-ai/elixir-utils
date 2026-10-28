@@ -4,8 +4,15 @@ config :regent_payments,
   repo: RegentPayments.TestRepo,
   site: "test",
   offers: [RegentPayments.Test.DirectOffer, RegentPayments.Test.PublishOffer],
+  credits_pay_to: ["0x" <> String.duplicate("b", 40)],
   payment_chain: %{name: "Base", rpc_url: "https://mainnet.base.org"},
   wallet_proof: [name: "Regent test", version: "1", endpoint: RegentPayments.Test.Endpoint]
+
+# Credits paying for an intent share its transaction, so they share its repository.
+config :regent_credits,
+  repo: RegentPayments.TestRepo,
+  agent_grants_enabled: true,
+  admins: []
 
 config :regent_payments, RegentPayments.TestRepo,
   hostname: "127.0.0.1",

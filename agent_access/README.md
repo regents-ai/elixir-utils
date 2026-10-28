@@ -39,6 +39,8 @@ With no `window.regentsSign` (an ordinary browser, or a host without the Regents
 signer), or when the signer refuses, `execute` rejects with `Refused` before
 anything is sent. Its `refusal` is `{code, message, hint}`; with no signer the code
 is `agent_auth_required` and the hint names `regents browser --site <audience>`.
+When the signer fails (the host went away) the code is `signer_unavailable`, and
+when the call is cancelled while the signer works it is `cancelled`; nothing is sent.
 Nothing unsigned is ever sent, and a browser sign-in never stands in for the agent.
 Other refusals before sending are plain `Error`s whose message is the reason, such
 as `missing_field:title`.

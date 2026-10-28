@@ -196,3 +196,22 @@ test('inputs outside the manifest are refused before the host signer is asked', 
     assert.equal(sent.length, 0)
   })
 })
+
+test('a signer that fails, or a call cancelled while it signs, sends nothing and says so', async () => {
+  await withHost(() => {throw new TypeError('Target closed')}, async (signed, sent) => {
+    const refused = await signedTools(config).execute('create', input).catch(error => error)
+    assert.ok(refused instanceof Refused)
+    assert.equal(refused.refusal.code, 'signer_unavailable')
+    assert.match(refused.refusal.hint!, /regents browser --site fixture/)
+    assert.equal(signed.length, 1)
+    assert.equal(sent.length, 0)
+  })
+  const controller = new AbortController()
+  await withHost(() => {controller.abort(); return {headers: proof}}, async (signed, sent) => {
+    const refused = await signedTools(config).execute('create', input, controller.signal).catch(error => error)
+    assert.ok(refused instanceof Refused)
+    assert.equal(refused.refusal.code, 'cancelled')
+    assert.equal(signed.length, 1)
+    assert.equal(sent.length, 0)
+  })
+})

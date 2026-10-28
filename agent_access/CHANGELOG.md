@@ -10,6 +10,9 @@
   refuses, nothing is sent and `execute` rejects with `Refused`
   (`agent_auth_required` names `regents browser --site <audience>`). A host moves
   to this shape in one step: register `{input}` tools and call `execute(name, input)`.
+  A signer that fails rejects with `Refused` `signer_unavailable`, and a call
+  cancelled while the signer works rejects with `Refused` `cancelled`; neither sends
+  anything, so a host never reports either as an unknown outcome.
 
 - `signedTools` takes a required `requestHeaders(operation)`: the host's own
   lowercase `x-` labels for each signed call, sent beside the proof and never part

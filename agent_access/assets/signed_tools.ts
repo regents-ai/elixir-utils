@@ -223,7 +223,21 @@ export function signedTools(config: {
   // Builds the exact request, has the host sign it, then sends those same bytes.
   async function execute(name: string, input: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
     const request = prepare(name, input)
-    const answer: unknown = await hostSigner()(request)
+    const sign = hostSigner()
+    let answer: unknown
+    try {
+      answer = await sign(request)
+    } catch {
+      throw new Refused({
+        code: "signer_unavailable",
+        message: "Your agent's signer stopped before signing, so nothing was sent.",
+        hint: `Open this site again through regents browser --site ${config.audience}, then call the tool again.`,
+      })
+    }
+    // A call cancelled while the signer worked sends nothing.
+    if (signal?.aborted) {
+      throw new Refused({code: "cancelled", message: "The call was cancelled before it was sent; nothing changed."})
+    }
     if (!plainObject(answer)) throw new Error("invalid_signer_answer")
     if (Object.hasOwn(answer, "error")) {
       const refusal = answer.error

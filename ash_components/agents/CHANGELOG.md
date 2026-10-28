@@ -9,6 +9,10 @@
   service refuses the key, or answers for another audience, the site logs an
   error and agents get 503 `siwa_request_failed` until the settings are fixed.
 
+- Pairing moves from the side panel to each site's Account page, so every refusal
+  hint and next step that sent a person to Pair New Agent "in the side panel" now
+  says "on their Account page" (`pairing_failed`, `agent_limit`, `agent_not_paired`
+  and the `not_paired` next step).
 - Claude pairs as a hosted runtime, like ChatGPT: a `claude` harness, and a
   pairing message that tells Claude to connect through the site's connector and
   pair with `pair_identity`, the name Claude and the harness `claude`.

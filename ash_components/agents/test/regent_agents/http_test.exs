@@ -37,7 +37,7 @@ defmodule RegentAgents.HTTPTest do
 
       send(
         self(),
-        {:verified, conn.request_path, Plug.Conn.get_req_header(conn, "x-siwa-audience"),
+        {:verified, conn.request_path, Plug.Conn.get_req_header(conn, "authorization"),
          Jason.decode!(body)}
       )
 
@@ -84,7 +84,8 @@ defmodule RegentAgents.HTTPTest do
     assert paired["human_backed"] == false
     assert paired["same_person_agent_count"] == nil
 
-    assert_received {:verified, "/api/shared/siwa/http-verify", ["test"], envelope}
+    assert_received {:verified, "/api/shared/siwa/http-verify", ["Bearer test-site-verify-key"],
+                     envelope}
 
     assert %{"method" => "POST", "path" => "/api/agents/v1/pair", "body_digest" => digest} =
              envelope
@@ -96,7 +97,7 @@ defmodule RegentAgents.HTTPTest do
     assert checked_in["wallet"] == @wallet
     assert checked_in["account"] == %{"display_name" => "Person did:privy:sol"}
 
-    assert_received {:verified, _path, _audience,
+    assert_received {:verified, _path, _authorization,
                      %{"method" => "GET", "path" => "/api/agents/v1/me"} = check_in}
 
     refute Map.has_key?(check_in, "body_digest")
@@ -166,7 +167,7 @@ defmodule RegentAgents.HTTPTest do
     assert error["code"] == "harness_unknown"
     assert error["hint"] =~ "claude_code"
     assert error["hint"] =~ "other"
-    refute_received {:verified, _path, _audience, _envelope}
+    refute_received {:verified, _path, _authorization, _envelope}
   end
 
   # Invariant: an agent's name shows on every Regent site, so a name holding a

@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- `config :regent_agents, siwa: [...]` takes `verify_key`, the site's own key
+  in the SIWA service's `SIWA_SITE_VERIFY_KEYS`. `RegentAgents.Broker` sends it
+  with every request it asks the service to check, and no longer sends
+  `x-siwa-audience`: the service takes the audience from the key.
+
 - Claude pairs as a hosted runtime, like ChatGPT: a `claude` harness, and a
   pairing message that tells Claude to connect through the site's connector and
   pair with `pair_identity`, the name Claude and the harness `claude`.

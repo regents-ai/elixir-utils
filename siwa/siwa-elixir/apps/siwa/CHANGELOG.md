@@ -4,6 +4,16 @@ All notable changes to `siwa` should be recorded here.
 
 ## Unreleased
 
+- `Siwa.AgentAuthPlug.BrokerClient` sends the site's own verify key as
+  `Authorization: Bearer <key>` (the new required `:site_key` option) and no
+  longer sends `x-siwa-audience`; the `:audience` option is gone. The sign-in
+  server takes the audience from the key, so a site's client passes its key
+  from the server's `SIWA_SITE_VERIFY_KEYS` and nothing else names the audience.
+  The `Siwa.AgentAuthPlug.Client` callback is now `verify_http_request/1`: the
+  plug passes only the payload, since the client's key names the audience. The
+  plug's own `:audience` option still checks leases and the principal. A site
+  must stage its key before the sign-in server that requires it goes live.
+
 - `Siwa.sign_request/4` signs a request on the agent's side, from the sign-in
   server's answer (receipt, `key_id`, wallet address and chain), without the
   receipt's secret. `Siwa.sign_authenticated_request/4` still checks the receipt

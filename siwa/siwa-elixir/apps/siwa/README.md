@@ -174,6 +174,18 @@ Siwa.AgentAuthPlug.call(conn,
 )
 ```
 
+`MyBroker` sends each request to the sign-in server through
+`Siwa.AgentAuthPlug.BrokerClient` with the site's own verify key, which names
+the audience the server checks it for:
+
+```elixir
+Siwa.AgentAuthPlug.BrokerClient.verify_http_request(payload,
+  http: MyHttp,
+  base_url: "https://siwa.regents.sh",
+  site_key: Application.fetch_env!(:my_site, :siwa_site_verify_key)
+)
+```
+
 The check on a lease (`Siwa.RequestAuth.verify_leased_request/3`) is the sign-in
 server's own, against the claims the server read, except for the receipt's
 secret: the exact receipt bytes, the audience, the lease's end, the signature

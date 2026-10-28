@@ -31,7 +31,9 @@ defmodule Siwa.Contract.Fixtures do
   @created 1_790_000_000
   @nonce "sig-nonce-fixture"
   @receipt_nonce "receipt-nonce-fixture"
-  @json_body ~s({"a":1})
+  # One key holds a precomposed é, so the refused cases below can change the
+  # body's bytes without changing what the JSON means.
+  @json_body ~s({"a":1,"b":"\u00E9"})
   @platform_signature_input ~s|sig1=("@method" "@path");created=1790000000;keyid="platform-bot"|
   @platform_signature "sig1=:" <> Base.encode64(:binary.copy(<<1>>, 64)) <> ":"
 
@@ -73,6 +75,12 @@ defmodule Siwa.Contract.Fixtures do
           "verifier",
           :content_digest_mismatch
         ),
+        body_bytes_case("body_spacing", json_body, ~s({"a": 1,"b":"\u00E9"})),
+        body_bytes_case("body_key_order", json_body, ~s({"b":"\u00E9","a":1})),
+        body_bytes_case("body_unicode_nfd", json_body, ~s({"a":1,"b":"e\u0301"})),
+        body_bytes_case("body_escaped_character", json_body, ~S({"a":1,"b":"\u00e9"})),
+        body_bytes_case("body_trailing_newline", json_body, @json_body <> "\n"),
+        body_bytes_case("body_trailing_nul", json_body, @json_body <> <<0>>),
         refused_case("wrong_audience", no_body, "verifier", :receipt_binding_mismatch,
           audience: "another-site"
         ),
@@ -257,6 +265,10 @@ defmodule Siwa.Contract.Fixtures do
       ] ++ server_answer(checked_by, reason) ++ Keyword.take(opts, [:audience, :sends])
     )
   end
+
+  # The same JSON in other bytes: the signature covers the exact body.
+  defp body_bytes_case(name, request, body),
+    do: refused_case(name, %{request | body: body}, "verifier", :content_digest_mismatch)
 
   defp server_answer("site_plug", _reason), do: []
 

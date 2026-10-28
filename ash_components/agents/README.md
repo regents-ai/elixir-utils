@@ -84,8 +84,16 @@ config :regent_agents,
     "person_not_here" => ["Read public pages and public tools."],
     "paired" => ["Read public pages and public tools.", "Read and write your person's notes."]
   },
-  siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
+  siwa: [
+    url: "https://siwa.regents.sh",
+    audience: "mysite",
+    verify_key: System.fetch_env!("SIWA_SITE_VERIFY_KEY")
+  ]
 ```
+
+`verify_key` is the site's own key in the SIWA service's
+`SIWA_SITE_VERIFY_KEYS`. It is sent with every signed request the site asks the
+service to check, and it names the one audience the service checks it for.
 
 A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT and Claude, the
 hosted runtimes, pair through the site's hosted connection (`regent_mcp_agents`)

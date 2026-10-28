@@ -101,14 +101,15 @@ defmodule Siwa.AgentAuthPlug do
     @moduledoc """
     Transport for the shared SIWA broker `http-verify` call.
 
-    `verify_http_request/2` receives the canonical payload map and
-    `audience:` in `opts`. It returns the broker response as
+    `verify_http_request/1` receives the canonical payload map. The client
+    presents this site's own verify key, and the key alone names the audience
+    the broker checks the request for. It returns the broker response as
     `{:ok, %{status: integer(), body: term()}}`, or `{:error, deny_meta}`
     (a map with `:reason`/`:source`) for configuration failures, or
     `{:error, term()}` for transport failures.
     """
 
-    @callback verify_http_request(payload :: map(), opts :: keyword()) ::
+    @callback verify_http_request(payload :: map()) ::
                 {:ok, %{status: integer(), body: term()}} | {:error, term()}
   end
 
@@ -390,7 +391,7 @@ defmodule Siwa.AgentAuthPlug do
     client = Keyword.fetch!(opts, :client)
     payload = conn |> http_verify_payload(headers, body_digest) |> Map.merge(extra)
 
-    case client.verify_http_request(payload, audience: Keyword.fetch!(opts, :audience)) do
+    case client.verify_http_request(payload) do
       {:ok,
        %{
          status: 200,

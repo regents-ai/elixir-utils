@@ -10,8 +10,8 @@ defmodule Siwa.AgentAuthPlugTest do
     @behaviour Siwa.AgentAuthPlug.Client
 
     @impl true
-    def verify_http_request(payload, opts) do
-      send(self(), {:verify_http_request, payload, opts})
+    def verify_http_request(payload) do
+      send(self(), {:verify_http_request, payload})
       Process.get(:client_response, {:ok, success_response()})
     end
 
@@ -79,7 +79,7 @@ defmodule Siwa.AgentAuthPlugTest do
 
     assert_received {:before_verify, %{"x-agent-wallet-address" => "0xabc"}}
 
-    assert_received {:verify_http_request, payload, audience: "testapp"}
+    assert_received {:verify_http_request, payload}
     assert payload["method"] == "POST"
     assert payload["path"] == "/v1/things"
     assert payload["body_digest"] == Siwa.content_digest_for_body(~s({"a":1}))
@@ -97,7 +97,7 @@ defmodule Siwa.AgentAuthPlugTest do
     |> put_req_header("authorization", "Bearer person")
     |> call()
 
-    assert_received {:verify_http_request, %{"headers" => headers}, _opts}
+    assert_received {:verify_http_request, %{"headers" => headers}}
     assert headers == %{"x-siwa-signature" => "sig1=:abc=:"}
   end
 
@@ -111,7 +111,7 @@ defmodule Siwa.AgentAuthPlugTest do
     assert conn.halted
     assert_received {:deny, %{reason: :duplicate_proof, source: :siwa_plug}}
     refute_received {:before_verify, _headers}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
   end
 
   test "signed_request? tells a signed agent request from a person's" do
@@ -129,10 +129,10 @@ defmodule Siwa.AgentAuthPlugTest do
   test "a query string is refused unless the site signs it as part of the path" do
     :get |> conn("/v1/things?cursor=2") |> call()
     assert_received {:deny, %{reason: :unsupported_query, source: :siwa_plug}}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
 
     :get |> conn("/v1/things?cursor=2") |> call(query: :signed)
-    assert_received {:verify_http_request, %{"path" => "/v1/things?cursor=2"}, _opts}
+    assert_received {:verify_http_request, %{"path" => "/v1/things?cursor=2"}}
   end
 
   test "a body the signature would not cover is refused before any hook" do
@@ -143,7 +143,7 @@ defmodule Siwa.AgentAuthPlugTest do
     assert_received {:deny, %{reason: :missing_signed_body, source: :siwa_plug}}
 
     refute_received {:before_verify, _headers}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
   end
 
   test "read_body keeps a signed body's exact bytes, and a body over the limit is refused" do
@@ -154,7 +154,7 @@ defmodule Siwa.AgentAuthPlugTest do
     |> call()
 
     digest = Siwa.content_digest_for_body(~s({"a": 1}))
-    assert_received {:verify_http_request, %{"body_digest" => ^digest}, _opts}
+    assert_received {:verify_http_request, %{"body_digest" => ^digest}}
 
     {:more, _chunk, conn} =
       :post |> conn("/v1/things", String.duplicate("a", 11)) |> AgentAuthPlug.read_body([], 10)
@@ -165,12 +165,12 @@ defmodule Siwa.AgentAuthPlugTest do
 
   test "the body digest is omitted without a captured raw body unless :always" do
     :post |> conn("/v1/things", "{}") |> call()
-    assert_received {:verify_http_request, payload, _opts}
+    assert_received {:verify_http_request, payload}
     refute Map.has_key?(payload, "body_digest")
 
     :post |> conn("/v1/things", "{}") |> call(body: :always)
     digest = Siwa.content_digest_for_body("")
-    assert_received {:verify_http_request, %{"body_digest" => ^digest}, _opts}
+    assert_received {:verify_http_request, %{"body_digest" => ^digest}}
   end
 
   test "before_verify errors deny without calling the client" do
@@ -184,7 +184,7 @@ defmodule Siwa.AgentAuthPlugTest do
     assert conn.halted
     assert conn.status == 401
     assert_received {:deny, %{reason: :missing_agent_headers, source: :request_headers}}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
   end
 
   test "non-200 broker responses deny with the broker's status, code, message and hint" do

@@ -1,9 +1,10 @@
 defmodule RegentPayments.Test.Actor do
   @moduledoc """
-  A signed-in profile as a site hands it to the library: its id, the wallet
-  it signed in with, and the door it came through.
+  A signed-in profile as a site hands it to the library: its id, the Privy
+  account it belongs to, the wallet it signed in with, and the door it came
+  through.
   """
-  defstruct [:id, :wallet_address, origin: :page]
+  defstruct [:id, :privy_user_id, :wallet_address, origin: :page]
 end
 
 defmodule RegentPayments.Test.AgentActor do
@@ -46,7 +47,7 @@ defmodule RegentPayments.Test.Terms do
          payload: %{"target_id" => target_id},
          recipient_snapshot: [%{"wallet_address" => pay_to}],
          effect_summary: "Pays #{RegentPayments.USDC.format(amount)} USDC to #{pay_to}.",
-         credits: Map.get(input, :credits, :accepted)
+         credits: Map.get(input, :credits, :refused)
        }}
     end
   end

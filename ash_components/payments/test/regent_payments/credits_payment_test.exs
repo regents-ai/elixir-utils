@@ -2,9 +2,10 @@ defmodule RegentPayments.CreditsPaymentTest do
   @moduledoc """
   Paying an intent in Regent Credits instead of USDC. The price is spent from
   the payer's Credits at one Credit per USDC, in the transaction that settles
-  the intent, and only once however often it is pressed. A refused spend
-  takes nothing and leaves the intent payable. No facilitator is involved, so
-  none is started.
+  the intent, and only once however often it is pressed. Only the payer's own
+  Credits pay, and only terms paid into a Regents wallet accept them. A
+  refused spend takes nothing and leaves the intent payable. No facilitator is
+  involved, so none is started.
   """
 
   use ExUnit.Case, async: false
@@ -23,7 +24,7 @@ defmodule RegentPayments.CreditsPaymentTest do
     :ok = Sandbox.checkout(TestRepo)
     Sandbox.mode(TestRepo, {:shared, self()})
     owner = "did:privy:" <> Ecto.UUID.generate()
-    payer = %Payer{id: Ecto.UUID.generate(), wallet_address: wallet()}
+    payer = %Payer{id: Ecto.UUID.generate(), privy_user_id: owner, wallet_address: wallet()}
     %{owner: owner, payer: payer, person: Actor.person(owner, [], "test")}
   end
 
@@ -55,6 +56,32 @@ defmodule RegentPayments.CreditsPaymentTest do
 
     assert Decimal.eq?(available(c.owner), 1)
     assert {:ok, %{status: :prepared, receipt: nil}} = Purchase.read(c.payer, intent.id)
+  end
+
+  test "only the payer's own Credits pay their intent", c do
+    other = "did:privy:" <> Ecto.UUID.generate()
+    fund(other, "0", "5")
+    intent = prepare(c.payer, 1_000_000)
+
+    assert {:error, _} =
+             Purchase.pay_with_credits(c.payer, intent.id, Actor.person(other, [], "test"), %{})
+
+    assert Decimal.eq?(available(other), 5)
+    assert {:ok, %{status: :prepared}} = Purchase.read(c.payer, intent.id)
+  end
+
+  test "terms paid into a wallet that isn't Regents' cannot accept Credits", c do
+    assert {:error, _} =
+             RegentPayments.prepare_payment_intent(
+               DirectOffer,
+               %{
+                 amount_atomic: 1_000_000,
+                 pay_to: wallet(),
+                 target_id: Ecto.UUID.generate(),
+                 credits: :accepted
+               },
+               actor: c.payer
+             )
   end
 
   test "terms that refuse Credits cannot be paid with them", c do

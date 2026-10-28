@@ -95,8 +95,9 @@ config :regent_agents,
 `verify_key` is the site's own key in the SIWA service's
 `SIWA_SITE_VERIFY_KEYS`. It is sent with every signed request the site asks the
 service to check, and it names the one audience the service checks it for.
-`audience` and `verify_key` name the same site: an answer made for any other
-audience is refused.
+`audience` and `verify_key` name the same site. If the service refuses the key,
+or answers for another audience, the site logs an error and agents are told the
+sign-in service could not be reached (503) until the settings are fixed.
 
 A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT and Claude, the
 hosted runtimes, pair through the site's hosted connection (`regent_mcp_agents`)

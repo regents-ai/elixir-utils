@@ -36,14 +36,19 @@ defmodule Siwa.AgentAuthPlug do
   `:siwa_hint`. Any other answer without a verdict, and a failed request, reach it
   as `:siwa_request_failed`.
 
+  Two answers mean the site's own settings are wrong, never the agent's request:
+  the service refusing the site's verify key (`site_verify_unauthorized`), and a
+  verdict whose principal names another audience than the plug's `:audience`.
+  Each is logged as an error and reaches `deny/2` as `:siwa_request_failed` with
+  `source: :siwa_config` and `:site_problem` (`:verify_key_refused` or
+  `:audience_mismatch`).
+
   Options (resolved at call time by the app plug):
 
     * `:client` — module implementing `Siwa.AgentAuthPlug.Client` (required)
     * `:hooks` — module implementing `Siwa.AgentAuthPlug.Hooks` (required)
     * `:audience` — this site's SIWA audience (required): the one its client's
-      verify key names. A verdict whose principal names another audience is
-      refused as `receipt_binding_mismatch` with `source: :siwa_plug`, and
-      leases are kept per audience.
+      verify key names. Leases are kept per audience.
     * `:query` — `:refuse` (default) or `:signed` (the query string is part of
       the signed path)
     * `:body` — `:if_present` (default: omit the payload `"body_digest"` when
@@ -91,14 +96,16 @@ defmodule Siwa.AgentAuthPlug do
 
   A site's body reader passes each signed route's body to `read_body/3`. Deny
   metadata is a map with `:reason` and `:source` plus optional detail keys (`:siwa_status`, `:siwa_code`,
-  `:siwa_message`, `:siwa_hint`, `:transport_error`, `:missing_headers`,
-  `:invalid_header`).
+  `:siwa_message`, `:siwa_hint`, `:transport_error`, `:site_problem`,
+  `:missing_headers`, `:invalid_header`).
   """
 
   @behaviour Plug
 
   alias Siwa.AgentAuthPlug.Leases
   alias Siwa.Contract
+
+  require Logger
 
   defmodule Client do
     @moduledoc """
@@ -403,6 +410,9 @@ defmodule Siwa.AgentAuthPlug do
       when is_map(data) ->
         verdict_for(data, Keyword.fetch!(opts, :audience))
 
+      {:ok, %{status: 401, body: %{"error" => %{"code" => "site_verify_unauthorized"}}}} ->
+        site_problem(:verify_key_refused)
+
       {:ok, %{status: status, body: body}} when status in 400..599 ->
         {:error, status_deny_meta(status, body)}
 
@@ -429,8 +439,16 @@ defmodule Siwa.AgentAuthPlug do
   defp verdict_for(%{"principal" => %{"audience" => audience}} = data, audience),
     do: {:ok, data}
 
-  defp verdict_for(_data, _audience),
-    do: {:error, refusal_meta(:receipt_binding_mismatch, :siwa_plug)}
+  defp verdict_for(_data, _audience), do: site_problem(:audience_mismatch)
+
+  defp site_problem(problem) do
+    Logger.error(
+      "SIWA agent check refused by this site's own settings (#{problem}): " <>
+        "the verify key and :audience must name this site at the sign-in server"
+    )
+
+    {:error, %{reason: :siwa_request_failed, source: :siwa_config, site_problem: problem}}
+  end
 
   defp http_verify_payload(conn, headers, body_digest) do
     payload = %{

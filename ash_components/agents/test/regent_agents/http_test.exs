@@ -255,10 +255,16 @@ defmodule RegentAgents.HTTPTest do
             }} = send_request(:get, "/api/agents/v1/me")
   end
 
-  test "a key verified for another site, or no answer from the SIWA service, pairs nothing" do
+  @tag :capture_log
+  test "a refused site key, an answer for another site, or no answer pairs nothing" do
     siwa_verifies(@wallet, "patchbay")
 
-    assert {401, %{"error" => %{"code" => "verification_failed"}}} =
+    assert {503, %{"error" => %{"code" => "siwa_request_failed"}}} =
+             send_request(:get, "/api/agents/v1/me")
+
+    siwa_refuses(401, "site_verify_unauthorized")
+
+    assert {503, %{"error" => %{"code" => "siwa_request_failed"}}} =
              send_request(:get, "/api/agents/v1/me")
 
     Req.Test.stub(RegentAgents.Broker, &Req.Test.transport_error(&1, :econnrefused))

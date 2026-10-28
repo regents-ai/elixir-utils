@@ -92,24 +92,35 @@ defmodule Siwa.AgentAuthPlugTest do
     assert_received {:accept, %{"agent_claims" => %{"token_id" => "77"}}, :context}
   end
 
-  test "a verdict made for another site's audience is refused before accept" do
-    for data <- [RecordingClient.verdict("othersite"), %{"agent_claims" => %{"token_id" => "77"}}] do
-      Process.put(
-        :client_response,
-        {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => data}}}
-      )
+  @tag :capture_log
+  test "a verdict for another audience, or a refused verify key, is the site's own fault" do
+    for {response, problem} <- [
+          {%{
+             status: 200,
+             body: %{
+               "code" => "http_envelope_valid",
+               "data" => RecordingClient.verdict("othersite")
+             }
+           }, :audience_mismatch},
+          {%{status: 200, body: %{"code" => "http_envelope_valid", "data" => %{}}},
+           :audience_mismatch},
+          {%{status: 401, body: %{"error" => %{"code" => "site_verify_unauthorized"}}},
+           :verify_key_refused}
+        ] do
+      Process.put(:client_response, {:ok, response})
 
       conn = :post |> conn("/v1/things", "{}") |> call()
 
       assert conn.halted
       refute_received {:accept, _data, _context}
 
-      assert_received {:deny,
-                       %{
-                         reason: :siwa_http_401,
-                         source: :siwa_plug,
-                         siwa_code: "receipt_binding_mismatch"
-                       }}
+      assert_received {:deny, deny_meta}
+
+      assert deny_meta == %{
+               reason: :siwa_request_failed,
+               source: :siwa_config,
+               site_problem: problem
+             }
     end
   end
 

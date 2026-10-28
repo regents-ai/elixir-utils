@@ -12,9 +12,11 @@ All notable changes to `siwa` should be recorded here.
   The `Siwa.AgentAuthPlug.Client` callback is now `verify_http_request/1`: the
   plug passes only the payload, since the client's key names the audience. The
   plug's own `:audience` option keys its leases and must be the audience the
-  key names: a verdict whose principal names another audience is refused as
-  `receipt_binding_mismatch` with `source: :siwa_plug`. A site must stage its
-  key before the sign-in server that requires it goes live.
+  key names. The service refusing the site's key (`site_verify_unauthorized`),
+  or a verdict whose principal names another audience, is logged as an error
+  and denied as `:siwa_request_failed` with `source: :siwa_config` and
+  `:site_problem`, since the site's settings are at fault, not the agent. A
+  site must stage its key before the sign-in server that requires it goes live.
 
 - `Siwa.sign_request/4` signs a request on the agent's side, from the sign-in
   server's answer (receipt, `key_id`, wallet address and chain), without the

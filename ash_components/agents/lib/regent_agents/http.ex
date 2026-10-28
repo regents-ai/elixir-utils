@@ -255,15 +255,12 @@ defmodule RegentAgents.HTTP do
     # saves both.
     @impl true
     def accept(conn, data, _context) do
-      audience = RegentAgents.Broker.audience()
-
       with %{
              "verified" => true,
              "principal" => %{
                "kind" => "wallet",
                "wallet_address" => "0x" <> _hex = wallet,
-               "chain_id" => @base_chain_id,
-               "audience" => ^audience
+               "chain_id" => @base_chain_id
              },
              "agentRegistration" => registration,
              "agentBook" => book

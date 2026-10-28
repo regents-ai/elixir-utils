@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- Claude, the connected app, is a hosted runtime beside ChatGPT. A site names
+  the hosted runtimes it serves in `hosted_pairing:` (such as `[:claude]`),
+  which replaces `chatgpt_pairing: true`; `Harness.hosted/0` lists them, and
+  Claude's pairing message tells it to pair through the site's connector. Every
+  other agent's message is unchanged. (A branch for Keyfleet's Claude connector
+  on this release, without the shared key-folder lines that came after it.)
 - `PairingMessage.text/4` takes options: `start:`, the page a pairing link names
   (a path on the same site), ends the message "Once paired, start at <page>", so
   an agent brought to one project begins there (the template's /pair?to=<path>);

@@ -13,6 +13,7 @@ defmodule RegentAgents.Harness do
       claude_code: [label: "Claude Code"],
       codex: [label: "Codex"],
       chatgpt: [label: "ChatGPT"],
+      claude: [label: "Claude"],
       cursor: [label: "Cursor"],
       gemini_cli: [label: "Gemini CLI"],
       dots: [label: "Dots"],
@@ -40,13 +41,21 @@ defmodule RegentAgents.Harness do
     ]
 
   @doc """
-  The agents a site's pairing box offers. ChatGPT pairs through a connected plugin
-  and identity tools that only some sites serve, so it is offered only where the
-  site sets `config :regent_agents, chatgpt_pairing: true`.
+  The hosted runtimes: apps that pair through a site's hosted connection
+  (`regent_mcp_agents`) rather than a key of their own.
   """
-  def offered do
-    if Application.get_env(:regent_agents, :chatgpt_pairing, false),
-      do: values(),
-      else: values() -- [:chatgpt]
+  def hosted_runtimes, do: [:chatgpt, :claude]
+
+  @doc """
+  The hosted runtimes this site offers, from
+  `config :regent_agents, hosted_pairing: [:claude]`. A site lists only the apps
+  whose connection it serves, so switching on Claude does not offer ChatGPT.
+  """
+  def hosted do
+    configured = Application.get_env(:regent_agents, :hosted_pairing, [])
+    Enum.filter(hosted_runtimes(), &(&1 in configured))
   end
+
+  @doc "The agents a site's pairing box offers: every agent but the hosted runtimes it does not serve."
+  def offered, do: values() -- (hosted_runtimes() -- hosted())
 end

@@ -87,10 +87,11 @@ config :regent_agents,
   siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
 ```
 
-A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT pairs through a
-connected plugin and the `register_identity`, `get_identity` and `pair_identity`
-tools, so it is listed, and the pair request accepts it, only on a site that
-serves them and sets `chatgpt_pairing: true` here.
+A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT and Claude, the
+hosted runtimes, pair through a site's hosted connection (`regent_mcp_agents`)
+and its `register_identity`, `get_identity` and `pair_identity` tools, so each is
+listed, and the pair request accepts it, only on a site that serves it and names
+it here: `hosted_pairing: [:claude]`.
 
 Mount the requests behind the site's own rate limit (Regents allows 10
 pair requests and 60 check-ins a minute from one address). Mount them outside

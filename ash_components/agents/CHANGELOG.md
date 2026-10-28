@@ -2,6 +2,17 @@
 
 ## 0.1.0 (unreleased)
 
+- Claude pairs as a hosted runtime, like ChatGPT: a `claude` harness, and a
+  pairing message that tells Claude to connect through the site's connector and
+  pair with `pair_identity`, the name Claude and the harness `claude`.
+  ChatGPT's message now names its harness the same way.
+- `config :regent_agents, hosted_pairing: [...]` lists the hosted runtimes a
+  site serves (`RegentAgents.Harness.hosted/0`, from `hosted_runtimes/0`:
+  `chatgpt` and `claude`), replacing `chatgpt_pairing: true`. The pairing box
+  (`Harness.offered/0`), the pair request and its `harness_unknown` hint offer
+  only those, so a site that switches on Claude does not also offer ChatGPT. A
+  site that set `chatgpt_pairing: true` sets `hosted_pairing: [:chatgpt]`.
+
 - `RegentAgents.agents_paired_with(codes, actor: person)` names the agent each
   of the person's codes paired, by code; a code not yet used, or not the
   person's, is left out. Pairing stamps the agent's `paired_at` and the code's

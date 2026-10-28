@@ -29,9 +29,10 @@ defmodule RegentAgents.PairingMessageTest do
 
   # Sean 27 Oct 2026 (AGENT-KEY-HOME a): agents sharing one computer each keep
   # their own key, so each pairs as a separate agent.
-  test "every agent but ChatGPT keeps its key in its own runtime's folder, before the site's lines" do
+  test "every agent but the hosted runtimes keeps its key in its own runtime's folder, before the site's lines" do
     homes =
-      for harness <- [nil | RegentAgents.Harness.values()], harness != :chatgpt do
+      for harness <- [nil | RegentAgents.Harness.values()],
+          harness not in RegentAgents.Harness.hosted_runtimes() do
         lines =
           "ABCD-1234"
           |> PairingMessage.text("https://keyfleet.ai", harness,
@@ -66,12 +67,14 @@ defmodule RegentAgents.PairingMessageTest do
     assert homes[nil] == homes[:other]
     refute homes[:other] in named
 
-    refute PairingMessage.text("ABCD-1234", "https://patchbay.sh", :chatgpt) =~
-             "SIWA_AGENT_HOME"
+    for harness <- RegentAgents.Harness.hosted_runtimes() do
+      refute PairingMessage.text("ABCD-1234", "https://patchbay.sh", harness) =~
+               "SIWA_AGENT_HOME"
+    end
   end
 
   test "a pairing link's page is where the agent starts once paired" do
-    for harness <- [:codex, :other, :chatgpt] do
+    for harness <- [:codex, :other, :chatgpt, :claude] do
       message =
         PairingMessage.text("ABCD-1234", "https://keyfleet.ai", harness, start: "/classic/1")
 
@@ -81,7 +84,7 @@ defmodule RegentAgents.PairingMessageTest do
   end
 
   test "the site's own lines come after the pairing lines and before the start line" do
-    for harness <- [:muse, :other, :chatgpt] do
+    for harness <- [:muse, :other, :chatgpt, :claude] do
       lines =
         "ABCD-1234"
         |> PairingMessage.text("https://keyfleet.ai", harness,
@@ -112,5 +115,18 @@ defmodule RegentAgents.PairingMessageTest do
              ~r/\AConnect ChatGPT to my existing Regents Labs account on patchbay.sh using/
 
     assert message =~ "My account page is https://patchbay.sh/account."
+  end
+
+  test "Claude connects through the site's connector and pairs as the claude harness" do
+    message = PairingMessage.text("ABCD-1234", "https://keyfleet.ai", :claude)
+
+    assert message =~
+             ~r/\AConnect Claude to my existing Regents Labs account on keyfleet.ai using this site's connector\.\n/
+
+    assert message =~
+             "pair_identity with this one-use code, the name Claude and the harness claude."
+
+    assert message =~ "Pairing code: ABCD-1234\n"
+    assert message =~ "If the connector's identity tools are unavailable"
   end
 end

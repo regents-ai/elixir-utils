@@ -15,15 +15,21 @@ defmodule RegentPayments.Offer do
   by the intent's `kind`, which is the offer's `c:kind/0`.
 
   Every offer is paid to the wallet its terms name. The payer's wallet pays
-  that wallet directly; Regents never holds the money.
+  that wallet directly; Regents never holds the money. When the terms accept
+  Regent Credits, the payer may pay the same amount in Credits instead
+  (`RegentPayments.Purchase.pay_with_credits/4`), and the Credits are spent
+  as revenue, as for anything else Credits buy. An offer accepts Credits only
+  when its money ends with Regents, such as a paid fix whose fee goes to
+  REGENT staking, never when it pays another person's wallet.
   """
 
   @typedoc """
   The terms of one payment, frozen when the intent is prepared and never
   rewritten: how much, which wallet receives it, what the money is for
   (`target_id`), the offer's own record of the effect (`payload`, which the
-  library completes with `pay_to_address` and `amount_atomic`), who is paid,
-  and the sentence the payer is shown.
+  library completes with `pay_to_address`, `amount_atomic` and `credits`), who
+  is paid, the sentence the payer is shown, and whether Credits may pay it
+  (`credits`: `:accepted` only when the money ends with Regents).
   """
   @type terms :: %{
           required(:amount_atomic) => pos_integer(),
@@ -31,7 +37,8 @@ defmodule RegentPayments.Offer do
           required(:target_id) => Ash.UUID.t(),
           required(:payload) => %{String.t() => term()},
           required(:recipient_snapshot) => [map()],
-          required(:effect_summary) => String.t()
+          required(:effect_summary) => String.t(),
+          required(:credits) => :accepted | :refused
         }
 
   @doc "The kind of payment this offer makes, as the intent records it. Unique per site."

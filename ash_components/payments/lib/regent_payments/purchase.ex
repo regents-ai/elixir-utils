@@ -13,10 +13,13 @@ defmodule RegentPayments.Purchase do
   time, never from the request. The intent is settled at most once, and
   reading it back never pays.
 
-  The money never passes through Regents. The payer's wallet pays the wallet
-  the terms name, the facilitator verifies and settles it, and what is stored
-  is the record of what was promised and what happened. What the money bought
-  is then carried out by the site's offer (`c:RegentPayments.Offer.carry_out/4`).
+  USDC never passes through Regents. The payer's wallet pays the wallet the
+  terms name, the facilitator verifies and settles it, and what is stored is
+  the record of what was promised and what happened. When the terms accept
+  Regent Credits, the payer may pay the same amount in Credits instead
+  (`pay_with_credits/4`). What the payment bought is then carried out by the
+  site's offer (`c:RegentPayments.Offer.carry_out/4`), the same way whichever
+  way it was paid.
 
   A short row lock commits the settlement attempt before the facilitator is
   asked. A crash leaves the intent marked `settlement_pending` for a person to
@@ -68,6 +71,7 @@ defmodule RegentPayments.Purchase do
           | {:settlement_pending, PaymentIntent.t()}
           | {:expired, PaymentIntent.t()}
           | {:facilitator_unavailable, PaymentIntent.t(), String.t()}
+          | {:credits_refused, PaymentIntent.t(), String.t()}
           | {:error, term()}
 
   # Preparing a payment
@@ -207,6 +211,159 @@ defmodule RegentPayments.Purchase do
   end
 
   def complete(_, _, _), do: AgentAuthority.refused()
+
+  # Paying with Credits
+
+  @doc """
+  Pays `actor`'s intent `id` in Regent Credits instead of USDC, when its
+  frozen terms accept them. `credits` is the `RegentCredits.Actor` the site
+  built from the same sign-in as `actor`: the person themself, or, for an
+  intent a paired agent prepared, that agent spending its person's Credits
+  within the limits they set, under the pairing frozen with the terms. One
+  USDC of the price is one Credit, to the millionth, so nothing is rounded.
+
+  It all happens in one transaction under the intent's row lock: the Credits
+  are held and charged, the receipt is written and the intent is marked
+  settled, or none of it is. What the payment bought is then carried out
+  exactly as for USDC. A payment already settled, settling or applied is
+  answered as it stands and spends nothing, so a repeated press pays once.
+  Credits that fall short, or a spend the person's limits for their agent do
+  not allow, answer `{:credits_refused, intent, words}` and spend nothing.
+  """
+  @spec pay_with_credits(struct(), String.t(), RegentCredits.Actor.t(), map()) :: answer()
+  def pay_with_credits(actor, id, credits, context) do
+    attempt = fn ->
+      case intent(actor, id, &RegentPayments.lock_payment_intent/2) do
+        {:ok, found} -> with_credits(actor, found, credits)
+        {:error, failure} -> {:error, failure}
+      end
+    end
+
+    case Ash.transact([PaymentIntent, PaymentReceipt], attempt) do
+      {:ok, {:carry_out, found}} ->
+        with {:ok, completion} <- completion_actor(actor, found) do
+          carried_out(completion, found.id, %{context: context})
+        end
+
+      {:ok, answer} ->
+        answer
+
+      {:error, failure} ->
+        refused_with_credits(actor, id, failure)
+    end
+  end
+
+  # A refused hold undoes the transaction it was asked in, so the refusal is
+  # answered with the intent as it stands once that transaction has ended.
+  defp refused_with_credits(actor, id, failure) do
+    with {:refused, words} <- credits_refusal(failure),
+         {:ok, found} <- read(actor, id) do
+      {:credits_refused, found, words}
+    end
+  end
+
+  defp with_credits(actor, %{status: status} = found, _credits)
+       when status in [:applied, :settled, :settlement_pending],
+       do: advance(actor, found, %{})
+
+  defp with_credits(actor, found, credits) do
+    cond do
+      DateTime.before?(found.expires_at, DateTime.utc_now()) ->
+        expire(actor, found)
+
+      found.payload["credits"] != "accepted" ->
+        {:credits_refused, found, "This payment can't be paid with Credits."}
+
+      true ->
+        spend_credits(actor, found, credits)
+    end
+  end
+
+  # The Credits are held, charged and receipted before the intent is marked
+  # settled, all or nothing.
+  defp spend_credits(actor, found, credits) do
+    key = "payment:#{found.id}"
+
+    with :ok <- credits_payer(found, credits),
+         :ok <- hold_credits(key, found, credits),
+         {:ok, pending} <- Steps.step(found, :mark_settlement_pending, actor),
+         {:ok, hold} <-
+           RegentCredits.charge(key, actor: RegentCredits.Actor.site(RegentPayments.site())),
+         {:ok, _receipt} <- record_credits_receipt(actor, pending, hold),
+         {:ok, settled} <- Steps.step(pending, :mark_settled, actor) do
+      {:carry_out, settled}
+    end
+  end
+
+  # The Credits actor is the payer the terms were frozen for: a person for a
+  # person's intent, and for an agent's the same agent, person and pairing.
+  defp credits_payer(found, credits) do
+    with {:ok, stored} <- AgentAuthority.snapshot(found) do
+      if credits.site == RegentPayments.site() and same_payer?(stored, credits),
+        do: :ok,
+        else: AgentAuthority.refused()
+    end
+  end
+
+  defp same_payer?(nil, %{role: :person}), do: true
+
+  defp same_payer?(%{} = stored, %{role: :agent} = credits) do
+    credits.pairing_id == stored["pairing_id"] and
+      credits.privy_user_id == stored["privy_user_id"] and
+      credits.agent_address == stored["wallet_address"]
+  end
+
+  defp same_payer?(_stored, _credits), do: false
+
+  defp hold_credits(key, found, credits) do
+    amount = Decimal.new(1, found.amount_atomic, -6)
+
+    case RegentCredits.hold(key, credits.privy_user_id, amount, Atom.to_string(found.kind),
+           actor: credits
+         ) do
+      {:ok, %{status: :held}} -> :ok
+      {:ok, _closed} -> {:error, RegentCredits.Errors.Refused.exception(reason: :key_reused)}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp credits_refusal(%RegentCredits.Errors.NotEnoughCredits{} = short),
+    do: {:refused, Exception.message(short)}
+
+  defp credits_refusal(%RegentCredits.Errors.Refused{reason: reason} = error) do
+    case agent_refusal(reason) do
+      nil -> {:error, error}
+      words -> {:refused, words}
+    end
+  end
+
+  defp credits_refusal(error), do: {:error, error}
+
+  defp agent_refusal(:agent_off), do: "Your person hasn't let you spend their Credits."
+
+  defp agent_refusal(:agent_site),
+    do: "Your person hasn't let you spend their Credits on this site."
+
+  defp agent_refusal(:agent_max_per_spend),
+    do: "This is more than your person lets you spend at once."
+
+  defp agent_refusal(:agent_daily_limit),
+    do: "This would go over the daily limit your person set for you."
+
+  defp agent_refusal(_reason), do: nil
+
+  defp record_credits_receipt(actor, found, hold) do
+    Steps.record_receipt(
+      %{
+        payment_intent_id: found.id,
+        paid_with: :credits,
+        amount_atomic: found.amount_atomic,
+        payment_response: %{"credits_hold" => hold.id},
+        settled_at: DateTime.utc_now()
+      },
+      actor
+    )
+  end
 
   # A refusal is an answer, and the status it wrote down travels out with it.
   # Only a write that genuinely failed undoes the transaction.
@@ -537,6 +694,7 @@ defmodule RegentPayments.Purchase do
     Steps.record_receipt(
       %{
         payment_intent_id: found.id,
+        paid_with: :usdc,
         payer_address: get_in(payment, ["payload", "authorization", "from"]),
         network: found.network,
         asset: found.asset,
@@ -632,10 +790,11 @@ defmodule RegentPayments.Purchase do
     }
   end
 
-  @doc "What was paid and when, as the receipt records it."
+  @doc "How and when it was paid, as the receipt records it."
   @spec receipt_payload(PaymentReceipt.t()) :: map()
   def receipt_payload(receipt) do
     %{
+      paid_with: receipt.paid_with,
       transaction_hash: receipt.transaction_hash,
       payer_address: receipt.payer_address,
       settled_at: receipt.settled_at

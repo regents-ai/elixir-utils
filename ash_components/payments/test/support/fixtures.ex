@@ -30,12 +30,13 @@ end
 defmodule RegentPayments.Test.Terms do
   @moduledoc """
   The terms both test offers freeze: an amount between 0.01 and 100 USDC,
-  paid to the wallet named, for the target named.
+  paid to the wallet named, for the target named, with Credits accepted
+  unless the input refuses them.
   """
 
   alias RegentPayments.Offer
 
-  def freeze(%{amount_atomic: amount, pay_to: pay_to, target_id: target_id}) do
+  def freeze(%{amount_atomic: amount, pay_to: pay_to, target_id: target_id} = input) do
     with :ok <- Offer.amount_between(amount, 10_000, 100_000_000) do
       {:ok,
        %{
@@ -44,7 +45,8 @@ defmodule RegentPayments.Test.Terms do
          target_id: target_id,
          payload: %{"target_id" => target_id},
          recipient_snapshot: [%{"wallet_address" => pay_to}],
-         effect_summary: "Pays #{RegentPayments.USDC.format(amount)} USDC to #{pay_to}."
+         effect_summary: "Pays #{RegentPayments.USDC.format(amount)} USDC to #{pay_to}.",
+         credits: Map.get(input, :credits, :accepted)
        }}
     end
   end

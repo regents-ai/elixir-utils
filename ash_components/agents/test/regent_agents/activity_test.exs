@@ -1,5 +1,5 @@
 defmodule RegentAgents.ActivityTest do
-  # The SIWA service's answer decides what the side panel shows for an agent; an
+  # The SIWA service's answer decides what the account menu shows for an agent; an
   # answer in an unexpected shape once closed the page that asked. Agreed with Sean,
   # 16 Oct 2026, as the one check on how activity is read.
   use ExUnit.Case, async: false

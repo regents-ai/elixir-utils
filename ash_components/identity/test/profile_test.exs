@@ -63,6 +63,15 @@ defmodule RegentIdentity.ProfileTest do
                actor: actor("someone-else")
              )
              |> Ash.read_one()
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             RegentIdentity.Profile
+             |> Ash.Query.for_read(
+               :names,
+               %{app_id: actor.app_id, privy_user_ids: [actor.privy_user_id]},
+               actor: actor("someone-else")
+             )
+             |> Ash.read()
   end
 
   test "X proof is private and immutable subject owns mutable handle", %{actor: actor} do

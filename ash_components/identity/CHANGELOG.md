@@ -6,8 +6,9 @@
   they have none and leaves an existing one as it is. `RegentIdentity.profile_id/2`
   reads a person's profile ID by app and Privy user, for a server acting for them
   without their session (a paired agent paying for its person). The `:person`
-  read behind it is closed to every actor, so no signed-in person or agent can
-  look another's profile up through it.
+  read behind it and the `:names` read behind `RegentIdentity.ProfileName` are
+  closed to every actor, so no signed-in person or agent can read another's
+  profile through them.
 
 - jose 1.11.13 in the lock, which fixes the eight jose advisories of 26 Oct
   (EEF-CVE-2026-65625 to -65632, one high).

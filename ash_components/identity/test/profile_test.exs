@@ -41,6 +41,20 @@ defmodule RegentIdentity.ProfileTest do
     assert {:error, _} = Identity.get_my_profile()
   end
 
+  test "sign-in gives a person a profile once and leaves an existing one as it is", %{
+    actor: actor
+  } do
+    assert {:ok, nil} = Identity.profile_id(actor.app_id, actor.privy_user_id)
+    assert {:ok, made} = Identity.ensure(actor)
+    assert {:ok, made.id} == Identity.profile_id(actor.app_id, actor.privy_user_id)
+
+    older = %{actor | issued_at: actor.issued_at - 5, wallet_addresses: [@other_wallet]}
+    assert {:ok, kept} = Identity.ensure(older)
+    assert kept.id == made.id
+    assert kept.wallet_addresses == [@wallet]
+    assert {:ok, nil} = Identity.profile_id("another-app", actor.privy_user_id)
+  end
+
   test "X proof is private and immutable subject owns mutable handle", %{actor: actor} do
     x = %{provider: :x, subject: "x-123", username: "old", display_name: "Name"}
     actor = %{actor | linked_socials: [x], wallet_addresses: [], wallet_address: nil}

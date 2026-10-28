@@ -3,8 +3,8 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
-import {signedTools} from './signed_tools.ts'
-import type {SignedOperation} from './signed_tools.ts'
+import {signedTools, Refused} from './signed_tools.ts'
+import type {SignedOperation, PreparedRequest, HostSigner} from './signed_tools.ts'
 
 const protocol = JSON.parse(readFileSync(new URL('../../siwa/contract/contract.json', import.meta.url), 'utf8'))
 const config: Parameters<typeof signedTools>[0] = {
@@ -37,104 +37,181 @@ const report = {arguments: {filters: ['open', 2, true, null, {label: 'café'}]},
 const rawBody = ' \n{ "text": "café\\n", "tags": [true, null, 3.25] } \t'
 const atLimit = '{"text":"' + 'é'.repeat(1_048_570) + 'a' + '"}'
 
-test('exact prepared bytes are forwarded once without cookies or unrelated authority headers', async () => {
+type Sent = {url: string; options: RequestInit}
+const host = globalThis as {regentsSign?: HostSigner}
+
+// A host signer that records what it was asked to sign and answers `answer`.
+async function withHost(answer: (prepared: PreparedRequest) => unknown,
+  run: (signed: PreparedRequest[], sent: Sent[]) => Promise<void>) {
   const previous = globalThis.fetch
-  const sent: {url: string; options: RequestInit}[] = []
+  const signed: PreparedRequest[] = []
+  const sent: Sent[] = []
   globalThis.fetch = async (url, options) => {sent.push({url: String(url), options: options!}); return new Response('{}')}
-  try {
+  host.regentsSign = async prepared => {signed.push(prepared); return answer(prepared) as never}
+  try { await run(signed, sent) } finally { globalThis.fetch = previous; delete host.regentsSign }
+}
+
+test('the host signs the exact request once and those bytes are sent without cookies', async () => {
+  await withHost(() => ({headers: {...proof, cookie: 'ignored', authorization: 'ignored', 'x-trace': 'harmless'}}), async (signed, sent) => {
     const tools = signedTools(config)
-    const request = tools.prepare('create', input)
-    assert.equal(Object.isFrozen(request), true)
-    assert.equal(sent.length, 0)
-    await tools.execute('create', {input, request, proof: {...proof, cookie: 'ignored', authorization: 'ignored', 'x-trace': 'harmless'}})
+    await tools.execute('create', input)
+    assert.equal(signed.length, 1)
+    assert.equal(Object.isFrozen(signed[0]), true)
+    assert.deepEqual({...signed[0]}, {operation: 'create', audience: 'fixture', origin: 'https://example.test',
+      method: 'POST', path: '/tools/notes', body: JSON.stringify(input)})
     assert.equal(sent.length, 1)
     assert.equal(sent[0].url, 'https://example.test/tools/notes')
-    assert.equal(sent[0].options.body, request.body)
+    assert.equal(sent[0].options.body, signed[0].body)
     assert.equal(sent[0].options.credentials, 'omit')
     assert.equal(sent[0].options.redirect, 'error')
-    assert.equal((sent[0].options.headers as Record<string, string>).authorization, undefined)
-    assert.equal((sent[0].options.headers as Record<string, string>).cookie, undefined)
-    assert.equal((sent[0].options.headers as Record<string, string>)['x-regent-client'], 'webmcp/create')
+    const headers = sent[0].options.headers as Record<string, string>
+    assert.equal(headers.authorization, undefined)
+    assert.equal(headers.cookie, undefined)
+    assert.equal(headers['x-trace'], undefined)
+    assert.equal(headers['x-regent-client'], 'webmcp/create')
+    for (const header of config.proofHeaders) assert.equal(headers[header], 'fixture-not-a-signature')
     for (const [name, values] of [['poll', poll], ['report', report]] as const) {
-      const prepared = tools.prepare(name, values)
-      await tools.execute(name, {input: values, request: prepared, proof})
-      assert.equal(sent.at(-1)!.options.body, prepared.body)
+      await tools.execute(name, values)
+      assert.equal(sent.at(-1)!.options.body, signed.at(-1)!.body)
       const {id: _id, ...expectedBody} = values as Record<string, unknown>
-      assert.deepEqual(JSON.parse(prepared.body!), expectedBody)
+      assert.deepEqual(JSON.parse(signed.at(-1)!.body!), expectedBody)
     }
     assert.equal(sent[1].url, 'https://example.test/tools/fleets/a%20fleet/polls')
     assert.equal(new TextEncoder().encode(atLimit).length, 2097152)
     const manyFiles = JSON.stringify({files: Array.from({length: 101}, (_, id) => ({id})),
       metadata: Object.fromEntries(Array.from({length: 101}, (_, id) => [String(id), true]))})
     for (const raw_body of [rawBody, atLimit, manyFiles]) {
-      const values = {raw_body}
-      const prepared = tools.prepare('raw', values)
-      assert.equal(prepared.body, raw_body)
-      await tools.execute('raw', {input: values, request: prepared, proof: {...proof, 'x-publication-title': 'ignored'}})
+      await tools.execute('raw', {raw_body})
+      assert.equal(signed.at(-1)!.body, raw_body)
       assert.equal(sent.at(-1)!.options.body, raw_body)
-      assert.equal((sent.at(-1)!.options.headers as Record<string, string>)['x-publication-title'], undefined)
     }
-    assert.equal(sent.length, 6)
-  } finally { globalThis.fetch = previous }
+    const read = {...proof}
+    delete read['content-digest']
+    host.regentsSign = async prepared => {signed.push(prepared); return {headers: read}}
+    await tools.execute('read', {id: 'a/b'})
+    assert.equal(signed.at(-1)!.body, undefined)
+    assert.equal(sent.at(-1)!.url, 'https://example.test/tools/notes/a%2Fb')
+    assert.equal(sent.at(-1)!.options.method, 'GET')
+    assert.equal(sent.length, 7)
+  })
 })
 
-test('changed bytes, operation, origin, path and ambiguous proofs fail before sending', async () => {
+test('with no host signer nothing is sent and the agent is told how to sign', async () => {
   const previous = globalThis.fetch
   globalThis.fetch = async () => {throw new Error('must not send')}
   try {
-    const tools = signedTools(config)
-    const request = tools.prepare('create', input)
-    for (const alteration of [{body: '{}'}, {method: 'GET'}, {origin: 'https://evil.test'},
-      {path: '/other'}, {operation: 'read'}, {extra: 'not allowed'}]) {
-      await assert.rejects(tools.execute('create', {input, request: {...request, ...alteration}, proof}), /prepared_request_mismatch/)
-    }
-    await assert.rejects(tools.execute('create', {input, request, proof: {...proof, 'X-SIWA-SIGNATURE': 'duplicate'}}), /invalid_proof/)
-    await assert.rejects(tools.execute('create', {input, request, proof: {}}), /incomplete_proof/)
+    delete host.regentsSign
+    const refused = await signedTools(config).execute('create', input).catch(error => error)
+    assert.ok(refused instanceof Refused)
+    assert.equal(refused.refusal.code, 'agent_auth_required')
+    assert.match(refused.refusal.hint!, /regents browser --site fixture/)
+  } finally { globalThis.fetch = previous }
+})
+
+test('a refusal or an incomplete proof from the host signer sends nothing', async () => {
+  const refusal = {code: 'invocation_not_found', message: 'No call is waiting for this request.', hint: 'Call the tool again.'}
+  await withHost(() => ({error: refusal}), async (signed, sent) => {
+    const refused = await signedTools(config).execute('create', input).catch(error => error)
+    assert.ok(refused instanceof Refused)
+    assert.deepEqual(refused.refusal, refusal)
+    assert.equal(signed.length, 1)
+    assert.equal(sent.length, 0)
+  })
+  for (const [answer, reason] of [
+    [{headers: {...proof, 'X-SIWA-SIGNATURE': 'duplicate'}}, /invalid_proof/],
+    [{headers: {}}, /incomplete_proof/],
+    [{headers: 'x'}, /proof_required/],
+    [{}, /proof_required/],
+    ['headers', /invalid_signer_answer/],
+    [{error: {code: 7}}, /invalid_signer_answer/],
+  ] as const) {
+    await withHost(() => answer, async (_signed, sent) => {
+      await assert.rejects(signedTools(config).execute('create', input), reason)
+      assert.equal(sent.length, 0)
+    })
+  }
+  const withoutDigest = {...proof}
+  delete withoutDigest['content-digest']
+  await withHost(() => ({headers: withoutDigest}), async (_signed, sent) => {
+    await assert.rejects(signedTools(config).execute('create', input), /body_proof_required/)
+    assert.equal(sent.length, 0)
+    await signedTools(config).execute('read', {id: 'x'})
+    assert.equal(sent.length, 1)
+  })
+  await withHost(() => ({headers: proof}), async (_signed, sent) => {
+    await assert.rejects(signedTools(config).execute('read', {id: 'x'}), /unexpected_body_proof/)
     for (const labels of [{accept: 'text/html'}, {cookie: 'a'}, {'X-Upper': 'a'}, {'x-line': 'a\nb'},
-      {[config.proofHeaders[0]]: 'a'}]) {
+      {[config.proofHeaders[0]]: 'a'}] as Record<string, string>[]) {
       const labelled = signedTools({...config, requestHeaders: () => labels})
-      await assert.rejects(labelled.execute('create', {input, request, proof}), /invalid_request_header/)
+      await assert.rejects(labelled.execute('create', input), /invalid_request_header/)
     }
-    assert.throws(() => tools.prepare('arbitrary', {}), /operation_unavailable/)
-    assert.throws(() => tools.prepare('read', {id: '..'}), /invalid_path_field/)
+    assert.equal(sent.length, 0)
+  })
+})
+
+test('inputs outside the manifest are refused before the host signer is asked', async () => {
+  await withHost(() => ({headers: proof}), async (signed, sent) => {
+    const tools = signedTools(config)
+    const refuses = (name: string, values: unknown, reason: RegExp) =>
+      assert.rejects(tools.execute(name, values as Record<string, unknown>), reason)
+    await refuses('arbitrary', {}, /operation_unavailable/)
+    await refuses('read', {id: '..'}, /invalid_path_field/)
     assert.throws(() => signedTools({...config, origin: 'https://evil.test'}), /untrusted_origin/)
     for (const invalid of [ {...poll, extra: 'authority'}, {...poll, minutes: '30'}, {...poll, minutes: 1.5},
       {...poll, minutes: 0}, {...poll, minutes: NaN}, {...poll, minutes: Number.MAX_SAFE_INTEGER + 1},
       {...poll, choices: ['Yes', 2]}, {...poll, choices: ['Yes']}, {...poll, choices: Array(11).fill('Yes')},
       {...poll, choices: ['Yes', 'x'.repeat(101)]} ]) {
-      assert.throws(() => tools.prepare('poll', invalid), /invalid_field/)
+      await refuses('poll', invalid, /invalid_field/)
     }
     for (const invalid of [ {...report, observation: {worked: true, cookie: 'authority'}},
       {...report, observation: {worked: 'true'}}, {...report, verdict: 'invented'},
       {...report, arguments: {text: 'é'.repeat(4096)}}, {...report, arguments: {value: undefined}},
       {...report, arguments: {value: Infinity}}, {...report, arguments: {value: new Date()}},
       {...report, arguments: JSON.parse('{"__proto__":{"cookie":"authority"}}'), observation: {}} ]) {
-      assert.throws(() => tools.prepare('report', invalid), /invalid_field|missing_field|unsupported_field_type/)
+      await refuses('report', invalid, /invalid_field|missing_field|unsupported_field_type/)
     }
-    assert.throws(() => tools.prepare('create', JSON.parse('{"title":"ok","operation_id":"id","__proto__":{}}')), /invalid_field/)
+    await refuses('create', JSON.parse('{"title":"ok","operation_id":"id","__proto__":{}}'), /invalid_field/)
+    await refuses('create', {title: 'no operation id', operation_id: ''}, /operation_id_required/)
     let deep: unknown = null
     for (let level = 0; level < 17; level++) deep = {value: deep}
-    assert.throws(() => tools.prepare('report', {...report, arguments: {deep}}), /input_complexity_exceeded/)
+    await refuses('report', {...report, arguments: {deep}}, /input_complexity_exceeded/)
     const wide = Array.from({length: 100}, () => Array(100).fill(null))
-    assert.throws(() => tools.prepare('report', {...report, arguments: {wide}}), /input_complexity_exceeded/)
+    await refuses('report', {...report, arguments: {wide}}, /input_complexity_exceeded/)
     const manyBytes = Array.from({length: 100}, () => Array(3).fill('x'.repeat(10_000)))
-    assert.throws(() => tools.prepare('report', {...report, arguments: {manyBytes}}), /body_too_large/)
+    await refuses('report', {...report, arguments: {manyBytes}}, /body_too_large/)
     const unsupported = signedTools({...config, operations: [{...config.operations[0],
       input_schema: {properties: {title: {type: 'binary'}}, required: ['title']}}]})
-    assert.throws(() => unsupported.prepare('create', {title: 'bytes'}), /unsupported_field_type/)
-    const preparedPoll = tools.prepare('poll', poll)
-    await assert.rejects(tools.execute('poll', {input: {...poll, choices: ['No', 'Yes']}, request: preparedPoll, proof}), /prepared_request_mismatch/)
-    const preparedRaw = tools.prepare('raw', {raw_body: rawBody})
-    await assert.rejects(tools.execute('raw', {input: {raw_body: rawBody.trim()}, request: preparedRaw, proof}), /prepared_request_mismatch/)
+    await assert.rejects(unsupported.execute('create', {title: 'bytes'}), /unsupported_field_type/)
     for (const raw_body of ['{bad}', '[1]', '{"text":"\ud800"}']) {
-      assert.throws(() => tools.prepare('raw', {raw_body}), /invalid_raw_body|invalid_field/)
+      await refuses('raw', {raw_body}, /invalid_raw_body|invalid_field/)
     }
-    assert.throws(() => tools.prepare('raw', {raw_body: atLimit + ' '}), /body_too_large/)
-    assert.throws(() => tools.prepare('raw', {raw_body: rawBody, authorization: 'authority'}), /invalid_field/)
+    await refuses('raw', {raw_body: atLimit + ' '}, /body_too_large/)
+    await refuses('raw', {raw_body: rawBody, authorization: 'authority'}, /invalid_field/)
     for (const change of [{encoding: 'text'}, {maxBytes: 2097153}, {field: 'missing'}]) {
       const raw = config.operations.find(operation => operation.name === 'raw')!
       const badManifest = signedTools({...config, operations: [{...raw, request_body: {...raw.request_body!, ...change}} as SignedOperation]})
-      assert.throws(() => badManifest.prepare('raw', {raw_body: rawBody}), /invalid_operation/)
+      await assert.rejects(badManifest.execute('raw', {raw_body: rawBody}), /invalid_operation/)
     }
-  } finally { globalThis.fetch = previous }
+    assert.equal(signed.length, 0)
+    assert.equal(sent.length, 0)
+  })
+})
+
+test('a signer that fails, or a call cancelled while it signs, sends nothing and says so', async () => {
+  await withHost(() => {throw new TypeError('Target closed')}, async (signed, sent) => {
+    const refused = await signedTools(config).execute('create', input).catch(error => error)
+    assert.ok(refused instanceof Refused)
+    assert.equal(refused.refusal.code, 'signer_unavailable')
+    assert.match(refused.refusal.hint!, /regents browser --site fixture/)
+    assert.equal(signed.length, 1)
+    assert.equal(sent.length, 0)
+  })
+  const controller = new AbortController()
+  await withHost(() => {controller.abort(); return {headers: proof}}, async (signed, sent) => {
+    const refused = await signedTools(config).execute('create', input, controller.signal).catch(error => error)
+    assert.ok(refused instanceof Refused)
+    assert.equal(refused.refusal.code, 'cancelled')
+    assert.equal(signed.length, 1)
+    assert.equal(sent.length, 0)
+  })
 })

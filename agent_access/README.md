@@ -21,9 +21,34 @@ belongs in the `:documents` function; everything else reaches the router as befo
 
 ## Signed browser transport (unreleased)
 
-`assets/signed_tools.ts` prepares manifest-listed operations and forwards their
-exact signed bytes without cookies, redirects or automatic retries. It does not
-sign. Supply SIWA's existing signer separately; a runtime without it is blocked.
+`assets/signed_tools.ts` sends manifest-listed operations with their exact signed
+bytes, without cookies, redirects or automatic retries. It never signs and never
+sees a key: the agent's browser host does, through `window.regentsSign`.
+
+A signed tool takes only its input. `signedTools(config).execute(name, input)`:
+
+1. builds the exact request from the manifest and the input (method, path, body
+   bytes), refusing an input the manifest does not allow;
+2. hands that frozen request, `{operation, audience, origin, method, path, body?}`,
+   to `window.regentsSign`, which answers `{headers}` (the proof headers for exactly
+   that request) or `{error: {code, message, hint?}}`;
+3. sends those same bytes with the proof headers, `credentials: "omit"` and
+   `redirect: "error"`, and returns the site's `Response`.
+
+With no `window.regentsSign` (an ordinary browser, or a host without the Regents
+signer), or when the signer refuses, `execute` rejects with `Refused` before
+anything is sent. Its `refusal` is `{code, message, hint}`; with no signer the code
+is `agent_auth_required` and the hint names `regents browser --site <audience>`.
+When the signer fails (the host went away) the code is `signer_unavailable`, and
+when the call is cancelled while the signer works it is `cancelled`; nothing is sent.
+Nothing unsigned is ever sent, and a browser sign-in never stands in for the agent.
+Other refusals before sending are plain `Error`s whose message is the reason, such
+as `missing_field:title`.
+
+`regents browser` in regents-cli is the reference host: it runs Chromium for the
+agent, records each tool call the agent makes, and signs only a request that
+matches that call, the site's address and its pinned manifest.
+
 The host supplies its configured trusted origin, audience, operation manifest and
 SIWA's proof-header list, and `requestHeaders(operation)`, its own lowercase `x-`
 labels for each call (ash-template names the tool and the visit, for its visit
@@ -67,10 +92,9 @@ Raw document collections use the 10,000-value ceiling rather than the typed
 input default of 100 items or properties; the endpoint validates the document.
 Other supplied fields must be consumed by declared string route placeholders;
 none become extra body fields or headers. If `operation_id_field` is declared for
-a raw operation, it names a required value inside that JSON object. Preparation
-returns a frozen request, and execution independently recomputes the entire
-request before forwarding it. Callers cannot supply a destination, method or
-publication metadata headers, and browser cookies never confer authority.
+a raw operation, it names a required value inside that JSON object. The request the
+host signs is frozen and is the one sent. Callers cannot supply a destination,
+method or publication metadata headers, and browser cookies never confer authority.
 
 Run `mix regent_agent_access.assets` in the host before building assets to copy
 the helper into `assets/vendor/regent_agent_access/signed_tools.ts`. Keep that

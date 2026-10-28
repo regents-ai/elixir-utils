@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- Credits are bought with USDC on Base only. The Ethereum purchase path is
+  gone: its USDC address and Treasury transfer step, the 12-block wait, the
+  `seen` action and the purchase's `block_number`/`block_hash` attributes. A
+  purchase's and a refund's `chain` is `:base`, and the config names Base
+  alone. The columns stay in the table; no migration was written.
+
 - A card or Link purchase tells the site when its Credits are added
   (`RegentCredits.Signals`, `:card_purchase_credited`, in the credit's own
   transaction), so card purchases earn Points as USDC purchases do.

@@ -25,7 +25,6 @@ defmodule RegentCredits.Purchases do
   alias RegentCredits.{Chains, Ledger, Purchase, Wallets}
   alias RegentCredits.Errors.Refused
 
-  @ethereum_blocks 12
   @unknown_after_seconds 24 * 60 * 60
 
   @doc """
@@ -207,13 +206,12 @@ defmodule RegentCredits.Purchases do
   end
 
   defp read_chain(purchase) do
-    client = Chains.client()
-    chain = Chains.chain(purchase.chain)
+    review = %{chain: Chains.chain(purchase.chain), signer: purchase.wallet}
     step = Chains.buy_step(purchase.chain, purchase.amount, purchase.number)
 
-    case Outcome.of(client, %{chain: chain, signer: purchase.wallet}, step, purchase.tx_hash) do
+    case Outcome.of(Chains.client(), review, step, purchase.tx_hash) do
       {:ok, :confirmed} ->
-        confirmed(purchase, client, chain)
+        run_credit(purchase)
 
       {:ok, :pending} ->
         pending(purchase)
@@ -229,37 +227,10 @@ defmodule RegentCredits.Purchases do
     end
   end
 
-  defp confirmed(%{chain: :base} = purchase, _client, _chain), do: run_credit(purchase)
-
-  defp confirmed(%{chain: :ethereum} = purchase, client, chain) do
-    with {:ok, %{"blockNumber" => number, "blockHash" => hash}} <-
-           client.receipt(chain, purchase.tx_hash),
-         {:ok, number} <- Abi.quantity(number),
-         {:ok, hash} <- Abi.hash(hash),
-         {:ok, head} <- client.block_number(chain) do
-      cond do
-        purchase.block_hash != hash -> seen(purchase, number, hash)
-        head - number >= @ethereum_blocks -> run_credit(purchase)
-        true -> {:ok, purchase}
-      end
-    else
-      {:ok, nil} -> pending(purchase)
-      :error -> {:error, :unreadable_receipt}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   defp pending(purchase) do
-    cond do
-      DateTime.diff(DateTime.utc_now(), purchase.inserted_at) > @unknown_after_seconds ->
-        finish(purchase, %{status: :failed, reason: "not found"})
-
-      purchase.block_hash ->
-        seen(purchase, nil, nil)
-
-      true ->
-        {:ok, purchase}
-    end
+    if DateTime.diff(DateTime.utc_now(), purchase.inserted_at) > @unknown_after_seconds,
+      do: finish(purchase, %{status: :failed, reason: "not found"}),
+      else: {:ok, purchase}
   end
 
   defp run_credit(purchase) do
@@ -320,16 +291,6 @@ defmodule RegentCredits.Purchases do
     deposit
     |> Ash.Changeset.for_update(:claim, %{privy_user_id: owner}, authorize?: false)
     |> Ash.update()
-  end
-
-  defp seen(purchase, number, hash) do
-    # Internal: written by the authorized check.
-    purchase
-    |> Ash.Changeset.for_update(:seen, %{block_number: number, block_hash: hash},
-      authorize?: false
-    )
-    |> Ash.update()
-    |> decided(purchase)
   end
 
   defp finish(purchase, fields) do

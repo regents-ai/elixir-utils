@@ -1,7 +1,7 @@
 defmodule RegentCredits.TestChain do
   @moduledoc """
   A stand-in for the site's chain client. Tests say what the chain holds for
-  each transaction hash, each chain's newest block and the deposits Base
+  each transaction hash, Base's newest block and the deposits Base
   logged; every reader, in any process, sees it.
   """
   @behaviour RegentCredits.ChainClient
@@ -16,7 +16,8 @@ defmodule RegentCredits.TestChain do
   @doc "The chain holds `tx` and, once mined, `receipt` under `hash`."
   def put(hash, tx, receipt), do: :ets.insert(__MODULE__, {hash, tx, receipt})
 
-  def head(chain, number), do: :ets.insert(__MODULE__, {{:head, chain}, number})
+  @doc "Base's newest block is `number`."
+  def head(number), do: :ets.insert(__MODULE__, {:head, number})
 
   @doc "The logs Base holds, replacing any before."
   def logs(logs), do: :ets.insert(__MODULE__, {:logs, logs})
@@ -58,13 +59,8 @@ defmodule RegentCredits.TestChain do
     }
   end
 
-  def mined(status, block \\ 1, block_hash \\ hash(), logs \\ []) do
-    %{
-      "status" => status,
-      "blockNumber" => "0x" <> Integer.to_string(block, 16),
-      "blockHash" => block_hash,
-      "logs" => logs
-    }
+  def mined(status, logs \\ []) do
+    %{"status" => status, "blockNumber" => "0x1", "blockHash" => hash(), "logs" => logs}
   end
 
   @doc "A USDC Transfer log."
@@ -89,9 +85,8 @@ defmodule RegentCredits.TestChain do
   def receipt(_chain, hash), do: {:ok, read(hash, 2)}
 
   @impl true
-  def block_number(%{chain_id: chain_id}) do
-    name = if chain_id == Chains.chain(:base).chain_id, do: :base, else: :ethereum
-    [{_key, number}] = :ets.lookup(__MODULE__, {:head, name})
+  def block_number(_chain) do
+    [{:head, number}] = :ets.lookup(__MODULE__, :head)
     {:ok, number}
   end
 

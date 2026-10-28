@@ -1,8 +1,8 @@
 # RegentCredits
 
 One prepaid Credits balance per Privy account, shared by every Regent site.
-One Credit is one US dollar. Credits come from purchases (USDC on Base or
-Ethereum, or a card or Link through Stripe) and admin gifts, and are spent through holds a site places and
+One Credit is one US dollar. Credits come from purchases (USDC on Base, or
+a card or Link through Stripe) and admin gifts, and are spent through holds a site places and
 closes.
 
 Every site keeps the ledger in the `regent_credits` schema of its own
@@ -26,10 +26,7 @@ config :regent_credits,
   notifications: MySite.Notifications,
   admins: ["did:privy:..."],
   chain_client: MySite.Chain.Client,
-  chains: %{
-    base: %{chain_id: 8453, name: "Base", rpc_url: "https://..."},
-    ethereum: %{chain_id: 1, name: "Ethereum", rpc_url: "https://..."}
-  }
+  chains: %{base: %{chain_id: 8453, name: "Base", rpc_url: "https://..."}}
 ```
 
 - Start `RegentCredits.Listener` after PubSub and the site's own
@@ -123,8 +120,7 @@ the transaction as this purchase's Buy from the reported wallet. Until then it
 is refused with `:not_seen_yet`, and the panel reports it again every two
 seconds for about five minutes. Each report reads the chain, so the site calls
 it behind a per-person limit, for example 120 a minute. The site's Oban checks every purchase still
-open once a minute. Base purchases count at the latest block; Ethereum
-purchases once 12 blocks sit on top of theirs and it is still in that block.
+open once a minute. A purchase counts at the latest block.
 
 The site's Oban also reads every Credits deposit on Base from the chain every
 five minutes (`RegentCredits.Deposits`), up to ten minutes behind the newest

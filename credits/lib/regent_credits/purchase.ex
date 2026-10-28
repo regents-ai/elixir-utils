@@ -9,9 +9,7 @@ defmodule RegentCredits.Purchase do
   two seconds while it waits and by the site's Oban once a minute until it
   is decided:
 
-    * Base: credited when the receipt shows the deposit went through.
-    * Ethereum: credited once the block holding it has 12 blocks on top and
-      a later read still finds it in that same block.
+    * Credited when the receipt shows the deposit went through.
     * Failed when it reverted, is not the purchase it claims to be, or is
       still unknown to the chain a day after it was reported.
 
@@ -86,7 +84,7 @@ defmodule RegentCredits.Purchase do
     attribute :chain, :atom do
       allow_nil? false
       public? true
-      constraints one_of: [:base, :ethereum]
+      constraints one_of: [:base]
     end
 
     # USDC, to the millionth. A Buy press pays whole dollars, $5 to $500; a
@@ -110,10 +108,6 @@ defmodule RegentCredits.Purchase do
 
     attribute :reason, :string, public?: true
 
-    # Ethereum: the block the transaction was last seen in.
-    attribute :block_number, :integer, public?: true
-    attribute :block_hash, :string, public?: true
-
     attribute :credited_at, :utc_datetime_usec, public?: true
     create_timestamp :inserted_at, public?: true
   end
@@ -135,14 +129,9 @@ defmodule RegentCredits.Purchase do
       accept [:privy_user_id, :wallet, :chain, :amount, :number, :tx_hash]
     end
 
-    # The check writes only while the purchase is still being checked; a
-    # deposit credited meanwhile stays credited.
-    update :seen do
-      accept [:block_number, :block_hash]
-      change filter(expr(status == :checking))
-    end
-
-    # A checked purchase that will not be credited.
+    # A checked purchase that will not be credited. It writes only while the
+    # purchase is still being checked; a deposit credited meanwhile stays
+    # credited.
     update :finish do
       accept [:status, :reason]
       change filter(expr(status == :checking))
@@ -197,7 +186,7 @@ defmodule RegentCredits.Purchase do
       constraints instance_of: __MODULE__
       argument :privy_user_id, :string, allow_nil?: false
       argument :wallet, :string, allow_nil?: false
-      argument :chain, :atom, allow_nil?: false, constraints: [one_of: [:base, :ethereum]]
+      argument :chain, :atom, allow_nil?: false, constraints: [one_of: [:base]]
       argument :amount, :integer, allow_nil?: false, constraints: [min: 5, max: 500]
       argument :number, :uuid, allow_nil?: false
       argument :tx_hash, :string, allow_nil?: false

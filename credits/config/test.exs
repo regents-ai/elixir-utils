@@ -8,10 +8,7 @@ config :regent_credits,
   agent_grants_enabled: true,
   admins: ["did:privy:admin"],
   chain_client: RegentCredits.TestChain,
-  chains: %{
-    base: %{chain_id: 8453, name: "Base", rpc_url: "http://127.0.0.1:8545"},
-    ethereum: %{chain_id: 1, name: "Ethereum", rpc_url: "http://127.0.0.1:8546"}
-  }
+  chains: %{base: %{chain_id: 8453, name: "Base", rpc_url: "http://127.0.0.1:8545"}}
 
 config :regent_credits, RegentCredits.TestRepo,
   hostname: "127.0.0.1",

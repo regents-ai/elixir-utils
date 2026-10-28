@@ -3,8 +3,8 @@ defmodule RegentCredits do
   Regent Credits: one prepaid balance per Privy account, shared by every
   Regent site. One Credit is one US dollar.
 
-  Credits arrive by purchase (`RegentCredits.Purchase`, USDC on Base or
-  Ethereum; `RegentCredits.CardPurchase`, card or Link through Stripe) or as a gift from an admin (`RegentCredits.Gift`), and leave
+  Credits arrive by purchase (`RegentCredits.Purchase`, USDC on Base;
+  `RegentCredits.CardPurchase`, card or Link through Stripe) or as a gift from an admin (`RegentCredits.Gift`), and leave
   through holds a site places when someone spends (`RegentCredits.Hold`) or
   a refund (`RegentCredits.Refund`). Every movement is a transfer in a double-entry
   ledger kept in the `regent_credits` schema of the site's own database, so
@@ -20,7 +20,7 @@ defmodule RegentCredits do
         pubsub: MySite.PubSub,
         admins: ["did:privy:..."],
         chain_client: MySite.Chain.Client,
-        chains: %{base: %{...}, ethereum: %{...}}
+        chains: %{base: %{...}}
 
   Purchases are checked by the site's Oban (see `RegentCredits.Purchase`)
   and the chain settings are described in `RegentCredits.Chains`.

@@ -11,6 +11,9 @@
 - Access tokens are always read from the database, so a disconnect stops an app
   at once.
 - `mix check` now runs the tests against a local PostgreSQL 17.
+- The sign-in prompt on the consent page, and the refusal of a password, no
+  longer name the sign-in provider: "Open the website and sign in, then return
+  here to continue."
 
 ## 0.1.0
 

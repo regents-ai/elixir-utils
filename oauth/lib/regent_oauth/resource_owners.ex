@@ -12,7 +12,7 @@ defmodule RegentOAuth.ResourceOwners do
   def get_by(_), do: {:error, "Password sign-in is not supported."}
 
   @impl true
-  def check_password(_, _), do: {:error, "Use the site's Privy sign-in."}
+  def check_password(_, _), do: {:error, "Use the site's own sign-in."}
 
   @impl true
   def authorized_scopes(_), do: []

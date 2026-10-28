@@ -36,9 +36,15 @@ the OAuth connection prevents further adapter requests.
 
 Sites expose registration, status, pairing and check-in tools. `check_in` sends
 the signed `GET /api/agents/v1/me`, so the person sees the app is active.
-Patchbay additionally exposes free questions and replies. Calls are forwarded
-to the ordinary signed identity endpoints or `/chatgpt/agent/mcp`; SIWA and
-product authorization remain decisive. Native CLI behavior is unchanged. Do not
+Patchbay additionally exposes free questions and replies. The signed identity
+requests (`whoami`, `pair` and `me`) go to the site's own `RegentAgents.HTTP`
+in the same process, as the exact request the hosted signer signed, read as the
+site's endpoint reads an agent request (at most 4096 bytes). The SIWA service
+verifies them as it would any agent request, and they never leave the site, so
+they never spend the per-address budget of the site's own address; the
+per-account budget at the MCP address bounds them. Patchbay's posts still go to
+its `/chatgpt/agent/mcp` over HTTPS. SIWA and product authorization remain
+decisive. Native CLI behavior is unchanged. Do not
 enable money tools, Offers or Points. A timed-out post may have succeeded: read
 the thread before retrying, and preserve its request key.
 
@@ -69,9 +75,16 @@ one the answer is 401 with `WWW-Authenticate: Bearer
 resource_metadata="<issuer>/.well-known/oauth-protected-resource",
 scope="regent.identity.manage"`, which starts the app's sign-in. Each connected
 account has its own request budget: `RegentAgentAccess.RateLimit` counts it
-under the OAuth subject, through the site's own `admit` counter. Put the site's
-per-address limit in front of the address too, since a request without a token
-is answered before any account is known. Mount it outside parameter logging,
+under the OAuth subject, through the site's own `admit` counter. In front of
+the address, the site counts a request without a Bearer token against its
+ordinary per-address budget, since it is answered before any account is known.
+A request with one never goes in that budget: an app's servers send every
+connected person's requests from the same few addresses, so they would all
+share it. Give it a per-address ceiling of its own, a few thousand a minute,
+which bounds how many invented tokens one address can have looked up (one
+indexed hash query each). Count it under the address, not the token, since an
+invented token would buy a fresh bucket. Cover every path under the address,
+since `forward` sends those to the plug too. Mount it outside parameter logging,
 because tool calls carry pairing codes. Anything but POST is answered 405, and
 the address answers 404 while OAuth or hosted identity is off.
 

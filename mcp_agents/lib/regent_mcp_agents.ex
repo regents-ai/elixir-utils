@@ -16,6 +16,18 @@ defmodule RegentMCPAgents do
   @posting_scope "patchbay.posts.write"
   @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
 
+  # Where every site mounts `RegentAgents.HTTP`, and how its endpoint reads an
+  # agent request there: the SIWA plug's reader keeps the exact bytes, at most
+  # 4096 of them.
+  @agents_path "/api/agents/v1/"
+  @agent_body_limit 4_096
+  @agent_parsers [
+    parsers: [:json],
+    json_decoder: Jason,
+    pass: ["*/*"],
+    body_reader: {Siwa.AgentAuthPlug, :read_body, [@agent_body_limit]}
+  ]
+
   @doc "Validate opt-in runtime configuration before accepting connections."
   def configure! do
     opts = config()
@@ -194,13 +206,11 @@ defmodule RegentMCPAgents do
   defp signer_request(principal, payload) do
     signer = Keyword.fetch!(config(), :hosted_signer)
 
-    case Req.request(
+    case http_request(
            method: :post,
            url: Keyword.fetch!(signer, :base_url) <> "/api/shared/siwa/hosted",
            auth: {:bearer, Keyword.fetch!(signer, :key)},
            json: Map.put(payload, "identity_key", connection_key(principal)),
-           retry: false,
-           redirect: false,
            receive_timeout: 15_000
          ) do
       {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
@@ -217,21 +227,86 @@ defmodule RegentMCPAgents do
          :ok <- authority(principal, required),
          true <-
            envelope["method"] == request["method"] and envelope["path"] == request["path"] and
-             envelope["body"] == request["body"],
-         {:ok, %{status: status, body: body}} <-
-           Req.request(
-             method: request["method"] |> String.downcase() |> String.to_existing_atom(),
-             url: RegentOAuth.issuer() <> request["path"],
-             headers: Map.put(envelope["headers"], "content-type", "application/json"),
-             body: request["body"],
-             retry: false,
-             redirect: false,
-             receive_timeout: 15_000
-           ),
+             envelope["body"] == request["body"] and is_map(envelope["headers"]),
+         headers = Map.put(envelope["headers"], "content-type", "application/json"),
+         {:ok, status, body} <- send_signed(request, headers),
          true <- status in 200..299 and is_map(body) do
       {:ok, body}
     else
       _ -> {:error, :identity_request_refused}
     end
+  end
+
+  # An identity request goes to this site's own `RegentAgents.HTTP` in this
+  # process, as the exact request the hosted signer signed: its method, path,
+  # signed headers and body bytes, read by the SIWA plug's reader as the site's
+  # endpoint reads them. The SIWA service verifies it exactly as it would a
+  # request that came over the network. Sent over the network it would leave
+  # and come back in from the site's own address, so every connected account
+  # would share that one address's budget; the per-account budget at the MCP
+  # address is the one that bounds it. Patchbay's posting door is that site's
+  # own route, outside this library, so a post still goes over HTTPS.
+  defp send_signed(%{"path" => @agents_path <> route} = request, headers) do
+    body = request["body"] || ""
+
+    if byte_size(body) <= @agent_body_limit do
+      conn =
+        request["method"]
+        |> Plug.Test.conn(RegentOAuth.issuer() <> request["path"], body)
+        |> Map.replace!(:req_headers, Map.to_list(headers))
+        |> Plug.Parsers.call(Plug.Parsers.init(@agent_parsers))
+        |> Plug.forward(String.split(route, "/"), RegentAgents.HTTP, [])
+        |> take_answer()
+
+      case Jason.decode(conn.resp_body) do
+        {:ok, body} -> {:ok, conn.status, body}
+        _ -> :error
+      end
+    else
+      :error
+    end
+  end
+
+  defp send_signed(request, headers) do
+    case http_request(
+           method: request["method"] |> String.downcase() |> String.to_existing_atom(),
+           url: RegentOAuth.issuer() <> request["path"],
+           headers: headers,
+           body: request["body"],
+           receive_timeout: 15_000
+         ) do
+      {:ok, %{status: status, body: body}} -> {:ok, status, body}
+      _ -> :error
+    end
+  end
+
+  # `Plug.Test.conn/3` is Plug's one in-memory connection. It tells this
+  # process about each answer it sends, as two messages; they are taken here,
+  # as Req takes them for its own in-memory requests, so a connection process
+  # that serves the MCP address for many requests is left holding none.
+  defp take_answer(%Plug.Conn{adapter: {_adapter, %{ref: ref}}} = conn) do
+    receive do
+      {^ref, {_status, _headers, _body}} -> :ok
+    after
+      0 -> :ok
+    end
+
+    receive do
+      {:plug_conn, :sent} -> :ok
+    after
+      0 -> :ok
+    end
+
+    conn
+  end
+
+  # Every request to the signer, and every post, neither retries nor follows a
+  # redirect. `config :regent_mcp_agents, :req_options` adds options to them,
+  # such as a test's stub.
+  defp http_request(options) do
+    options
+    |> Keyword.merge(Application.get_env(:regent_mcp_agents, :req_options, []))
+    |> Keyword.merge(retry: false, redirect: false)
+    |> Req.request()
   end
 end

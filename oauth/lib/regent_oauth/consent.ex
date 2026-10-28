@@ -29,7 +29,7 @@ defmodule RegentOAuth.Consent do
 
         _ ->
           page(conn, "Sign in to connect", """
-          <p>Open the website and sign in with Privy, then return here to continue.</p>
+          <p>Open the website and sign in, then return here to continue.</p>
           <p><a href="/" target="_blank" rel="noopener">Open the website</a></p>
           <p><a href="#{escape(conn.request_path <> "?" <> conn.query_string)}">Continue after signing in</a></p>
           """)

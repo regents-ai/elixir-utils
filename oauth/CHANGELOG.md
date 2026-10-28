@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The token tests read the provider's rows in the site's own schema, where they
+  are, so the checks that no plain token is stored now look at real rows, and
+  the reuse test covers both sides of the 30-second grace.
 - Registration takes Claude's request as it comes: `grant_types` in any order,
   and any requested `scope` is not checked, since every client is registered
   for the configured scopes and the person still approves each sign-in.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `send_signed/2`'s clauses sit together, so the package compiles with
+  warnings as errors again.
 - The hosted identity requests answer a refused tool call, never a failed MCP
   request, when the site's agent routes raise or answer nothing, and leave no
   log metadata behind. Signed header names are lowercased, as Plug keeps them.

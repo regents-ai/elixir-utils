@@ -258,6 +258,19 @@ defmodule RegentMCPAgents do
       else: :error
   end
 
+  defp send_signed(request, headers) do
+    case http_request(
+           method: request["method"] |> String.downcase() |> String.to_existing_atom(),
+           url: RegentOAuth.issuer() <> request["path"],
+           headers: headers,
+           body: request["body"],
+           receive_timeout: 15_000
+         ) do
+      {:ok, %{status: status, body: body}} -> {:ok, status, body}
+      _ -> :error
+    end
+  end
+
   # Anything the inner request raises is a refused tool call, never a failed MCP
   # request, and its log metadata is not left on the outer one.
   defp forward_signed(request, route, body, headers) do
@@ -282,19 +295,6 @@ defmodule RegentMCPAgents do
       _ -> :error
     after
       Logger.reset_metadata(metadata)
-    end
-  end
-
-  defp send_signed(request, headers) do
-    case http_request(
-           method: request["method"] |> String.downcase() |> String.to_existing_atom(),
-           url: RegentOAuth.issuer() <> request["path"],
-           headers: headers,
-           body: request["body"],
-           receive_timeout: 15_000
-         ) do
-      {:ok, %{status: status, body: body}} -> {:ok, status, body}
-      _ -> :error
     end
   end
 

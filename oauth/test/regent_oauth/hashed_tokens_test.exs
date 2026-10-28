@@ -7,10 +7,13 @@ defmodule RegentOAuth.HashedTokensTest do
   alias RegentOAuth.Repo
   alias RegentOAuth.Test.Flow
 
+  # The site's own schema, where the provider keeps its rows.
+  defp tokens, do: ~s("#{Application.fetch_env!(:regent_oauth, :prefix)}".oauth_tokens)
+
   defp stored_anywhere?(plain) do
     %{rows: [[count]]} =
       Repo.query!(
-        "SELECT count(*) FROM regent_oauth_test.oauth_tokens WHERE $1 IN (value, refresh_token, previous_token)",
+        "SELECT count(*) FROM #{tokens()} WHERE $1 IN (value, refresh_token, previous_token)",
         [plain]
       )
 
@@ -36,7 +39,7 @@ defmodule RegentOAuth.HashedTokensTest do
     assert {:error, :unauthorized} = RegentOAuth.verify(row.value, RegentOAuth.resource())
   end
 
-  test "a refresh hands out new tokens, keeps only the old access token's hash, and a reused refresh token disconnects the app" do
+  test "a refresh hands out new tokens, keeps only the old access token's hash, and a reused refresh token disconnects the app once the grace period is over" do
     {client_id, %{"access_token" => access, "refresh_token" => refresh}} =
       Flow.sign_in!("did:privy:sol")
 
@@ -51,6 +54,17 @@ defmodule RegentOAuth.HashedTokensTest do
     refute stored_anywhere?(fresh_refresh)
     assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
 
+    # Within the grace period a repeat is the app's own retry: refused, still connected.
+    retry = Flow.refresh(client_id, refresh)
+    assert retry.status == 400
+    assert Jason.decode!(retry.resp_body) == %{"error" => "invalid_grant"}
+    assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
+
+    Repo.query!(
+      "UPDATE #{tokens()} SET refresh_token_revoked_at = refresh_token_revoked_at - interval '31 seconds' WHERE refresh_token = $1",
+      [RegentOAuth.hash_token(refresh)]
+    )
+
     reused = Flow.refresh(client_id, refresh)
     assert reused.status == 400
     assert Jason.decode!(reused.resp_body) == %{"error" => "invalid_grant"}
@@ -63,14 +77,14 @@ defmodule RegentOAuth.HashedTokensTest do
 
     %{rows: [[issuer, resource]]} =
       Repo.query!(
-        "SELECT oauth_issuer, mcp_resource FROM regent_oauth_test.oauth_tokens WHERE id = $1",
+        "SELECT oauth_issuer, mcp_resource FROM #{tokens()} WHERE id = $1",
         [id]
       )
 
     assert {issuer, resource} == {RegentOAuth.issuer(), RegentOAuth.resource()}
 
     Repo.query!(
-      "UPDATE regent_oauth_test.oauth_tokens SET mcp_resource = 'https://elsewhere.test/mcp' WHERE id = $1",
+      "UPDATE #{tokens()} SET mcp_resource = 'https://elsewhere.test/mcp' WHERE id = $1",
       [id]
     )
 

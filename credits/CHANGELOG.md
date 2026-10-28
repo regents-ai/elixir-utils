@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- Credits are bought with USDC on Base only. The Ethereum purchase path is
+  gone: its USDC address and Treasury transfer step, the 12-block wait, the
+  `seen` action and the purchase's `block_number`/`block_hash` attributes. A
+  purchase's and a refund's `chain` is `:base`, and the config names Base
+  alone. The columns stay in the table; no migration was written.
+
 - A Credits history entry for a paid fix paid in Credits (purpose `jev_assist`,
   the payment offer's kind) reads "Fix".
 

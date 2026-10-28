@@ -1,9 +1,9 @@
 defmodule RegentCredits.ChainClient do
   @moduledoc """
   The site's JSON-RPC reads, all at the `latest` block. `transaction/2` and
-  `receipt/2` are what `RegentChain.Outcome` takes; Ethereum purchases also
-  need the chain's newest block number. `logs/2` is `eth_getLogs` with the
-  filter as given, which `RegentCredits.Deposits` reads Base deposits with.
+  `receipt/2` are what `RegentChain.Outcome` takes. `block_number/1` and
+  `logs/2` (`eth_getLogs` with the filter as given) are what
+  `RegentCredits.Deposits` reads Base deposits with.
 
   A node that answers with a JSON-RPC error gives `{:error, {:rpc, error}}`,
   `error` being the answer's `error` object; for `logs/2` that means the

@@ -34,7 +34,7 @@ defmodule RegentCredits.Refund do
     attribute :chain, :atom do
       allow_nil? false
       public? true
-      constraints one_of: [:base, :ethereum]
+      constraints one_of: [:base]
     end
 
     attribute :amount, :decimal, allow_nil?: false, public?: true

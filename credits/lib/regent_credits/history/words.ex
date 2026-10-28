@@ -37,7 +37,7 @@ defmodule RegentCredits.History.Words do
     "placement_removed" => "The Offer in this slot was removed"
   }
 
-  @chains %{base: "Base", ethereum: "Ethereum"}
+  @chains %{base: "Base"}
 
   @purchase_failures %{
     "reverted" => "The payment did not go through.",

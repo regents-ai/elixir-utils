@@ -17,7 +17,7 @@ defmodule RegentCredits.DepositTest do
   end
 
   defp read(head) do
-    TestChain.head(:base, head)
+    TestChain.head(head)
     Deposits.read(:base)
   end
 

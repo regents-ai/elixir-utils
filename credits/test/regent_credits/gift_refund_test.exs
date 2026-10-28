@@ -82,14 +82,14 @@ defmodule RegentCredits.GiftRefundTest do
 
     short = TestChain.hash()
     log = TestChain.transfer_log(:base, Chains.treasury(), payer, Chains.micro(7) - 1)
-    TestChain.put(short, %{}, TestChain.mined("0x1", 1, TestChain.hash(), [log]))
+    TestChain.put(short, %{}, TestChain.mined("0x1", [log]))
 
     assert reason(RegentCredits.close_refund(refund.id, short, actor: admin())) ==
              :refund_not_proven
 
     exact = TestChain.hash()
     log = TestChain.transfer_log(:base, Chains.treasury(), payer, Chains.micro(7))
-    TestChain.put(exact, %{}, TestChain.mined("0x1", 1, TestChain.hash(), [log]))
+    TestChain.put(exact, %{}, TestChain.mined("0x1", [log]))
     assert {:ok, %{status: :sent}} = RegentCredits.close_refund(refund.id, exact, actor: admin())
     assert {:ok, %{status: :sent}} = RegentCredits.close_refund(refund.id, exact, actor: admin())
     assert reason(RegentCredits.close_refund(refund.id, short, actor: admin())) == :closed

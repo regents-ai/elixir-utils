@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Each authorization code and token gets the site's configured issuer and
+  resource written on it as it is issued (`RegentOAuth.bind/1`), instead of
+  taking them from column defaults a migration baked in. `Migration.up/0` takes
+  no address, and `Migration.V2` drops those defaults, so a site's migrations
+  run without `PHX_HOST` and dev and test no longer bake in a port. A row
+  without the running site's values is refused, as before.
 - Access and refresh tokens are stored only as their SHA-256 hash and looked up
   by it (`RegentOAuth.AccessTokens`, `RegentOAuth.hash_token/1`). The plain
   tokens go to the app once, in the token answer. Sites add a migration that

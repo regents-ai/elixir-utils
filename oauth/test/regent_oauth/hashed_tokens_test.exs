@@ -57,6 +57,26 @@ defmodule RegentOAuth.HashedTokensTest do
     assert {:error, :unauthorized} = RegentOAuth.verify(fresh, RegentOAuth.resource())
   end
 
+  test "each token carries the running site's issuer and resource, and one bound elsewhere is refused" do
+    {client_id, %{"access_token" => access}} = Flow.sign_in!("did:privy:sol")
+    id = Ecto.UUID.dump!(access_row(client_id, RegentOAuth.hash_token(access)).id)
+
+    %{rows: [[issuer, resource]]} =
+      Repo.query!(
+        "SELECT oauth_issuer, mcp_resource FROM regent_oauth_test.oauth_tokens WHERE id = $1",
+        [id]
+      )
+
+    assert {issuer, resource} == {RegentOAuth.issuer(), RegentOAuth.resource()}
+
+    Repo.query!(
+      "UPDATE regent_oauth_test.oauth_tokens SET mcp_resource = 'https://elsewhere.test/mcp' WHERE id = $1",
+      [id]
+    )
+
+    assert {:error, :unauthorized} = RegentOAuth.verify(access, RegentOAuth.resource())
+  end
+
   test "revoking with the plain refresh token disconnects the app" do
     {client_id, %{"access_token" => access, "refresh_token" => refresh}} =
       Flow.sign_in!("did:privy:sol")

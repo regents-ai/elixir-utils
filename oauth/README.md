@@ -19,12 +19,14 @@ Call `RegentOAuth.configure(Site.OAuth)` before starting the site, and supervise
 `RegentOAuth.Repo` only while the feature is enabled. It uses the site's database
 and prefix with a separate small pool; SQL parameter logging and query telemetry
 are disabled. Never supervise another Oban instance or any delivery loop here.
-The site's migration calls `RegentOAuth.Migration.up(issuer: ..., resource: ...)`.
-This additive migration creates only `oauth_*` tables. A second site migration
-calls `RegentOAuth.Migration.V2.up()`, which replaces every stored access and
-refresh token with its SHA-256 hash; it cannot be undone, and an app connected
-before it keeps working with the tokens it holds. Codes and tokens receive
-immutable issuer/audience columns from those schema defaults. Never run Boruta's
+The site's migration calls `RegentOAuth.Migration.up()`. This additive
+migration creates only `oauth_*` tables. A second site migration calls
+`RegentOAuth.Migration.V2.up()`, which replaces every stored access and refresh
+token with its SHA-256 hash; it cannot be undone, and an app connected before it
+keeps working with the tokens it holds. Neither needs the site's address: each
+code and token gets the configured issuer and resource written on it as it is
+issued (`RegentOAuth.bind/1`), and a row whose values differ from the running
+site's is refused. Never run Boruta's
 historical rename/drop migrations over an existing site.
 
 API routes call `RegentOAuth.Protocol.call/2` for resource metadata, server

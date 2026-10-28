@@ -35,10 +35,7 @@ defmodule RegentMCPAgents.Test.OAuthTables do
   use Ecto.Migration
 
   def up do
-    RegentOAuth.Migration.up(
-      issuer: "http://localhost:4000",
-      resource: "http://localhost:4000/mcp"
-    )
+    RegentOAuth.Migration.up()
 
     RegentOAuth.Migration.V2.up()
   end

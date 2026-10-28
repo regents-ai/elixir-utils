@@ -12,6 +12,11 @@ defmodule RegentOAuth.Migration.V2 do
   plain token is left in the table. Authorization codes, which live a minute
   and are spent once, are left as Boruta keeps them.
 
+  The issuer and resource columns lose the defaults version 1 once gave them:
+  the provider now writes both on each code and token as it is issued, from the
+  running site's configuration, so no migration needs the site's address. Rows
+  already there keep the values they have.
+
   It cannot be undone, because a hash does not give back its token. It changes
   existing rows, so it is a protected change on any shared database.
   """
@@ -22,6 +27,14 @@ defmodule RegentOAuth.Migration.V2 do
     # does not report.
     prefix = prefix() || repo().config()[:migration_default_prefix]
     table = if prefix, do: ~s("#{prefix}".oauth_tokens), else: "oauth_tokens"
+
+    execute("""
+    ALTER TABLE #{table}
+      ALTER COLUMN oauth_issuer DROP DEFAULT,
+      ALTER COLUMN oauth_issuer DROP NOT NULL,
+      ALTER COLUMN mcp_resource DROP DEFAULT,
+      ALTER COLUMN mcp_resource DROP NOT NULL
+    """)
 
     execute("""
     UPDATE #{table}

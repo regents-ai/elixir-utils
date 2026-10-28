@@ -138,8 +138,10 @@ defmodule RegentOAuth.Consent do
   end
 
   @impl true
-  def authorize_success(conn, response),
-    do: redirect(conn, Boruta.Oauth.AuthorizeResponse.redirect_to_url(response))
+  def authorize_success(conn, %Boruta.Oauth.AuthorizeResponse{code: code} = response) do
+    :ok = RegentOAuth.bind_code(code)
+    redirect(conn, Boruta.Oauth.AuthorizeResponse.redirect_to_url(response))
+  end
 
   @impl true
   def preauthorize_error(conn, error), do: authorize_error(conn, error)

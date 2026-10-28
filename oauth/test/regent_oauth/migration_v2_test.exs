@@ -21,8 +21,10 @@ defmodule RegentOAuth.MigrationV2Test do
     client_id = Flow.client!()
     expires_at = System.system_time(:second) + 3600
 
+    # Version 1 wrote the site's issuer and resource on each row; so does the
+    # provider now.
     row = fn value, refresh, previous ->
-      Repo.insert!(%Token{
+      %Token{
         type: "access_token",
         value: value,
         refresh_token: refresh,
@@ -31,7 +33,9 @@ defmodule RegentOAuth.MigrationV2Test do
         expires_at: expires_at,
         client_id: client_id,
         sub: "did:privy:sol"
-      })
+      }
+      |> Repo.insert!()
+      |> then(&RegentOAuth.bind(&1.id))
     end
 
     row.("old-access", "old-refresh", nil)

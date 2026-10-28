@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Signed browser tools take only their input. `signedTools(config).execute(name,
+  input)` builds the exact request, asks the agent's browser host to sign it through
+  `window.regentsSign`, and sends those same bytes with the returned proof headers.
+  `prepare` and the `{input, request, proof}` shape are gone, so no key, receipt or
+  signature passes through a tool's arguments. With no host signer, or when it
+  refuses, nothing is sent and `execute` rejects with `Refused`
+  (`agent_auth_required` names `regents browser --site <audience>`). A host moves
+  to this shape in one step: register `{input}` tools and call `execute(name, input)`.
+
 - `signedTools` takes a required `requestHeaders(operation)`: the host's own
   lowercase `x-` labels for each signed call, sent beside the proof and never part
   of it. A label that is not a lowercase `x-` name, names a proof header or holds a

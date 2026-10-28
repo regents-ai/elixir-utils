@@ -20,7 +20,7 @@ Application.put_env(
 )
 
 {:ok, _} = RegentOAuth.Repo.start_link()
-RegentOAuth.Test.Schema.migrate!("regent_oauth_test", [1, 2])
+RegentOAuth.Test.Schema.migrate!("regent_oauth_site", [1, 2])
 Ecto.Adapters.SQL.Sandbox.mode(RegentOAuth.Repo, :manual)
 
 ExUnit.start()

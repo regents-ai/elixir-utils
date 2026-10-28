@@ -18,7 +18,10 @@ defmodule RegentOAuth.Migration.V2 do
   use Ecto.Migration
 
   def up do
-    table = if prefix(), do: ~s("#{prefix()}".oauth_tokens), else: "oauth_tokens"
+    # A site names its schema in `migration_default_prefix`, which `prefix/0`
+    # does not report.
+    prefix = prefix() || repo().config()[:migration_default_prefix]
+    table = if prefix, do: ~s("#{prefix}".oauth_tokens), else: "oauth_tokens"
 
     execute("""
     UPDATE #{table}

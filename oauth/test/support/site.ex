@@ -2,7 +2,7 @@ defmodule RegentOAuth.Test.Repo do
   @moduledoc "The test database's settings, which RegentOAuth.Repo copies."
   use Ecto.Repo, otp_app: :regent_oauth, adapter: Ecto.Adapters.Postgres
 
-  def default_prefix, do: "regent_oauth_test"
+  def default_prefix, do: "regent_oauth_site"
 end
 
 defmodule RegentOAuth.Test.Site do
@@ -57,17 +57,32 @@ defmodule RegentOAuth.Test.Schema do
 
   @migrations [{1, RegentOAuth.Test.CreateTables}, {2, RegentOAuth.Test.HashTokens}]
 
+  # As a site runs them: its schema is the repo's `migration_default_prefix`.
+  # Each schema keeps its own list of versions run.
   def migrate!(prefix, versions) do
     RegentOAuth.Repo.query!(~s(CREATE SCHEMA IF NOT EXISTS "#{prefix}"))
+    config = Application.fetch_env!(:regent_oauth, RegentOAuth.Repo)
 
-    Ecto.Migrator.run(
+    Application.put_env(
+      :regent_oauth,
       RegentOAuth.Repo,
-      Enum.filter(@migrations, fn {version, _} -> version in versions end),
-      :up,
-      all: true,
-      prefix: prefix,
-      log: false
+      Keyword.merge(config,
+        migration_default_prefix: prefix,
+        migration_source: "#{prefix}_versions"
+      )
     )
+
+    try do
+      Ecto.Migrator.run(
+        RegentOAuth.Repo,
+        Enum.filter(@migrations, fn {version, _} -> version in versions end),
+        :up,
+        all: true,
+        log: false
+      )
+    after
+      Application.put_env(:regent_oauth, RegentOAuth.Repo, config)
+    end
   end
 end
 

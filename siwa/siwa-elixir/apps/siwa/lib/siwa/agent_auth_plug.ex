@@ -411,7 +411,7 @@ defmodule Siwa.AgentAuthPlug do
         verdict_for(data, Keyword.fetch!(opts, :audience))
 
       {:ok, %{status: 401, body: %{"error" => %{"code" => "site_verify_unauthorized"}}}} ->
-        site_problem(:verify_key_refused)
+        site_problem(:verify_key_refused, "the sign-in server refused this site's verify key")
 
       {:ok, %{status: status, body: body}} when status in 400..599 ->
         {:error, status_deny_meta(status, body)}
@@ -439,11 +439,16 @@ defmodule Siwa.AgentAuthPlug do
   defp verdict_for(%{"principal" => %{"audience" => audience}} = data, audience),
     do: {:ok, data}
 
-  defp verdict_for(_data, _audience), do: site_problem(:audience_mismatch)
+  defp verdict_for(%{"principal" => %{"audience" => other}}, _audience) when is_binary(other),
+    do: site_problem(:audience_mismatch, "the sign-in server answered for #{inspect(other)}")
 
-  defp site_problem(problem) do
+  # A verdict without a principal's audience is no verdict at all.
+  defp verdict_for(_data, _audience),
+    do: {:error, %{reason: :siwa_request_failed, source: :siwa_http}}
+
+  defp site_problem(problem, detail) do
     Logger.error(
-      "SIWA agent check refused by this site's own settings (#{problem}): " <>
+      "SIWA agent check refused by this site's own settings (#{problem}): #{detail}; " <>
         "the verify key and :audience must name this site at the sign-in server"
     )
 

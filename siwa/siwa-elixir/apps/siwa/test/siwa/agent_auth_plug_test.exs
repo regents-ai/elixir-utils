@@ -102,8 +102,6 @@ defmodule Siwa.AgentAuthPlugTest do
                "data" => RecordingClient.verdict("othersite")
              }
            }, :audience_mismatch},
-          {%{status: 200, body: %{"code" => "http_envelope_valid", "data" => %{}}},
-           :audience_mismatch},
           {%{status: 401, body: %{"error" => %{"code" => "site_verify_unauthorized"}}},
            :verify_key_refused}
         ] do
@@ -256,6 +254,7 @@ defmodule Siwa.AgentAuthPlugTest do
   test "an answer outside 400..599 without a verdict denies as siwa_request_failed" do
     for response <- [
           %{status: 200, body: %{"unexpected" => true}},
+          %{status: 200, body: %{"code" => "http_envelope_valid", "data" => %{}}},
           %{status: 302, body: ""},
           %{status: 103, body: ""}
         ] do

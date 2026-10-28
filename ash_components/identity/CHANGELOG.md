@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentIdentity.ensure/1` gives a verified person their profile at sign-in when
+  they have none and leaves an existing one as it is. `RegentIdentity.profile_id/2`
+  reads a person's profile ID by app and Privy user, for a server acting for them
+  without their session (a paired agent paying for its person).
+
 - jose 1.11.13 in the lock, which fixes the eight jose advisories of 26 Oct
   (EEF-CVE-2026-65625 to -65632, one high).
 - ash_postgres comes from Regent's copy of 2.15.2 (regents-ai/ash_postgres at

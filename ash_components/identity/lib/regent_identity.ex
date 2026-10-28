@@ -27,6 +27,36 @@ defmodule RegentIdentity do
 
   def sync(_actor), do: {:error, :missing_issued_at}
 
+  @doc """
+  Gives a verified person their profile when they have none, at sign-in. A
+  profile they already have is left as it is: refreshing it stays with `sync/1`.
+  """
+  def ensure(%RegentPrivy.Session{} = actor) do
+    case get_my_profile(actor: actor) do
+      {:ok, nil} -> sync(actor)
+      found -> found
+    end
+  end
+
+  @doc """
+  The profile ID of the person `privy_user_id` of `app_id`, for a server acting
+  for that person without their session, such as a paired agent paying for
+  them; nil until they have a profile. Only the ID is read.
+  """
+  def profile_id(app_id, privy_user_id) do
+    RegentIdentity.Profile
+    |> Ash.Query.for_read(:person, %{app_id: app_id, privy_user_id: privy_user_id})
+    |> Ash.Query.select([:id])
+    # The person is not here to prove themselves; the caller already verified
+    # who acts for them, and only the ID leaves.
+    |> Ash.read_one(authorize?: false)
+    |> case do
+      {:ok, nil} -> {:ok, nil}
+      {:ok, profile} -> {:ok, profile.id}
+      {:error, error} -> {:error, error}
+    end
+  end
+
   defp sync_locked(actor) do
     # Serialize one person's reconciliation across sites before reading. This
     # never controls wallet operations, payment requests or transaction sends.

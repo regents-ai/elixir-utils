@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Registration takes Claude's request as it comes: `grant_types` in any order,
+  and any requested `scope` is not checked, since every client is registered
+  for the configured scopes and the person still approves each sign-in.
+- A refresh may leave out `resource`; if it names one, it must be this one.
+- A refresh token presented again within 30 seconds of its use is refused
+  without disconnecting the app, so an app's own retry or overlapping refresh
+  doesn't cost the person their connection. Later reuse still disconnects it.
 - Each authorization code and token gets the site's configured issuer and
   resource written on it as it is issued (`RegentOAuth.bind/1`), instead of
   taking them from column defaults a migration baked in. `Migration.up/0` takes

@@ -9,6 +9,7 @@ defmodule RegentOAuth.Protocol do
   @authorize_keys ~w(client_id redirect_uri response_type scope state resource code_challenge code_challenge_method)
   @token_keys ~w(client_id redirect_uri grant_type scope resource code code_verifier refresh_token)
   @register_keys ~w(client_name redirect_uris grant_types response_types token_endpoint_auth_method scope)
+  @refresh_grace_seconds 30
 
   def call(conn, action) do
     if RegentOAuth.enabled?(),
@@ -31,12 +32,12 @@ defmodule RegentOAuth.Protocol do
          true <- byte_size(Jason.encode!(params)) <= 8192,
          true <- Map.get(params, "token_endpoint_auth_method", "none") == "none",
          true <- Map.get(params, "response_types", ["code"]) == ["code"],
-         true <-
-           Map.get(params, "grant_types", ["authorization_code", "refresh_token"]) == [
-             "authorization_code",
-             "refresh_token"
-           ],
-         true <- RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())),
+         grant_types when is_list(grant_types) <-
+           Map.get(params, "grant_types", ["authorization_code", "refresh_token"]),
+         true <- Enum.sort(grant_types) == ["authorization_code", "refresh_token"],
+         # A requested `scope` is not checked: every client is registered for
+         # the configured scopes (RFC 7591 section 3.2.1), and each sign-in
+         # still asks the person for exactly what it grants.
          name when is_binary(name) <- Map.get(params, "client_name", "Connected app"),
          true <- String.length(name) in 1..100,
          uris when is_list(uris) and length(uris) in 1..5 <- params["redirect_uris"],
@@ -75,7 +76,7 @@ defmodule RegentOAuth.Protocol do
     params = conn.body_params
 
     with true <- bounded_map?(params, @token_keys),
-         true <- params["resource"] == RegentOAuth.resource(),
+         true <- resource?(params),
          true <- RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())),
          true <- params["grant_type"] in ["authorization_code", "refresh_token"],
          {:ok, _} <- Ecto.UUID.cast(params["client_id"]) do
@@ -91,9 +92,12 @@ defmodule RegentOAuth.Protocol do
                 row
             when not is_nil(revoked) ->
               if params["grant_type"] == "refresh_token" and RegentOAuth.bound?(row.id) and
-                   RegentOAuth.site().active_subject?(row.sub) do
+                   RegentOAuth.site().active_subject?(row.sub) and
+                   DateTime.diff(DateTime.utc_now(), revoked) >= @refresh_grace_seconds do
                 # Boruta rotates refresh tokens. Proven reuse revokes this
                 # subject's app connection, as required by RFC 9700 section 4.14.2.
+                # A second refresh within the grace period is the app's own
+                # retry or overlap, not a stolen token: it is only refused.
                 {:ok, :ok} = RegentOAuth.revoke_client(row.sub, row.client_id)
                 {:denied, :invalid_grant}
               else
@@ -261,6 +265,13 @@ defmodule RegentOAuth.Protocol do
       end
     end)
   end
+
+  # Every request names the one resource, except that a refresh may leave it
+  # out (RFC 8707 makes it optional there): the token already names it.
+  defp resource?(%{"grant_type" => "refresh_token"} = params),
+    do: params["resource"] in [nil, RegentOAuth.resource()]
+
+  defp resource?(params), do: params["resource"] == RegentOAuth.resource()
 
   defp redirect_uri?(value) when is_binary(value) and byte_size(value) <= 2048 do
     local? = URI.parse(RegentOAuth.issuer()).host in ["localhost", "127.0.0.1"]

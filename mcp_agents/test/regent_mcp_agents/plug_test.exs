@@ -39,7 +39,7 @@ defmodule RegentMCPAgents.PlugTest do
                "version" => "0.1.0"
              }
 
-      assert result["instructions"] =~ ~r/\ATest Site, where people .* Call get_identity first\./
+      assert result["instructions"] =~ ~r/\ATest Site, where people .* Call register_identity, then get_identity\./
     end
   end
 

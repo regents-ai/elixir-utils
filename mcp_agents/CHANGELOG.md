@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The hosted identity requests answer a refused tool call, never a failed MCP
+  request, when the site's agent routes raise or answer nothing, and leave no
+  log metadata behind. Signed header names are lowercased, as Plug keeps them.
+- The MCP instructions say to call `register_identity`, then `get_identity`,
+  as every pairing message and guide does.
 - `RegentMCPAgents.Plug`: the MCP address every site mounts for a connected app
   such as Claude's connector. It answers `initialize` in the protocol version the
   app asks for (2025-11-25, 2025-06-18 or 2025-03-26), takes

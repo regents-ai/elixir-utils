@@ -228,7 +228,11 @@ defmodule RegentMCPAgents do
          true <-
            envelope["method"] == request["method"] and envelope["path"] == request["path"] and
              envelope["body"] == request["body"] and is_map(envelope["headers"]),
-         headers = Map.put(envelope["headers"], "content-type", "application/json"),
+         # Lowercase names, as Plug keeps them; the signature covers values.
+         headers =
+           envelope["headers"]
+           |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
+           |> Map.put("content-type", "application/json"),
          {:ok, status, body} <- send_signed(request, headers),
          true <- status in 200..299 and is_map(body) do
       {:ok, body}
@@ -249,7 +253,17 @@ defmodule RegentMCPAgents do
   defp send_signed(%{"path" => @agents_path <> route} = request, headers) do
     body = request["body"] || ""
 
-    if byte_size(body) <= @agent_body_limit do
+    if byte_size(body) <= @agent_body_limit,
+      do: forward_signed(request, route, body, headers),
+      else: :error
+  end
+
+  # Anything the inner request raises is a refused tool call, never a failed MCP
+  # request, and its log metadata is not left on the outer one.
+  defp forward_signed(request, route, body, headers) do
+    metadata = Logger.metadata()
+
+    try do
       conn =
         request["method"]
         |> Plug.Test.conn(RegentOAuth.issuer() <> request["path"], body)
@@ -258,12 +272,16 @@ defmodule RegentMCPAgents do
         |> Plug.forward(String.split(route, "/"), RegentAgents.HTTP, [])
         |> take_answer()
 
-      case Jason.decode(conn.resp_body) do
-        {:ok, body} -> {:ok, conn.status, body}
+      with answer when is_binary(answer) <- conn.resp_body,
+           {:ok, decoded} <- Jason.decode(answer) do
+        {:ok, conn.status, decoded}
+      else
         _ -> :error
       end
-    else
-      :error
+    rescue
+      _ -> :error
+    after
+      Logger.reset_metadata(metadata)
     end
   end
 

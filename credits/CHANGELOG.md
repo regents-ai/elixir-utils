@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- A Credits history entry for a paid fix paid in Credits (purpose `jev_assist`,
+  the payment offer's kind) reads "Fix".
+
 - A card or Link purchase tells the site when its Credits are added
   (`RegentCredits.Signals`, `:card_purchase_credited`, in the credit's own
   transaction), so card purchases earn Points as USDC purchases do.

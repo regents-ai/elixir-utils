@@ -72,7 +72,8 @@ defmodule RegentPayments.FeeForward do
 
   Nothing was deposited, and the forward can be run again, after
   `:wrong_kind` (a fee of another offer kind), `:not_paid_to_signer` (a fee
-  not paid into the signer's wallet), `:no_receipt`, `{:approval_failed, hash}`
+  not paid into the signer's wallet), `:no_receipt`, `:paid_with_credits` (a
+  fee paid in Regent Credits, which moved no USDC into the signer's wallet), `{:approval_failed, hash}`
   (the hash is nil when the approval never reached the chain) or
   `{:deposit_reverted, sent}`. After `{:deposit_unknown, sent}` the deposit
   may still land: look on the chain before running it again.
@@ -83,6 +84,7 @@ defmodule RegentPayments.FeeForward do
              :wrong_kind
              | :not_paid_to_signer
              | :no_receipt
+             | :paid_with_credits
              | {:approval_failed, String.t() | nil}
              | {:deposit_reverted, sent()}
              | {:deposit_unknown, sent()}
@@ -154,9 +156,10 @@ defmodule RegentPayments.FeeForward do
       else: {:error, :not_paid_to_signer}
   end
 
-  defp settled_fee(%{amount_atomic: amount, receipt: %{payer_address: payer}})
-       when is_binary(payer),
-       do: {:ok, %{amount: amount, payer: payer}}
+  defp settled_fee(%{amount_atomic: amount, receipt: %{paid_with: :usdc, payer_address: payer}}),
+    do: {:ok, %{amount: amount, payer: payer}}
+
+  defp settled_fee(%{receipt: %{paid_with: :credits}}), do: {:error, :paid_with_credits}
 
   defp settled_fee(_no_receipt), do: {:error, :no_receipt}
 

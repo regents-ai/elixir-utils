@@ -1,7 +1,10 @@
 defmodule RegentPayments.PaymentReceipt do
   @moduledoc """
-  What actually happened when a payment intent was settled: who paid, on which
-  chain, and the transaction the facilitator reported.
+  What actually happened when a payment intent was settled: how it was paid
+  (`paid_with`), and for a USDC payment who paid, on which chain, and the
+  transaction the facilitator reported. A payment in Regent Credits names no
+  wallet, chain or facilitator; its payment response names the Credits hold
+  that paid it.
 
   One receipt per intent, held by a unique index on the intent. The unique
   transaction hash, where one came back, also stops the same payment being
@@ -28,19 +31,27 @@ defmodule RegentPayments.PaymentReceipt do
   attributes do
     uuid_primary_key :id
 
-    attribute :payer_address, :string, allow_nil?: false, public?: true
-    attribute :network, :string, allow_nil?: false, public?: true
-    attribute :asset, :string, allow_nil?: false, public?: true
+    attribute :paid_with, :atom,
+      allow_nil?: false,
+      public?: true,
+      constraints: [one_of: [:usdc, :credits]]
+
+    # A USDC payment's wallet, chain and asset; absent for Credits.
+    attribute :payer_address, :string, allow_nil?: true, public?: true
+    attribute :network, :string, allow_nil?: true, public?: true
+    attribute :asset, :string, allow_nil?: true, public?: true
     attribute :amount_atomic, :integer, allow_nil?: false, public?: true
 
-    # Which facilitator verified and settled this payment, so a later
+    # Which facilitator verified and settled a USDC payment, so a later
     # reconciliation knows whose records to go and read.
-    attribute :facilitator, :string, allow_nil?: false, public?: true
+    attribute :facilitator, :string, allow_nil?: true, public?: true
 
-    # Absent when the facilitator settled without naming a transaction.
+    # Absent when the facilitator settled without naming a transaction, and
+    # for Credits.
     attribute :transaction_hash, :string, allow_nil?: true, public?: true
 
-    # The facilitator's answer, kept whole and unedited.
+    # The facilitator's answer, kept whole and unedited; for Credits, the
+    # hold that paid.
     attribute :payment_response, :map, allow_nil?: false, public?: true
 
     attribute :settled_at, :utc_datetime_usec, allow_nil?: false, public?: true
@@ -88,10 +99,11 @@ defmodule RegentPayments.PaymentReceipt do
     end
 
     create :record do
-      description "Writes down a settled payment exactly as the facilitator reported it."
+      description "Writes down a settled payment exactly as it was paid."
 
       accept [
         :payment_intent_id,
+        :paid_with,
         :payer_address,
         :network,
         :asset,
@@ -107,8 +119,9 @@ defmodule RegentPayments.PaymentReceipt do
   end
 
   policies do
-    # Only the library writes a receipt, from what the facilitator answered
-    # (`RegentPayments.Steps`); a site cannot write one of its own.
+    # Only the library writes a receipt, from what the facilitator answered or
+    # the Credits hold it closed (`RegentPayments.Steps`); a site cannot write
+    # one of its own.
     policy action(:record) do
       forbid_unless context_equals(:regent_payments, :purchase)
       authorize_if actor_present()

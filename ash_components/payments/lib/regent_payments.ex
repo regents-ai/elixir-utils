@@ -1,13 +1,18 @@
 defmodule RegentPayments do
   @moduledoc """
-  Paid actions for every Regent site, in USDC on Base.
+  Paid actions for every Regent site, in USDC on Base or in Regent Credits.
 
-  Regents holds no money. There is no balance, top-up, credit or withdrawal
-  here, and no refund: a payment intent freezes what an action will cost and
-  which wallet receives the money, the payer's own wallet then pays that
-  wallet directly through an x402 facilitator, and the receipt records what
+  Regents holds no USDC. There is no USDC balance, top-up or withdrawal here,
+  and no refund: a payment intent freezes what an action will cost and which
+  wallet receives the money, the payer's own wallet then pays that wallet
+  directly through an x402 facilitator, and the receipt records what
   happened. The person's USDC Balance is always read live from their own
   wallet on Base (`RegentPayments.Balance`).
+
+  Where the money ends with Regents, the terms may accept Regent Credits
+  instead (`RegentCredits`, the balance Regents keeps for each person): the
+  same amount is spent from the payer's Credits in the same transaction that
+  settles the intent (`RegentPayments.Purchase.pay_with_credits/4`).
 
   Each site registers the actions it sells as `RegentPayments.Offer` modules,
   names itself, and supplies its repository:

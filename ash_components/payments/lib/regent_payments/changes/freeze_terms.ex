@@ -1,8 +1,9 @@
 defmodule RegentPayments.Changes.FreezeTerms do
   @moduledoc """
   Settles the terms of a payment at the moment it is prepared: which wallet
-  the money goes to, how much, what it is for, the sentence the payer is
-  shown, when the offer runs out, and a digest over all of it.
+  the money goes to, how much, whether Regent Credits may pay it instead,
+  what it is for, the sentence the payer is shown, when the offer runs out,
+  and a digest over all of it.
 
   A payer signs for an amount and a destination, and what the facilitator
   settles has to be the same amount and destination they were shown. The
@@ -46,21 +47,25 @@ defmodule RegentPayments.Changes.FreezeTerms do
   def change(changeset, _opts, _context), do: changeset
 
   # Terms with nowhere for the money to go, or no money, are no terms at all.
-  defp payable(%{pay_to_address: pay_to, amount_atomic: amount})
-       when is_binary(pay_to) and is_integer(amount) and amount > 0 do
+  defp payable(%{pay_to_address: pay_to, amount_atomic: amount, credits: credits})
+       when is_binary(pay_to) and is_integer(amount) and amount > 0 and
+              credits in [:accepted, :refused] do
     if Regex.match?(@wallet_address, pay_to),
       do: :ok,
       else: {:error, InvalidChanges.exception(message: "the terms name no wallet to be paid")}
   end
 
   defp payable(_terms),
-    do: {:error, InvalidChanges.exception(message: "the terms name no wallet or amount")}
+    do:
+      {:error,
+       InvalidChanges.exception(message: "the terms name no wallet, amount or Credits answer")}
 
   defp freeze(changeset, offer, terms, authority) do
     payload =
       Map.merge(Map.delete(terms.payload, AgentAuthority.key()), %{
         "pay_to_address" => terms.pay_to_address,
-        "amount_atomic" => terms.amount_atomic
+        "amount_atomic" => terms.amount_atomic,
+        "credits" => Atom.to_string(terms.credits)
       })
       |> then(fn payload ->
         if authority, do: Map.put(payload, AgentAuthority.key(), authority), else: payload

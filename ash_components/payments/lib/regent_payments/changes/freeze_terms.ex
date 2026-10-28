@@ -47,12 +47,25 @@ defmodule RegentPayments.Changes.FreezeTerms do
   def change(changeset, _opts, _context), do: changeset
 
   # Terms with nowhere for the money to go, or no money, are no terms at all.
+  # Credits move no USDC, so they may pay only what would have been paid into
+  # one of Regents' own wallets; paid to anyone else, that wallet would never
+  # be paid.
   defp payable(%{pay_to_address: pay_to, amount_atomic: amount, credits: credits})
        when is_binary(pay_to) and is_integer(amount) and amount > 0 and
               credits in [:accepted, :refused] do
-    if Regex.match?(@wallet_address, pay_to),
-      do: :ok,
-      else: {:error, InvalidChanges.exception(message: "the terms name no wallet to be paid")}
+    cond do
+      not Regex.match?(@wallet_address, pay_to) ->
+        {:error, InvalidChanges.exception(message: "the terms name no wallet to be paid")}
+
+      credits == :accepted and not RegentPayments.credits_pay_to?(pay_to) ->
+        {:error,
+         InvalidChanges.exception(
+           message: "Credits may pay only into a Regents wallet named in credits_pay_to"
+         )}
+
+      true ->
+        :ok
+    end
   end
 
   defp payable(_terms),

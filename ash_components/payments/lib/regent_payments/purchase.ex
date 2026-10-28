@@ -219,7 +219,9 @@ defmodule RegentPayments.Purchase do
   frozen terms accept them. `credits` is the `RegentCredits.Actor` the site
   built from the same sign-in as `actor`: the person themself, or, for an
   intent a paired agent prepared, that agent spending its person's Credits
-  within the limits they set, under the pairing frozen with the terms. One
+  within the limits they set, under the pairing frozen with the terms. A
+  person's Credits pay only an intent whose payer actor carries that same
+  person's `privy_user_id`. One
   USDC of the price is one Credit, to the millionth, so nothing is rounded.
 
   It all happens in one transaction under the intent's row lock: the Credits
@@ -284,7 +286,7 @@ defmodule RegentPayments.Purchase do
   defp spend_credits(actor, found, credits) do
     key = "payment:#{found.id}"
 
-    with :ok <- credits_payer(found, credits),
+    with :ok <- credits_payer(actor, found, credits),
          :ok <- hold_credits(key, found, credits),
          {:ok, pending} <- Steps.step(found, :mark_settlement_pending, actor),
          {:ok, hold} <-
@@ -295,25 +297,29 @@ defmodule RegentPayments.Purchase do
     end
   end
 
-  # The Credits actor is the payer the terms were frozen for: a person for a
-  # person's intent, and for an agent's the same agent, person and pairing.
-  defp credits_payer(found, credits) do
+  # The Credits actor is the payer the terms were frozen for: for a person's
+  # intent, the person the site signed in as the payer (the payer actor's
+  # `privy_user_id`); for an agent's, the same agent, person and pairing.
+  defp credits_payer(actor, found, credits) do
     with {:ok, stored} <- AgentAuthority.snapshot(found) do
-      if credits.site == RegentPayments.site() and same_payer?(stored, credits),
+      if credits.site == RegentPayments.site() and same_payer?(stored, actor, credits),
         do: :ok,
         else: AgentAuthority.refused()
     end
   end
 
-  defp same_payer?(nil, %{role: :person}), do: true
+  defp same_payer?(nil, actor, %{role: :person} = credits) do
+    privy_user_id = Map.get(actor, :privy_user_id)
+    is_binary(privy_user_id) and privy_user_id == credits.privy_user_id
+  end
 
-  defp same_payer?(%{} = stored, %{role: :agent} = credits) do
+  defp same_payer?(%{} = stored, _actor, %{role: :agent} = credits) do
     credits.pairing_id == stored["pairing_id"] and
       credits.privy_user_id == stored["privy_user_id"] and
       credits.agent_address == stored["wallet_address"]
   end
 
-  defp same_payer?(_stored, _credits), do: false
+  defp same_payer?(_stored, _actor, _credits), do: false
 
   defp hold_credits(key, found, credits) do
     amount = Decimal.new(1, found.amount_atomic, -6)

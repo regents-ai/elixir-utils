@@ -9,12 +9,16 @@
   per USDC, to the millionth), writes the receipt and settles the intent in one
   transaction under the intent's row lock, then carries the effect out as for
   USDC. An agent's intent is paid only by that agent, person and frozen pairing,
-  within the limits the person set. Shortfalls and refused agent spends answer
+  within the limits the person set; a person's intent is paid only by the person
+  whose `privy_user_id` prepared it. Terms accept Credits only when they pay into
+  a wallet named in `config :regent_payments, credits_pay_to:`; preparing any
+  other `:accepted` terms is refused. Shortfalls and refused spends answer
   `{:credits_refused, intent, words}` and spend nothing.
 - Receipts record `paid_with` (`:usdc` or `:credits`). A Credits receipt has no
   payer wallet, chain, asset, facilitator or transaction; its payment response
   names the Credits hold. Migration `20261028090000_receipts_paid_with` adds the
-  column (existing rows are USDC), relaxes those four columns and adds a check
+  column filled with `usdc` for existing rows and then drops its default, without
+  rewriting a row; it relaxes those four columns and adds a check
   that each receipt is one shape or the other. `FeeForward` answers
   `:paid_with_credits` for a fee paid in Credits.
 - Depends on `regent_credits` by sibling path; a site's `regent_credits` pin

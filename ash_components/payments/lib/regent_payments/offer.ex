@@ -19,8 +19,9 @@ defmodule RegentPayments.Offer do
   Regent Credits, the payer may pay the same amount in Credits instead
   (`RegentPayments.Purchase.pay_with_credits/4`), and the Credits are spent
   as revenue, as for anything else Credits buy. An offer accepts Credits only
-  when its money ends with Regents, such as a paid fix whose fee goes to
-  REGENT staking, never when it pays another person's wallet.
+  when its money ends in a Regents wallet named in `credits_pay_to`, such as
+  the price of a site's own feature, never when it pays another person's
+  wallet or passes the money on to others.
   """
 
   @typedoc """
@@ -29,7 +30,8 @@ defmodule RegentPayments.Offer do
   (`target_id`), the offer's own record of the effect (`payload`, which the
   library completes with `pay_to_address`, `amount_atomic` and `credits`), who
   is paid, the sentence the payer is shown, and whether Credits may pay it
-  (`credits`: `:accepted` only when the money ends with Regents).
+  (`credits`: `:accepted` only when the money ends in a Regents wallet named in
+  `credits_pay_to`).
   """
   @type terms :: %{
           required(:amount_atomic) => pos_integer(),

@@ -97,6 +97,14 @@ defmodule RegentPayments.FeeForwardTest do
     assert sent(chain) == []
   end
 
+  test "a fee paid with Credits is not forwarded, since no USDC reached the signer" do
+    {chain, signer} = chain(receipts: fn _hash -> "0x1" end)
+    intent = paid_with_credits_intent(signer)
+
+    assert {:error, :paid_with_credits} = forward(intent, signer)
+    assert sent(chain) == []
+  end
+
   defp forward(intent, signer, kind \\ :publish),
     do:
       FeeForward.submit(intent.id,
@@ -228,6 +236,30 @@ defmodule RegentPayments.FeeForwardTest do
           facilitator: "https://example.invalid/facilitator",
           transaction_hash: tx,
           payment_response: %{"success" => true, "transaction" => tx},
+          settled_at: DateTime.utc_now()
+        },
+        actor
+      )
+
+    {:ok, settled} = Steps.step(pending, :mark_settled, actor)
+    settled
+  end
+
+  # The same fee, settled from the payer's Credits: the receipt names a Credits
+  # hold and no wallet.
+  defp paid_with_credits_intent(signer) do
+    actor = payer()
+
+    {:ok, intent} = prepare(signer.address, actor)
+    {:ok, pending} = Steps.step(intent, :mark_settlement_pending, actor)
+
+    {:ok, _receipt} =
+      Steps.record_receipt(
+        %{
+          payment_intent_id: pending.id,
+          paid_with: :credits,
+          amount_atomic: pending.amount_atomic,
+          payment_response: %{"credits_hold" => Ecto.UUID.generate()},
           settled_at: DateTime.utc_now()
         },
         actor

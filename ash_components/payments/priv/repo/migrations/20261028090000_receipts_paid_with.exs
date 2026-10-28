@@ -4,20 +4,19 @@ defmodule RegentPayments.Migrations.ReceiptsPaidWith do
   Credits. A USDC receipt names the wallet that paid, the chain, the asset and
   the facilitator that settled it; a Credits receipt has none of those, and
   names its Credits hold in the payment response instead. Every receipt
-  written before this was paid in USDC.
+  written before this was paid in USDC, so the column arrives filled with
+  "usdc" and then loses its default, without rewriting a row.
   """
 
   use Ecto.Migration
 
   def up do
     alter table(:payment_receipts, prefix: "regent_payments") do
-      add(:paid_with, :text)
+      add(:paid_with, :text, null: false, default: "usdc")
     end
 
-    execute("UPDATE regent_payments.payment_receipts SET paid_with = 'usdc'")
-
     alter table(:payment_receipts, prefix: "regent_payments") do
-      modify(:paid_with, :text, null: false)
+      modify(:paid_with, :text, default: nil)
       modify(:payer_address, :text, null: true)
       modify(:network, :text, null: true)
       modify(:asset, :text, null: true)

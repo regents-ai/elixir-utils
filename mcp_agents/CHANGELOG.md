@@ -2,12 +2,35 @@
 
 ## Unreleased
 
+- `RegentMCPAgents.address/1`: the lowercase wallet address of the account's one
+  identity on this site, from the hosted signer's register answer, for a site
+  that admits a connected app as the agent it paired. Nothing is signed for it.
+  `pairing_input_refusal/0` gives the words for a malformed `pair_identity`
+  call, for a site serving that tool itself.
+- Identity tool titles are one or two words (Registration, Identity, Pairing,
+  Check-in), and each says whether calling it again changes anything
+  (`idempotentHint`).
+- After `initialize`, a request whose `MCP-Protocol-Version` header names a
+  version the address doesn't speak is answered 400; a request without the
+  header is read as 2025-03-26.
+- Every tool answers in the shape a site's browser tools answer:
+  `structuredContent` is `{ok: true, status, data}` or
+  `{ok: false, status, retry_after?, error: {code, message, hint}}`, and the
+  text content is the same JSON. A signed request the site refuses gives the
+  site's own code, words and `Retry-After` (an expired session, `agent_not_paired`,
+  `person_not_here`), not one fixed refusal. Pairing refuses a
+  code that isn't a current one of the account's with `pairing_code_unknown`,
+  and a malformed pairing call with `invalid_request`, before anything is
+  signed. The site's `refusal:` words are now only for a call no site answered
+  (the signer unreachable), with status 502. Identity fields moved under
+  `data`.
 - A 429 from the hosted signer or a signed request (Patchbay's posting door)
   is a wait, not a refusal: the call returns `{:error, {:rate_limited,
   seconds}}` with the seconds its `Retry-After` names, and the MCP tool answers
-  `too_many_requests` with "Wait N seconds, then call the tool again." and
-  `retry_after`. Before, it said to check the pairing. A site that renders
-  `post/3` itself uses `RegentMCPAgents.Tools.wait/1` for that answer.
+  `{ok: false, status: 429, retry_after, error}` with `too_many_requests` and
+  "Wait N seconds, then call the tool again." Before, it said to check the
+  pairing. A site that renders `post/3` itself uses
+  `RegentMCPAgents.Tools.wait/1` for that answer.
 - The requests the hosted signer may be asked to sign are one explicit list in
   `RegentMCPAgents`: the identity probe (`GET whoami`), the check-in
   (`GET me`), the pairing (`POST pair`) and Patchbay's free posts, each with

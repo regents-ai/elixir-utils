@@ -108,7 +108,37 @@ defmodule RegentMCPAgents.Plug do
 
   defp message(%{body_params: %{"jsonrpc" => "2.0", "method" => method} = request} = conn, opts)
        when is_binary(method) do
-    case Map.fetch(request, "id") do
+    case {Map.fetch(request, "id"), protocol_version(conn, method)} do
+      {_id, {:unsupported, version}} ->
+        rpc_error(
+          conn,
+          400,
+          -32_600,
+          "MCP-Protocol-Version #{version} isn't one this address speaks: " <>
+            Enum.join(@protocol_versions, ", ") <> "."
+        )
+
+      {id, :ok} ->
+        answer_message(conn, opts, method, request, id)
+    end
+  end
+
+  defp message(conn, _opts), do: invalid_request(conn)
+
+  # After initialize, the app names the version it agreed in a header; a
+  # request without one is read as 2025-03-26, as the protocol says.
+  defp protocol_version(_conn, "initialize"), do: :ok
+
+  defp protocol_version(conn, _method) do
+    case get_req_header(conn, "mcp-protocol-version") do
+      [] -> :ok
+      [version] -> if version in @protocol_versions, do: :ok, else: {:unsupported, version}
+      [version | _more] -> {:unsupported, version}
+    end
+  end
+
+  defp answer_message(conn, opts, method, request, id) do
+    case id do
       {:ok, id} when is_binary(id) or is_integer(id) ->
         result = handle(method, Map.get(request, "params"), conn, opts)
         RegentOAuth.Protocol.json(conn, 200, reply(result, id))
@@ -121,8 +151,6 @@ defmodule RegentMCPAgents.Plug do
         conn |> send_resp(202, "") |> halt()
     end
   end
-
-  defp message(conn, _opts), do: invalid_request(conn)
 
   defp handle("initialize", params, _conn, opts) do
     requested = is_map(params) && params["protocolVersion"]
@@ -149,11 +177,7 @@ defmodule RegentMCPAgents.Plug do
     if name in Tools.names() do
       arguments = Map.get(params, "arguments") || %{}
 
-      case Tools.call(name, arguments, conn.assigns.mcp_agent_principal) do
-        {:ok, answer} -> {:ok, tool_result(answer)}
-        {:error, {:rate_limited, seconds}} -> {:ok, waiting(seconds)}
-        _refused -> {:ok, refused()}
-      end
+      {:ok, tool_result(Tools.call(name, arguments, conn.assigns.mcp_agent_principal))}
     else
       {:error, -32_602, "Unknown tool: #{name}. Call tools/list."}
     end
@@ -165,33 +189,44 @@ defmodule RegentMCPAgents.Plug do
   defp handle(method, _params, _conn, _opts),
     do: {:error, -32_601, "Method not found: #{method}"}
 
+  # Every tool answers in the shape a site's browser tools answer:
+  # `{ok: true, status, data}`, or `{ok: false, status, retry_after?, error}`
+  # with the site's own `{code, message, hint}`. A call no site answered gives
+  # the site's `refusal:` words.
+  defp tool_result({:ok, data}), do: answer(%{ok: true, status: 200, data: data})
+
+  defp tool_result({:answer, status, body, _retry_after}) when status in 200..299,
+    do: answer(%{ok: true, status: status, data: body})
+
+  defp tool_result({:answer, status, body, retry_after}) do
+    error = if is_map(body["error"]), do: body["error"], else: Tools.refusal().error
+    %{ok: false, status: status, error: error} |> put_retry(retry_after) |> answer()
+  end
+
+  defp tool_result({:refused, status, error}),
+    do: answer(%{ok: false, status: status, error: error})
+
+  defp tool_result({:error, {:rate_limited, seconds}}), do: answer(Tools.wait(seconds))
+
+  defp tool_result(_no_answer),
+    do: answer(%{ok: false, status: 502, error: Tools.refusal().error})
+
+  defp put_retry(result, retry_after) when is_binary(retry_after) do
+    case Integer.parse(retry_after) do
+      {seconds, ""} -> Map.put(result, :retry_after, seconds)
+      _not_seconds -> result
+    end
+  end
+
+  defp put_retry(result, _none), do: result
+
   # The answer travels twice, as the protocol suggests: as text for a model to
   # read, and as the same object for a client that wants the fields.
-  defp tool_result(answer) do
+  defp answer(structured) do
     %{
-      content: [%{type: "text", text: Jason.encode!(answer)}],
-      structuredContent: answer,
-      isError: false
-    }
-  end
-
-  defp refused do
-    %{error: %{message: message, hint: hint}} = refusal = Tools.refusal()
-
-    %{
-      content: [%{type: "text", text: message <> " " <> hint}],
-      structuredContent: refusal,
-      isError: true
-    }
-  end
-
-  defp waiting(seconds) do
-    %{error: %{message: message, hint: hint}} = wait = Tools.wait(seconds)
-
-    %{
-      content: [%{type: "text", text: message <> ". " <> hint}],
-      structuredContent: wait,
-      isError: true
+      content: [%{type: "text", text: Jason.encode!(structured)}],
+      structuredContent: structured,
+      isError: not structured.ok
     }
   end
 

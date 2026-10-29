@@ -9,23 +9,25 @@ defmodule RegentMCPAgents.Tools do
     [
       tool(
         "register_identity",
-        "Connect a Regents identity",
+        "Registration",
         "Prepare this app's persistent connection to your signed-in Regents identity. Reuses it across chats; does not pair, post or create another person account.",
         %{},
         [],
-        false
+        false,
+        true
       ),
       tool(
         "get_identity",
-        "Check your connected identity",
+        "Identity",
         "Check whether this app's persistent connection is currently paired with your Regents identity. Does not change its permissions.",
         %{},
         [],
+        true,
         true
       ),
       tool(
         "pair_identity",
-        "Pair the connected identity",
+        "Pairing",
         "Pair this app's connection with your signed-in Regents account using that account's current one-use pairing code. Name the app you are as harness. Requires explicit approval. Use only the approved pairing code; never request account credentials.",
         %{
           "code" => %{type: "string", minLength: 1, maxLength: 128},
@@ -33,15 +35,17 @@ defmodule RegentMCPAgents.Tools do
           "harness" => %{type: "string", enum: RegentMCPAgents.hosted_names()}
         },
         ["code", "name", "harness"],
+        false,
         false
       ),
       tool(
         "check_in",
-        "Check in",
+        "Check-in",
         "Check in on this site as the paired identity, so your person sees it is active, and read which account it is paired with. Records the check-in and changes nothing else.",
         %{},
         [],
-        false
+        false,
+        true
       )
     ]
   end
@@ -107,16 +111,21 @@ defmodule RegentMCPAgents.Tools do
   end
 
   @doc """
-  The answer to a tool call the signer or the signed request turned away for now:
-  the error body of a 429, with the seconds its `Retry-After` named.
+  The answer to a tool call the signer or the signed request turned away for now,
+  in the shape every tool answers: status 429, with the seconds its `Retry-After`
+  named.
   """
   def wait(seconds) do
-    "Too Many Requests"
-    |> RegentAgentAccess.Recovery.json("Wait #{seconds} seconds, then call the tool again.")
-    |> put_in([:error, :retry_after], seconds)
+    %{error: error} =
+      RegentAgentAccess.Recovery.json(
+        "Too Many Requests",
+        "Wait #{seconds} seconds, then call the tool again."
+      )
+
+    %{ok: false, status: 429, retry_after: seconds, error: error}
   end
 
-  defp tool(name, title, description, properties, required, read_only?) do
+  defp tool(name, title, description, properties, required, read_only?, idempotent?) do
     %{
       name: name,
       title: title,
@@ -128,7 +137,12 @@ defmodule RegentMCPAgents.Tools do
         additionalProperties: false
       },
       securitySchemes: [%{type: "oauth2", scopes: [RegentMCPAgents.identity_scope()]}],
-      annotations: %{readOnlyHint: read_only?, destructiveHint: false, openWorldHint: false}
+      annotations: %{
+        readOnlyHint: read_only?,
+        idempotentHint: idempotent?,
+        destructiveHint: false,
+        openWorldHint: false
+      }
     }
   end
 end

@@ -3,18 +3,42 @@ defmodule RegentMCPAgents do
   A connected app's (ChatGPT's or Claude's) persistent connection to a Regents
   account identity, shared across chats. OAuth authorizes the connection; the
   SIWA service's hosted signing holds its signer, asked with this site's own
-  hosted signing key. Every protected product request still passes
-  exact-request SIWA verification. Conversation IDs, tool arguments and MCP
-  sessions never select the signer.
+  hosted signing key. Every identity request it signs still passes
+  exact-request SIWA verification. A site's own tools admit the connection's
+  token as the agent it paired, by its address (`address/1`), and sign
+  nothing. Conversation IDs, tool arguments and MCP sessions never select the
+  signer.
 
-  The connected apps a site offers are `RegentAgents.Harness.hosted/0`; the
-  words a refused tool call gives are the site's `refusal:` setting.
+  The connected apps a site offers are `RegentAgents.Harness.hosted/0`.
+
+  A tool answers `{:ok, fields}`; `{:answer, status, body, retry_after}`, the
+  site's own answer to a signed request it refused, with its code, words and
+  `Retry-After`; `{:refused, status, error}`, a refusal this library makes
+  before anything is signed, as an `{"code", "message", "hint"}` map;
+  `{:error, {:rate_limited, seconds}}` when the signer or the site said to wait;
+  or `{:error, reason}` when no answer came, which a tool call gives in the
+  site's `refusal:` words.
   """
   alias RegentAgents.{Harness, PairingCode, Person}
 
   @identity_scope "regent.identity.manage"
   @posting_scope "patchbay.posts.write"
   @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
+
+  # The refusals made here, before anything is signed.
+  @pairing_input %{
+    "code" => "invalid_request",
+    "message" =>
+      "Pairing takes a code, a name of 1 to 100 characters and one of this site's harnesses.",
+    "hint" => "Call pair_identity with code, name and harness as tools/list describes them."
+  }
+  @pairing_code %{
+    "code" => "pairing_code_unknown",
+    "message" =>
+      "This pairing code isn't a current one from your account: it was used, it is more than ten minutes old, or another account made it.",
+    "hint" =>
+      "Ask your person for a new code from Pair New Agent, then call pair_identity with it."
+  }
 
   # Where every site mounts `RegentAgents.HTTP`, and how its endpoint reads an
   # agent request there: the SIWA plug's reader keeps the exact bytes, at most
@@ -84,6 +108,26 @@ defmodule RegentMCPAgents do
     end
   end
 
+  @doc """
+  The wallet address of this account's one identity on this site, lowercase, as
+  the hosted signer's register answer gives it. A site admits a connected app
+  as the agent it paired by this address: the token is the sign-in, the site's
+  own pairing record says whose agent it is, and its policies decide the rest,
+  so nothing is signed. An account's address on a site never changes, so the
+  site may keep it.
+  """
+  def address(principal) do
+    with :ok <- authority(principal, @identity_scope),
+         {:ok, %{"address" => address}} when is_binary(address) <-
+           signer_request(principal, %{"operation" => "register"}),
+         address = String.downcase(address),
+         true <- Regex.match?(~r/\A0x[0-9a-f]{40}\z/, address) do
+      {:ok, address}
+    else
+      _ -> {:error, :identity_request_refused}
+    end
+  end
+
   @doc "Read the current pairing through a freshly SIWA-signed, non-awarding identity probe."
   def status(principal) do
     with :ok <- authority(principal, @identity_scope),
@@ -120,12 +164,15 @@ defmodule RegentMCPAgents do
            perform(principal, {:pair, Jason.encode!(%{code: code, name: name, harness: harness})}) do
       {:ok, %{identity_id: connection_key(principal), paired: true, name: name}}
     else
+      {:answer, _status, _body, _retry_after} = answer -> answer
+      {:refused, _status, _error} = refused -> refused
       {:error, {:rate_limited, _seconds}} = limited -> limited
-      _ -> {:error, :pairing_refused}
+      false -> {:refused, 422, @pairing_input}
+      _no_answer -> {:error, :pairing_refused}
     end
   end
 
-  def pair(_, _), do: {:error, :pairing_refused}
+  def pair(_, _), do: {:refused, 422, @pairing_input}
 
   @doc "Forward a free question or reply through the site's restricted SIWA participation door."
   def post(principal, name, arguments)
@@ -158,6 +205,9 @@ defmodule RegentMCPAgents do
     :crypto.hash(:sha256, Jason.encode!(["regent-chatgpt-account-v1", audience, subject]))
     |> Base.encode16(case: :lower)
   end
+
+  @doc "The refusal for a malformed `pair_identity` call, for a site serving the tool itself."
+  def pairing_input_refusal, do: @pairing_input
 
   @doc false
   def hosted_names, do: Enum.map(Harness.hosted(), &Atom.to_string/1)
@@ -192,7 +242,7 @@ defmodule RegentMCPAgents do
          codes,
          &(&1.code_hash == hash and is_nil(&1.used_at) and
              DateTime.after?(&1.expires_at, DateTime.utc_now()))
-       ), do: :ok, else: {:error, :pairing_refused}
+       ), do: :ok, else: {:refused, 403, @pairing_code}
   end
 
   # The SIWA service takes the audience from this site's hosted signing key and
@@ -208,7 +258,7 @@ defmodule RegentMCPAgents do
            receive_timeout: 15_000
          ) do
       {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
-      {:ok, %{status: 429} = response} -> wait(Req.Response.get_header(response, "retry-after"))
+      {:ok, %{status: 429} = response} -> response |> retry_after() |> wait()
       _ -> {:error, :identity_request_refused}
     end
   end
@@ -255,15 +305,21 @@ defmodule RegentMCPAgents do
     end
   end
 
+  # A site's own answer is passed on with its code, words and `Retry-After`; a
+  # 429 is a wait instead.
   defp answer(status, body, _retry_after) when status in 200..299 and is_map(body),
     do: {:ok, body}
 
   defp answer(429, _body, retry_after), do: wait(retry_after)
+
+  defp answer(status, body, retry_after) when is_map(body),
+    do: {:answer, status, body, retry_after}
+
   defp answer(_status, _body, _retry_after), do: {:error, :identity_request_refused}
 
   # A 429 from the signer or the signed request means wait, not refused: the
   # tool answers with the seconds its `Retry-After` names.
-  defp wait([seconds]) do
+  defp wait(seconds) when is_binary(seconds) do
     case Integer.parse(seconds) do
       {seconds, ""} when seconds > 0 -> {:error, {:rate_limited, seconds}}
       _ -> {:error, :identity_request_refused}
@@ -271,6 +327,9 @@ defmodule RegentMCPAgents do
   end
 
   defp wait(_), do: {:error, :identity_request_refused}
+
+  defp retry_after(response),
+    do: response |> Req.Response.get_header("retry-after") |> List.first()
 
   # An identity request goes to this site's own `RegentAgents.HTTP` in this
   # process, as the exact request the hosted signer signed: its method, path,
@@ -298,7 +357,7 @@ defmodule RegentMCPAgents do
            receive_timeout: 15_000
          ) do
       {:ok, %{status: status, body: body} = response} ->
-        {:ok, status, body, Req.Response.get_header(response, "retry-after")}
+        {:ok, status, body, retry_after(response)}
 
       _ ->
         :error
@@ -321,7 +380,8 @@ defmodule RegentMCPAgents do
 
       with answer when is_binary(answer) <- conn.resp_body,
            {:ok, decoded} <- Jason.decode(answer) do
-        {:ok, conn.status, decoded, Plug.Conn.get_resp_header(conn, "retry-after")}
+        {:ok, conn.status, decoded,
+         conn |> Plug.Conn.get_resp_header("retry-after") |> List.first()}
       else
         _ -> :error
       end

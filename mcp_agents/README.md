@@ -18,8 +18,10 @@ audience and keeps each site's signers apart, so the key's site must be the
 configured `audience` (`patchbay`, `keyfleet` or `ash-template`). The package
 is disabled by default. Never expose the key to a client.
 
-`refusal:` in the same settings is the site's own words for a refused tool
-call, 1 to 500 bytes, shown after "The identity request could not be
+Every tool answers as a site's browser tools do: `{ok: true, status, data}`
+or `{ok: false, status, retry_after?, error: {code, message, hint}}`, with the
+site's own refusal whenever the site answered. `refusal:` in the same settings
+is the site's own words for a call no site answered, 1 to 500 bytes, shown after "The identity request could not be
 completed." The default is "Connect your Regents account, register the
 connection, and check its pairing on the account page." Patchbay, where posts
 can time out, adds its retry advice here.

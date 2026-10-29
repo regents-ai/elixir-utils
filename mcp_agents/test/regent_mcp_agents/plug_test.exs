@@ -70,12 +70,14 @@ defmodule RegentMCPAgents.PlugTest do
     token = token!("did:privy:sol")
     call = rpc("tools/call", %{"name" => "get_identity", "arguments" => %{"extra" => 1}})
 
-    assert %{"result" => %{"isError" => true, "content" => [%{"text" => text}]}} =
+    assert %{"result" => %{"isError" => true, "structuredContent" => answer}} =
              json(mcp(call, token))
 
-    assert text ==
-             "The identity request could not be completed. " <>
-               "Connect your Regents account, register the connection, and check its pairing on the account page."
+    assert %{"ok" => false, "status" => 502, "error" => error} = answer
+    assert error["message"] == "The identity request could not be completed."
+
+    assert error["hint"] ==
+             "Connect your Regents account, register the connection, and check its pairing on the account page."
 
     config = Application.fetch_env!(:regent_mcp_agents, :config)
     on_exit(fn -> Application.put_env(:regent_mcp_agents, :config, config) end)

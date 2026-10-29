@@ -92,14 +92,18 @@ defmodule RegentMCPAgents.IdentityRequestsTest do
 
     call = rpc("tools/call", %{"name" => "get_identity", "arguments" => %{}})
 
-    assert %{"result" => %{"isError" => true, "structuredContent" => %{"error" => error}}} =
+    assert %{"result" => %{"isError" => true, "structuredContent" => answer}} =
              json(mcp(call, token!("did:privy:sol")))
 
-    assert error == %{
-             "code" => "too_many_requests",
-             "message" => "Too Many Requests",
-             "hint" => "Wait 30 seconds, then call the tool again.",
-             "retry_after" => 30
+    assert answer == %{
+             "ok" => false,
+             "status" => 429,
+             "retry_after" => 30,
+             "error" => %{
+               "code" => "too_many_requests",
+               "message" => "Too Many Requests",
+               "hint" => "Wait 30 seconds, then call the tool again."
+             }
            }
   end
 

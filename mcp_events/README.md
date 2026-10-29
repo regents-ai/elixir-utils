@@ -85,8 +85,10 @@ and sent using Standard Webhooks HMAC-SHA256. Each attempt gets a fresh signing 
 Keys are `whsec_` base64 values decoding to 24–64 bytes. Never log keys, signatures,
 sensitive callback URLs, payloads or owner data.
 
-Every connection resolves DNS again, rejects non-public or mixed public/private
-answers, and connects directly to a validated IP. The original hostname remains
+Callbacks go through `RegentHttp.Public` (elixir-utils `http`), the one shared
+guard for addresses someone else supplied; sites pin `regent_http` beside this
+package. Every connection resolves DNS again, rejects non-public or mixed
+public/private answers, and connects directly to a validated IP. The original hostname remains
 the HTTP Host, TLS SNI and certificate verification name. Private, local, reserved,
 mapped and transition addresses are blocked. Mint opens a fresh connection without
 proxies, redirects, pooling or hidden retries. Requests have a ten-second deadline;

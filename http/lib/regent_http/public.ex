@@ -1,7 +1,9 @@
 defmodule RegentHttp.Public do
   @moduledoc """
-  GET from an address someone else supplied, such as an app's published
-  identity, without letting that address reach the site's own network.
+  Requests to an address someone else supplied, such as an app's published
+  identity or an MCP Events callback, without letting that address reach the
+  site's own network. Every Regent package that calls such an address uses
+  this module.
 
   The host is resolved first and every answer must be a public address; Mint
   then connects to that checked address while the original host stays the HTTP
@@ -10,7 +12,7 @@ defmodule RegentHttp.Public do
   pools or retries, a total deadline and a byte limit on the answer.
 
   Tests replace the network with `Application.put_env(:regent_http,
-  :public_client, Stub)`, where `Stub.get/2` takes the same arguments.
+  :public_client, Stub)`, where `Stub.request/3` takes the same arguments.
   """
 
   @timeout_ms 5_000
@@ -32,28 +34,61 @@ defmodule RegentHttp.Public do
     {{240, 0, 0, 0}, 4}
   ]
 
-  @type response :: %{status: pos_integer(), headers: [{String.t(), String.t()}], body: binary()}
+  @type response :: %{
+          status: pos_integer(),
+          headers: [{String.t(), String.t()}],
+          body: binary() | nil
+        }
 
   @doc """
-  GETs `url`. `:max_bytes` (required) bounds the answer's body: a longer one is
-  `{:error, :too_large}`. `:timeout` is the whole call's deadline in
-  milliseconds (default 5000); `:headers` are sent as given.
+  Sends `method` (`:get` or `:post`) to `url`.
 
-  Any status is answered as it came; a redirect is not followed.
+  - `:max_bytes` (required) bounds the answer's headers and body; a longer body
+    is `{:error, :too_large}`.
+  - `:timeout` is the whole call's deadline in milliseconds (default 5000).
+  - `:headers` are sent as given, and `:body` with a POST.
+  - `answer: :headers` returns as soon as a 2xx status's headers arrive, with
+    `body: nil`, for a receiver that acknowledges on receipt.
+
+  A status of 300 or more is returned at once, with an empty body that is not
+  read; a redirect is never followed.
   """
-  @spec get(String.t(), keyword()) :: {:ok, response()} | {:error, atom()}
-  def get(url, opts) do
-    max_bytes = Keyword.fetch!(opts, :max_bytes)
+  @spec request(:get | :post, String.t(), keyword()) :: {:ok, response()} | {:error, atom()}
+  def request(method, url, opts) when method in [:get, :post] do
+    Keyword.fetch!(opts, :max_bytes)
 
     case Application.get_env(:regent_http, :public_client) do
-      nil -> fetch(url, max_bytes, opts)
-      stub -> stub.get(url, opts)
+      nil -> send_request(method, url, opts)
+      stub -> stub.request(method, url, opts)
     end
   end
 
-  @doc "Whether `url` is an HTTPS address this module may fetch: no user, fragment or non-public literal address."
+  @doc "`request(:get, url, opts)`."
+  def get(url, opts), do: request(:get, url, opts)
+
+  @doc """
+  Checks an address this module may call: HTTPS, a port, no user or fragment,
+  no control characters, and a host name or a public literal address.
+  """
+  @spec uri(term()) :: {:ok, URI.t()} | {:error, :invalid_url}
+  def uri(url) when is_binary(url) and byte_size(url) in 1..8192 do
+    with {:ok, uri} <- URI.new(url),
+         true <- uri.scheme == "https" and is_binary(uri.host) and uri.host != "",
+         true <- is_nil(uri.userinfo) and is_nil(uri.fragment),
+         true <- is_integer(uri.port) and uri.port in 1..65_535,
+         true <- valid_host?(uri.host),
+         true <- not Regex.match?(~r/[\x00-\x20\x7f\\]/, url) do
+      {:ok, uri}
+    else
+      _ -> {:error, :invalid_url}
+    end
+  end
+
+  def uri(_), do: {:error, :invalid_url}
+
+  @doc "Whether `uri/1` accepts `url`."
   @spec valid_url?(term()) :: boolean()
-  def valid_url?(url), do: match?({:ok, _}, parse(url))
+  def valid_url?(url), do: match?({:ok, _}, uri(url))
 
   @doc "Whether an IP tuple is globally routable; transition and mapped IPv6 are refused."
   def public_ip?({a, b, c, d} = ip)
@@ -73,44 +108,31 @@ defmodule RegentHttp.Public do
 
   def public_ip?(_), do: false
 
-  defp fetch(url, max_bytes, opts) do
+  defp send_request(method, url, opts) do
     started_at = System.monotonic_time()
     deadline = System.monotonic_time(:millisecond) + Keyword.get(opts, :timeout, @timeout_ms)
+    max_bytes = Keyword.fetch!(opts, :max_bytes)
 
     result =
-      with {:ok, uri} <- parse(url),
+      with {:ok, uri} <- uri(url),
            {:ok, address} <- resolve(uri.host, deadline),
            {:ok, conn} <- connect(uri, address, max_bytes, deadline) do
         try do
-          request(conn, uri, Keyword.get(opts, :headers, []), max_bytes, deadline)
+          send_on(conn, method, uri, opts, max_bytes, deadline)
         after
           Mint.HTTP.close(conn)
         end
       end
 
+    # The host is someone else's choice, so it is not a measurement label.
     :telemetry.execute(
-      [:regent_http, :request],
+      [:regent_http, :public_request],
       %{duration: System.monotonic_time() - started_at},
-      %{method: :get, host: host_of(url), result: result_status(result)}
+      %{method: method, result: result_status(result)}
     )
 
     result
   end
-
-  defp parse(url) when is_binary(url) and byte_size(url) in 1..2048 do
-    with {:ok, uri} <- URI.new(url),
-         true <- uri.scheme == "https" and is_binary(uri.host) and uri.host != "",
-         true <- is_nil(uri.userinfo) and is_nil(uri.fragment),
-         true <- is_integer(uri.port) and uri.port in 1..65_535,
-         true <- valid_host?(uri.host),
-         true <- not Regex.match?(~r/[\x00-\x20\x7f\\]/, url) do
-      {:ok, uri}
-    else
-      _ -> {:error, :invalid_url}
-    end
-  end
-
-  defp parse(_), do: {:error, :invalid_url}
 
   defp valid_host?(host) do
     case :inet.parse_strict_address(String.to_charlist(host)) do
@@ -176,18 +198,25 @@ defmodule RegentHttp.Public do
     end
   end
 
-  defp request(conn, uri, headers, max_bytes, deadline) do
+  defp send_on(conn, method, uri, opts, max_bytes, deadline) do
+    headers = Keyword.get(opts, :headers, [])
+    body = if method == :post, do: Keyword.fetch!(opts, :body)
+    answer = Keyword.get(opts, :answer, :body)
     path = if uri.path in [nil, ""], do: "/", else: uri.path
     path = if is_nil(uri.query), do: path, else: path <> "?" <> uri.query
-    host = if uri.port == 443, do: uri.host, else: uri.host <> ":" <> Integer.to_string(uri.port)
+    host = if String.contains?(uri.host, ":"), do: "[#{uri.host}]", else: uri.host
+    host = if uri.port == 443, do: host, else: host <> ":" <> Integer.to_string(uri.port)
 
     headers = [
       {"host", host} | Enum.reject(headers, fn {key, _} -> String.downcase(key) == "host" end)
     ]
 
-    case Mint.HTTP.request(conn, "GET", path, headers, nil) do
+    verb = method |> Atom.to_string() |> String.upcase()
+
+    case Mint.HTTP.request(conn, verb, path, headers, body) do
       {:ok, conn, ref} ->
-        receive_response(conn, ref, max_bytes, deadline, %{status: nil, headers: [], body: ""})
+        response = %{status: nil, headers: [], body: "", answer: answer}
+        receive_response(conn, ref, max_bytes, deadline, response)
 
       {:error, _conn, error} ->
         {:error, network_reason(error)}
@@ -213,7 +242,13 @@ defmodule RegentHttp.Public do
 
   defp consume([{:headers, ref, headers} | rest], conn, ref, max_bytes, deadline, response) do
     headers = Enum.map(headers, fn {key, value} -> {String.downcase(key), value} end)
-    consume(rest, conn, ref, max_bytes, deadline, %{response | headers: headers})
+    response = %{response | headers: headers}
+
+    cond do
+      response.status >= 300 -> {:ok, finish(%{response | body: ""})}
+      response.answer == :headers -> {:ok, finish(%{response | body: nil})}
+      true -> consume(rest, conn, ref, max_bytes, deadline, response)
+    end
   end
 
   defp consume([{:data, ref, chunk} | rest], conn, ref, max_bytes, deadline, response) do
@@ -225,7 +260,7 @@ defmodule RegentHttp.Public do
   end
 
   defp consume([{:done, ref} | _], _conn, ref, _max_bytes, _deadline, response),
-    do: {:ok, response}
+    do: {:ok, finish(response)}
 
   defp consume([{:error, ref, error} | _], _conn, ref, _max_bytes, _deadline, _response),
     do: {:error, network_reason(error)}
@@ -239,8 +274,7 @@ defmodule RegentHttp.Public do
   defp network_reason(%Mint.TransportError{reason: {:tls_alert, _}}), do: :tls_error
   defp network_reason(_), do: :connection_error
 
-  defp host_of(url) when is_binary(url), do: URI.parse(url).host || "unknown"
-  defp host_of(_), do: "unknown"
+  defp finish(response), do: Map.delete(response, :answer)
 
   defp result_status({:ok, %{status: status}}), do: status
   defp result_status(_), do: :error

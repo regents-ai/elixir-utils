@@ -164,11 +164,27 @@ defmodule RegentOAuth.ClientDocumentsTest do
           "https://claude.ai/oauth/../x",
           "https://claude.ai/oauth/x?y=1",
           "https://127.0.0.1/oauth/x",
+          "https://claude.ai:8443/oauth/x",
           "https://user@claude.ai/oauth/x"
         ] do
       assert consent("did:privy:sol", authorize_query(url)).status == 400, url
     end
 
+    refute_received {:read, _}
+  end
+
+  test "a signed-out visitor never makes the site read an address or record an app" do
+    before = RegentOAuth.Repo.aggregate(Boruta.Ecto.Client, :count)
+
+    for n <- 1..5 do
+      url = "https://evil.example/app/#{n}"
+      Documents.serve(url, %{Documents.claude() | body: Jason.encode!(%{"client_id" => url})})
+      page = consent(nil, authorize_query(url, "https://evil.example/cb"))
+      assert page.status == 200
+      assert page.resp_body =~ "Sign in to connect"
+    end
+
+    assert RegentOAuth.Repo.aggregate(Boruta.Ecto.Client, :count) == before
     refute_received {:read, _}
   end
 

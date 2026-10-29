@@ -1,27 +1,50 @@
 defmodule RegentHttp.PublicMessagesTest do
-  # `answer: :headers` acknowledges only on a 2xx's headers, as MCP Events
-  # callbacks always have (found in review of the move onto this module, 29 Oct). Mint reports a 1xx response (103 Early Hints,
-  # 100 Continue) as its own {:status, ref, 1xx} and {:headers, ref, _} before
-  # the final status, and RegentHttp.Public.consume/6 returns on those headers.
-  # A network test cannot reach a loopback server through the public-address
-  # guard, so this runs the module's own source with its private functions
-  # exported, on the message list Mint really produces.
+  # Informational (1xx) replies, found in review on 29 Oct: `answer: :headers`
+  # acknowledges only on a 2xx's headers, as MCP Events callbacks always have.
+  # Runs the module's own source with private functions exported against a
+  # plain-TCP Mint connection, since the public-address guard refuses loopback.
   use ExUnit.Case, async: true
 
   @source Path.expand("../../lib/regent_http/public.ex", __DIR__)
+  @mod RegentHttp.PublicUnderTest
 
   setup_all do
-    source =
-      @source
-      |> File.read!()
-      |> String.replace(
-        "defmodule RegentHttp.Public do",
-        "defmodule RegentHttp.PublicUnderTest do\n  @compile :export_all",
-        global: false
-      )
+    @source
+    |> File.read!()
+    |> String.replace(
+      "defmodule RegentHttp.Public do",
+      "defmodule #{inspect(@mod)} do\n  @compile :export_all",
+      global: false
+    )
+    |> Code.compile_string()
 
-    Code.compile_string(source)
     :ok
+  end
+
+  # Starts a server that writes `reply` (a binary, or a function looping on the
+  # socket) and returns a Mint conn with the request sent.
+  defp request(reply) do
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+
+    Task.start(fn ->
+      {:ok, socket} = :gen_tcp.accept(listen)
+      {:ok, _request} = :gen_tcp.recv(socket, 0)
+      if is_function(reply), do: reply.(socket), else: :gen_tcp.send(socket, reply)
+      Process.sleep(300)
+      :gen_tcp.close(socket)
+    end)
+
+    {:ok, conn} = Mint.HTTP.connect(:http, "127.0.0.1", port, mode: :passive)
+    {:ok, conn, ref} = Mint.HTTP.request(conn, "POST", "/", [], "{}")
+    {conn, ref}
+  end
+
+  defp answer(reply, answer, deadline_ms \\ 1_000) do
+    {conn, ref} = request(reply)
+    deadline = System.monotonic_time(:millisecond) + deadline_ms
+    response = %{status: nil, headers: [], body: "", answer: answer}
+    apply(@mod, :receive_response, [conn, ref, 16_384, deadline, response])
   end
 
   defp mint_messages(reply) do
@@ -42,6 +65,40 @@ defmodule RegentHttp.PublicMessagesTest do
     {ref, messages}
   end
 
+  test "endless 1xx replies end at the deadline" do
+    flood = fn socket ->
+      Enum.each(1..100_000, fn _ ->
+        :gen_tcp.send(socket, "HTTP/1.1 103 x\r\nlink: </a>\r\n\r\n")
+      end)
+    end
+
+    started = System.monotonic_time(:millisecond)
+    assert {:error, _} = answer(flood, :headers, 500)
+    assert System.monotonic_time(:millisecond) - started < 2_000
+  end
+
+  test "a 1xx carrying bytes after its blank line is an error, not an answer" do
+    assert {:error, _} = answer("HTTP/1.1 100 Continue\r\ncontent-length: 5\r\n\r\nhello", :body)
+  end
+
+  test "2xx and 3xx+ answers after a 1xx are unchanged" do
+    early = "HTTP/1.1 103 x\r\nlink: </a>\r\n\r\n"
+
+    assert {:ok, %{status: 200, body: nil}} =
+             answer(early <> "HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok", :headers)
+
+    assert {:ok, %{status: 200, body: "ok", headers: [{"content-length", "2"}]}} =
+             answer(early <> "HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok", :body)
+
+    assert {:ok, %{status: 302, body: ""}} =
+             answer(early <> "HTTP/1.1 302 Found\r\nlocation: /x\r\n\r\n", :body)
+  end
+
+  test "101 Switching Protocols is a failed call, never an answer without a status" do
+    reply = "HTTP/1.1 101 Switching Protocols\r\nupgrade: x\r\n\r\nraw bytes"
+    assert {:error, :connection_error} = answer(reply, :body)
+  end
+
   test "an informational response is never taken as a callback's acknowledgement" do
     {ref, messages} =
       mint_messages(
@@ -57,7 +114,7 @@ defmodule RegentHttp.PublicMessagesTest do
     # Taking the 103 as the answer would end an MCP Events subscription that
     # should retry on the final 503.
     assert {:ok, %{status: 503}} =
-             apply(RegentHttp.PublicUnderTest, :consume, [
+             apply(@mod, :consume, [
                messages,
                nil,
                ref,

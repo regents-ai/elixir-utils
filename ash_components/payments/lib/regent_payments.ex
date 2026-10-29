@@ -1,13 +1,37 @@
 defmodule RegentPayments do
   @moduledoc """
-  Paid actions for every Regent site, in USDC on Base.
+  Paid actions for every Regent site, in USDC on Base or in Regent Credits.
 
-  Regents holds no money. There is no balance, top-up, credit or withdrawal
-  here, and no refund: a payment intent freezes what an action will cost and
-  which wallet receives the money, the payer's own wallet then pays that
-  wallet directly through an x402 facilitator, and the receipt records what
+  Regents holds no USDC. There is no USDC balance, top-up or withdrawal here,
+  and no refund: a payment intent freezes what an action will cost and which
+  wallet receives the money, the payer's own wallet then pays that wallet
+  directly through an x402 facilitator, and the receipt records what
   happened. The person's USDC Balance is always read live from their own
   wallet on Base (`RegentPayments.Balance`).
+
+  ## Paying with Regent Credits
+
+  Where the money ends with Regents, the terms may accept Regent Credits
+  instead (`RegentCredits`, the balance Regents keeps for each person): the
+  same amount, one Credit per USDC, is spent from the payer's Credits in the
+  same transaction that settles the intent
+  (`RegentPayments.Purchase.pay_with_credits/4`).
+
+    * Every offer's `freeze/2` answers `credits: :accepted | :refused`. It is
+      frozen with the terms and never read from a request.
+    * Terms may accept Credits only when they pay into a Regents wallet the
+      site names; preparing any other `:accepted` terms is refused:
+
+          config :regent_payments, credits_pay_to: ["0x…"]
+
+    * A person's Credits pay only an intent that same person prepared, and an
+      agent's only the intent that agent prepared for its person, within the
+      limits the person set.
+    * `regent_credits` must use the same repository as `regent_payments`, since
+      the Credits charge and the settled intent are written in one
+      transaction.
+    * This library names `regent_credits` by a sibling path, so a site pins
+      `regent_credits` from git with `override: true`, as it pins this library.
 
   Each site registers the actions it sells as `RegentPayments.Offer` modules,
   names itself, and supplies its repository:
@@ -53,6 +77,20 @@ defmodule RegentPayments do
   @doc "The name this site's payments are written under."
   @spec site() :: String.t()
   def site, do: Application.fetch_env!(:regent_payments, :site)
+
+  @doc """
+  Whether `address` is one of the Regents wallets that terms accepting Regent
+  Credits may be paid into, from `config :regent_payments, credits_pay_to:`.
+  None are named unless the site names them.
+  """
+  @spec credits_pay_to?(String.t()) :: boolean()
+  def credits_pay_to?(address) do
+    address = String.downcase(address)
+
+    :regent_payments
+    |> Application.get_env(:credits_pay_to, [])
+    |> Enum.any?(&(String.downcase(&1) == address))
+  end
 
   @doc """
   The facilitator's address, from `config :regent_payments, RegentPayments.Facilitator`.

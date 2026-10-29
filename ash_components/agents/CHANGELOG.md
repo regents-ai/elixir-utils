@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- A check-in refused as `agent_not_paired` or `person_not_here` ends its hint
+  with "Help: https://patchbay.help/errors/<code>", Patchbay's page for that
+  refusal, so an agent can read what to do next.
+
 - `GET /api/agents/v1/whoami`'s `agent` carries `human_backed` and
   `same_person_agent_count` beside `registry_listing`, as the SIWA service names
   them on that request, so an agent can check its whole sign-in through a site

@@ -16,6 +16,18 @@ defmodule RegentMCPAgents do
   @posting_scope "patchbay.posts.write"
   @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
 
+  # Where every site mounts `RegentAgents.HTTP`, and how its endpoint reads an
+  # agent request there: the SIWA plug's reader keeps the exact bytes, at most
+  # 4096 of them.
+  @agents_path "/api/agents/v1/"
+  @agent_body_limit 4_096
+  @agent_parsers [
+    parsers: [:json],
+    json_decoder: Jason,
+    pass: ["*/*"],
+    body_reader: {Siwa.AgentAuthPlug, :read_body, [@agent_body_limit]}
+  ]
+
   @doc "Validate opt-in runtime configuration before accepting connections."
   def configure! do
     opts = config()
@@ -75,8 +87,7 @@ defmodule RegentMCPAgents do
   @doc "Read the current pairing through a freshly SIWA-signed, non-awarding identity probe."
   def status(principal) do
     with :ok <- authority(principal, @identity_scope),
-         {:ok, %{"data" => data}} <-
-           perform(principal, %{"method" => "GET", "path" => "/api/agents/v1/whoami"}) do
+         {:ok, %{"data" => data}} <- perform(principal, :whoami) do
       {:ok,
        %{
          identity_id: connection_key(principal),
@@ -89,8 +100,7 @@ defmodule RegentMCPAgents do
   @doc "Check in with a freshly SIWA-signed request, so the person sees the connection is active."
   def check_in(principal) do
     with :ok <- authority(principal, @identity_scope),
-         {:ok, %{"data" => data}} <-
-           perform(principal, %{"method" => "GET", "path" => "/api/agents/v1/me"}) do
+         {:ok, %{"data" => data}} <- perform(principal, :check_in) do
       {:ok, Map.put(data, "identity_id", connection_key(principal))}
     end
   end
@@ -106,15 +116,11 @@ defmodule RegentMCPAgents do
          true <- String.length(name) in 1..100,
          true <- harness in hosted_names(),
          :ok <- own_code(principal.subject, code),
-         body = Jason.encode!(%{code: code, name: name, harness: harness}),
          {:ok, %{"data" => _data}} <-
-           perform(principal, %{
-             "method" => "POST",
-             "path" => "/api/agents/v1/pair",
-             "body" => body
-           }) do
+           perform(principal, {:pair, Jason.encode!(%{code: code, name: name, harness: harness})}) do
       {:ok, %{identity_id: connection_key(principal), paired: true, name: name}}
     else
+      {:error, {:rate_limited, _seconds}} = limited -> limited
       _ -> {:error, :pairing_refused}
     end
   end
@@ -134,7 +140,7 @@ defmodule RegentMCPAgents do
           params: %{name: name, arguments: arguments}
         })
 
-      perform(principal, %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body})
+      perform(principal, {:post, body})
     else
       _ -> {:error, :posting_refused}
     end
@@ -194,44 +200,165 @@ defmodule RegentMCPAgents do
   defp signer_request(principal, payload) do
     signer = Keyword.fetch!(config(), :hosted_signer)
 
-    case Req.request(
+    case http_request(
            method: :post,
            url: Keyword.fetch!(signer, :base_url) <> "/api/shared/siwa/hosted",
            auth: {:bearer, Keyword.fetch!(signer, :key)},
            json: Map.put(payload, "identity_key", connection_key(principal)),
-           retry: false,
-           redirect: false,
            receive_timeout: 15_000
          ) do
       {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
+      {:ok, %{status: 429} = response} -> wait(Req.Response.get_header(response, "retry-after"))
       _ -> {:error, :identity_request_refused}
     end
   end
 
-  defp perform(principal, request) do
-    required =
-      if request["path"] == "/chatgpt/agent/mcp", do: @posting_scope, else: @identity_scope
+  # The only requests the hosted signer is ever asked to sign, each for this
+  # account's one identity on this site: the identity probe, the check-in, the
+  # pairing and Patchbay's free posts, with the permission each needs. The
+  # method and path come from here alone; a tool's arguments reach only the
+  # pairing's and a post's body, which their own tools build.
+  defp signable(:whoami),
+    do: {@identity_scope, %{"method" => "GET", "path" => "/api/agents/v1/whoami"}}
+
+  defp signable(:check_in),
+    do: {@identity_scope, %{"method" => "GET", "path" => "/api/agents/v1/me"}}
+
+  defp signable({:pair, body}),
+    do: {@identity_scope, %{"method" => "POST", "path" => "/api/agents/v1/pair", "body" => body}}
+
+  defp signable({:post, body}),
+    do: {@posting_scope, %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body}}
+
+  # The connection's own Bearer token never leaves this site: the signer is
+  # asked with the site's hosted signing key, and the signed request carries
+  # only the headers the signer returned.
+  defp perform(principal, operation) do
+    {required, request} = signable(operation)
 
     with {:ok, envelope} <-
            signer_request(principal, %{"operation" => "sign", "request" => request}),
          :ok <- authority(principal, required),
          true <-
            envelope["method"] == request["method"] and envelope["path"] == request["path"] and
-             envelope["body"] == request["body"],
-         {:ok, %{status: status, body: body}} <-
-           Req.request(
-             method: request["method"] |> String.downcase() |> String.to_existing_atom(),
-             url: RegentOAuth.issuer() <> request["path"],
-             headers: Map.put(envelope["headers"], "content-type", "application/json"),
-             body: request["body"],
-             retry: false,
-             redirect: false,
-             receive_timeout: 15_000
-           ),
-         true <- status in 200..299 and is_map(body) do
-      {:ok, body}
+             envelope["body"] == request["body"] and is_map(envelope["headers"]),
+         # Lowercase names, as Plug keeps them; the signature covers values.
+         headers =
+           envelope["headers"]
+           |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
+           |> Map.put("content-type", "application/json"),
+         {:ok, status, body, retry_after} <- send_signed(request, headers) do
+      answer(status, body, retry_after)
     else
+      {:error, {:rate_limited, _seconds}} = limited -> limited
       _ -> {:error, :identity_request_refused}
     end
+  end
+
+  defp answer(status, body, _retry_after) when status in 200..299 and is_map(body),
+    do: {:ok, body}
+
+  defp answer(429, _body, retry_after), do: wait(retry_after)
+  defp answer(_status, _body, _retry_after), do: {:error, :identity_request_refused}
+
+  # A 429 from the signer or the signed request means wait, not refused: the
+  # tool answers with the seconds its `Retry-After` names.
+  defp wait([seconds]) do
+    case Integer.parse(seconds) do
+      {seconds, ""} when seconds > 0 -> {:error, {:rate_limited, seconds}}
+      _ -> {:error, :identity_request_refused}
+    end
+  end
+
+  defp wait(_), do: {:error, :identity_request_refused}
+
+  # An identity request goes to this site's own `RegentAgents.HTTP` in this
+  # process, as the exact request the hosted signer signed: its method, path,
+  # signed headers and body bytes, read by the SIWA plug's reader as the site's
+  # endpoint reads them. The SIWA service verifies it exactly as it would a
+  # request that came over the network. Sent over the network it would leave
+  # and come back in from the site's own address, so every connected account
+  # would share that one address's budget; the per-account budget at the MCP
+  # address is the one that bounds it. Patchbay's posting door is that site's
+  # own route, outside this library, so a post still goes over HTTPS.
+  defp send_signed(%{"path" => @agents_path <> route} = request, headers) do
+    body = request["body"] || ""
+
+    if byte_size(body) <= @agent_body_limit,
+      do: forward_signed(request, route, body, headers),
+      else: :error
+  end
+
+  defp send_signed(request, headers) do
+    case http_request(
+           method: request["method"] |> String.downcase() |> String.to_existing_atom(),
+           url: RegentOAuth.issuer() <> request["path"],
+           headers: headers,
+           body: request["body"],
+           receive_timeout: 15_000
+         ) do
+      {:ok, %{status: status, body: body} = response} ->
+        {:ok, status, body, Req.Response.get_header(response, "retry-after")}
+
+      _ ->
+        :error
+    end
+  end
+
+  # Anything the inner request raises is a refused tool call, never a failed MCP
+  # request, and its log metadata is not left on the outer one.
+  defp forward_signed(request, route, body, headers) do
+    metadata = Logger.metadata()
+
+    try do
+      conn =
+        request["method"]
+        |> Plug.Test.conn(RegentOAuth.issuer() <> request["path"], body)
+        |> Map.replace!(:req_headers, Map.to_list(headers))
+        |> Plug.Parsers.call(Plug.Parsers.init(@agent_parsers))
+        |> Plug.forward(String.split(route, "/"), RegentAgents.HTTP, [])
+        |> take_answer()
+
+      with answer when is_binary(answer) <- conn.resp_body,
+           {:ok, decoded} <- Jason.decode(answer) do
+        {:ok, conn.status, decoded, Plug.Conn.get_resp_header(conn, "retry-after")}
+      else
+        _ -> :error
+      end
+    rescue
+      _ -> :error
+    after
+      Logger.reset_metadata(metadata)
+    end
+  end
+
+  # `Plug.Test.conn/3` is Plug's one in-memory connection. It tells this
+  # process about each answer it sends, as two messages; they are taken here,
+  # as Req takes them for its own in-memory requests, so a connection process
+  # that serves the MCP address for many requests is left holding none.
+  defp take_answer(%Plug.Conn{adapter: {_adapter, %{ref: ref}}} = conn) do
+    receive do
+      {^ref, {_status, _headers, _body}} -> :ok
+    after
+      0 -> :ok
+    end
+
+    receive do
+      {:plug_conn, :sent} -> :ok
+    after
+      0 -> :ok
+    end
+
+    conn
+  end
+
+  # Every request to the signer, and every post, neither retries nor follows a
+  # redirect. `config :regent_mcp_agents, :req_options` adds options to them,
+  # such as a test's stub.
+  defp http_request(options) do
+    options
+    |> Keyword.merge(Application.get_env(:regent_mcp_agents, :req_options, []))
+    |> Keyword.merge(retry: false, redirect: false)
+    |> Req.request()
   end
 end

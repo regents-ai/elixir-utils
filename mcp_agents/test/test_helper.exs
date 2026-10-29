@@ -36,4 +36,37 @@ Ecto.Migrator.run(RegentOAuth.Repo, [{1, RegentMCPAgents.Test.OAuthTables}], :up
 )
 
 Ecto.Adapters.SQL.Sandbox.mode(RegentOAuth.Repo, :manual)
+
+# The site's agent records (`RegentAgents`), in the same database: pairing
+# codes, paired agents and their check-ins, migrated as a site migrates them.
+Application.put_env(
+  :regent_mcp_agents,
+  RegentMCPAgents.Test.AgentsRepo,
+  Keyword.merge(RegentMCPAgents.Test.Repo.config(), pool: Ecto.Adapters.SQL.Sandbox, log: false)
+)
+
+Application.put_env(:ash, :default_string_length_count, :codepoints)
+
+Application.put_env(:regent_agents, :repo, RegentMCPAgents.Test.AgentsRepo)
+Application.put_env(:regent_agents, :account, {RegentMCPAgents.Test.Accounts, :account})
+
+Application.put_env(:regent_agents, :allowed, %{
+  "not_paired" => ["Read public pages."],
+  "person_not_here" => ["Read public pages."],
+  "paired" => ["Read public pages.", "Act for your person."]
+})
+
+{:ok, _} = RegentMCPAgents.Test.AgentsRepo.start_link()
+
+Ecto.Migrator.run(
+  RegentMCPAgents.Test.AgentsRepo,
+  [{0, RegentMCPAgents.Test.AgentsRepo.AshFunctions}],
+  :up,
+  all: true,
+  log: false
+)
+
+RegentAgents.Migrator.up(RegentMCPAgents.Test.AgentsRepo)
+Ecto.Adapters.SQL.Sandbox.mode(RegentMCPAgents.Test.AgentsRepo, :manual)
+
 ExUnit.start()

@@ -6,10 +6,7 @@ defmodule RegentOAuth.Migration do
   """
   use Ecto.Migration
 
-  def up(opts \\ []) do
-    issuer = Keyword.get_lazy(opts, :issuer, &RegentOAuth.issuer/0)
-    resource = Keyword.get_lazy(opts, :resource, &RegentOAuth.resource/0)
-
+  def up do
     create table(:oauth_clients, primary_key: false) do
       add(:id, :uuid, primary_key: true)
       add(:name, :string, null: false, default: "")
@@ -65,8 +62,11 @@ defmodule RegentOAuth.Migration do
       add(:id, :uuid, primary_key: true)
       add(:type, :string, null: false)
       add(:value, :string, null: false)
-      add(:oauth_issuer, :text, null: false, default: issuer)
-      add(:mcp_resource, :text, null: false, default: resource)
+      # Written for each code and token as it is issued, from the running
+      # site's configuration (`RegentOAuth.bind/2`); a row without them is
+      # refused.
+      add(:oauth_issuer, :text)
+      add(:mcp_resource, :text)
       add(:refresh_token, :string)
       add(:previous_token, :string)
       add(:previous_code, :string)

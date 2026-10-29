@@ -7,10 +7,13 @@ defmodule RegentOAuth.HashedTokensTest do
   alias RegentOAuth.Repo
   alias RegentOAuth.Test.Flow
 
+  # The site's own schema, where the provider keeps its rows.
+  defp tokens, do: ~s("#{Application.fetch_env!(:regent_oauth, :prefix)}".oauth_tokens)
+
   defp stored_anywhere?(plain) do
     %{rows: [[count]]} =
       Repo.query!(
-        "SELECT count(*) FROM regent_oauth_test.oauth_tokens WHERE $1 IN (value, refresh_token, previous_token)",
+        "SELECT count(*) FROM #{tokens()} WHERE $1 IN (value, refresh_token, previous_token)",
         [plain]
       )
 
@@ -36,7 +39,7 @@ defmodule RegentOAuth.HashedTokensTest do
     assert {:error, :unauthorized} = RegentOAuth.verify(row.value, RegentOAuth.resource())
   end
 
-  test "a refresh hands out new tokens, keeps only the old access token's hash, and a reused refresh token disconnects the app" do
+  test "a refresh hands out new tokens, keeps only the old access token's hash, and a reused refresh token disconnects the app once the grace period is over" do
     {client_id, %{"access_token" => access, "refresh_token" => refresh}} =
       Flow.sign_in!("did:privy:sol")
 
@@ -51,10 +54,54 @@ defmodule RegentOAuth.HashedTokensTest do
     refute stored_anywhere?(fresh_refresh)
     assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
 
+    # 25 seconds later is still within the grace period: the app's own retry,
+    # refused, still connected.
+    age_refresh(refresh, 25)
+    retry = Flow.refresh(client_id, refresh)
+    assert retry.status == 400
+    assert Jason.decode!(retry.resp_body) == %{"error" => "invalid_grant"}
+    assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
+
+    age_refresh(refresh, 6)
+
     reused = Flow.refresh(client_id, refresh)
     assert reused.status == 400
     assert Jason.decode!(reused.resp_body) == %{"error" => "invalid_grant"}
     assert {:error, :unauthorized} = RegentOAuth.verify(fresh, RegentOAuth.resource())
+  end
+
+  test "each token carries the running site's issuer and resource, and one bound elsewhere is refused" do
+    {client_id, %{"access_token" => access}} = Flow.sign_in!("did:privy:sol")
+    id = Ecto.UUID.dump!(access_row(client_id, RegentOAuth.hash_token(access)).id)
+
+    %{rows: [[issuer, resource]]} =
+      Repo.query!(
+        "SELECT oauth_issuer, mcp_resource FROM #{tokens()} WHERE id = $1",
+        [id]
+      )
+
+    assert {issuer, resource} == {RegentOAuth.issuer(), RegentOAuth.resource()}
+
+    Repo.query!(
+      "UPDATE #{tokens()} SET mcp_resource = 'https://elsewhere.test/mcp' WHERE id = $1",
+      [id]
+    )
+
+    assert {:error, :unauthorized} = RegentOAuth.verify(access, RegentOAuth.resource())
+  end
+
+  test "disconnecting an app revokes its access and refresh tokens, and leaves the person's other apps" do
+    {client_id, %{"access_token" => access, "refresh_token" => refresh}} =
+      Flow.sign_in!("did:privy:sol")
+
+    {_other, %{"access_token" => other}} = Flow.sign_in!("did:privy:sol")
+
+    assert {:ok, :ok} = RegentOAuth.revoke_client("did:privy:sol", client_id)
+
+    assert {:error, :unauthorized} = RegentOAuth.verify(access, RegentOAuth.resource())
+    assert Flow.refresh(client_id, refresh).status == 400
+    refute Enum.any?(RegentOAuth.connected_clients("did:privy:sol"), &(&1.id == client_id))
+    assert {:ok, _} = RegentOAuth.verify(other, RegentOAuth.resource())
   end
 
   test "revoking with the plain refresh token disconnects the app" do
@@ -64,5 +111,12 @@ defmodule RegentOAuth.HashedTokensTest do
     assert Flow.post(:revoke, %{"client_id" => client_id, "token" => refresh}).status == 200
     assert {:error, :unauthorized} = RegentOAuth.verify(access, RegentOAuth.resource())
     assert Flow.refresh(client_id, refresh).status == 400
+  end
+
+  defp age_refresh(refresh, seconds) do
+    Repo.query!(
+      "UPDATE #{tokens()} SET refresh_token_revoked_at = refresh_token_revoked_at - make_interval(secs => $2) WHERE refresh_token = $1",
+      [RegentOAuth.hash_token(refresh), seconds]
+    )
   end
 end

@@ -56,6 +56,15 @@ defmodule RegentIdentity.Profile do
       filter expr(app_id == ^arg(:app_id) and privy_user_id in ^arg(:privy_user_ids))
     end
 
+    # Only `RegentIdentity.profile_id/2` reads this, unauthorized, and it
+    # selects nothing but the ID.
+    read :person do
+      get? true
+      argument :app_id, :string, allow_nil?: false
+      argument :privy_user_id, :string, allow_nil?: false
+      filter expr(app_id == ^arg(:app_id) and privy_user_id == ^arg(:privy_user_id))
+    end
+
     create :register do
       accept []
       change RegentIdentity.ProofAttributes
@@ -81,6 +90,12 @@ defmodule RegentIdentity.Profile do
 
     policy action([:mine, :refresh, :edit]) do
       authorize_if expr(app_id == ^actor(:app_id) and privy_user_id == ^actor(:privy_user_id))
+    end
+
+    # Only the library reads these, unauthorized: `RegentIdentity.ProfileName`
+    # for names and `RegentIdentity.profile_id/2` for a person's profile ID.
+    policy action([:names, :person]) do
+      forbid_if always()
     end
   end
 end

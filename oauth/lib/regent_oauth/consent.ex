@@ -29,7 +29,7 @@ defmodule RegentOAuth.Consent do
 
         _ ->
           page(conn, "Sign in to connect", """
-          <p>Open the website and sign in with Privy, then return here to continue.</p>
+          <p>Open the website and sign in, then return here to continue.</p>
           <p><a href="/" target="_blank" rel="noopener">Open the website</a></p>
           <p><a href="#{escape(conn.request_path <> "?" <> conn.query_string)}">Continue after signing in</a></p>
           """)
@@ -138,8 +138,10 @@ defmodule RegentOAuth.Consent do
   end
 
   @impl true
-  def authorize_success(conn, response),
-    do: redirect(conn, Boruta.Oauth.AuthorizeResponse.redirect_to_url(response))
+  def authorize_success(conn, %Boruta.Oauth.AuthorizeResponse{code: code} = response) do
+    :ok = RegentOAuth.bind_code(code)
+    redirect(conn, Boruta.Oauth.AuthorizeResponse.redirect_to_url(response))
+  end
 
   @impl true
   def preauthorize_error(conn, error), do: authorize_error(conn, error)

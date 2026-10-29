@@ -56,6 +56,7 @@ defmodule RegentOAuth.AccessTokens do
     |> Repo.insert()
     |> case do
       {:ok, row} ->
+        :ok = RegentOAuth.bind(row.id)
         {:ok, %{to_oauth_schema(row) | value: value, refresh_token: refresh_token}}
 
       {:error, _changeset} ->

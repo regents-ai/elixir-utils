@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- A 429 from the hosted signer or a signed request (Patchbay's posting door)
+  is a wait, not a refusal: the call returns `{:error, {:rate_limited,
+  seconds}}` with the seconds its `Retry-After` names, and the MCP tool answers
+  `too_many_requests` with "Wait N seconds, then call the tool again." and
+  `retry_after`. Before, it said to check the pairing. A site that renders
+  `post/3` itself uses `RegentMCPAgents.Tools.wait/1` for that answer.
+- The requests the hosted signer may be asked to sign are one explicit list in
+  `RegentMCPAgents`: the identity probe (`GET whoami`), the check-in
+  (`GET me`), the pairing (`POST pair`) and Patchbay's free posts, each with
+  the permission it needs. A tool names one of them; no caller passes a method,
+  path or URL.
+- `hosted_identity_test.exs` runs the hosted identity end to end against the
+  site's own agent records, which the tests now migrate into
+  `regent_mcp_agents_test`: the pairing POST is verified with the exact body
+  the signer signed; a code from another account is refused before anything
+  is signed; only the identity requests are signed, for the account's one
+  identity, and the connection's Bearer token reaches neither the signer nor
+  the SIWA service; a reconnect or refresh keeps the one identity and makes no
+  second agent; only `check_in` moves the agent's last check-in (not ping, the
+  handshake, a refresh or `get_identity`); an unpaired connection is not paired
+  again by a check-in; and disconnecting the app refuses its next call and its
+  refresh token.
+
+- `send_signed/2`'s clauses sit together, so the package compiles with
+  warnings as errors again.
+- The hosted identity requests answer a refused tool call, never a failed MCP
+  request, when the site's agent routes raise or answer nothing, and leave no
+  log metadata behind. Signed header names are lowercased, as Plug keeps them.
+- The MCP instructions say to call `register_identity`, then `get_identity`,
+  as every pairing message and guide does.
 - `RegentMCPAgents.Plug`: the MCP address every site mounts for a connected app
   such as Claude's connector. It answers `initialize` in the protocol version the
   app asks for (2025-11-25, 2025-06-18 or 2025-03-26), takes
@@ -18,6 +48,13 @@
 - `refusal:` holds the site's own words for a refused tool call, with a plain
   default. Patchbay keeps its retry advice by setting it.
 - `mix check` now runs the tests against a local PostgreSQL 17.
+- The hosted tools' signed identity requests (`whoami`, `pair`, `me`) reach the
+  site's own `RegentAgents.HTTP` in the same process instead of over HTTPS. Over
+  the network they came back in from the site's own address, so every
+  connected account shared that address's one per-address budget. The SIWA
+  service verifies the exact signed request as before. Patchbay's posts still
+  go over HTTPS. `config :regent_mcp_agents, :req_options` adds Req options to
+  the requests that do go out, such as a test's stub.
 
 ## 0.1.0
 

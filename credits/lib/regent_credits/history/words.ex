@@ -22,6 +22,7 @@ defmodule RegentCredits.History.Words do
   @purposes %{
     "offer_bid" => "Offer bid",
     "fix" => "Fix",
+    "jev_assist" => "Fix",
     "priority_post" => "Priority post",
     "note_pin" => "Note pinned"
   }

@@ -197,7 +197,26 @@ defmodule RegentOAuth do
 
   defp live?(_), do: false
 
-  @doc "Check the audience and issuer frozen by the provider schema at issuance."
+  @doc """
+  Write this provider's issuer and resource on the stored code or token `id`,
+  as it is issued. Boruta's rows carry neither, so each issue writes them here.
+  """
+  def bind(id) do
+    {1, _} =
+      Repo.update_all(from(t in "oauth_tokens", where: t.id == type(^id, :binary_id)),
+        set: [oauth_issuer: issuer(), mcp_resource: resource()]
+      )
+
+    :ok
+  end
+
+  @doc "`bind/1` for the authorization code Boruta has just stored."
+  def bind_code(code) when is_binary(code) do
+    Repo.one!(from(t in Token, where: t.type == "code" and t.value == ^code, select: t.id))
+    |> bind()
+  end
+
+  @doc "Check the issuer and audience written on the code or token at issuance."
   def bound?(id) do
     Repo.exists?(
       from(t in "oauth_tokens",

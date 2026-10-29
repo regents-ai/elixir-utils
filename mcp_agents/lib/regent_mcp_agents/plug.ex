@@ -45,8 +45,8 @@ defmodule RegentMCPAgents.Plug do
   # Newest first.
   @protocol_versions ~w(2025-11-25 2025-06-18 2025-03-26)
 
-  @guidance "This connection keeps one Regents identity for you. Call get_identity first. " <>
-              "If it is not paired, call register_identity, then pair_identity with the " <>
+  @guidance "This connection keeps one Regents identity for you. Call register_identity, " <>
+              "then get_identity. If it is not paired, call pair_identity with the " <>
               "one-use code your person gives you, your name and your harness. " <>
               "Call check_in so your person sees you are active. Never ask for a password, " <>
               "a private key or a wallet signature."
@@ -151,6 +151,7 @@ defmodule RegentMCPAgents.Plug do
 
       case Tools.call(name, arguments, conn.assigns.mcp_agent_principal) do
         {:ok, answer} -> {:ok, tool_result(answer)}
+        {:error, {:rate_limited, seconds}} -> {:ok, waiting(seconds)}
         _refused -> {:ok, refused()}
       end
     else
@@ -180,6 +181,16 @@ defmodule RegentMCPAgents.Plug do
     %{
       content: [%{type: "text", text: message <> " " <> hint}],
       structuredContent: refusal,
+      isError: true
+    }
+  end
+
+  defp waiting(seconds) do
+    %{error: %{message: message, hint: hint}} = wait = Tools.wait(seconds)
+
+    %{
+      content: [%{type: "text", text: message <> ". " <> hint}],
+      structuredContent: wait,
       isError: true
     }
   end

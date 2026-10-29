@@ -5,7 +5,9 @@ config :regent_agents,
   pubsub: RegentAgents.TestPubSub,
   notifications: RegentAgents.TestNotifications,
   account: {RegentAgents.Test.Site, :account},
+  owned_account: {RegentAgents.Test.Site, :owned_account},
   allowed: %{
+    "owner" => ["Read public pages.", "Act as your own account."],
     "not_paired" => ["Read public pages."],
     "person_not_here" => ["Read public pages."],
     "paired" => ["Read public pages.", "Act for your person."]

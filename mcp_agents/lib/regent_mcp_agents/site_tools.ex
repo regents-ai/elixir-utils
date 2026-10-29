@@ -19,6 +19,7 @@ defmodule RegentMCPAgents.SiteTools do
   @typedoc """
   The request one call makes: signed as the connection's identity, or a public
   read sent unsigned. A GET carries no body; a POST's body is a map sent as JSON.
+  Only a public read's path may end in a plain query, such as `?before=12`.
   """
   @type request ::
           {:signed | :public, method :: String.t(), path :: String.t(), body :: map() | nil}

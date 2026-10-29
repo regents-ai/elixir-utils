@@ -207,7 +207,8 @@ defmodule RegentMCPAgents do
 
   defp send_site(principal, site, endpoint, name, scope, {:public, "GET", path, nil}) do
     with :ok <- authority(principal, scope),
-         true <- site_path?(path, site.paths().public),
+         [route | query] = String.split(path, "?", parts: 2),
+         true <- site_path?(route, site.paths().public) and public_query?(query),
          {:ok, status, body, retry_after} <-
            through_endpoint(endpoint, name).(
              %{"method" => "GET", "path" => path},
@@ -238,7 +239,8 @@ defmodule RegentMCPAgents do
     do: {:error, :site_request_refused}
 
   # A path the site's tools may send to: under one of its prefixes, with no
-  # query or fragment, no dot segment and no encoded slash, backslash or dot.
+  # query or fragment (a public read's query is checked on its own), no dot
+  # segment and no encoded slash, backslash or dot.
   defp site_path?(path, prefixes) when is_binary(path) do
     Enum.any?(prefixes, &String.starts_with?(path, &1)) and
       Regex.match?(~r{\A(?:/[A-Za-z0-9._~%-]+)+\z}, path) and
@@ -246,6 +248,10 @@ defmodule RegentMCPAgents do
   end
 
   defp site_path?(_path, _prefixes), do: false
+
+  # A public read may page with a plain query, such as `before=12`.
+  defp public_query?([]), do: true
+  defp public_query?([query]), do: Regex.match?(~r/\A[A-Za-z0-9._~%=&-]+\z/, query)
 
   @doc """
   The key one account's connection has on one site, derived from the site's

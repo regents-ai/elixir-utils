@@ -120,7 +120,7 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     code = code!("did:privy:sol")
     arguments = %{"code" => code, "name" => "Claude", "harness" => "claude"}
 
-    assert %{"isError" => false, "structuredContent" => answer} =
+    assert %{"isError" => false, "structuredContent" => %{"ok" => true, "data" => answer}} =
              tool(token, "pair_identity", arguments)
 
     assert answer["paired"] == true
@@ -151,7 +151,10 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     token = token!("did:privy:sol")
     arguments = %{"code" => code!("did:privy:ana"), "name" => "Claude", "harness" => "claude"}
 
-    assert %{"isError" => true} = tool(token, "pair_identity", arguments)
+    assert %{"isError" => true, "structuredContent" => %{"error" => error}} =
+             tool(token, "pair_identity", arguments)
+
+    assert error["code"] == "pairing_code_unknown"
     assert signed_requests() == []
     assert agents("did:privy:sol") == [] and agents("did:privy:ana") == []
   end
@@ -199,15 +202,15 @@ defmodule RegentMCPAgents.HostedIdentityTest do
 
     ids =
       for token <- [first.access, again.access, refreshed] do
-        assert %{"isError" => false, "structuredContent" => %{"identity_id" => id}} =
+        assert %{"isError" => false, "structuredContent" => %{"data" => answer}} =
                  tool(token, "register_identity")
 
-        id
+        answer["identity_id"]
       end
 
     assert Enum.uniq(ids) == [RegentMCPAgents.identity_key("keyfleet", "did:privy:sol")]
 
-    assert %{"structuredContent" => %{"identity_id" => other}} =
+    assert %{"structuredContent" => %{"data" => %{"identity_id" => other}}} =
              tool(token!("did:privy:ana"), "register_identity")
 
     refute other in ids
@@ -215,7 +218,8 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     # The reconnected app finds the pairing it made, and pairing again makes no second agent.
     agent = pair!(first.access, "did:privy:sol")
 
-    assert %{"structuredContent" => %{"paired" => true}} = tool(refreshed, "get_identity")
+    assert %{"structuredContent" => %{"data" => %{"paired" => true}}} =
+             tool(refreshed, "get_identity")
     assert %{"isError" => false} = tool(again.access, "check_in")
     assert [%{id: id}] = agents("did:privy:sol")
     assert id == agent.id
@@ -251,7 +255,8 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     :ok = RegentAgents.unpair_agent!(agent, actor: person("did:privy:sol"))
 
     assert %{"isError" => true} = tool(token, "check_in")
-    assert %{"structuredContent" => %{"paired" => false}} = tool(token, "get_identity")
+    assert %{"structuredContent" => %{"data" => %{"paired" => false}}} =
+             tool(token, "get_identity")
     assert agents("did:privy:sol") == []
   end
 

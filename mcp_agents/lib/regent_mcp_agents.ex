@@ -7,14 +7,32 @@ defmodule RegentMCPAgents do
   exact-request SIWA verification. Conversation IDs, tool arguments and MCP
   sessions never select the signer.
 
-  The connected apps a site offers are `RegentAgents.Harness.hosted/0`; the
-  words a refused tool call gives are the site's `refusal:` setting.
+  The connected apps a site offers are `RegentAgents.Harness.hosted/0`.
+
+  A tool answers `{:ok, fields}`; `{:answer, status, body, retry_after}`, the
+  site's own answer to a signed request it refused, with its code, words and
+  `Retry-After`; `{:refused, status, error}`, a refusal this library makes
+  before anything is signed, as an `{"code", "message", "hint"}` map; or
+  `{:error, reason}` when no answer came, which a tool call gives in the site's
+  `refusal:` words.
   """
   alias RegentAgents.{Harness, PairingCode, Person}
 
   @identity_scope "regent.identity.manage"
   @posting_scope "patchbay.posts.write"
   @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
+
+  # The refusals made here, before anything is signed.
+  @pairing_input %{
+    "code" => "invalid_request",
+    "message" => "Pairing takes a code, a name of 1 to 100 characters and one of this site's harnesses.",
+    "hint" => "Call pair_identity with code, name and harness as tools/list describes them."
+  }
+  @pairing_code %{
+    "code" => "pairing_code_unknown",
+    "message" => "This pairing code isn't a current one from your account: it was used, it is more than ten minutes old, or another account made it.",
+    "hint" => "Ask your person for a new code from Pair New Agent, then call pair_identity with it."
+  }
 
   # Where every site mounts `RegentAgents.HTTP`, and how its endpoint reads an
   # agent request there: the SIWA plug's reader keeps the exact bytes, at most
@@ -120,11 +138,14 @@ defmodule RegentMCPAgents do
            perform(principal, {:pair, Jason.encode!(%{code: code, name: name, harness: harness})}) do
       {:ok, %{identity_id: connection_key(principal), paired: true, name: name}}
     else
-      _ -> {:error, :pairing_refused}
+      {:answer, _status, _body, _retry_after} = answer -> answer
+      {:refused, _status, _error} = refused -> refused
+      false -> {:refused, 422, @pairing_input}
+      _no_answer -> {:error, :pairing_refused}
     end
   end
 
-  def pair(_, _), do: {:error, :pairing_refused}
+  def pair(_, _), do: {:refused, 422, @pairing_input}
 
   @doc "Forward a free question or reply through the site's restricted SIWA participation door."
   def post(principal, name, arguments)
@@ -191,7 +212,7 @@ defmodule RegentMCPAgents do
          codes,
          &(&1.code_hash == hash and is_nil(&1.used_at) and
              DateTime.after?(&1.expires_at, DateTime.utc_now()))
-       ), do: :ok, else: {:error, :pairing_refused}
+       ), do: :ok, else: {:refused, 403, @pairing_code}
   end
 
   # The SIWA service takes the audience from this site's hosted signing key and
@@ -245,9 +266,9 @@ defmodule RegentMCPAgents do
            envelope["headers"]
            |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
            |> Map.put("content-type", "application/json"),
-         {:ok, status, body} <- send_signed(request, headers),
-         true <- status in 200..299 and is_map(body) do
-      {:ok, body}
+         {:ok, status, body, retry_after} <- send_signed(request, headers),
+         true <- is_map(body) do
+      if status in 200..299, do: {:ok, body}, else: {:answer, status, body, retry_after}
     else
       _ -> {:error, :identity_request_refused}
     end
@@ -278,7 +299,9 @@ defmodule RegentMCPAgents do
            body: request["body"],
            receive_timeout: 15_000
          ) do
-      {:ok, %{status: status, body: body}} -> {:ok, status, body}
+      {:ok, %{status: status, body: body} = response} ->
+        {:ok, status, body, response |> Req.Response.get_header("retry-after") |> List.first()}
+
       _ -> :error
     end
   end
@@ -299,7 +322,8 @@ defmodule RegentMCPAgents do
 
       with answer when is_binary(answer) <- conn.resp_body,
            {:ok, decoded} <- Jason.decode(answer) do
-        {:ok, conn.status, decoded}
+        {:ok, conn.status, decoded,
+         conn |> Plug.Conn.get_resp_header("retry-after") |> List.first()}
       else
         _ -> :error
       end

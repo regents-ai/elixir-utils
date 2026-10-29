@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Every tool answers in the shape a site's browser tools answer:
+  `structuredContent` is `{ok: true, status, data}` or
+  `{ok: false, status, retry_after?, error: {code, message, hint}}`, and the
+  text content is the same JSON. A signed request the site refuses gives the
+  site's own code, words and `Retry-After` (an expired session, `agent_not_paired`,
+  `person_not_here`, a rate limit), not one fixed refusal. Pairing refuses a
+  code that isn't a current one of the account's with `pairing_code_unknown`,
+  and a malformed pairing call with `invalid_request`, before anything is
+  signed. The site's `refusal:` words are now only for a call no site answered
+  (the signer unreachable), with status 502. Identity fields moved under
+  `data`.
 - The requests the hosted signer may be asked to sign are one explicit list in
   `RegentMCPAgents`: the identity probe (`GET whoami`), the check-in
   (`GET me`), the pairing (`POST pair`) and Patchbay's free posts, each with

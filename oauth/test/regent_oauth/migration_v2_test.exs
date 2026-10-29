@@ -42,7 +42,8 @@ defmodule RegentOAuth.MigrationV2Test do
     row.("live-access", "live-refresh", "old-access")
     code = Flow.code!(client_id, "did:privy:sol")
 
-    Schema.migrate!(@schema, [1, 2])
+    # A site runs every later version too before it answers again.
+    Schema.migrate!(@schema, [1, 2, 3])
 
     live =
       Repo.get_by!(Token,

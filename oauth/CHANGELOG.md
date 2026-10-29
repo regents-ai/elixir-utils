@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Apps may sign in with a published identity: an HTTPS address that serves
+  their client details, used as their `client_id` (OAuth Client ID Metadata
+  Documents, draft -02). This is Claude's "Use Claude's published identity"
+  option (Sean, 29 Oct 2026, "1. yes, do this asap"). Server metadata says
+  `client_id_metadata_document_supported: true`. The document is read with
+  `RegentHttp.Public` (public addresses only, no redirects, 5 KB, five
+  seconds), checked (its own address as `client_id`, a public client, the code
+  grant, HTTPS callbacks on its own host), recorded as an ordinary public
+  client and read again at consent once its cache lifetime passes; a failed
+  read refuses the request and is never stored. Registration (DCR) keeps
+  working for other apps; an address and a registered id are never taken for
+  each other. Sites add a migration calling `RegentOAuth.Migration.V3.up()`,
+  which only adds `oauth_client_documents`; token exchange needs it.
+  `regent_oauth` now depends on `regent_http`.
+
 - The refresh grace is 30 seconds (Sean, 29 Oct 05:48Z, "4. a", his latest
   answer, replacing the 10 seconds set earlier that morning): a repeat within
   30 seconds is the app's own retry, so a slow request already on its way is

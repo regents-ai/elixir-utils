@@ -23,7 +23,9 @@ The site's migration calls `RegentOAuth.Migration.up()`. This additive
 migration creates only `oauth_*` tables. A second site migration calls
 `RegentOAuth.Migration.V2.up()`, which replaces every stored access and refresh
 token with its SHA-256 hash; it cannot be undone, and an app connected before it
-keeps working with the tokens it holds. Neither needs the site's address: each
+keeps working with the tokens it holds. A third calls
+`RegentOAuth.Migration.V3.up()`, which only adds `oauth_client_documents` for
+published identities; token exchange needs it. None needs the site's address: each
 code and token gets the configured issuer and resource written on it as it is
 issued (`RegentOAuth.bind/1`), and a row whose values differ from the running
 site's is refused. Never run Boruta's
@@ -53,10 +55,31 @@ scope, S256 challenge, nonce, CSRF and lifetime. A consumed or expired request
 returns a readable HTTP 401 page; restart from the connecting app rather than
 resubmitting the old form. Consent and redirects stay no-store/no-referrer.
 
-The initial flow supports public OAuth clients (`none`), DCR, S256 PKCE and the
-`authorization_code` and `refresh_token` grants. It does not accept password or
-client-credentials grants, remote request objects, wildcard redirects or client
-JWKS URLs. It makes no provider HTTP call during a database transaction. Token
+The flow supports public OAuth clients (`none`), S256 PKCE and the
+`authorization_code` and `refresh_token` grants. An app names itself in one of
+two ways. It may publish its identity at an HTTPS address and use that address
+as its `client_id` (OAuth Client ID Metadata Documents, draft -02; Claude's is
+`https://claude.ai/oauth/mcp-oauth-client-metadata`), which server metadata
+advertises with `client_id_metadata_document_supported: true`. Or it registers
+itself (DCR) and uses the id it is given.
+
+A published identity is read with `RegentHttp.Public`: HTTPS only, every DNS
+answer must be a public address and the connection goes to the checked one, no
+redirects, at most 5 KB, within five seconds. The document must name exactly
+its own address as `client_id`, be a public client (`none`, no secret) and allow
+the code grant; only its HTTPS callbacks on the address's own host are kept, and
+at least one must remain. It is recorded as an ordinary public client row, so
+codes, tokens, refresh and Connected apps work as for any app, and
+`oauth_client_documents` names the address it came from. Consent reads it again
+once its cache lifetime has passed (its own `max-age`, kept between five
+minutes and a day, an hour when it gives none); a document that cannot be read
+then refuses the request, and a failed read is never stored. The token and
+revocation endpoints resolve an address only from that record and never read
+it. An address never resolves to a registered client, and a recorded row's own
+id is refused, so neither is taken for the other. No address is read inside a
+database transaction. It does not accept password or
+client-credentials grants, remote request objects, wildcard redirects, client
+JWKS URLs or published identities that authenticate with a secret or a key. It makes no provider HTTP call during a database transaction. Token
 exchange locks the actual credential row and commits before sending a response,
 so duplicate code or refresh requests cannot race through cached authority.
 A spent refresh token revokes that subject's app connection and requires new

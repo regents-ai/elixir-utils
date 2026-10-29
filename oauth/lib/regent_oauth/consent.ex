@@ -14,12 +14,12 @@ defmodule RegentOAuth.Consent do
     with true <- RegentOAuth.enabled?(),
          true <- Protocol.authorize_params?(params),
          true <- byte_size(Jason.encode!(conn.query_params)) <= 2048,
-         {:ok, _client} <- Protocol.request_client(params) do
+         {:ok, client} <- Protocol.request_client(params) do
       case RegentOAuth.site().current_subject(conn) do
         subject when is_binary(subject) ->
           if RegentOAuth.site().active_subject?(subject) do
             Boruta.Oauth.preauthorize(
-              authorization_conn(conn, params),
+              conn |> put_private(@session_key, params) |> authorization_conn(params, client),
               %Boruta.Oauth.ResourceOwner{sub: subject},
               __MODULE__
             )
@@ -45,8 +45,9 @@ defmodule RegentOAuth.Consent do
   def preauthorize_success(conn, authorization) do
     nonce = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
+    # The request as the app sent it, so approval resolves its client again.
     pending = %{
-      "params" => conn.query_params,
+      "params" => conn.private[@session_key],
       "subject" => authorization.sub,
       "nonce" => nonce,
       "created_at" => System.system_time(:second)
@@ -57,7 +58,7 @@ defmodule RegentOAuth.Consent do
 
     host = URI.parse(authorization.redirect_uri).host
 
-    requested = conn.query_params["scope"]
+    requested = conn.private[@session_key]["scope"]
 
     permissions =
       requested |> RegentOAuth.permission_descriptions() |> Enum.map_join("; ", &escape/1)
@@ -97,11 +98,11 @@ defmodule RegentOAuth.Consent do
          true <- (System.system_time(:second) - created) in 0..600,
          key when is_binary(key) <- conn.body_params["approval_key"],
          true <- byte_size(key) == byte_size(nonce) and Plug.Crypto.secure_compare(key, nonce),
-         {:ok, _} <- Protocol.request_client(params) do
+         {:ok, client} <- Protocol.request_client(params) do
       case conn.body_params["decision"] do
         "allow" ->
           Boruta.Oauth.authorize(
-            authorization_conn(conn, params),
+            authorization_conn(conn, params, client),
             %Boruta.Oauth.ResourceOwner{sub: subject},
             __MODULE__
           )
@@ -270,9 +271,13 @@ defmodule RegentOAuth.Consent do
       |> send_resp(303, "")
 
   # Boruta also accepts request objects from GET bodies and approval POST bodies.
-  # Pass only the validated request the person saw, never fresh grant parameters.
-  defp authorization_conn(conn, params),
-    do: %{conn | query_params: params, body_params: %{}, params: params}
+  # Pass only the validated request the person saw, never fresh grant
+  # parameters, naming the client by its own row: a published identity's
+  # address is resolved here, never by Boruta.
+  defp authorization_conn(conn, params, client) do
+    params = Map.put(params, "client_id", client.id)
+    %{conn | query_params: params, body_params: %{}, params: params}
+  end
 
   defp escape(value),
     do: value |> to_string() |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()

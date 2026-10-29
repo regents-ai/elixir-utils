@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `RegentHttp.Public.get/2` reads from an address someone else supplied, such
+  as an app's published identity: HTTPS only, every DNS answer must be public
+  and Mint connects to the checked address (the host stays the TLS name), no
+  redirects, a byte limit and a total deadline. `public_ip?/1` and
+  `valid_url?/1` are its checks. `Regent.MCPEvents.Callback` keeps its own copy
+  of these checks for now; moving it onto this module is a follow-up.
+
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
 

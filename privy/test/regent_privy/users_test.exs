@@ -24,7 +24,7 @@ defmodule RegentPrivy.UsersTest do
     do: %{
       "id" => id,
       "linked_accounts" => [linked(@wallet)],
-      "custom_metadata" => %{"regent_agent" => true}
+      "custom_metadata" => %{"regent_agent" => String.downcase(@wallet)}
     }
 
   defp request(conn) do
@@ -49,8 +49,10 @@ defmodule RegentPrivy.UsersTest do
     assert request.authorization == ["Basic " <> Base.encode64("test-privy-app:test-secret")]
   end
 
-  test "a user an agent opening did not make is a person's, even with nothing but the wallet" do
-    for metadata <- [nil, %{}, %{"regent_agent" => "true"}, %{"regent_agent" => false}] do
+  test "a user no agent opening made for this wallet is a person's, even with nothing but the wallet" do
+    other = "0x" <> String.duplicate("1", 40)
+
+    for metadata <- [nil, %{}, %{"regent_agent" => true}, %{"regent_agent" => other}] do
       answer(200, %{
         "id" => "did:privy:person",
         "linked_accounts" => [linked(@wallet)],
@@ -83,7 +85,7 @@ defmodule RegentPrivy.UsersTest do
                  "chain_type" => "ethereum"
                }
              ],
-             "custom_metadata" => %{"regent_agent" => true}
+             "custom_metadata" => %{"regent_agent" => String.downcase(@wallet)}
            }
   end
 

@@ -43,10 +43,11 @@ An agent may own its Regent account through its own wallet. A site's server, aft
 checking the agent's signed request, calls `RegentPrivy.Users.by_wallet(address, opts)`
 to find the Privy user that wallet is linked to, and
 `RegentPrivy.Users.create_with_wallet(address, opts)` to make one whose only login is
-that wallet, marked with the custom metadata `regent_agent: true`. Each answers the
-user's Privy id and `agent`, true only for a user an agent opening made: any other
-user is a person's account, never the agent's, even one that signs in with nothing
-but that wallet. Only a server holding the app secret writes that metadata. `opts` are `app_id:`, `app_secret:` (the app's server secret) and
+that wallet, marked with the custom metadata `regent_agent` set to that wallet. Each
+answers the user's Privy id and `agent`, true only for a user an agent opening made
+for the wallet asked about: any other user is a person's account, never the agent's,
+even one that signs in with nothing but that wallet, and another wallet later linked
+to the agent's user is not the agent's. Only a server holding the app secret writes that metadata. `opts` are `app_id:`, `app_secret:` (the app's server secret) and
 `req_options:` (tests pass `plug: {Req.Test, RegentPrivy.Users}`). The user is an
 ordinary Privy user, so the agent can later sign in on the website with the same
 wallet. These are the only calls in this library that need the app secret.

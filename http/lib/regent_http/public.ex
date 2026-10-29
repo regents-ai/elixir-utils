@@ -215,7 +215,7 @@ defmodule RegentHttp.Public do
 
     case Mint.HTTP.request(conn, verb, path, headers, body) do
       {:ok, conn, ref} ->
-        response = %{status: nil, headers: [], body: "", answer: answer}
+        response = %{status: nil, headers: nil, body: "", answer: answer}
         receive_response(conn, ref, max_bytes, deadline, response)
 
       {:error, _conn, error} ->
@@ -249,6 +249,12 @@ defmodule RegentHttp.Public do
   defp consume([{:headers, ref, _headers} | rest], conn, ref, max_bytes, deadline, response)
        when response.status in 100..199,
        do: consume(rest, conn, ref, max_bytes, deadline, %{response | status: nil})
+
+  # Headers after the final ones are a chunked reply's trailers: the answer
+  # keeps the final headers.
+  defp consume([{:headers, ref, _trailers} | rest], conn, ref, max_bytes, deadline, response)
+       when is_list(response.headers),
+       do: consume(rest, conn, ref, max_bytes, deadline, response)
 
   defp consume([{:headers, ref, headers} | rest], conn, ref, max_bytes, deadline, response) do
     headers = Enum.map(headers, fn {key, value} -> {String.downcase(key), value} end)

@@ -12,6 +12,8 @@
   `Regent.MCPEvents.Callback` now uses it instead of its own copy.
   An informational (1xx) reply is skipped, never taken as the answer or as a
   callback's acknowledgement.
+  A chunked reply's trailers never replace its headers. Needs Mint 1.11, whose
+  HTTP/1 limits on header, status and chunk lines it relies on.
 
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.

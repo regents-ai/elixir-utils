@@ -16,7 +16,11 @@ defmodule RegentCredits.Holds do
 
   @bounty_share 90
 
-  @doc "Sets aside the amount: given Credits first, then purchased."
+  @doc """
+  Sets aside the amount: given Credits first, then purchased. With
+  `purchased_only?` it takes purchased Credits alone, for a spend Regents pays
+  for in USDC, which given Credits never brought in.
+  """
   def hold(%{key: key, privy_user_id: owner, amount: amount, purpose: purpose} = args, actor) do
     agent = if actor.role == :agent, do: actor.agent_address
 
@@ -32,7 +36,7 @@ defmodule RegentCredits.Holds do
          accounts = owner |> Ledger.person() |> Ledger.lock(),
          :ok <- AgentSpending.current_pairing(actor) do
       case find(actor.site, key) do
-        nil -> place(accounts, actor, key, details, cause(args, actor.site))
+        nil -> place(accounts, actor, key, details, args.purchased_only?, cause(args, actor.site))
         hold -> same(hold, details)
       end
     end
@@ -62,9 +66,14 @@ defmodule RegentCredits.Holds do
   # Postgres text refuses a zero byte and anything that is not UTF-8.
   defp storable?(request), do: String.valid?(request) and not String.contains?(request, <<0>>)
 
-  defp place(accounts, actor, key, details, cause) do
+  defp place(accounts, actor, key, details, purchased_only?, cause) do
     %{privy_user_id: owner, amount: amount} = details
-    given = Ledger.balance_of(accounts, Ledger.identifier(:given, owner))
+
+    given =
+      if purchased_only?,
+        do: Decimal.new(0),
+        else: Ledger.balance_of(accounts, Ledger.identifier(:given, owner))
+
     purchased = Ledger.balance_of(accounts, Ledger.identifier(:purchased, owner))
     available = Decimal.add(given, purchased)
 

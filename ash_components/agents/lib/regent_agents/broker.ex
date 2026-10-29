@@ -1,18 +1,16 @@
 defmodule RegentAgents.Broker do
   @moduledoc """
-  Sends a signed agent request to the SIWA service to be verified, with this
-  site's own verify key, from
-  `config :regent_agents, siwa: [url: ..., audience: ..., verify_key: ...]`. The
-  key names the audience the SIWA service checks the request for.
+  Sends a signed agent request to the SIWA service to be verified, for this
+  site's audience, from `config :regent_agents, siwa: [url: ..., audience: ...]`.
   """
   @behaviour Siwa.AgentAuthPlug.Client
 
   @impl true
-  def verify_http_request(payload) do
+  def verify_http_request(payload, audience: audience) do
     Siwa.AgentAuthPlug.BrokerClient.verify_http_request(payload,
       http: __MODULE__,
       base_url: Keyword.fetch!(config(), :url),
-      verify_key: Keyword.fetch!(config(), :verify_key),
+      audience: audience,
       connect_timeout_ms: 2_000,
       receive_timeout_ms: 5_000
     )
@@ -23,8 +21,8 @@ defmodule RegentAgents.Broker do
   def audience, do: Keyword.fetch!(config(), :audience)
 
   # Every request to the SIWA service goes through here. Verification spends
-  # replay state, and both verification and the activity read carry one of this
-  # site's keys, so neither retries nor follows a redirect.
+  # replay state and the activity read carries this site's key, so neither
+  # retries nor follows a redirect.
   @doc false
   def request(options) do
     options

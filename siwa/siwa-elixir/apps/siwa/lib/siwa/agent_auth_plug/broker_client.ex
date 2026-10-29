@@ -11,21 +11,16 @@ defmodule Siwa.AgentAuthPlug.BrokerClient do
 
     * `:http` — HTTP module as described above (required)
     * `:base_url` — broker base URL; a trailing `/` is trimmed (required)
-    * `:verify_key` — this site's own verify key from the sign-in server's
-      `SIWA_SITE_VERIFY_KEYS`, sent as `Authorization: Bearer <key>`
-      (required). The key alone names the audience the request is checked
-      for; the request cannot name another.
+    * `:audience` — value for the `x-siwa-audience` header (required)
     * `:connect_timeout_ms` — optional connect timeout
     * `:receive_timeout_ms` — optional receive timeout
 
   When the timeouts are omitted the `:http` module's defaults apply.
-
-  A site's `Siwa.AgentAuthPlug.Client` calls this with its own options.
   """
 
-  @doc "Asks the broker to check one signed request with this site's key."
-  @spec verify_http_request(map(), keyword()) ::
-          {:ok, %{status: integer(), body: term()}} | {:error, term()}
+  @behaviour Siwa.AgentAuthPlug.Client
+
+  @impl true
   def verify_http_request(payload, opts) when is_map(payload) do
     http = Keyword.fetch!(opts, :http)
     base_url = opts |> Keyword.fetch!(:base_url) |> String.trim_trailing("/")
@@ -35,7 +30,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClient do
         method: :post,
         url: base_url <> Siwa.AgentAuthPlug.http_verify_path(),
         json: payload,
-        auth: {:bearer, Keyword.fetch!(opts, :verify_key)}
+        headers: [{"x-siwa-audience", Keyword.fetch!(opts, :audience)}]
       ]
       |> put_connect_timeout(Keyword.get(opts, :connect_timeout_ms))
       |> put_receive_timeout(Keyword.get(opts, :receive_timeout_ms))

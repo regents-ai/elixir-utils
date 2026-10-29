@@ -6,22 +6,6 @@
   with "Help: https://patchbay.help/errors/<code>", Patchbay's page for that
   refusal, so an agent can read what to do next.
 
-- `GET /api/agents/v1/whoami`'s `agent` carries `human_backed` and
-  `same_person_agent_count` beside `registry_listing`, as the SIWA service names
-  them on that request, so an agent can check its whole sign-in through a site
-  (regents-cli's `auth status` and `doctor`). The person's World ID number is
-  still never answered.
-
-- `config :regent_agents, siwa: [...]` takes `verify_key`, the site's own key
-  in the SIWA service's `SIWA_SITE_VERIFY_KEYS`. `RegentAgents.Broker` sends it
-  with every request it asks the service to check, and no longer sends
-  `x-siwa-audience`: the service takes the audience from the key. If the
-  service refuses the key, or answers for another audience, the site logs an
-  error and agents get 503 `siwa_request_failed` until the settings are fixed.
-  Live siwa-server still reads `x-siwa-audience`, so this ships only in the
-  joint release (control/rollouts/2026-10-28-site-verify-keys.md).
-  Do not re-pin elixir-utils at or after 12311060 until the shared window.
-
 - Pairing moves from the side panel to each site's Account page, so every refusal
   hint and next step that sent a person to Pair New Agent "in the side panel" now
   says "on their Account page" (`pairing_failed`, `agent_limit`, `agent_not_paired`

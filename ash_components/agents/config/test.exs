@@ -10,7 +10,7 @@ config :regent_agents,
     "person_not_here" => ["Read public pages."],
     "paired" => ["Read public pages.", "Act for your person."]
   },
-  siwa: [url: "https://siwa.test", audience: "test", verify_key: "test-site-verify-key"],
+  siwa: [url: "https://siwa.test", audience: "test"],
   req_options: [plug: {Req.Test, RegentAgents.Broker}]
 
 config :regent_agents, RegentAgents.TestRepo,

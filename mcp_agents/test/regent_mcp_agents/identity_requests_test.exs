@@ -21,8 +21,7 @@ defmodule RegentMCPAgents.IdentityRequestsTest do
     for {app, key, value} <- [
           {:regent_mcp_agents, :req_options, plug: {Req.Test, RegentMCPAgents.HostedSigner}},
           {:regent_agents, :req_options, plug: {Req.Test, RegentAgents.Broker}},
-          {:regent_agents, :siwa,
-           url: "https://siwa.test", audience: "keyfleet", verify_key: "test-site-verify-key"}
+          {:regent_agents, :siwa, url: "https://siwa.test", audience: "keyfleet"}
         ] do
       Application.put_env(app, key, value)
       on_exit(fn -> Application.delete_env(app, key) end)
@@ -44,7 +43,7 @@ defmodule RegentMCPAgents.IdentityRequestsTest do
 
       send(
         test,
-        {:verify, conn.request_path, Plug.Conn.get_req_header(conn, "authorization"),
+        {:verify, conn.request_path, Plug.Conn.get_req_header(conn, "x-siwa-audience"),
          Jason.decode!(body)}
       )
 
@@ -72,9 +71,7 @@ defmodule RegentMCPAgents.IdentityRequestsTest do
       call = rpc("tools/call", %{"name" => tool, "arguments" => %{}})
       assert %{"result" => %{"isError" => true}} = json(mcp(call, token)), tool
 
-      assert_received {:verify, "/api/shared/siwa/http-verify", ["Bearer test-site-verify-key"],
-                       payload}
-
+      assert_received {:verify, "/api/shared/siwa/http-verify", ["keyfleet"], payload}
       assert payload == %{"method" => "GET", "path" => path, "headers" => @signed}
 
       # Only this test's own request to the MCP address has told this process

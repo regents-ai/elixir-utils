@@ -30,8 +30,7 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     for {app, key, value} <- [
           {:regent_mcp_agents, :req_options, plug: {Req.Test, RegentMCPAgents.HostedSigner}},
           {:regent_agents, :req_options, plug: {Req.Test, RegentAgents.Broker}},
-          {:regent_agents, :siwa,
-           url: "https://siwa.test", audience: "keyfleet", verify_key: "test-site-verify-key"}
+          {:regent_agents, :siwa, url: "https://siwa.test", audience: "keyfleet"}
         ] do
       Application.put_env(app, key, value)
       on_exit(fn -> Application.delete_env(app, key) end)
@@ -55,14 +54,14 @@ defmodule RegentMCPAgents.HostedIdentityTest do
       end
     end)
 
-    # The SIWA service, shown this site's own verify key, verifies the signed
-    # request as the hosted wallet's.
+    # The SIWA service verifies the signed request as the hosted wallet's, for
+    # this site's audience.
     Req.Test.stub(RegentAgents.Broker, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
 
       send(
         test,
-        {:verify, conn.req_headers, Plug.Conn.get_req_header(conn, "authorization"), body,
+        {:verify, conn.req_headers, Plug.Conn.get_req_header(conn, "x-siwa-audience"), body,
          Jason.decode!(body)}
       )
 
@@ -110,7 +109,7 @@ defmodule RegentMCPAgents.HostedIdentityTest do
 
   defp verified_paths do
     receive do
-      {:verify, _headers, _authorization, _body, payload} -> [payload["path"] | verified_paths()]
+      {:verify, _headers, _audience, _body, payload} -> [payload["path"] | verified_paths()]
     after
       0 -> []
     end
@@ -135,7 +134,7 @@ defmodule RegentMCPAgents.HostedIdentityTest do
 
     assert Jason.decode!(signed["body"]) == arguments
 
-    assert_received {:verify, _headers, ["Bearer test-site-verify-key"], _raw, payload}
+    assert_received {:verify, _headers, ["keyfleet"], _raw, payload}
 
     assert payload == %{
              "method" => "POST",
@@ -189,7 +188,7 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     assert length(signed) == 3
 
     for _ <- signed do
-      assert_received {:verify, headers, ["Bearer test-site-verify-key"], raw, payload}
+      assert_received {:verify, headers, ["keyfleet"], raw, payload}
       refute raw =~ token
       refute Enum.any?(headers, fn {_name, value} -> value =~ token end)
       assert payload["headers"] == @signed

@@ -18,17 +18,15 @@ https://siwa.regents.sh/skill.md.
   the same next step for a site's own agent guides.
 - `POST /api/agents/v1/pair` with `{code, name, harness}` answers `201 {data: agent}`.
 - `GET /api/agents/v1/me` answers `200 {data: agent + account}`.
-- `whoami`'s `agent` and both answers carry `registry_listing`: the agent's page
-  in the agent registry, as the SIWA service names it, or null when the agent has
-  no listing;
+- Both answers carry `registry_listing`: the agent's page in the agent registry,
+  as the SIWA service names it, or null when the agent has no listing;
   `human_backed`: whether a person verified with World ID stands behind it; and
   `same_person_agent_count`: how many agents, this one included, that same
   person stands behind, or null when none does. The first person the SIWA
   service's `agentBook` names stays on the paired agent for good; a later `null`,
   or another person, changes nothing, and each request naming the same person
   saves their agent count (`RegentAgents.HumanBacking`). Both fields come from
-  what was saved; `whoami` answers them as the SIWA service names them on that
-  request, before any pairing has saved them. Every Regent site
+  what was saved. Every Regent site
   uses these two names. The person's World ID number is saved only to group
   their agents; it is never shown, logged or answered.
 - A refusal is `{error: {code, message, hint}}`: `pairing_failed` (400),
@@ -74,8 +72,7 @@ check-in names the person's account (a function taking the Privy user ID and
 returning a JSON-ready map, or nil until the person first signs in on the site,
 which answers the check-in with `person_not_here`), and what an agent may do on
 the site in each status, as `whoami` tells it. There is no default list: every
-site writes its own, true to its routes and policies. The `siwa` settings read
-the verify key from the environment, so they go in `config/runtime.exs`.
+site writes its own, true to its routes and policies.
 
 ```elixir
 config :regent_agents,
@@ -87,19 +84,8 @@ config :regent_agents,
     "person_not_here" => ["Read public pages and public tools."],
     "paired" => ["Read public pages and public tools.", "Read and write your person's notes."]
   },
-  siwa: [
-    url: "https://siwa.regents.sh",
-    audience: "mysite",
-    verify_key: System.fetch_env!("SIWA_SITE_VERIFY_KEY")
-  ]
+  siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
 ```
-
-`verify_key` is the site's own key in the SIWA service's
-`SIWA_SITE_VERIFY_KEYS`. It is sent with every signed request the site asks the
-service to check, and it names the one audience the service checks it for.
-`audience` and `verify_key` name the same site. If the service refuses the key,
-or answers for another audience, the site logs an error and agents are told the
-sign-in service could not be reached (503) until the settings are fixed.
 
 A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT and Claude, the
 hosted runtimes, pair through the site's hosted connection (`regent_mcp_agents`)

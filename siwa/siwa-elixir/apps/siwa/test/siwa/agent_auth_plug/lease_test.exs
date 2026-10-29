@@ -16,11 +16,8 @@ defmodule Siwa.AgentAuthPlug.LeaseTest do
     # lease ending at the time the test sets when the site asks for one.
     @behaviour Siwa.AgentAuthPlug.Client
 
-    # The audience this site's verify key names at the sign-in server.
-    @audience "testapp"
-
     @impl true
-    def verify_http_request(payload) do
+    def verify_http_request(payload, audience: audience) do
       send(self(), {:sign_in_server, payload})
 
       {:ok, verified} =
@@ -32,8 +29,8 @@ defmodule Siwa.AgentAuthPlug.LeaseTest do
             body_digest: payload["body_digest"]
           },
           secret: "lease-test-secret",
-          audience: @audience,
-          wallet_audiences: [@audience],
+          audience: audience,
+          wallet_audiences: [audience],
           replay_store: fn _key, _expires -> :ok end
         )
 

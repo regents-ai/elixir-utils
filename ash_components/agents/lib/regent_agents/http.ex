@@ -136,11 +136,7 @@ defmodule RegentAgents.HTTP do
 
       answer(conn, %{
         data: %{
-          agent:
-            Map.merge(
-              %{wallet: agent.wallet, registry_listing: agent.registry_listing},
-              HumanBacking.describe(agent)
-            ),
+          agent: %{wallet: agent.wallet, registry_listing: agent.registry_listing},
           audience: Broker.audience(),
           authenticated: true,
           pairing: if(pairing, do: %{id: pairing.id, paired_at: pairing.paired_at}, else: nil),
@@ -259,12 +255,15 @@ defmodule RegentAgents.HTTP do
     # saves both.
     @impl true
     def accept(conn, data, _context) do
+      audience = RegentAgents.Broker.audience()
+
       with %{
              "verified" => true,
              "principal" => %{
                "kind" => "wallet",
                "wallet_address" => "0x" <> _hex = wallet,
-               "chain_id" => @base_chain_id
+               "chain_id" => @base_chain_id,
+               "audience" => ^audience
              },
              "agentRegistration" => registration,
              "agentBook" => book

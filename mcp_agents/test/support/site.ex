@@ -60,9 +60,14 @@ defmodule RegentMCPAgents.Test.OAuthTables do
     RegentOAuth.Migration.up()
 
     RegentOAuth.Migration.V2.up()
-
-    RegentOAuth.Migration.V3.up()
   end
+end
+
+defmodule RegentMCPAgents.Test.ClientDocuments do
+  @moduledoc "The provider's version 3 table, added by a later migration as a site adds it."
+  use Ecto.Migration
+
+  def up, do: RegentOAuth.Migration.V3.up()
 end
 
 defmodule RegentMCPAgents.Test.Limiter do

@@ -10,8 +10,8 @@ defmodule Siwa.AgentAuthPlugTest do
     @behaviour Siwa.AgentAuthPlug.Client
 
     @impl true
-    def verify_http_request(payload, opts) do
-      send(self(), {:verify_http_request, payload, opts})
+    def verify_http_request(payload) do
+      send(self(), {:verify_http_request, payload})
       Process.get(:client_response, {:ok, success_response()})
     end
 
@@ -20,10 +20,13 @@ defmodule Siwa.AgentAuthPlugTest do
         status: 200,
         body: %{
           "code" => "http_envelope_valid",
-          "data" => %{"agent_claims" => %{"token_id" => "77"}}
+          "data" => verdict("testapp")
         }
       }
     end
+
+    def verdict(audience),
+      do: %{"agent_claims" => %{"token_id" => "77"}, "principal" => %{"audience" => audience}}
   end
 
   defmodule RecordingHooks do
@@ -79,7 +82,7 @@ defmodule Siwa.AgentAuthPlugTest do
 
     assert_received {:before_verify, %{"x-agent-wallet-address" => "0xabc"}}
 
-    assert_received {:verify_http_request, payload, audience: "testapp"}
+    assert_received {:verify_http_request, payload}
     assert payload["method"] == "POST"
     assert payload["path"] == "/v1/things"
     assert payload["body_digest"] == Siwa.content_digest_for_body(~s({"a":1}))
@@ -87,6 +90,36 @@ defmodule Siwa.AgentAuthPlugTest do
     assert payload["headers"]["x-agent-wallet-address"] == "0xabc"
 
     assert_received {:accept, %{"agent_claims" => %{"token_id" => "77"}}, :context}
+  end
+
+  @tag :capture_log
+  test "a verdict for another audience, or a refused verify key, is the site's own fault" do
+    for {response, problem} <- [
+          {%{
+             status: 200,
+             body: %{
+               "code" => "http_envelope_valid",
+               "data" => RecordingClient.verdict("othersite")
+             }
+           }, :audience_mismatch},
+          {%{status: 401, body: %{"error" => %{"code" => "site_verify_unauthorized"}}},
+           :verify_key_refused}
+        ] do
+      Process.put(:client_response, {:ok, response})
+
+      conn = :post |> conn("/v1/things", "{}") |> call()
+
+      assert conn.halted
+      refute_received {:accept, _data, _context}
+
+      assert_received {:deny, deny_meta}
+
+      assert deny_meta == %{
+               reason: :siwa_request_failed,
+               source: :siwa_config,
+               site_problem: problem
+             }
+    end
   end
 
   test "only the signed headers are forwarded to the sign-in server" do
@@ -97,7 +130,7 @@ defmodule Siwa.AgentAuthPlugTest do
     |> put_req_header("authorization", "Bearer person")
     |> call()
 
-    assert_received {:verify_http_request, %{"headers" => headers}, _opts}
+    assert_received {:verify_http_request, %{"headers" => headers}}
     assert headers == %{"x-siwa-signature" => "sig1=:abc=:"}
   end
 
@@ -111,7 +144,7 @@ defmodule Siwa.AgentAuthPlugTest do
     assert conn.halted
     assert_received {:deny, %{reason: :duplicate_proof, source: :siwa_plug}}
     refute_received {:before_verify, _headers}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
   end
 
   test "signed_request? tells a signed agent request from a person's" do
@@ -129,10 +162,10 @@ defmodule Siwa.AgentAuthPlugTest do
   test "a query string is refused unless the site signs it as part of the path" do
     :get |> conn("/v1/things?cursor=2") |> call()
     assert_received {:deny, %{reason: :unsupported_query, source: :siwa_plug}}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
 
     :get |> conn("/v1/things?cursor=2") |> call(query: :signed)
-    assert_received {:verify_http_request, %{"path" => "/v1/things?cursor=2"}, _opts}
+    assert_received {:verify_http_request, %{"path" => "/v1/things?cursor=2"}}
   end
 
   test "a body the signature would not cover is refused before any hook" do
@@ -143,7 +176,7 @@ defmodule Siwa.AgentAuthPlugTest do
     assert_received {:deny, %{reason: :missing_signed_body, source: :siwa_plug}}
 
     refute_received {:before_verify, _headers}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
   end
 
   test "read_body keeps a signed body's exact bytes, and a body over the limit is refused" do
@@ -154,7 +187,7 @@ defmodule Siwa.AgentAuthPlugTest do
     |> call()
 
     digest = Siwa.content_digest_for_body(~s({"a": 1}))
-    assert_received {:verify_http_request, %{"body_digest" => ^digest}, _opts}
+    assert_received {:verify_http_request, %{"body_digest" => ^digest}}
 
     {:more, _chunk, conn} =
       :post |> conn("/v1/things", String.duplicate("a", 11)) |> AgentAuthPlug.read_body([], 10)
@@ -165,12 +198,12 @@ defmodule Siwa.AgentAuthPlugTest do
 
   test "the body digest is omitted without a captured raw body unless :always" do
     :post |> conn("/v1/things", "{}") |> call()
-    assert_received {:verify_http_request, payload, _opts}
+    assert_received {:verify_http_request, payload}
     refute Map.has_key?(payload, "body_digest")
 
     :post |> conn("/v1/things", "{}") |> call(body: :always)
     digest = Siwa.content_digest_for_body("")
-    assert_received {:verify_http_request, %{"body_digest" => ^digest}, _opts}
+    assert_received {:verify_http_request, %{"body_digest" => ^digest}}
   end
 
   test "before_verify errors deny without calling the client" do
@@ -184,7 +217,7 @@ defmodule Siwa.AgentAuthPlugTest do
     assert conn.halted
     assert conn.status == 401
     assert_received {:deny, %{reason: :missing_agent_headers, source: :request_headers}}
-    refute_received {:verify_http_request, _payload, _opts}
+    refute_received {:verify_http_request, _payload}
   end
 
   test "non-200 broker responses deny with the broker's status, code, message and hint" do
@@ -221,6 +254,7 @@ defmodule Siwa.AgentAuthPlugTest do
   test "an answer outside 400..599 without a verdict denies as siwa_request_failed" do
     for response <- [
           %{status: 200, body: %{"unexpected" => true}},
+          %{status: 200, body: %{"code" => "http_envelope_valid", "data" => %{}}},
           %{status: 302, body: ""},
           %{status: 103, body: ""}
         ] do

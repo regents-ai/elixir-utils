@@ -14,7 +14,9 @@ defmodule RegentPayments.BuyingWallet do
   still land: the site keeps the Credits held and reads the call's receipt
   with `status/2` until the chain answers, and never sends the call again.
 
-  Every buy uses the wallet's next nonce, so a site sends one buy at a time.
+  Each send takes the wallet's next nonce after any still waiting, so a buy
+  never replaces an earlier one. A site sends one buy at a time, so two
+  sends never read the same nonce.
   """
 
   alias Ethers.Contracts.ERC20

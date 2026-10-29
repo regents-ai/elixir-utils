@@ -10,6 +10,8 @@
   waits now live in `RegentPayments.Operator`, which `FeeForward` uses too;
   `FeeForward`'s own answers are unchanged. The receipt wait is set with
   `config :regent_payments, RegentPayments.Operator, receipt_every_ms:`.
+  Each signed send takes the wallet's next nonce after any transaction still
+  waiting, so a send never replaces an earlier one.
 
 - Regent Credits can pay where the money ends with Regents. Every offer's terms
   now say `credits: :accepted | :refused`, frozen into the payload and its digest;

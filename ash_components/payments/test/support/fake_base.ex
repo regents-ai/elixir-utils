@@ -3,7 +3,9 @@ defmodule RegentPayments.Test.FakeBase do
   A fake Base for transactions signed with a site's own key: it answers the
   calls a send makes, keeps every raw transaction it receives in order, and
   answers each receipt with what `receipts` says of that hash (`"0x1"`,
-  `"0x0"`, or nil for not yet). Started from a test, under its supervisor.
+  `"0x0"`, or nil for not yet). The wallet's count at `"pending"` is every
+  transaction received; at `"latest"`, only those with a receipt. Started
+  from a test, under its supervisor.
   """
 
   import Plug.Conn
@@ -68,7 +70,8 @@ defmodule RegentPayments.Test.FakeBase do
           "0x7a69"
 
         "eth_getTransactionCount" ->
-          "0x" <> Integer.to_string(length(Agent.get(seen, & &1)), 16)
+          [_address, block] = request["params"]
+          "0x" <> Integer.to_string(count(seen, receipts, block), 16)
 
         "eth_estimateGas" ->
           "0x186a0"
@@ -98,5 +101,14 @@ defmodule RegentPayments.Test.FakeBase do
       end
 
     %{jsonrpc: "2.0", id: id, result: result}
+  end
+
+  defp count(seen, _receipts, "pending"), do: length(Agent.get(seen, & &1))
+
+  defp count(seen, receipts, "latest") do
+    seen
+    |> Agent.get(&length/1)
+    |> then(&Enum.take_while(1..&1//1, fn n -> receipts.(hash(n)) end))
+    |> length()
   end
 end

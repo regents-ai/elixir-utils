@@ -30,6 +30,23 @@ measurements and `%{method, host, result}` metadata.
 `sk_live_…`/`sk_test_…`-style keys, and `x-api-key`/`authorization` header
 values before anything reaches logs.
 
+## Unexpected failures
+
+`RegentHttp.UnexpectedFailure` logs a failure's class without its content. A site
+attaches the job handler once at start and logs wherever it answers "try again":
+
+```elixir
+# application.ex
+RegentHttp.UnexpectedFailure.attach_jobs()
+
+# a controller or plug
+conn |> RegentHttp.UnexpectedFailure.log(error) |> send_try_again()
+```
+
+A request line names the error's module, up to four immediate causes and a SHA-256
+of the request id; a job logs once, when it gives up, never on an attempt it will
+retry. Messages, bodies and job arguments are never written.
+
 ## Test injection
 
 ```elixir

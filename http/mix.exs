@@ -21,7 +21,7 @@ defmodule RegentHttp.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
@@ -36,6 +36,7 @@ defmodule RegentHttp.MixProject do
       {:req, "~> 0.7"},
       {:plug, "~> 1.16"},
       {:telemetry, "~> 1.0"},
+      {:stream_data, "~> 1.1", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]

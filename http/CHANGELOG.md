@@ -4,6 +4,12 @@
 
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
+- `RegentHttp.UnexpectedFailure`, moved from the template's
+  `AshTemplateWeb.UnexpectedFailure`: `log/2` writes one line for a request answered
+  "try again" (the error's module, up to four immediate causes and a SHA-256 of the
+  request id), and `attach_jobs/0` writes one line for each Oban job that runs out of
+  attempts, from Oban's own `[:oban, :job, :exception]` event. Error messages, request
+  bodies and job arguments never reach the log.
 
 ### Fixed
 

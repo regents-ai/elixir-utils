@@ -3,9 +3,11 @@ defmodule RegentMCPAgents do
   A connected app's (ChatGPT's or Claude's) persistent connection to a Regents
   account identity, shared across chats. OAuth authorizes the connection; the
   SIWA service's hosted signing holds its signer, asked with this site's own
-  hosted signing key. Every protected product request still passes
-  exact-request SIWA verification. Conversation IDs, tool arguments and MCP
-  sessions never select the signer.
+  hosted signing key. Every identity request it signs still passes
+  exact-request SIWA verification. A site's own tools admit the connection's
+  token as the agent it paired, by its address (`address/1`), and sign
+  nothing. Conversation IDs, tool arguments and MCP sessions never select the
+  signer.
 
   The connected apps a site offers are `RegentAgents.Harness.hosted/0`.
 
@@ -21,12 +23,6 @@ defmodule RegentMCPAgents do
   @identity_scope "regent.identity.manage"
   @posting_scope "patchbay.posts.write"
   @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
-
-  @arguments_object %{
-    "code" => "invalid_request",
-    "message" => "A tool's arguments are a JSON object.",
-    "hint" => "Send arguments as an object with the fields tools/list describes, {} when there are none."
-  }
 
   # The refusals made here, before anything is signed.
   @pairing_input %{
@@ -108,6 +104,26 @@ defmodule RegentMCPAgents do
     end
   end
 
+  @doc """
+  The wallet address of this account's one identity on this site, lowercase, as
+  the hosted signer's register answer gives it. A site admits a connected app
+  as the agent it paired by this address: the token is the sign-in, the site's
+  own pairing record says whose agent it is, and its policies decide the rest,
+  so nothing is signed. An account's address on a site never changes, so the
+  site may keep it.
+  """
+  def address(principal) do
+    with :ok <- authority(principal, @identity_scope),
+         {:ok, %{"address" => address}} when is_binary(address) <-
+           signer_request(principal, %{"operation" => "register"}),
+         address = String.downcase(address),
+         true <- Regex.match?(~r/\A0x[0-9a-f]{40}\z/, address) do
+      {:ok, address}
+    else
+      _ -> {:error, :identity_request_refused}
+    end
+  end
+
   @doc "Read the current pairing through a freshly SIWA-signed, non-awarding identity probe."
   def status(principal) do
     with :ok <- authority(principal, @identity_scope),
@@ -175,85 +191,6 @@ defmodule RegentMCPAgents do
   def post(_, _, _), do: {:error, :posting_refused}
 
   @doc """
-  Call one of the site's own tools (`RegentMCPAgents.SiteTools`) as this
-  connection's identity, through the site's `endpoint` in this process. The
-  inner request carries `conn.private[:regent_mcp_agents]` (`%{tool: name}`),
-  which nothing sent over the network can set, so the site can keep it out of
-  its per-address budget and name it in its logs.
-
-  Answers `:unknown` for a name that is no site tool, `{:insufficient_scope,
-  scope}` when the connection wasn't allowed the site's permission, or a tool
-  answer (see the moduledoc).
-  """
-  def act(principal, site, endpoint, name, arguments) when is_map(arguments) do
-    case site.request(name, arguments) do
-      :unknown ->
-        :unknown
-
-      {:refused, error} ->
-        {:refused, 422, error}
-
-      {:ok, request} ->
-        scope = site.scope()
-
-        if scope in Map.get(principal, :scopes, []),
-          do: send_site(principal, site, endpoint, name, scope, request),
-          else: {:insufficient_scope, scope}
-    end
-  end
-
-  def act(_principal, _site, _endpoint, _name, _arguments),
-    do: {:refused, 422, @arguments_object}
-
-  defp send_site(principal, site, endpoint, name, scope, {:public, "GET", path, nil}) do
-    with :ok <- authority(principal, scope),
-         [route | query] = String.split(path, "?", parts: 2),
-         true <- site_path?(route, site.paths().public) and public_query?(query),
-         {:ok, status, body, retry_after} <-
-           through_endpoint(endpoint, name).(
-             %{"method" => "GET", "path" => path},
-             %{"accept" => "application/json"}
-           ),
-         true <- is_map(body) do
-      {:answer, status, body, retry_after}
-    else
-      _ -> {:error, :site_request_refused}
-    end
-  end
-
-  defp send_site(principal, site, endpoint, name, scope, {:signed, method, path, body})
-       when method in ["GET", "POST"] do
-    request =
-      if method == "POST",
-        do: %{"method" => "POST", "path" => path, "body" => Jason.encode!(body || %{})},
-        else: %{"method" => "GET", "path" => path}
-
-    if (method == "POST" or is_nil(body)) and site_path?(path, site.paths().signed) do
-      perform(principal, {:site, scope, request}, through_endpoint(endpoint, name))
-    else
-      {:error, :site_request_refused}
-    end
-  end
-
-  defp send_site(_principal, _site, _endpoint, _name, _scope, _request),
-    do: {:error, :site_request_refused}
-
-  # A path the site's tools may send to: under one of its prefixes, with no
-  # query or fragment (a public read's query is checked on its own), no dot
-  # segment and no encoded slash, backslash or dot.
-  defp site_path?(path, prefixes) when is_binary(path) do
-    Enum.any?(prefixes, &String.starts_with?(path, &1)) and
-      Regex.match?(~r{\A(?:/[A-Za-z0-9._~%-]+)+\z}, path) and
-      not Regex.match?(~r"/\.{1,2}(?:/|\z)|%(?:2[EeFf]|5[Cc])", path)
-  end
-
-  defp site_path?(_path, _prefixes), do: false
-
-  # A public read may page with a plain query, such as `before=12`.
-  defp public_query?([]), do: true
-  defp public_query?([query]), do: Regex.match?(~r/\A[A-Za-z0-9._~%=&-]+\z/, query)
-
-  @doc """
   The key one account's connection has on one site, derived from the site's
   audience and the account. Two sites never derive the same key, so one person's
   signers on different sites are unrelated and their addresses cannot link the
@@ -263,6 +200,9 @@ defmodule RegentMCPAgents do
     :crypto.hash(:sha256, Jason.encode!(["regent-chatgpt-account-v1", audience, subject]))
     |> Base.encode16(case: :lower)
   end
+
+  @doc "The refusal for a malformed `pair_identity` call, for a site serving the tool itself."
+  def pairing_input_refusal, do: @pairing_input
 
   @doc false
   def hosted_names, do: Enum.map(Harness.hosted(), &Atom.to_string/1)
@@ -334,64 +274,26 @@ defmodule RegentMCPAgents do
   defp signable({:post, body}),
     do: {@posting_scope, %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body}}
 
-  # A site tool's request, built by the site from its own operations and
-  # checked against its prefixes in `send_site/6`; its permission is the site's.
-  defp signable({:site, scope, request}), do: {scope, request}
-
-  # Signs one of the requests above as the connection's identity and delivers it.
-  defp perform(principal, operation, deliver \\ &send_signed/2) do
-    {required, request} = signable(operation)
-
-    with {:ok, headers} <- signed_headers(principal, required, request),
-         {:ok, status, body, retry_after} <- deliver.(request, headers),
-         true <- is_map(body) do
-      # A site tool answers as the site did, success included.
-      if status in 200..299 and not match?({:site, _scope, _request}, operation),
-        do: {:ok, body},
-        else: {:answer, status, body, retry_after}
-    else
-      _ -> {:error, :identity_request_refused}
-    end
-  end
-
-  @doc """
-  The signed headers for one exact request (`%{"method", "path", "body"}`, a
-  GET with no body) as this connection's one identity, for a site that serves
-  its own tools another way than `act/5`, such as signing an incoming MCP call
-  so its own agent tools admit it as the paired agent. The connection must hold
-  `scope`, one of the site's own permissions, never the identity permission:
-  the identity requests stay this library's own (`signable/1`), and nothing
-  under `/api/agents/v1/` is signed here.
-  """
-  def sign(principal, scope, %{"method" => method, "path" => path} = request)
-      when method in ["GET", "POST"] and is_binary(path) and is_binary(scope) do
-    if scope != @identity_scope and scope in RegentOAuth.scopes() and
-         not String.starts_with?(path, @agents_path) and
-         is_nil(request["body"]) == (method == "GET"),
-       do: signed_headers(principal, scope, request),
-       else: {:error, :identity_request_refused}
-  end
-
-  def sign(_principal, _scope, _request), do: {:error, :identity_request_refused}
-
-  @doc "The refusal for a malformed `pair_identity` call, for a site serving the tool itself."
-  def pairing_input_refusal, do: @pairing_input
-
   # The connection's own Bearer token never leaves this site: the signer is
   # asked with the site's hosted signing key, and the signed request carries
   # only the headers the signer returned.
-  defp signed_headers(principal, scope, request) do
+  defp perform(principal, operation) do
+    {required, request} = signable(operation)
+
     with {:ok, envelope} <-
            signer_request(principal, %{"operation" => "sign", "request" => request}),
-         :ok <- authority(principal, scope),
+         :ok <- authority(principal, required),
          true <-
            envelope["method"] == request["method"] and envelope["path"] == request["path"] and
-             envelope["body"] == request["body"] and is_map(envelope["headers"]) do
-      # Lowercase names, as Plug keeps them; the signature covers values.
-      {:ok,
-       envelope["headers"]
-       |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
-       |> Map.put("content-type", "application/json")}
+             envelope["body"] == request["body"] and is_map(envelope["headers"]),
+         # Lowercase names, as Plug keeps them; the signature covers values.
+         headers =
+           envelope["headers"]
+           |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
+           |> Map.put("content-type", "application/json"),
+         {:ok, status, body, retry_after} <- send_signed(request, headers),
+         true <- is_map(body) do
+      if status in 200..299, do: {:ok, body}, else: {:answer, status, body, retry_after}
     else
       _ -> {:error, :identity_request_refused}
     end
@@ -454,39 +356,6 @@ defmodule RegentMCPAgents do
       _ -> :error
     after
       Logger.reset_metadata(metadata)
-    end
-  end
-
-  # A site tool's request goes through the site's whole endpoint in this
-  # process, as one sent over the network would: the site's own signature
-  # check, parsers, limits, router and refusals. It is marked so the site keeps
-  # it out of its per-address budget, which every connected account would
-  # otherwise share, and names the tool in its logs.
-  defp through_endpoint(endpoint, tool) do
-    fn request, headers ->
-      metadata = Logger.metadata()
-
-      try do
-        conn =
-          request["method"]
-          |> Plug.Test.conn(RegentOAuth.issuer() <> request["path"], request["body"] || "")
-          |> Map.replace!(:req_headers, Map.to_list(headers))
-          |> Plug.Conn.put_private(:regent_mcp_agents, %{tool: tool})
-          |> endpoint.call(endpoint.init([]))
-          |> take_answer()
-
-        with answer when is_binary(answer) <- conn.resp_body,
-             {:ok, decoded} <- Jason.decode(answer) do
-          {:ok, conn.status, decoded,
-           conn |> Plug.Conn.get_resp_header("retry-after") |> List.first()}
-        else
-          _ -> :error
-        end
-      rescue
-        _ -> :error
-      after
-        Logger.reset_metadata(metadata)
-      end
     end
   end
 

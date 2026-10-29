@@ -2,34 +2,17 @@
 
 ## Unreleased
 
-- `RegentMCPAgents.sign/3`: the signed headers for one exact request as the
-  connection's identity, for a site that serves its own tools another way than
-  `act/5` (the template signs an incoming MCP call so its AshAi tools admit
-  the paired agent). Only for one of the site's own permissions, never the
-  identity permission, and never under `/api/agents/v1/`. `act/5` and the
-  identity tools sign through the same code. `pairing_input_refusal/0` gives
-  the words for a malformed `pair_identity` call.
-- A site that offers its own tools sets `tool_limit:`, each account's budget
-  of site tool calls (policy, limit, window), counted by the same `admit` as
-  the address's. Each call is a full hosted sign-in at the SIWA service, so a
-  few busy connections would otherwise fill one machine's share of it. Past
-  it, the call answers `{ok: false, status: 429, retry_after, error:
-  rate_limited}` and nothing is signed. An unknown tool name never spends it.
+- `RegentMCPAgents.address/1`: the lowercase wallet address of the account's one
+  identity on this site, from the hosted signer's register answer, for a site
+  that admits a connected app as the agent it paired. Nothing is signed for it.
+  `pairing_input_refusal/0` gives the words for a malformed `pair_identity`
+  call, for a site serving that tool itself.
 - Identity tool titles are one or two words (Registration, Identity, Pairing,
   Check-in), and each says whether calling it again changes anything
   (`idempotentHint`).
 - After `initialize`, a request whose `MCP-Protocol-Version` header names a
   version the address doesn't speak is answered 400; a request without the
   header is read as 2025-03-26.
-- A site's own tools at its MCP address (`RegentMCPAgents.SiteTools`,
-  `tools:` and `endpoint:` in the plug's options, `RegentMCPAgents.act/5`): a
-  call becomes the site's own agent request, signed by the connection's hosted
-  signer and served through the site's endpoint in this process, so the site's
-  verification, rights, limits and refusals decide it. Paths are held to the
-  site's prefixes, with no query, dot segment or encoded slash. The inner
-  request is marked `conn.private[:regent_mcp_agents]` for the site's budget and
-  logs. The sign-in challenge asks for the site's permission too, and a
-  connection without it is answered 403 `insufficient_scope`.
 - Every tool answers in the shape a site's browser tools answer:
   `structuredContent` is `{ok: true, status, data}` or
   `{ok: false, status, retry_after?, error: {code, message, hint}}`, and the

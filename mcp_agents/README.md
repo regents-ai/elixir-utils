@@ -90,28 +90,6 @@ since `forward` sends those to the plug too. Mount it outside parameter logging,
 because tool calls carry pairing codes. Anything but POST is answered 405, and
 the address answers 404 while OAuth or hosted identity is off.
 
-## A site's own tools
-
-A site whose agents already work over signed HTTP offers those operations at
-the same address with `tools: MySite.MCPTools` and `endpoint:
-MySiteWeb.Endpoint` in the `forward` options. `MySite.MCPTools` implements
-`RegentMCPAgents.SiteTools`: the permission they need (`scope/0`, one of the
-site's OAuth scopes, with its own consent line), the path prefixes they may
-reach (`paths/0`, signed and public), the tools (`list/0`) and the request a
-call makes (`request/2`). A signed call is signed by the connection's hosted
-signer as its one identity and served through the site's endpoint in this
-process, so the site's own signature check, pairing, rights, limits and
-refusals decide it, and it answers exactly what a self-signing agent gets. The
-library refuses a path outside the prefixes, or with a query, a dot segment or
-an encoded slash, before anything is signed. The inner request carries
-`conn.private[:regent_mcp_agents]` (`%{tool: name}`), which no network request
-can set: the site leaves it out of its per-address budget (all of a connector's
-accounts would otherwise share one) and may name the tool in its logs. The
-per-account budget at the address still bounds it. The sign-in challenge asks
-for both permissions; a connection allowed only the identity permission gets
-403 with `error="insufficient_scope"` when it calls a site tool. The SIWA
-service must allow the site's hosted signer to sign under those prefixes.
-
 Run `mix check` (compile, format and the tests, which need a local PostgreSQL
 17 on 127.0.0.1:5432 and make `regent_mcp_agents_test` if it is missing; they
 migrate the OAuth tables and the shared agent schema into it).

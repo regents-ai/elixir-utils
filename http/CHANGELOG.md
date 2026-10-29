@@ -10,6 +10,8 @@
   `valid_url?/1` and `public_ip?/1` are its checks. It emits
   `[:regent_http, :public_request]` without the host, which someone else chose.
   `Regent.MCPEvents.Callback` now uses it instead of its own copy.
+  An informational (1xx) reply is skipped, never taken as the answer or as a
+  callback's acknowledgement.
 
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.

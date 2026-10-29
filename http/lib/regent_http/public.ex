@@ -240,6 +240,12 @@ defmodule RegentHttp.Public do
   defp consume([{:status, ref, status} | rest], conn, ref, max_bytes, deadline, response),
     do: consume(rest, conn, ref, max_bytes, deadline, %{response | status: status})
 
+  # An informational (1xx) reply comes before the final one: its headers are
+  # skipped and never taken as the answer or as an acknowledgement.
+  defp consume([{:headers, ref, _headers} | rest], conn, ref, max_bytes, deadline, response)
+       when response.status in 100..199,
+       do: consume(rest, conn, ref, max_bytes, deadline, %{response | status: nil})
+
   defp consume([{:headers, ref, headers} | rest], conn, ref, max_bytes, deadline, response) do
     headers = Enum.map(headers, fn {key, value} -> {String.downcase(key), value} end)
     response = %{response | headers: headers}

@@ -37,7 +37,7 @@ defmodule RegentCredits.Holds do
          :ok <- AgentSpending.current_pairing(actor) do
       case find(actor.site, key) do
         nil -> place(accounts, actor, key, details, args.purchased_only?, cause(args, actor.site))
-        hold -> same(hold, details)
+        hold -> same(hold, details, args.purchased_only?)
       end
     end
   end
@@ -339,6 +339,14 @@ defmodule RegentCredits.Holds do
       _regent -> []
     end)
     |> Ledger.open()
+  end
+
+  # A purchased-only spend answers with an earlier hold only when that hold
+  # took purchased Credits alone.
+  defp same(hold, details, purchased_only?) do
+    if purchased_only? and not equal?(hold.purchased, hold.amount),
+      do: {:error, Refused.exception(reason: :key_reused)},
+      else: same(hold, details)
   end
 
   defp same(hold, details) do

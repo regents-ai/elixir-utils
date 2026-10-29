@@ -4,7 +4,9 @@
 
 - A hold can be placed with `purchased_only?: true` for a spend Regents pays
   for in USDC, such as a purchase on the chain made for the person: it takes
-  only purchased Credits, and a balance of given Credits never covers it.
+  only purchased Credits, and a balance of given Credits never covers it. A
+  repeated key answers with the earlier hold only if it too took purchased
+  Credits alone.
 
 - A Credits history entry for a paid fix paid in Credits (purpose `jev_assist`,
   the payment offer's kind) reads "Fix".

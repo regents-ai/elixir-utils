@@ -18,6 +18,9 @@
   `x-siwa-audience`: the service takes the audience from the key. If the
   service refuses the key, or answers for another audience, the site logs an
   error and agents get 503 `siwa_request_failed` until the settings are fixed.
+  Live siwa-server still reads `x-siwa-audience`, so this ships only in the
+  joint release (control/rollouts/2026-10-28-site-verify-keys.md).
+  Do not re-pin elixir-utils at or after 12311060 until the shared window.
 
 - Pairing moves from the side panel to each site's Account page, so every refusal
   hint and next step that sent a person to Pair New Agent "in the side panel" now

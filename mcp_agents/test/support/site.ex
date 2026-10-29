@@ -61,6 +61,8 @@ defmodule RegentMCPAgents.Test.OAuthTables do
     RegentOAuth.Migration.up()
 
     RegentOAuth.Migration.V2.up()
+
+    RegentOAuth.Migration.V3.up()
   end
 end
 

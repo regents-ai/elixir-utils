@@ -102,8 +102,6 @@ RegentCredits.take_back(post_id, actor: site)
 ```
 
 - Given Credits are spent first; what comes back returns as the kind it was.
-- `purchased_only?: true` holds only purchased Credits, for a spend Regents pays
-  for in USDC (a purchase on the chain made for the person).
 - Carrying a hold is a server operation between two distinct reservation keys.
   Carrying it to its own key is refused before anything changes.
 - A hold is closed once. The same call again answers with the first result;

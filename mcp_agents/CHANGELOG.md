@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Hosted identity requests are checked through the site's `RegentAgents.Broker`,
+  which now sends the site's own verify key (`config :regent_agents, siwa:
+  [verify_key: ...]`) and no `x-siwa-audience`. The tests' SIWA service stub
+  records that key.
 - `RegentMCPAgents.address/1`: the lowercase wallet address of the account's one
   identity on this site, from the hosted signer's register answer, for a site
   that admits a connected app as the agent it paired. Nothing is signed for it.

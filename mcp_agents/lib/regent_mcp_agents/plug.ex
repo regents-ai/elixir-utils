@@ -126,7 +126,37 @@ defmodule RegentMCPAgents.Plug do
 
   defp message(%{body_params: %{"jsonrpc" => "2.0", "method" => method} = request} = conn, opts)
        when is_binary(method) do
-    case Map.fetch(request, "id") do
+    case {Map.fetch(request, "id"), protocol_version(conn, method)} do
+      {_id, {:unsupported, version}} ->
+        rpc_error(
+          conn,
+          400,
+          -32_600,
+          "MCP-Protocol-Version #{version} isn't one this address speaks: " <>
+            Enum.join(@protocol_versions, ", ") <> "."
+        )
+
+      {id, :ok} ->
+        answer_message(conn, opts, method, request, id)
+    end
+  end
+
+  defp message(conn, _opts), do: invalid_request(conn)
+
+  # After initialize, the app names the version it agreed in a header; a
+  # request without one is read as 2025-03-26, as the protocol says.
+  defp protocol_version(_conn, "initialize"), do: :ok
+
+  defp protocol_version(conn, _method) do
+    case get_req_header(conn, "mcp-protocol-version") do
+      [] -> :ok
+      [version] -> if version in @protocol_versions, do: :ok, else: {:unsupported, version}
+      [version | _more] -> {:unsupported, version}
+    end
+  end
+
+  defp answer_message(conn, opts, method, request, id) do
+    case id do
       {:ok, id} when is_binary(id) or is_integer(id) ->
         case handle(method, Map.get(request, "params"), conn, opts) do
           # The connection wasn't allowed the site's permission: the challenge
@@ -154,8 +184,6 @@ defmodule RegentMCPAgents.Plug do
         conn |> send_resp(202, "") |> halt()
     end
   end
-
-  defp message(conn, _opts), do: invalid_request(conn)
 
   defp handle("initialize", params, _conn, opts) do
     requested = is_map(params) && params["protocolVersion"]

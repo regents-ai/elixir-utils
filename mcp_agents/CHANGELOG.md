@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Identity tool titles are one or two words (Registration, Identity, Pairing,
+  Check-in), and each says whether calling it again changes anything
+  (`idempotentHint`).
+- After `initialize`, a request whose `MCP-Protocol-Version` header names a
+  version the address doesn't speak is answered 400; a request without the
+  header is read as 2025-03-26.
 - A site's own tools at its MCP address (`RegentMCPAgents.SiteTools`,
   `tools:` and `endpoint:` in the plug's options, `RegentMCPAgents.act/5`): a
   call becomes the site's own agent request, signed by the connection's hosted

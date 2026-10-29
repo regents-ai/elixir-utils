@@ -21,17 +21,28 @@ defmodule RegentPayments.Operator do
   @typedoc "The wallet that signs, and the Base endpoint it sends through."
   @type signer :: %{address: String.t(), private_key: String.t(), rpc_url: String.t()}
 
-  @doc "Hands `tx_data` for `to` to the chain, signed by `signer`, and returns its hash."
+  @doc """
+  Hands `tx_data` for `to` to the chain, signed by `signer`, and returns its
+  hash. It takes the wallet's next nonce after every transaction the chain
+  already holds, mined or still waiting, so a send never replaces an earlier
+  one that has not landed yet.
+  """
   @spec send(map() | Ethers.TxData.t(), String.t(), signer()) ::
           {:ok, String.t()} | {:error, term()}
   def send(tx_data, to, signer) do
-    Ethers.send_transaction(tx_data,
-      from: signer.address,
-      to: to,
-      signer: Ethers.Signer.Local,
-      signer_opts: [private_key: signer.private_key],
-      rpc_opts: [url: signer.rpc_url]
-    )
+    rpc_opts = [url: signer.rpc_url]
+
+    with {:ok, nonce} <-
+           Ethers.get_transaction_count(signer.address, block: "pending", rpc_opts: rpc_opts) do
+      Ethers.send_transaction(tx_data,
+        from: signer.address,
+        to: to,
+        nonce: nonce,
+        signer: Ethers.Signer.Local,
+        signer_opts: [private_key: signer.private_key],
+        rpc_opts: rpc_opts
+      )
+    end
   end
 
   @doc """

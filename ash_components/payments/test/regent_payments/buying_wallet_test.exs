@@ -51,4 +51,13 @@ defmodule RegentPayments.BuyingWalletTest do
     assert {:error, {:call_unknown, %{call: call}}} = buy(signer)
     assert BuyingWallet.status(call, signer.rpc_url) == :not_yet
   end
+
+  test "a buy after a call still waiting takes the next nonce, and never replaces it" do
+    {chain, signer} =
+      FakeBase.start(receipts: fn hash -> if hash != FakeBase.hash(2), do: "0x1" end)
+
+    assert {:error, {:call_unknown, _sent}} = buy(signer)
+    assert {:ok, _sent} = buy(signer)
+    assert chain |> FakeBase.sent() |> Enum.map(& &1.nonce) == [0, 1, 2, 3]
+  end
 end

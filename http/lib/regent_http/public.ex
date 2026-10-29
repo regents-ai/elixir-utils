@@ -240,6 +240,10 @@ defmodule RegentHttp.Public do
   defp consume([{:status, ref, status} | rest], conn, ref, max_bytes, deadline, response),
     do: consume(rest, conn, ref, max_bytes, deadline, %{response | status: status})
 
+  # Nothing here speaks another protocol, so a switch is a failed call.
+  defp consume([{:headers, ref, _headers} | _], _conn, ref, _max_bytes, _deadline, %{status: 101}),
+       do: {:error, :connection_error}
+
   # An informational (1xx) reply comes before the final one: its headers are
   # skipped and never taken as the answer or as an acknowledgement.
   defp consume([{:headers, ref, _headers} | rest], conn, ref, max_bytes, deadline, response)

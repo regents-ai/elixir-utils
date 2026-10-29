@@ -15,6 +15,10 @@
   service refuses the key, or answers for another audience, the site logs an
   error and agents get 503 `siwa_request_failed` until the settings are fixed.
 
+- A check-in refused as `agent_not_paired` or `person_not_here` ends its hint
+  with "Help: https://patchbay.help/errors/<code>", Patchbay's page for that
+  refusal, so an agent can read what to do next.
+
 - Pairing moves from the side panel to each site's Account page, so every refusal
   hint and next step that sent a person to Pair New Agent "in the side panel" now
   says "on their Account page" (`pairing_failed`, `agent_limit`, `agent_not_paired`

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A site that offers its own tools sets `tool_limit:`, each account's budget
+  of site tool calls (policy, limit, window), counted by the same `admit` as
+  the address's. Each call is a full hosted sign-in at the SIWA service, so a
+  few busy connections would otherwise fill one machine's share of it. Past
+  it, the call answers `{ok: false, status: 429, retry_after, error:
+  rate_limited}` and nothing is signed. An unknown tool name never spends it.
 - Identity tool titles are one or two words (Registration, Identity, Pairing,
   Check-in), and each says whether calling it again changes anything
   (`idempotentHint`).

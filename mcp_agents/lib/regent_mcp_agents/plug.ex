@@ -40,7 +40,10 @@ defmodule RegentMCPAgents.Plug do
   `RegentAgentAccess.RateLimit` except `:key`, which is always the account.
 
   A site that offers its own tools adds `tools: MySite.MCPTools` (a
-  `RegentMCPAgents.SiteTools`) and `endpoint: MySiteWeb.Endpoint`. Their calls
+  `RegentMCPAgents.SiteTools`), `endpoint: MySiteWeb.Endpoint` and
+  `tool_limit: [policy: "mcp_tools", limit: 30, window: 60]`, each account's
+  budget of site tool calls, counted by the same `admit` (each is a hosted
+  sign-in at the SIWA service). Their calls
   run through that endpoint in this process, marked
   `conn.private[:regent_mcp_agents]`; the site leaves such a request out of its
   per-address budget. The sign-in challenge then asks for the site's permission
@@ -71,6 +74,7 @@ defmodule RegentMCPAgents.Plug do
     %{
       tools: tools,
       endpoint: if(tools, do: Keyword.fetch!(opts, :endpoint)),
+      tool_limit: if(tools, do: Map.new(Keyword.fetch!(opts, :tool_limit))),
       app: Keyword.fetch!(opts, :app),
       title: Keyword.fetch!(opts, :title),
       instructions: Keyword.fetch!(opts, :about) <> " " <> @guidance,
@@ -218,12 +222,38 @@ defmodule RegentMCPAgents.Plug do
       is_nil(opts.tools) ->
         unknown_tool(name)
 
+      not Enum.any?(opts.tools.list(), &(&1.name == name)) ->
+        unknown_tool(name)
+
       true ->
-        case RegentMCPAgents.act(principal, opts.tools, opts.endpoint, name, arguments) do
-          :unknown -> unknown_tool(name)
-          {:insufficient_scope, _scope} -> {:insufficient_scope, scopes(opts)}
-          answer -> {:ok, tool_result(answer)}
+        with :ok <- spend_tool_budget(principal, opts) do
+          case RegentMCPAgents.act(principal, opts.tools, opts.endpoint, name, arguments) do
+            {:insufficient_scope, _scope} -> {:insufficient_scope, scopes(opts)}
+            answer -> {:ok, tool_result(answer)}
+          end
         end
+    end
+  end
+
+  # A site tool call is signed by the hosted signer, a full sign-in each time,
+  # so it has a budget of its own per account, narrower than the address's.
+  defp spend_tool_budget(principal, %{tool_limit: limit, rate_limit: %{admit: admit}}) do
+    case admit.({limit.policy, principal.subject}, limit.limit, limit.window) do
+      {:ok, _budget} ->
+        :ok
+
+      {:error, :rate_limited, budget} ->
+        {:ok,
+         answer(%{
+           ok: false,
+           status: 429,
+           retry_after: budget.reset,
+           error: %{
+             code: "rate_limited",
+             message: "This connection has used its #{limit.limit} tool calls for now.",
+             hint: "Wait the number of seconds in retry_after, then call again."
+           }
+         })}
     end
   end
 

@@ -20,6 +20,13 @@ defmodule RegentPrivy.UsersTest do
   defp linked(address),
     do: %{"type" => "wallet", "address" => address, "chain_type" => "ethereum"}
 
+  defp agent_user(id),
+    do: %{
+      "id" => id,
+      "linked_accounts" => [linked(@wallet)],
+      "custom_metadata" => %{"regent_agent" => true}
+    }
+
   defp request(conn) do
     {:ok, body, conn} = Plug.Conn.read_body(conn)
 
@@ -31,9 +38,9 @@ defmodule RegentPrivy.UsersTest do
   end
 
   test "by_wallet asks Privy for the wallet's user with the app's own key" do
-    answer(200, %{"id" => "did:privy:agent-1", "linked_accounts" => [linked(@wallet)]})
+    answer(200, agent_user("did:privy:agent-1"))
 
-    assert {:ok, %{privy_user_id: "did:privy:agent-1", only_wallet: true}} =
+    assert {:ok, %{privy_user_id: "did:privy:agent-1", agent: true}} =
              Users.by_wallet(@wallet, @opts)
 
     assert_received {:privy, "POST", "/v1/users/wallet/address", request}
@@ -42,17 +49,15 @@ defmodule RegentPrivy.UsersTest do
     assert request.authorization == ["Basic " <> Base.encode64("test-privy-app:test-secret")]
   end
 
-  test "a user that links anything besides the wallet is not the wallet's alone" do
-    other = "0x" <> String.duplicate("1", 40)
+  test "a user an agent opening did not make is a person's, even with nothing but the wallet" do
+    for metadata <- [nil, %{}, %{"regent_agent" => "true"}, %{"regent_agent" => false}] do
+      answer(200, %{
+        "id" => "did:privy:person",
+        "linked_accounts" => [linked(@wallet)],
+        "custom_metadata" => metadata
+      })
 
-    for accounts <- [
-          [linked(@wallet), %{"type" => "email", "address" => "person@example.com"}],
-          [linked(other)],
-          []
-        ] do
-      answer(200, %{"id" => "did:privy:person", "linked_accounts" => accounts})
-
-      assert {:ok, %{privy_user_id: "did:privy:person", only_wallet: false}} =
+      assert {:ok, %{privy_user_id: "did:privy:person", agent: false}} =
                Users.by_wallet(@wallet, @opts)
     end
   end
@@ -62,10 +67,10 @@ defmodule RegentPrivy.UsersTest do
     assert {:error, :not_found} = Users.by_wallet(@wallet, @opts)
   end
 
-  test "create_with_wallet links only the wallet" do
-    answer(200, %{"id" => "did:privy:agent-2", "linked_accounts" => [linked(@wallet)]})
+  test "create_with_wallet links only the wallet and marks the user as an agent's" do
+    answer(200, agent_user("did:privy:agent-2"))
 
-    assert {:ok, %{privy_user_id: "did:privy:agent-2", only_wallet: true}} =
+    assert {:ok, %{privy_user_id: "did:privy:agent-2", agent: true}} =
              Users.create_with_wallet(@wallet, @opts)
 
     assert_received {:privy, "POST", "/v1/users", request}
@@ -77,7 +82,8 @@ defmodule RegentPrivy.UsersTest do
                  "address" => String.downcase(@wallet),
                  "chain_type" => "ethereum"
                }
-             ]
+             ],
+             "custom_metadata" => %{"regent_agent" => true}
            }
   end
 

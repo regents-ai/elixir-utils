@@ -14,14 +14,15 @@ defmodule RegentPrivy.Users do
   `:privy_refused` (Privy answered with any other refusal) and
   `:privy_unavailable` (Privy could not be reached or failed).
 
-  A user comes back as its Privy id and `only_wallet`: whether the wallet asked
-  about is its one linked account, so the site can tell an agent's own user from a
-  person's account that also links the wallet.
+  A user comes back as its Privy id and `agent`: whether `create_with_wallet/2` made
+  it for an agent, as its custom metadata `regent_agent` says. Only a server holding
+  the app secret writes that metadata, so a site tells an agent's own user from a
+  person who signs in with nothing but the same wallet.
   """
 
   @wallet_address_pattern ~r/\A0x[0-9a-fA-F]{40}\z/u
 
-  @type user :: %{privy_user_id: String.t(), only_wallet: boolean()}
+  @type user :: %{privy_user_id: String.t(), agent: boolean()}
   @type error ::
           :missing_privy_config
           | :invalid_wallet_address
@@ -33,20 +34,24 @@ defmodule RegentPrivy.Users do
   @spec by_wallet(String.t(), keyword()) :: {:ok, user()} | {:error, error()}
   def by_wallet(address, opts) do
     with {:ok, address} <- wallet(address) do
-      request(opts, address, url: "/v1/users/wallet/address", json: %{address: address})
+      request(opts, url: "/v1/users/wallet/address", json: %{address: address})
     end
   end
 
   @doc """
-  Makes a Privy user whose one linked account, and so its one way to sign in, is
-  the Ethereum wallet `address`.
+  Makes a Privy user for an agent: its one linked account, and so its one way to
+  sign in, is the Ethereum wallet `address`, and its custom metadata says
+  `regent_agent: true`.
   """
   @spec create_with_wallet(String.t(), keyword()) :: {:ok, user()} | {:error, error()}
   def create_with_wallet(address, opts) do
     with {:ok, address} <- wallet(address) do
-      request(opts, address,
+      request(opts,
         url: "/v1/users",
-        json: %{linked_accounts: [%{type: "wallet", address: address, chain_type: "ethereum"}]}
+        json: %{
+          linked_accounts: [%{type: "wallet", address: address, chain_type: "ethereum"}],
+          custom_metadata: %{regent_agent: true}
+        }
       )
     end
   end
@@ -59,7 +64,7 @@ defmodule RegentPrivy.Users do
 
   defp wallet(_address), do: {:error, :invalid_wallet_address}
 
-  defp request(opts, address, options) do
+  defp request(opts, options) do
     with {:ok, app_id, secret} <- configuration(opts) do
       [
         base_url: "https://api.privy.io",
@@ -72,7 +77,7 @@ defmodule RegentPrivy.Users do
       |> Req.new()
       |> Req.merge(Keyword.get(opts, :req_options, []))
       |> Req.request(options)
-      |> answer(address)
+      |> answer()
     end
   end
 
@@ -86,22 +91,16 @@ defmodule RegentPrivy.Users do
     end
   end
 
-  defp answer(
-         {:ok, %Req.Response{status: 200, body: %{"id" => "did:privy:" <> _ = id} = user}},
-         address
-       ),
-       do: {:ok, %{privy_user_id: id, only_wallet: only_wallet?(user, address)}}
+  defp answer({:ok, %Req.Response{status: 200, body: %{"id" => "did:privy:" <> _ = id} = user}}),
+    do: {:ok, %{privy_user_id: id, agent: agent?(user)}}
 
-  defp answer({:ok, %Req.Response{status: 404}}, _address), do: {:error, :not_found}
+  defp answer({:ok, %Req.Response{status: 404}}), do: {:error, :not_found}
 
-  defp answer({:ok, %Req.Response{status: status}}, _address) when status in 400..499,
+  defp answer({:ok, %Req.Response{status: status}}) when status in 400..499,
     do: {:error, :privy_refused}
 
-  defp answer(_failed, _address), do: {:error, :privy_unavailable}
+  defp answer(_failed), do: {:error, :privy_unavailable}
 
-  defp only_wallet?(%{"linked_accounts" => [%{"type" => "wallet", "address" => linked}]}, address)
-       when is_binary(linked),
-       do: String.downcase(linked) == address
-
-  defp only_wallet?(_user, _address), do: false
+  defp agent?(%{"custom_metadata" => %{"regent_agent" => true}}), do: true
+  defp agent?(_user), do: false
 end

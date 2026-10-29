@@ -48,3 +48,12 @@ The stub implements the `RegentHttp` behaviour (`request/1` returning
 - `techtree/` — follow-up: `lib/tech_tree/tech.ex`,
   `lib/tech_tree/siwa_client.ex`, `lib/tech_tree/ipfs/*`,
   `lib/tech_tree/node_access/x402_batch_settlement/*`.
+
+## Rate-limit keys
+
+`RegentHttp.ClientAddress.key(conn)` returns the address a request's limits are
+keyed by, and where it came from (`:client_header`, `:peer` or `:peer_fallback`).
+Behind Fly's proxy it reads only the one `Fly-Client-IP` the proxy sets; anywhere
+else the direct peer decides. `X-Forwarded-For` is never read, since a client
+writes its first entries. Set `config :regent_http, :behind_fly_proxy, true` in
+production and `false` everywhere else.

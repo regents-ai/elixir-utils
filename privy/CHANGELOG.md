@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- `RegentPrivy.Proof.pair/1` reads a request's Privy pair: the access token only as
+  the bearer and the identity token only as `privy-id-token`, exactly one of each.
+  It is the pair `RegentPrivy.Session.verify/2` takes.
+- `RegentPrivy.Owners` keeps pages for the Privy accounts an app names. It is a plug
+  and an `on_mount` hook over a module the app writes (its owners, who a session is
+  signed in as, and whether that sign-in still holds); anyone else gets the app's
+  not-found page, and the page checks again on every navigation, press and message
+  (not a press aimed at a LiveComponent). A signed-in account that is not an owner
+  is logged with its Privy id.
+- `RegentPrivy.OwnerSession` answers those two sign-in callbacks from the app's
+  cookie session, with no table: `put/2` after the pair is verified, under a fresh
+  session id and a live socket id; `sign_out/1`, which drops the session and
+  disconnects its open pages; `browser/1`, handed to `startPrivySignIn`.
+- `RegentPrivy.ContentSecurityPolicy.sign_in/0` lists the sources Privy's sign-in
+  needs, by directive, for an app to add to its own policy.
+- The browser half ships in `assets/privy_sign_in.mjs`, copied into an app by
+  `mix regent_privy.assets`: `readPrivyPair` (identity token first, then access
+  token, never half a pair), `privyPairHeaders`, `privyLoginFailure`, and
+  `startPrivySignIn`, a hidden Privy sign-in that posts the pair to the app's
+  session path and signs out there, then at Privy only once the server has ended
+  the session. Given the server's `session`, it posts Privy's next token again
+  while the same person stays signed in, so the sign-in renews quietly.
+- Needs `plug` and `phoenix_live_view`.
 - jose 1.11.13 in the lock, which fixes the eight jose advisories of 26 Oct
   (EEF-CVE-2026-65625 to -65632, one high).
 - `verify_token/2` and `RegentPrivy.Session` now name two wallets apart:

@@ -2,7 +2,7 @@ defmodule RegentPrivy.MixProject do
   use Mix.Project
 
   @version "0.2.1"
-  @description "Shared Privy identity-token verification for Regent Elixir apps."
+  @description "Shared Privy sign-in for Regent Elixir apps: token verification, the request pair, owners-only pages and the browser sign-in."
 
   def project do
     [
@@ -35,6 +35,8 @@ defmodule RegentPrivy.MixProject do
     [
       {:joken, "~> 2.6"},
       {:jason, "~> 1.4"},
+      {:plug, "~> 1.16"},
+      {:phoenix_live_view, "~> 1.1"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]
@@ -44,6 +46,7 @@ defmodule RegentPrivy.MixProject do
     [
       files: [
         ".formatter.exs",
+        "assets",
         "CHANGELOG.md",
         "README.md",
         "lib",

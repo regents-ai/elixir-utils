@@ -20,7 +20,7 @@ defmodule Siwa.ContractConformanceTest do
     @behaviour AgentAuthPlug.Client
 
     @impl true
-    def verify_http_request(payload, opts) do
+    def verify_http_request(payload) do
       replay_store = fn key, _expires ->
         seen = Process.get(:siwa_contract_seen, MapSet.new())
         Process.put(:siwa_contract_seen, MapSet.put(seen, key))
@@ -28,8 +28,8 @@ defmodule Siwa.ContractConformanceTest do
       end
 
       verify_opts =
-        opts
-        |> Keyword.fetch!(:audience)
+        :siwa_contract_audience
+        |> Process.get()
         |> Fixtures.verify_opts()
         |> Keyword.merge(
           replay_store: replay_store,
@@ -41,7 +41,8 @@ defmodule Siwa.ContractConformanceTest do
           data = %{
             "wallet_address" => verified.address,
             "chain_id" => verified.claims["chain_id"],
-            "key_id" => verified.claims["key_id"]
+            "key_id" => verified.claims["key_id"],
+            "principal" => %{"audience" => verified.claims["aud"]}
           }
 
           {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => data}}}
@@ -60,7 +61,10 @@ defmodule Siwa.ContractConformanceTest do
     def before_verify(_conn, _headers), do: {:ok, nil}
 
     @impl true
-    def accept(conn, data, nil), do: {:ok, Plug.Conn.assign(conn, :principal, data)}
+    # The plug has already matched the verdict's audience to its own; the
+    # fixtures name the signer.
+    def accept(conn, data, nil),
+      do: {:ok, Plug.Conn.assign(conn, :principal, Map.delete(data, "principal"))}
 
     @impl true
     def deny(conn, deny_meta), do: Plug.Conn.assign(conn, :denied, deny_meta)
@@ -125,11 +129,15 @@ defmodule Siwa.ContractConformanceTest do
           conn
       end
 
+    audience = Map.get(fixture, "audience", @fixtures["verify"]["audience"])
+    # The site's verify key names this audience at the sign-in server.
+    Process.put(:siwa_contract_audience, audience)
+
     %{conn | req_headers: Enum.map(request["headers"], &List.to_tuple/1)}
     |> AgentAuthPlug.call(
       client: Verifier,
       hooks: Hooks,
-      audience: Map.get(fixture, "audience", @fixtures["verify"]["audience"]),
+      audience: audience,
       query: %{"refuse" => :refuse, "signed" => :signed}[fixture["query"]]
     )
   end

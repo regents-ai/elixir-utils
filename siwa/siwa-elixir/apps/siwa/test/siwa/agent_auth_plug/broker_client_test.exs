@@ -12,19 +12,19 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
 
   @payload %{"method" => "POST", "path" => "/x", "headers" => %{}}
 
-  test "posts the payload to the broker http-verify endpoint with the audience header" do
+  test "posts the payload to the broker http-verify endpoint with the site's verify key" do
     assert {:ok, %{status: 200, body: %{"code" => "http_envelope_valid"}}} =
              BrokerClient.verify_http_request(@payload,
                http: RecordingHttp,
                base_url: "http://siwa.internal:4100/",
-               audience: "testapp"
+               verify_key: "testapp-site-verify-key"
              )
 
     assert_received {:request, opts}
     assert opts[:method] == :post
     assert opts[:url] == "http://siwa.internal:4100/api/shared/siwa/http-verify"
     assert opts[:json] == @payload
-    assert opts[:headers] == [{"x-siwa-audience", "testapp"}]
+    assert opts[:auth] == {:bearer, "testapp-site-verify-key"}
     refute Keyword.has_key?(opts, :connect_options)
     refute Keyword.has_key?(opts, :receive_timeout)
   end
@@ -33,7 +33,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
     BrokerClient.verify_http_request(@payload,
       http: RecordingHttp,
       base_url: "http://siwa.internal:4100",
-      audience: "testapp",
+      verify_key: "testapp-site-verify-key",
       connect_timeout_ms: 2_000,
       receive_timeout_ms: 5_000
     )
@@ -50,7 +50,7 @@ defmodule Siwa.AgentAuthPlug.BrokerClientTest do
              BrokerClient.verify_http_request(@payload,
                http: RecordingHttp,
                base_url: "http://siwa.internal:4100",
-               audience: "testapp"
+               verify_key: "testapp-site-verify-key"
              )
   end
 end

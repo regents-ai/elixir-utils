@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `RegentMCPAgents.sign/3`: the signed headers for one exact request as the
+  connection's identity, for a site that serves its own tools another way than
+  `act/5` (the template signs an incoming MCP call so its AshAi tools admit
+  the paired agent). Only for one of the site's own permissions, never the
+  identity permission, and never under `/api/agents/v1/`. `act/5` and the
+  identity tools sign through the same code. `pairing_input_refusal/0` gives
+  the words for a malformed `pair_identity` call.
 - A site that offers its own tools sets `tool_limit:`, each account's budget
   of site tool calls (policy, limit, window), counted by the same `admit` as
   the address's. Each call is a full hosted sign-in at the SIWA service, so a

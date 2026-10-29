@@ -338,29 +338,60 @@ defmodule RegentMCPAgents do
   # checked against its prefixes in `send_site/6`; its permission is the site's.
   defp signable({:site, scope, request}), do: {scope, request}
 
-  # The connection's own Bearer token never leaves this site: the signer is
-  # asked with the site's hosted signing key, and the signed request carries
-  # only the headers the signer returned.
+  # Signs one of the requests above as the connection's identity and delivers it.
   defp perform(principal, operation, deliver \\ &send_signed/2) do
     {required, request} = signable(operation)
 
-    with {:ok, envelope} <-
-           signer_request(principal, %{"operation" => "sign", "request" => request}),
-         :ok <- authority(principal, required),
-         true <-
-           envelope["method"] == request["method"] and envelope["path"] == request["path"] and
-             envelope["body"] == request["body"] and is_map(envelope["headers"]),
-         # Lowercase names, as Plug keeps them; the signature covers values.
-         headers =
-           envelope["headers"]
-           |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
-           |> Map.put("content-type", "application/json"),
+    with {:ok, headers} <- signed_headers(principal, required, request),
          {:ok, status, body, retry_after} <- deliver.(request, headers),
          true <- is_map(body) do
       # A site tool answers as the site did, success included.
       if status in 200..299 and not match?({:site, _scope, _request}, operation),
         do: {:ok, body},
         else: {:answer, status, body, retry_after}
+    else
+      _ -> {:error, :identity_request_refused}
+    end
+  end
+
+  @doc """
+  The signed headers for one exact request (`%{"method", "path", "body"}`, a
+  GET with no body) as this connection's one identity, for a site that serves
+  its own tools another way than `act/5`, such as signing an incoming MCP call
+  so its own agent tools admit it as the paired agent. The connection must hold
+  `scope`, one of the site's own permissions, never the identity permission:
+  the identity requests stay this library's own (`signable/1`), and nothing
+  under `/api/agents/v1/` is signed here.
+  """
+  def sign(principal, scope, %{"method" => method, "path" => path} = request)
+      when method in ["GET", "POST"] and is_binary(path) and is_binary(scope) do
+    if scope != @identity_scope and scope in RegentOAuth.scopes() and
+         not String.starts_with?(path, @agents_path) and
+         is_nil(request["body"]) == (method == "GET"),
+       do: signed_headers(principal, scope, request),
+       else: {:error, :identity_request_refused}
+  end
+
+  def sign(_principal, _scope, _request), do: {:error, :identity_request_refused}
+
+  @doc "The refusal for a malformed `pair_identity` call, for a site serving the tool itself."
+  def pairing_input_refusal, do: @pairing_input
+
+  # The connection's own Bearer token never leaves this site: the signer is
+  # asked with the site's hosted signing key, and the signed request carries
+  # only the headers the signer returned.
+  defp signed_headers(principal, scope, request) do
+    with {:ok, envelope} <-
+           signer_request(principal, %{"operation" => "sign", "request" => request}),
+         :ok <- authority(principal, scope),
+         true <-
+           envelope["method"] == request["method"] and envelope["path"] == request["path"] and
+             envelope["body"] == request["body"] and is_map(envelope["headers"]) do
+      # Lowercase names, as Plug keeps them; the signature covers values.
+      {:ok,
+       envelope["headers"]
+       |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
+       |> Map.put("content-type", "application/json")}
     else
       _ -> {:error, :identity_request_refused}
     end

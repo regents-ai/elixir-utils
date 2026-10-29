@@ -2,7 +2,8 @@ defmodule RegentMCPAgents.Plug do
   @moduledoc """
   A site's MCP address for connected apps, such as a Claude connector: the
   streamable HTTP form of the Model Context Protocol, serving the shared
-  identity tools (`RegentMCPAgents.Tools`) and nothing else.
+  identity tools (`RegentMCPAgents.Tools`) and, when the site names them, its
+  own tools (`RegentMCPAgents.SiteTools`).
 
   Every message needs the person's consent: a Bearer token from the site's
   OAuth provider carrying `regent.identity.manage`. A request without one, or
@@ -37,6 +38,15 @@ defmodule RegentMCPAgents.Plug do
   `about` is the first sentence of the instructions the app reads; the library
   adds how to use the identity tools. `rate_limit` takes the options of
   `RegentAgentAccess.RateLimit` except `:key`, which is always the account.
+
+  A site that offers its own tools adds `tools: MySite.MCPTools` (a
+  `RegentMCPAgents.SiteTools`) and `endpoint: MySiteWeb.Endpoint`. Their calls
+  run through that endpoint in this process, marked
+  `conn.private[:regent_mcp_agents]`; the site leaves such a request out of its
+  per-address budget. The sign-in challenge then asks for the site's permission
+  too, and a connection allowed only the identity permission is answered 403
+  `insufficient_scope` when it calls a site tool, so the app asks the person
+  again.
   """
   @behaviour Plug
   import Plug.Conn
@@ -56,7 +66,11 @@ defmodule RegentMCPAgents.Plug do
 
   @impl true
   def init(opts) do
+    tools = Keyword.get(opts, :tools)
+
     %{
+      tools: tools,
+      endpoint: if(tools, do: Keyword.fetch!(opts, :endpoint)),
       app: Keyword.fetch!(opts, :app),
       title: Keyword.fetch!(opts, :title),
       instructions: Keyword.fetch!(opts, :about) <> " " <> @guidance,
@@ -80,7 +94,7 @@ defmodule RegentMCPAgents.Plug do
         |> rpc_error(405, -32_000, "Send MCP messages to this address with POST.")
 
       true ->
-        conn = connect(conn)
+        conn = connect(conn, opts)
 
         conn =
           if conn.halted, do: conn, else: RegentAgentAccess.RateLimit.call(conn, opts.rate_limit)
@@ -92,7 +106,7 @@ defmodule RegentMCPAgents.Plug do
   @doc false
   def account(conn), do: conn.assigns.mcp_agent_principal.subject
 
-  defp connect(conn) do
+  defp connect(conn, opts) do
     scope = RegentMCPAgents.identity_scope()
 
     with ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
@@ -101,17 +115,36 @@ defmodule RegentMCPAgents.Plug do
     else
       _ ->
         conn
-        |> put_resp_header("www-authenticate", RegentOAuth.challenge(scope))
+        |> put_resp_header("www-authenticate", RegentOAuth.challenge(scopes(opts)))
         |> rpc_error(401, -32_001, "Connect your account to use this connector.")
     end
   end
+
+  # Every permission the address's tools need, asked for together at sign-in.
+  defp scopes(%{tools: nil}), do: RegentMCPAgents.identity_scope()
+  defp scopes(%{tools: site}), do: RegentMCPAgents.identity_scope() <> " " <> site.scope()
 
   defp message(%{body_params: %{"jsonrpc" => "2.0", "method" => method} = request} = conn, opts)
        when is_binary(method) do
     case Map.fetch(request, "id") do
       {:ok, id} when is_binary(id) or is_integer(id) ->
-        result = handle(method, Map.get(request, "params"), conn, opts)
-        RegentOAuth.Protocol.json(conn, 200, reply(result, id))
+        case handle(method, Map.get(request, "params"), conn, opts) do
+          # The connection wasn't allowed the site's permission: the challenge
+          # asks the app to have the person allow it.
+          {:insufficient_scope, scopes} ->
+            conn
+            |> put_resp_header(
+              "www-authenticate",
+              RegentOAuth.challenge(scopes) <> ~s(, error="insufficient_scope")
+            )
+            |> RegentOAuth.Protocol.json(
+              403,
+              reply({:error, -32_001, "Connect again and allow this permission."}, id)
+            )
+
+          result ->
+            RegentOAuth.Protocol.json(conn, 200, reply(result, id))
+        end
 
       {:ok, _other} ->
         invalid_request(conn)
@@ -143,15 +176,26 @@ defmodule RegentMCPAgents.Plug do
 
   defp handle("ping", _params, _conn, _opts), do: {:ok, %{}}
 
-  defp handle("tools/list", _params, _conn, _opts), do: {:ok, %{tools: Tools.list()}}
+  defp handle("tools/list", _params, _conn, opts),
+    do: {:ok, %{tools: Tools.list() ++ site_tools(opts)}}
 
-  defp handle("tools/call", %{"name" => name} = params, conn, _opts) when is_binary(name) do
-    if name in Tools.names() do
-      arguments = Map.get(params, "arguments") || %{}
+  defp handle("tools/call", %{"name" => name} = params, conn, opts) when is_binary(name) do
+    arguments = Map.get(params, "arguments") || %{}
+    principal = conn.assigns.mcp_agent_principal
 
-      {:ok, tool_result(Tools.call(name, arguments, conn.assigns.mcp_agent_principal))}
-    else
-      {:error, -32_602, "Unknown tool: #{name}. Call tools/list."}
+    cond do
+      name in Tools.names() ->
+        {:ok, tool_result(Tools.call(name, arguments, principal))}
+
+      is_nil(opts.tools) ->
+        unknown_tool(name)
+
+      true ->
+        case RegentMCPAgents.act(principal, opts.tools, opts.endpoint, name, arguments) do
+          :unknown -> unknown_tool(name)
+          {:insufficient_scope, _scope} -> {:insufficient_scope, scopes(opts)}
+          answer -> {:ok, tool_result(answer)}
+        end
     end
   end
 
@@ -160,6 +204,16 @@ defmodule RegentMCPAgents.Plug do
 
   defp handle(method, _params, _conn, _opts),
     do: {:error, -32_601, "Method not found: #{method}"}
+
+  defp unknown_tool(name), do: {:error, -32_602, "Unknown tool: #{name}. Call tools/list."}
+
+  # The site's tools, each saying it needs the site's permission.
+  defp site_tools(%{tools: nil}), do: []
+
+  defp site_tools(%{tools: site}) do
+    for tool <- site.list(),
+        do: Map.put(tool, :securitySchemes, [%{type: "oauth2", scopes: [site.scope()]}])
+  end
 
   # Every tool answers in the shape a site's browser tools answer:
   # `{ok: true, status, data}`, or `{ok: false, status, retry_after?, error}`

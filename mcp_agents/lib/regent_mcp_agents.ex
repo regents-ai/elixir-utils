@@ -22,6 +22,12 @@ defmodule RegentMCPAgents do
   @posting_scope "patchbay.posts.write"
   @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
 
+  @arguments_object %{
+    "code" => "invalid_request",
+    "message" => "A tool's arguments are a JSON object.",
+    "hint" => "Send arguments as an object with the fields tools/list describes, {} when there are none."
+  }
+
   # The refusals made here, before anything is signed.
   @pairing_input %{
     "code" => "invalid_request",
@@ -169,6 +175,79 @@ defmodule RegentMCPAgents do
   def post(_, _, _), do: {:error, :posting_refused}
 
   @doc """
+  Call one of the site's own tools (`RegentMCPAgents.SiteTools`) as this
+  connection's identity, through the site's `endpoint` in this process. The
+  inner request carries `conn.private[:regent_mcp_agents]` (`%{tool: name}`),
+  which nothing sent over the network can set, so the site can keep it out of
+  its per-address budget and name it in its logs.
+
+  Answers `:unknown` for a name that is no site tool, `{:insufficient_scope,
+  scope}` when the connection wasn't allowed the site's permission, or a tool
+  answer (see the moduledoc).
+  """
+  def act(principal, site, endpoint, name, arguments) when is_map(arguments) do
+    case site.request(name, arguments) do
+      :unknown ->
+        :unknown
+
+      {:refused, error} ->
+        {:refused, 422, error}
+
+      {:ok, request} ->
+        scope = site.scope()
+
+        if scope in Map.get(principal, :scopes, []),
+          do: send_site(principal, site, endpoint, name, scope, request),
+          else: {:insufficient_scope, scope}
+    end
+  end
+
+  def act(_principal, _site, _endpoint, _name, _arguments),
+    do: {:refused, 422, @arguments_object}
+
+  defp send_site(principal, site, endpoint, name, scope, {:public, "GET", path, nil}) do
+    with :ok <- authority(principal, scope),
+         true <- site_path?(path, site.paths().public),
+         {:ok, status, body, retry_after} <-
+           through_endpoint(endpoint, name).(
+             %{"method" => "GET", "path" => path},
+             %{"accept" => "application/json"}
+           ),
+         true <- is_map(body) do
+      {:answer, status, body, retry_after}
+    else
+      _ -> {:error, :site_request_refused}
+    end
+  end
+
+  defp send_site(principal, site, endpoint, name, scope, {:signed, method, path, body})
+       when method in ["GET", "POST"] do
+    request =
+      if method == "POST",
+        do: %{"method" => "POST", "path" => path, "body" => Jason.encode!(body || %{})},
+        else: %{"method" => "GET", "path" => path}
+
+    if (method == "POST" or is_nil(body)) and site_path?(path, site.paths().signed) do
+      perform(principal, {:site, scope, request}, through_endpoint(endpoint, name))
+    else
+      {:error, :site_request_refused}
+    end
+  end
+
+  defp send_site(_principal, _site, _endpoint, _name, _scope, _request),
+    do: {:error, :site_request_refused}
+
+  # A path the site's tools may send to: under one of its prefixes, with no
+  # query or fragment, no dot segment and no encoded slash, backslash or dot.
+  defp site_path?(path, prefixes) when is_binary(path) do
+    Enum.any?(prefixes, &String.starts_with?(path, &1)) and
+      Regex.match?(~r{\A(?:/[A-Za-z0-9._~%-]+)+\z}, path) and
+      not Regex.match?(~r"/\.{1,2}(?:/|\z)|%(?:2[EeFf]|5[Cc])", path)
+  end
+
+  defp site_path?(_path, _prefixes), do: false
+
+  @doc """
   The key one account's connection has on one site, derived from the site's
   audience and the account. Two sites never derive the same key, so one person's
   signers on different sites are unrelated and their addresses cannot link the
@@ -249,10 +328,14 @@ defmodule RegentMCPAgents do
   defp signable({:post, body}),
     do: {@posting_scope, %{"method" => "POST", "path" => "/chatgpt/agent/mcp", "body" => body}}
 
+  # A site tool's request, built by the site from its own operations and
+  # checked against its prefixes in `send_site/6`; its permission is the site's.
+  defp signable({:site, scope, request}), do: {scope, request}
+
   # The connection's own Bearer token never leaves this site: the signer is
   # asked with the site's hosted signing key, and the signed request carries
   # only the headers the signer returned.
-  defp perform(principal, operation) do
+  defp perform(principal, operation, deliver \\ &send_signed/2) do
     {required, request} = signable(operation)
 
     with {:ok, envelope} <-
@@ -266,9 +349,12 @@ defmodule RegentMCPAgents do
            envelope["headers"]
            |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
            |> Map.put("content-type", "application/json"),
-         {:ok, status, body, retry_after} <- send_signed(request, headers),
+         {:ok, status, body, retry_after} <- deliver.(request, headers),
          true <- is_map(body) do
-      if status in 200..299, do: {:ok, body}, else: {:answer, status, body, retry_after}
+      # A site tool answers as the site did, success included.
+      if status in 200..299 and not match?({:site, _scope, _request}, operation),
+        do: {:ok, body},
+        else: {:answer, status, body, retry_after}
     else
       _ -> {:error, :identity_request_refused}
     end
@@ -331,6 +417,39 @@ defmodule RegentMCPAgents do
       _ -> :error
     after
       Logger.reset_metadata(metadata)
+    end
+  end
+
+  # A site tool's request goes through the site's whole endpoint in this
+  # process, as one sent over the network would: the site's own signature
+  # check, parsers, limits, router and refusals. It is marked so the site keeps
+  # it out of its per-address budget, which every connected account would
+  # otherwise share, and names the tool in its logs.
+  defp through_endpoint(endpoint, tool) do
+    fn request, headers ->
+      metadata = Logger.metadata()
+
+      try do
+        conn =
+          request["method"]
+          |> Plug.Test.conn(RegentOAuth.issuer() <> request["path"], request["body"] || "")
+          |> Map.replace!(:req_headers, Map.to_list(headers))
+          |> Plug.Conn.put_private(:regent_mcp_agents, %{tool: tool})
+          |> endpoint.call(endpoint.init([]))
+          |> take_answer()
+
+        with answer when is_binary(answer) <- conn.resp_body,
+             {:ok, decoded} <- Jason.decode(answer) do
+          {:ok, conn.status, decoded,
+           conn |> Plug.Conn.get_resp_header("retry-after") |> List.first()}
+        else
+          _ -> :error
+        end
+      rescue
+        _ -> :error
+      after
+        Logger.reset_metadata(metadata)
+      end
     end
   end
 

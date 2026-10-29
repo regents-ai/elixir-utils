@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- A site's own tools at its MCP address (`RegentMCPAgents.SiteTools`,
+  `tools:` and `endpoint:` in the plug's options, `RegentMCPAgents.act/5`): a
+  call becomes the site's own agent request, signed by the connection's hosted
+  signer and served through the site's endpoint in this process, so the site's
+  verification, rights, limits and refusals decide it. Paths are held to the
+  site's prefixes, with no query, dot segment or encoded slash. The inner
+  request is marked `conn.private[:regent_mcp_agents]` for the site's budget and
+  logs. The sign-in challenge asks for the site's permission too, and a
+  connection without it is answered 403 `insufficient_scope`.
 - Every tool answers in the shape a site's browser tools answer:
   `structuredContent` is `{ok: true, status, data}` or
   `{ok: false, status, retry_after?, error: {code, message, hint}}`, and the

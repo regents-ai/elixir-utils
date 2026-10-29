@@ -46,13 +46,25 @@ defmodule RegentOAuth.Test.HashTokens do
   def up, do: RegentOAuth.Migration.V2.up()
 end
 
+defmodule RegentOAuth.Test.AddRoomsScope do
+  @moduledoc false
+  use Ecto.Migration
+
+  def up,
+    do: RegentOAuth.Migration.ClientScopes.up(["regent.identity.manage", "regent.rooms.read"])
+end
+
 defmodule RegentOAuth.Test.Schema do
   @moduledoc """
   Migrates a schema of the local test database to the given provider versions.
   Inside a sandboxed test the schema and everything in it is rolled back.
   """
 
-  @migrations [{1, RegentOAuth.Test.CreateTables}, {2, RegentOAuth.Test.HashTokens}]
+  @migrations [
+    {1, RegentOAuth.Test.CreateTables},
+    {2, RegentOAuth.Test.HashTokens},
+    {3, RegentOAuth.Test.AddRoomsScope}
+  ]
 
   # As a site runs them: its schema is the repo's `migration_default_prefix`.
   # Each schema keeps its own list of versions run.

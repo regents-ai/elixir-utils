@@ -2,6 +2,15 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentPayments.BuyingWallet.buy/2` buys from a sale contract with the
+  site's own buying wallet: an approval of exactly the price, mined, then the
+  sale call. It answers `{:ok, hashes}`, `{:error, {:approval_failed, hash}}`,
+  `{:error, {:call_reverted, sent}}` or `{:error, {:call_unknown, sent}}`;
+  `status/2` reads an unknown call's receipt later. Signed sends and receipt
+  waits now live in `RegentPayments.Operator`, which `FeeForward` uses too;
+  `FeeForward`'s own answers are unchanged. The receipt wait is set with
+  `config :regent_payments, RegentPayments.Operator, receipt_every_ms:`.
+
 - Regent Credits can pay where the money ends with Regents. Every offer's terms
   now say `credits: :accepted | :refused`, frozen into the payload and its digest;
   offers that pay another person's wallet answer `:refused`.

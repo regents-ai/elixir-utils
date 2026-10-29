@@ -5,6 +5,10 @@ defmodule RegentCredits.Hold do
   and remembers how much of each, so whatever comes back returns as the same
   kind.
 
+  A spend that Regents pays for in USDC, such as a purchase on the chain made
+  for the person, holds with `purchased_only?`: given Credits brought nothing
+  in, so they never pay for it.
+
   A hold is closed exactly once, by one of:
 
     * `give_back`: all of it returns (a lost bid, a failed fix).
@@ -169,6 +173,7 @@ defmodule RegentCredits.Hold do
       argument :purpose, :string, allow_nil?: false
       argument :tool, :string, constraints: [max_length: 120]
       argument :request, :string, constraints: [trim?: false]
+      argument :purchased_only?, :boolean, allow_nil?: false, default: false
       run fn input, context -> Holds.hold(input.arguments, context.actor) end
     end
 

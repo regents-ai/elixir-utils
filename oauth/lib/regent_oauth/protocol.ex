@@ -3,7 +3,7 @@ defmodule RegentOAuth.Protocol do
   import Plug.Conn
   import Ecto.Query
   alias Boruta.Ecto.{Client, Token}
-  alias RegentOAuth.Repo
+  alias RegentOAuth.{ClientDocuments, Repo}
 
   @behaviour Boruta.Oauth.TokenApplication
   @authorize_keys ~w(client_id redirect_uri response_type scope state resource code_challenge code_challenge_method)
@@ -43,21 +43,7 @@ defmodule RegentOAuth.Protocol do
          uris when is_list(uris) and length(uris) in 1..5 <- params["redirect_uris"],
          true <- Enum.all?(uris, &redirect_uri?/1),
          {:ok, client} <-
-           Boruta.Ecto.Admin.Clients.create_client(%{
-             name: name,
-             redirect_uris: Enum.uniq(uris),
-             confidential: false,
-             pkce: true,
-             public_refresh_token: true,
-             public_revoke: true,
-             supported_grant_types: ["authorization_code", "refresh_token", "revoke"],
-             token_endpoint_auth_methods: [],
-             authorize_scope: true,
-             authorized_scopes: Enum.map(RegentOAuth.scopes(), &%{name: &1}),
-             access_token_ttl: 3600,
-             authorization_code_ttl: 60,
-             refresh_token_ttl: 2_592_000
-           }) do
+           Boruta.Ecto.Admin.Clients.create_client(public_client(name, Enum.uniq(uris))) do
       json(conn, 201, %{
         client_id: client.id,
         client_name: client.name,
@@ -79,12 +65,14 @@ defmodule RegentOAuth.Protocol do
          true <- resource?(params),
          true <- RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())),
          true <- params["grant_type"] in ["authorization_code", "refresh_token"],
-         {:ok, _} <- Ecto.UUID.cast(params["client_id"]) do
+         {:ok, client_id} <- resolve_client(params["client_id"], :stored) do
+      # From here the request names the client's own row.
+      params = Map.put(params, "client_id", client_id)
+
       # The row lock serializes code consumption and refresh rotation, even if
       # two requests both saw a valid Boruta cache entry. All work is local DB/crypto.
       result =
         Repo.transaction(fn ->
-          client_id = params["client_id"]
           Repo.one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
 
           case lock_credential(params) do
@@ -109,7 +97,13 @@ defmodule RegentOAuth.Protocol do
                    active_credential?(row, params) do
                 # Token requests use only the allowlisted form body. In particular,
                 # query request objects must never trigger HTTP under these locks.
-                request = %{conn | query_params: %{}, query_string: "", params: params}
+                request = %{
+                  conn
+                  | query_params: %{},
+                    query_string: "",
+                    body_params: params,
+                    params: params
+                }
 
                 case Boruta.Oauth.token(request, RegentOAuth.TokenResult) do
                   {:ok, response} -> response
@@ -138,12 +132,11 @@ defmodule RegentOAuth.Protocol do
   defp dispatch(conn, :revoke) do
     params = conn.body_params
 
-    if bounded_map?(params, ~w(client_id token token_type_hint)) and
-         match?({:ok, _}, Ecto.UUID.cast(params["client_id"])) and
-         is_binary(params["token"]) and byte_size(params["token"]) in 1..4096 do
+    with true <- bounded_map?(params, ~w(client_id token token_type_hint)),
+         true <- is_binary(params["token"]) and byte_size(params["token"]) in 1..4096,
+         {:ok, client_id} <- resolve_client(params["client_id"], :stored) do
       {:ok, :ok} =
         Repo.transaction(fn ->
-          client_id = params["client_id"]
           Repo.one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
 
           hash = RegentOAuth.hash_token(params["token"])
@@ -169,7 +162,7 @@ defmodule RegentOAuth.Protocol do
       # Unknown tokens and tokens belonging to another client reveal nothing.
       json(conn, 200, %{})
     else
-      json(conn, 400, %{error: "invalid_request"})
+      _ -> json(conn, 400, %{error: "invalid_request"})
     end
   end
 
@@ -232,15 +225,58 @@ defmodule RegentOAuth.Protocol do
       Regex.match?(~r/\A[A-Za-z0-9_-]{43}\z/, params["code_challenge"])
   end
 
-  @doc false
+  @doc """
+  The client row an authorization request names, for a person about to
+  approve it: a published identity is read again first when it is due.
+  """
   def request_client(params) do
-    with {:ok, id} <- Ecto.UUID.cast(params["client_id"]),
+    with {:ok, id} <- resolve_client(params["client_id"], :current),
          %Client{confidential: false, pkce: true} = client <- Repo.get(Client, id),
          true <- params["redirect_uri"] in client.redirect_uris do
       ensure_client_scopes(client)
     else
       _ -> {:error, :invalid_client}
     end
+  end
+
+  # A published identity's address resolves only through the documents it was
+  # recorded from, and a registered client's id only when no document recorded
+  # it: neither is ever taken for the other.
+  defp resolve_client(value, moment) do
+    cond do
+      ClientDocuments.address?(value) and moment == :current ->
+        ClientDocuments.current(value)
+
+      ClientDocuments.address?(value) ->
+        ClientDocuments.stored(value)
+
+      true ->
+        with {:ok, id} <- Ecto.UUID.cast(value),
+             false <- ClientDocuments.document_client?(id) do
+          {:ok, id}
+        else
+          _ -> :error
+        end
+    end
+  end
+
+  @doc "A public client's row: S256 PKCE, the code and refresh grants, and every configured scope."
+  def public_client(name, redirect_uris) do
+    %{
+      name: name,
+      redirect_uris: redirect_uris,
+      confidential: false,
+      pkce: true,
+      public_refresh_token: true,
+      public_revoke: true,
+      supported_grant_types: ["authorization_code", "refresh_token", "revoke"],
+      token_endpoint_auth_methods: [],
+      authorize_scope: true,
+      authorized_scopes: Enum.map(RegentOAuth.scopes(), &%{name: &1}),
+      access_token_ttl: 3600,
+      authorization_code_ttl: 60,
+      refresh_token_ttl: 2_592_000
+    }
   end
 
   # Eligible client scopes are not user grants. Existing DCR clients can ask for
@@ -273,7 +309,8 @@ defmodule RegentOAuth.Protocol do
 
   defp resource?(params), do: params["resource"] == RegentOAuth.resource()
 
-  defp redirect_uri?(value) when is_binary(value) and byte_size(value) <= 2048 do
+  @doc false
+  def redirect_uri?(value) when is_binary(value) and byte_size(value) <= 2048 do
     local? = URI.parse(RegentOAuth.issuer()).host in ["localhost", "127.0.0.1"]
 
     with {:ok, uri} <- URI.new(value) do
@@ -286,7 +323,7 @@ defmodule RegentOAuth.Protocol do
     end
   end
 
-  defp redirect_uri?(_), do: false
+  def redirect_uri?(_), do: false
 
   defp bounded_map?(params, keys) when is_map(params) do
     not is_struct(params) and Map.keys(params) -- keys == [] and

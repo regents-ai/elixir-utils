@@ -30,6 +30,16 @@ measurements and `%{method, host, result}` metadata.
 `sk_live_…`/`sk_test_…`-style keys, and `x-api-key`/`authorization` header
 values before anything reaches logs.
 
+## Addresses someone else supplied
+
+`RegentHttp.Public.get(url, max_bytes: n)` reads from an address a request or
+another site named, such as an app's published identity. It accepts HTTPS
+only, checks that every DNS answer is a public address and connects to that
+checked address (the host stays the TLS and Host name), follows no redirects,
+and stops at `max_bytes` and a five-second deadline (`timeout:`). Tests set
+`Application.put_env(:regent_http, :public_client, Stub)`, where `Stub.get/2`
+takes the same arguments.
+
 ## Test injection
 
 ```elixir

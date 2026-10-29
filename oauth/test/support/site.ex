@@ -23,8 +23,9 @@ defmodule RegentOAuth.Test.Site do
   @impl true
   def repo, do: RegentOAuth.Test.Repo
 
+  # A test signs a person in by assigning their subject.
   @impl true
-  def current_subject(_conn), do: nil
+  def current_subject(conn), do: conn.assigns[:subject]
 
   @impl true
   def active_subject?(subject), do: subject != "did:privy:gone"
@@ -46,13 +47,72 @@ defmodule RegentOAuth.Test.HashTokens do
   def up, do: RegentOAuth.Migration.V2.up()
 end
 
+defmodule RegentOAuth.Test.ClientDocuments do
+  @moduledoc false
+  use Ecto.Migration
+
+  def up, do: RegentOAuth.Migration.V3.up()
+end
+
+defmodule RegentOAuth.Test.Documents do
+  @moduledoc """
+  Published identities served without a network: `serve/2` sets what an
+  address answers, and each read is sent to the test that set it.
+  """
+
+  @claude "https://claude.ai/oauth/mcp-oauth-client-metadata"
+
+  def claude_url, do: @claude
+
+  @doc "Claude's document as claude.ai serves it (29 Oct 2026)."
+  def claude do
+    %{
+      status: 200,
+      headers: [{"content-type", "application/json"}],
+      body:
+        Jason.encode!(%{
+          "client_id" => @claude,
+          "client_name" => "Claude",
+          "client_uri" => "https://claude.ai",
+          "redirect_uris" => ["https://claude.ai/api/mcp/auth_callback"],
+          "grant_types" => [
+            "authorization_code",
+            "refresh_token",
+            "urn:ietf:params:oauth:grant-type:jwt-bearer"
+          ],
+          "response_types" => ["code"],
+          "token_endpoint_auth_method" => "none"
+        })
+    }
+  end
+
+  def serve(url, answer) do
+    Application.put_env(:regent_oauth, __MODULE__, {self(), %{url => answer}})
+  end
+
+  def get(url, _opts) do
+    {test, answers} = Application.fetch_env!(:regent_oauth, __MODULE__)
+    send(test, {:read, url})
+
+    case Map.fetch(answers, url) do
+      {:ok, {:error, reason}} -> {:error, reason}
+      {:ok, answer} -> {:ok, answer}
+      :error -> {:error, :connection_error}
+    end
+  end
+end
+
 defmodule RegentOAuth.Test.Schema do
   @moduledoc """
   Migrates a schema of the local test database to the given provider versions.
   Inside a sandboxed test the schema and everything in it is rolled back.
   """
 
-  @migrations [{1, RegentOAuth.Test.CreateTables}, {2, RegentOAuth.Test.HashTokens}]
+  @migrations [
+    {1, RegentOAuth.Test.CreateTables},
+    {2, RegentOAuth.Test.HashTokens},
+    {3, RegentOAuth.Test.ClientDocuments}
+  ]
 
   # As a site runs them: its schema is the repo's `migration_default_prefix`.
   # Each schema keeps its own list of versions run.

@@ -9,6 +9,8 @@ defmodule RegentOAuth.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: [
         {:boruta, "== 2.3.8"},
+        # Reads an app's published identity from the address it names.
+        {:regent_http, path: "../http"},
         {:plug, "~> 1.18"},
         {:phoenix_html, "~> 4.1"},
         {:postgrex, ">= 0.0.0"}

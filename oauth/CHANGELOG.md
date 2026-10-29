@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- The refresh grace is 10 seconds, not 30 (Sean, 29 Oct): a repeat within 10
-  seconds is still the app's own retry and is refused without disconnecting
-  it, and a stolen refresh token is useful for less time. Later reuse
-  disconnects the app, as before.
+- The refresh grace is 30 seconds (Sean, 29 Oct 05:48Z, "4. a", his latest
+  answer, replacing the 10 seconds set earlier that morning): a repeat within
+  30 seconds is the app's own retry, so a slow request already on its way is
+  refused without disconnecting the app. Later reuse disconnects the app.
 
 - A test disconnects one app with `RegentOAuth.revoke_client/2`: its access
   token stops verifying, its refresh token is refused and it leaves the

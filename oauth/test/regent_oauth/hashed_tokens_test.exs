@@ -54,16 +54,15 @@ defmodule RegentOAuth.HashedTokensTest do
     refute stored_anywhere?(fresh_refresh)
     assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
 
-    # Within the grace period a repeat is the app's own retry: refused, still connected.
+    # 25 seconds later is still within the grace period: the app's own retry,
+    # refused, still connected.
+    age_refresh(refresh, 25)
     retry = Flow.refresh(client_id, refresh)
     assert retry.status == 400
     assert Jason.decode!(retry.resp_body) == %{"error" => "invalid_grant"}
     assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
 
-    Repo.query!(
-      "UPDATE #{tokens()} SET refresh_token_revoked_at = refresh_token_revoked_at - interval '11 seconds' WHERE refresh_token = $1",
-      [RegentOAuth.hash_token(refresh)]
-    )
+    age_refresh(refresh, 6)
 
     reused = Flow.refresh(client_id, refresh)
     assert reused.status == 400
@@ -112,5 +111,12 @@ defmodule RegentOAuth.HashedTokensTest do
     assert Flow.post(:revoke, %{"client_id" => client_id, "token" => refresh}).status == 200
     assert {:error, :unauthorized} = RegentOAuth.verify(access, RegentOAuth.resource())
     assert Flow.refresh(client_id, refresh).status == 400
+  end
+
+  defp age_refresh(refresh, seconds) do
+    Repo.query!(
+      "UPDATE #{tokens()} SET refresh_token_revoked_at = refresh_token_revoked_at - make_interval(secs => $2) WHERE refresh_token = $1",
+      [RegentOAuth.hash_token(refresh), seconds]
+    )
   end
 end

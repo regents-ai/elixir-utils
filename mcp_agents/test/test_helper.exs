@@ -29,7 +29,10 @@ Application.put_env(
 {:ok, _} = RegentOAuth.Repo.start_link()
 RegentOAuth.Repo.query!(~s(CREATE SCHEMA IF NOT EXISTS "regent_mcp_agents_test"))
 
-Ecto.Migrator.run(RegentOAuth.Repo, [{1, RegentMCPAgents.Test.OAuthTables}], :up,
+Ecto.Migrator.run(
+  RegentOAuth.Repo,
+  [{1, RegentMCPAgents.Test.OAuthTables}, {2, RegentMCPAgents.Test.ClientDocuments}],
+  :up,
   all: true,
   prefix: "regent_mcp_agents_test",
   log: false

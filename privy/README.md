@@ -19,7 +19,8 @@ RegentPrivy.verify_token(token,
 #=>         wallet_address: "0x...", wallet_addresses: ["0x..."]}}
 ```
 
-This library holds no configuration or secrets and never logs token contents.
+This library holds no configuration or secrets and never logs token contents or the
+app secret it is passed.
 
 ## Paired authentication evidence
 
@@ -35,5 +36,18 @@ subject. Products still own their sessions, authorization and persistence. Never
 merge old users across different Privy applications by wallet or X handle. Wallet
 list order is evidence order, **not** an instruction to change a stored payout
 address; preserve explicit verified wallet selection in the owning profile.
+
+## Agent-owned accounts
+
+An agent may own its Regent account through its own wallet. A site's server, after
+checking the agent's signed request, calls `RegentPrivy.Users.by_wallet(address, opts)`
+to find the Privy user that wallet is linked to, and
+`RegentPrivy.Users.create_with_wallet(address, opts)` to make one whose only login is
+that wallet. Each answers the user's Privy id and `only_wallet`, true when the
+wallet is the user's one linked account: a user that links anything else is a
+person's account, never the agent's. `opts` are `app_id:`, `app_secret:` (the app's server secret) and
+`req_options:` (tests pass `plug: {Req.Test, RegentPrivy.Users}`). The user is an
+ordinary Privy user, so the agent can later sign in on the website with the same
+wallet. These are the only calls in this library that need the app secret.
 
 `mix check` compiles, checks formatting and runs tests without changing lockfiles.

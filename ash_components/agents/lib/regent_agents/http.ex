@@ -15,12 +15,20 @@ defmodule RegentAgents.HTTP do
   service verifies every request for this site's audience; when it refuses
   one, the agent gets its status, code, message and hint back unchanged.
 
-  An agent has one of three statuses on a site: `not_paired` (paired to nobody),
-  `person_not_here` (paired, but its person has never signed in on this site)
-  and `paired` (it acts for its person). The site names what each status may do
-  in `config :regent_agents, allowed: %{"not_paired" => [...],
-  "person_not_here" => [...], "paired" => [...]}`, short plain sentences that
-  `whoami` answers as they are.
+  An agent has one of four statuses on a site: `owner` (its wallet is the login
+  wallet of an account, so it acts as that account's owner), `not_paired` (paired
+  to nobody), `person_not_here` (paired, but its person has never signed in on
+  this site) and `paired` (it acts for its person). The site names what each
+  status may do in `config :regent_agents, allowed: %{"owner" => [...],
+  "not_paired" => [...], "person_not_here" => [...], "paired" => [...]}`, short
+  plain sentences that `whoami` answers as they are.
+
+  The site names the account an agent owns with `config :regent_agents,
+  owned_account: {Module, :function}`, called with the agent's lowercase wallet
+  and returning a JSON-ready map, or nil when no account's login wallet is that
+  wallet. An owner's `whoami` carries that map as `account`. An agent that owns
+  an account acts for it alone: pairing with a person and checking in are
+  refused with `agent_owns_account`.
 
   A check-in names the person's account as the site's own pages name it, from
   the site's `config :regent_agents, account: {Module, :function}`, called with
@@ -58,21 +66,25 @@ defmodule RegentAgents.HTTP do
     "person_not_here" =>
       {403, "The person this agent is paired with hasn't signed in on this site yet.",
        "Ask your person to sign in on this site once, then check in again. Help: https://patchbay.help/errors/person_not_here"},
+    "agent_owns_account" =>
+      {409, "This agent owns its own account on this site.",
+       "An agent that owns its account acts for that account alone and can't pair with a person or check in. Read your account with GET /api/agents/v1/whoami."},
     "not_found" =>
       {404, "There is no such agent request.",
        "Agents see their status with GET /api/agents/v1/whoami, pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}
   }
 
   @next_steps %{
+    "owner" => nil,
     "not_paired" =>
-      "Ask your person to sign in on this site and pair you with Pair New Agent on their Account page.",
+      "Ask your person to sign in on this site and pair you with Pair New Agent on their Account page, or open your own account with POST /api/v1/agent/account.",
     "person_not_here" => "Ask your person to sign in on this site once.",
     "paired" => nil
   }
 
   @doc """
   What an agent in `status` does next, one sentence, the same on every site, or
-  nil when it acts for its person. A site's agent guides quote it.
+  nil when it acts for its person or owns its account. A site's agent guides quote it.
   """
   def next_step(status), do: Map.fetch!(@next_steps, status)
 
@@ -91,12 +103,14 @@ defmodule RegentAgents.HTTP do
        when map_size(params) == 3 and is_binary(code) and is_binary(name) and is_binary(harness) do
     with {:ok, harness} <- harness(harness),
          {:ok, agent, conn} <- verify(conn),
+         {:owner, nil} <- {:owner, owned_account(agent)},
          {:ok, paired} <- RegentAgents.pair_agent(code, name, harness, actor: agent) do
       conn |> put_status(:created) |> answer(%{data: present(paired, agent)})
     else
       {:error, :harness_unknown} -> error(conn, "harness_unknown")
       {:error, %Ash.Error.Invalid{errors: [%AgentLimit{}]}} -> error(conn, "agent_limit")
       {:refused, conn} -> conn
+      {:owner, %{}} -> error(conn, "agent_owns_account")
       {:error, error} -> error(conn, pair_refusal(error))
     end
   end
@@ -116,12 +130,14 @@ defmodule RegentAgents.HTTP do
   # leaves the agent's last contact as it was.
   defp me(conn) do
     with {:ok, agent, conn} <- verify(conn),
+         {:owner, nil} <- {:owner, owned_account(agent)},
          {:ok, %{privy_user_id: privy_user_id}} <- RegentAgents.current_pairing(actor: agent),
          %{} = account <- account(privy_user_id),
          {:ok, paired} <- RegentAgents.check_in_agent(privy_user_id, actor: agent) do
       answer(conn, %{data: Map.put(present(paired, agent), :account, account)})
     else
       {:refused, conn} -> conn
+      {:owner, %{}} -> error(conn, "agent_owns_account")
       {:ok, nil} -> error(conn, "agent_not_paired")
       nil -> error(conn, "person_not_here")
       {:error, _no_longer_paired} -> error(conn, "agent_not_paired")
@@ -129,17 +145,20 @@ defmodule RegentAgents.HTTP do
   end
 
   # This probe verifies the proof once and never performs a check-in or awards Points.
+  # An agent that owns an account is its owner whatever pairing it holds.
   defp whoami(conn) do
     with {:ok, agent, conn} <- verify(conn),
          {:ok, pairing} <- RegentAgents.current_pairing(actor: agent) do
-      status = status(pairing)
+      owned = owned_account(agent)
+      status = if owned, do: "owner", else: status(pairing)
 
       answer(conn, %{
         data: %{
           agent: %{wallet: agent.wallet, registry_listing: agent.registry_listing},
           audience: Broker.audience(),
           authenticated: true,
-          pairing: if(pairing, do: %{id: pairing.id, paired_at: pairing.paired_at}, else: nil),
+          pairing: whoami_pairing(owned, pairing),
+          account: owned,
           status: status,
           allowed: Map.fetch!(Application.fetch_env!(:regent_agents, :allowed), status),
           next_step: next_step(status)
@@ -150,6 +169,9 @@ defmodule RegentAgents.HTTP do
       {:error, _error} -> refuse(conn, %{reason: :siwa_request_failed})
     end
   end
+
+  defp whoami_pairing(nil, %{} = pairing), do: %{id: pairing.id, paired_at: pairing.paired_at}
+  defp whoami_pairing(_owned, _pairing), do: nil
 
   defp status(nil), do: "not_paired"
 
@@ -203,6 +225,11 @@ defmodule RegentAgents.HTTP do
       registry_listing: agent.registry_listing
     }
     |> Map.merge(HumanBacking.describe(paired))
+  end
+
+  defp owned_account(agent) do
+    {module, function} = Application.fetch_env!(:regent_agents, :owned_account)
+    apply(module, function, [agent.wallet])
   end
 
   defp account(privy_user_id) do

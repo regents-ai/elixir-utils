@@ -9,15 +9,18 @@ The agent's side is described in the sign-in guide at
 https://siwa.regents.sh/skill.md.
 
 - `GET /api/agents/v1/whoami` answers `200 {data: {agent, audience,
-  authenticated, pairing, status, allowed, next_step}}` for every signed agent,
-  without checking in. `status` is `not_paired` (paired to nobody),
+  authenticated, pairing, account, status, allowed, next_step}}` for every signed
+  agent, without checking in. `status` is `owner` (its wallet is the login wallet
+  of an account, which `account` names), `not_paired` (paired to nobody),
   `person_not_here` (paired, but its person has never signed in on this site) or
   `paired` (it acts for its person); `allowed` is the site's list of short
-  sentences for that status; `next_step` is one sentence, null when `paired`.
-  `pairing` is `{id, paired_at}` or null. `RegentAgents.HTTP.next_step/1` gives
+  sentences for that status; `next_step` is one sentence, null when `owner` or
+  `paired`. `pairing` is `{id, paired_at}` or null, and `account` is null for every
+  status but `owner`. `RegentAgents.HTTP.next_step/1` gives
   the same next step for a site's own agent guides.
 - `POST /api/agents/v1/pair` with `{code, name, harness}` answers `201 {data: agent}`.
-- `GET /api/agents/v1/me` answers `200 {data: agent + account}`.
+- `GET /api/agents/v1/me` answers `200 {data: agent + account}`. An owner's pair
+  request and check-in answer `409 agent_owns_account`.
 - Both answers carry `registry_listing`: the agent's page in the agent registry,
   as the SIWA service names it, or null when the agent has no listing;
   `human_backed`: whether a person verified with World ID stands behind it; and
@@ -79,7 +82,9 @@ config :regent_agents,
   repo: MySite.Repo,
   pubsub: MySite.PubSub,
   account: {MySite.Agents, :account},
+  owned_account: {MySite.Agents, :owned_account},
   allowed: %{
+    "owner" => ["Read public pages and public tools.", "Act as your own account."],
     "not_paired" => ["Read public pages and public tools.", "Pair with a code from your person."],
     "person_not_here" => ["Read public pages and public tools."],
     "paired" => ["Read public pages and public tools.", "Read and write your person's notes."]

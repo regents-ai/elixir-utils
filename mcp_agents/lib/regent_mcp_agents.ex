@@ -306,11 +306,17 @@ defmodule RegentMCPAgents do
   end
 
   # A site's own answer is passed on with its code, words and `Retry-After`; a
-  # 429 is a wait instead.
+  # 429 that names its seconds is a wait instead.
   defp answer(status, body, _retry_after) when status in 200..299 and is_map(body),
     do: {:ok, body}
 
-  defp answer(429, _body, retry_after), do: wait(retry_after)
+  defp answer(429, body, retry_after) do
+    case wait(retry_after) do
+      {:error, {:rate_limited, _seconds}} = limited -> limited
+      _no_seconds when is_map(body) -> {:answer, 429, body, retry_after}
+      refused -> refused
+    end
+  end
 
   defp answer(status, body, retry_after) when is_map(body),
     do: {:answer, status, body, retry_after}

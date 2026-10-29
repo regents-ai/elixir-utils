@@ -130,6 +130,27 @@ defmodule RegentMCPAgents.IdentityRequestsTest do
              {:error, {:rate_limited, 45}}
   end
 
+  test "a site's own 429 that names no seconds is passed on as its answer" do
+    config = Application.fetch_env!(:regent_mcp_agents, :config)
+    on_exit(fn -> Application.put_env(:regent_mcp_agents, :config, config) end)
+    Application.put_env(:regent_mcp_agents, :config, Keyword.put(config, :audience, "patchbay"))
+
+    refusal = %{"error" => %{"code" => "too_many_requests", "message" => "Slow down."}}
+
+    Req.Test.stub(RegentMCPAgents.HostedSigner, fn
+      %{request_path: "/api/shared/siwa/hosted"} = conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        %{"operation" => "sign", "request" => request} = Jason.decode!(body)
+        Req.Test.json(conn, Map.put(request, "headers", @signed))
+
+      %{request_path: "/chatgpt/agent/mcp"} = conn ->
+        conn |> Plug.Conn.put_status(429) |> Req.Test.json(refusal)
+    end)
+
+    assert RegentMCPAgents.post(poster!("did:privy:sol"), "ask_question", %{"title" => "Hi"}) ==
+             {:answer, 429, refusal, nil}
+  end
+
   # A connection that may post: its principal, as the MCP address verifies it.
   defp poster!(subject) do
     %{client_id: client_id} = connect!(subject)

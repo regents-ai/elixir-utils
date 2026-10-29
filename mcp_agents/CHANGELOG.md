@@ -30,7 +30,9 @@
   `{ok: false, status: 429, retry_after, error}` with `too_many_requests` and
   "Wait N seconds, then call the tool again." Before, it said to check the
   pairing. A site that renders `post/3` itself uses
-  `RegentMCPAgents.Tools.wait/1` for that answer.
+  `RegentMCPAgents.Tools.wait/1` for that answer. A site's own 429 whose
+  `Retry-After` names no whole seconds is passed on as the site's answer, like
+  any other.
 - The requests the hosted signer may be asked to sign are one explicit list in
   `RegentMCPAgents`: the identity probe (`GET whoami`), the check-in
   (`GET me`), the pairing (`POST pair`) and Patchbay's free posts, each with

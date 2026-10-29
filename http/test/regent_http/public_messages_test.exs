@@ -43,7 +43,7 @@ defmodule RegentHttp.PublicMessagesTest do
   defp answer(reply, answer, deadline_ms \\ 1_000) do
     {conn, ref} = request(reply)
     deadline = System.monotonic_time(:millisecond) + deadline_ms
-    response = %{status: nil, headers: [], body: "", answer: answer}
+    response = %{status: nil, headers: nil, body: "", answer: answer}
     apply(@mod, :receive_response, [conn, ref, 16_384, deadline, response])
   end
 
@@ -94,6 +94,17 @@ defmodule RegentHttp.PublicMessagesTest do
              answer(early <> "HTTP/1.1 302 Found\r\nlocation: /x\r\n\r\n", :body)
   end
 
+  # Found in review on 29 Oct: a chunked reply's trailers replaced its headers,
+  # so a document's content type and cache lifetime came from the trailers.
+  test "a chunked reply's trailers never replace its headers" do
+    reply =
+      "HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\ncontent-type: application/json\r\n\r\n" <>
+        "2\r\nok\r\n0\r\nx-late: 1\r\n\r\n"
+
+    assert {:ok, %{status: 200, body: "ok", headers: headers}} = answer(reply, :body)
+    assert {"content-type", "application/json"} in headers
+  end
+
   test "101 Switching Protocols is a failed call, never an answer without a status" do
     reply = "HTTP/1.1 101 Switching Protocols\r\nupgrade: x\r\n\r\nraw bytes"
     assert {:error, :connection_error} = answer(reply, :body)
@@ -109,7 +120,7 @@ defmodule RegentHttp.PublicMessagesTest do
     assert [{:status, ^ref, 103}, {:headers, ^ref, _} | _] = messages
 
     deadline = System.monotonic_time(:millisecond) + 1_000
-    response = %{status: nil, headers: [], body: "", answer: :headers}
+    response = %{status: nil, headers: nil, body: "", answer: :headers}
 
     # Taking the 103 as the answer would end an MCP Events subscription that
     # should retry on the final 503.

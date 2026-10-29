@@ -35,7 +35,7 @@ defmodule RegentHttp.MixProject do
     [
       {:req, "~> 0.7"},
       # RegentHttp.Public connects to an address it has already checked.
-      {:mint, "~> 1.7"},
+      {:mint, "~> 1.11"},
       {:plug, "~> 1.16"},
       {:telemetry, "~> 1.0"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},

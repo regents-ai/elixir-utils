@@ -37,7 +37,7 @@ defmodule RegentAgents.HTTPTest do
 
       send(
         self(),
-        {:verified, conn.request_path, Plug.Conn.get_req_header(conn, "x-siwa-audience"),
+        {:verified, conn.request_path, Plug.Conn.get_req_header(conn, "authorization"),
          Jason.decode!(body)}
       )
 
@@ -84,7 +84,8 @@ defmodule RegentAgents.HTTPTest do
     assert paired["human_backed"] == false
     assert paired["same_person_agent_count"] == nil
 
-    assert_received {:verified, "/api/shared/siwa/http-verify", ["test"], envelope}
+    assert_received {:verified, "/api/shared/siwa/http-verify", ["Bearer test-site-verify-key"],
+                     envelope}
 
     assert %{"method" => "POST", "path" => "/api/agents/v1/pair", "body_digest" => digest} =
              envelope
@@ -96,7 +97,7 @@ defmodule RegentAgents.HTTPTest do
     assert checked_in["wallet"] == @wallet
     assert checked_in["account"] == %{"display_name" => "Person did:privy:sol"}
 
-    assert_received {:verified, _path, _audience,
+    assert_received {:verified, _path, _authorization,
                      %{"method" => "GET", "path" => "/api/agents/v1/me"} = check_in}
 
     refute Map.has_key?(check_in, "body_digest")
@@ -132,7 +133,11 @@ defmodule RegentAgents.HTTPTest do
     assert {200, %{"data" => me}} = send_request(:get, "/api/agents/v1/me")
     assert Map.take(me, Map.keys(backed)) == backed
 
+    assert {200, %{"data" => %{"agent" => agent}}} = send_request(:get, "/api/agents/v1/whoami")
+    assert Map.take(agent, Map.keys(backed)) == backed
+
     refute Jason.encode!(me) =~ String.duplicate("ab", 32)
+    refute Jason.encode!(agent) =~ String.duplicate("ab", 32)
     assert [%{same_person_agent_count: 3} = saved] = RegentAgents.list_my_agents!(actor: owner)
     assert saved.human_id == "0x" <> String.duplicate("ab", 32)
 
@@ -166,7 +171,7 @@ defmodule RegentAgents.HTTPTest do
     assert error["code"] == "harness_unknown"
     assert error["hint"] =~ "claude_code"
     assert error["hint"] =~ "other"
-    refute_received {:verified, _path, _audience, _envelope}
+    refute_received {:verified, _path, _authorization, _envelope}
   end
 
   # Invariant: an agent's name shows on every Regent site, so a name holding a
@@ -254,10 +259,16 @@ defmodule RegentAgents.HTTPTest do
             }} = send_request(:get, "/api/agents/v1/me")
   end
 
-  test "a key verified for another site, or no answer from the SIWA service, pairs nothing" do
+  @tag :capture_log
+  test "a refused site key, an answer for another site, or no answer pairs nothing" do
     siwa_verifies(@wallet, "patchbay")
 
-    assert {401, %{"error" => %{"code" => "verification_failed"}}} =
+    assert {503, %{"error" => %{"code" => "siwa_request_failed"}}} =
+             send_request(:get, "/api/agents/v1/me")
+
+    siwa_refuses(401, "site_verify_unauthorized")
+
+    assert {503, %{"error" => %{"code" => "siwa_request_failed"}}} =
              send_request(:get, "/api/agents/v1/me")
 
     Req.Test.stub(RegentAgents.Broker, &Req.Test.transport_error(&1, :econnrefused))

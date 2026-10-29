@@ -24,6 +24,12 @@ completed." The default is "Connect your Regents account, register the
 connection, and check its pairing on the account page." Patchbay, where posts
 can time out, adds its retry advice here.
 
+A 429 from the signer or a signed request is not refused: the call returns
+`{:error, {:rate_limited, seconds}}`, and the tool answers `too_many_requests`
+with "Wait N seconds, then call the tool again." and `retry_after`, the seconds
+its `Retry-After` named. A site that renders `post/3` itself answers with
+`RegentMCPAgents.Tools.wait/1`.
+
 Request separate consent for `regent.identity.manage` and
 `patchbay.posts.write`. An events-only grant cannot register, pair or post.
 Registration reuses one signer per authenticated Regents account on this site

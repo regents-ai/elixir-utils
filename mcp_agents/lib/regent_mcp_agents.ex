@@ -120,6 +120,7 @@ defmodule RegentMCPAgents do
            perform(principal, {:pair, Jason.encode!(%{code: code, name: name, harness: harness})}) do
       {:ok, %{identity_id: connection_key(principal), paired: true, name: name}}
     else
+      {:error, {:rate_limited, _seconds}} = limited -> limited
       _ -> {:error, :pairing_refused}
     end
   end
@@ -207,6 +208,7 @@ defmodule RegentMCPAgents do
            receive_timeout: 15_000
          ) do
       {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
+      {:ok, %{status: 429} = response} -> wait(Req.Response.get_header(response, "retry-after"))
       _ -> {:error, :identity_request_refused}
     end
   end
@@ -245,13 +247,30 @@ defmodule RegentMCPAgents do
            envelope["headers"]
            |> Map.new(fn {name, value} -> {String.downcase(name), value} end)
            |> Map.put("content-type", "application/json"),
-         {:ok, status, body} <- send_signed(request, headers),
-         true <- status in 200..299 and is_map(body) do
-      {:ok, body}
+         {:ok, status, body, retry_after} <- send_signed(request, headers) do
+      answer(status, body, retry_after)
     else
+      {:error, {:rate_limited, _seconds}} = limited -> limited
       _ -> {:error, :identity_request_refused}
     end
   end
+
+  defp answer(status, body, _retry_after) when status in 200..299 and is_map(body),
+    do: {:ok, body}
+
+  defp answer(429, _body, retry_after), do: wait(retry_after)
+  defp answer(_status, _body, _retry_after), do: {:error, :identity_request_refused}
+
+  # A 429 from the signer or the signed request means wait, not refused: the
+  # tool answers with the seconds its `Retry-After` names.
+  defp wait([seconds]) do
+    case Integer.parse(seconds) do
+      {seconds, ""} when seconds > 0 -> {:error, {:rate_limited, seconds}}
+      _ -> {:error, :identity_request_refused}
+    end
+  end
+
+  defp wait(_), do: {:error, :identity_request_refused}
 
   # An identity request goes to this site's own `RegentAgents.HTTP` in this
   # process, as the exact request the hosted signer signed: its method, path,
@@ -278,8 +297,11 @@ defmodule RegentMCPAgents do
            body: request["body"],
            receive_timeout: 15_000
          ) do
-      {:ok, %{status: status, body: body}} -> {:ok, status, body}
-      _ -> :error
+      {:ok, %{status: status, body: body} = response} ->
+        {:ok, status, body, Req.Response.get_header(response, "retry-after")}
+
+      _ ->
+        :error
     end
   end
 
@@ -299,7 +321,7 @@ defmodule RegentMCPAgents do
 
       with answer when is_binary(answer) <- conn.resp_body,
            {:ok, decoded} <- Jason.decode(answer) do
-        {:ok, conn.status, decoded}
+        {:ok, conn.status, decoded, Plug.Conn.get_resp_header(conn, "retry-after")}
       else
         _ -> :error
       end

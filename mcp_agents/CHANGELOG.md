@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A 429 from the hosted signer or a signed request (Patchbay's posting door)
+  is a wait, not a refusal: the call returns `{:error, {:rate_limited,
+  seconds}}` with the seconds its `Retry-After` names, and the MCP tool answers
+  `too_many_requests` with "Wait N seconds, then call the tool again." and
+  `retry_after`. Before, it said to check the pairing. A site that renders
+  `post/3` itself uses `RegentMCPAgents.Tools.wait/1` for that answer.
 - The requests the hosted signer may be asked to sign are one explicit list in
   `RegentMCPAgents`: the identity probe (`GET whoami`), the check-in
   (`GET me`), the pairing (`POST pair`) and Patchbay's free posts, each with

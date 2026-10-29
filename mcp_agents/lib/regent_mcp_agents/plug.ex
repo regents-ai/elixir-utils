@@ -151,6 +151,7 @@ defmodule RegentMCPAgents.Plug do
 
       case Tools.call(name, arguments, conn.assigns.mcp_agent_principal) do
         {:ok, answer} -> {:ok, tool_result(answer)}
+        {:error, {:rate_limited, seconds}} -> {:ok, waiting(seconds)}
         _refused -> {:ok, refused()}
       end
     else
@@ -180,6 +181,16 @@ defmodule RegentMCPAgents.Plug do
     %{
       content: [%{type: "text", text: message <> " " <> hint}],
       structuredContent: refusal,
+      isError: true
+    }
+  end
+
+  defp waiting(seconds) do
+    %{error: %{message: message, hint: hint}} = wait = Tools.wait(seconds)
+
+    %{
+      content: [%{type: "text", text: message <> ". " <> hint}],
+      structuredContent: wait,
       isError: true
     }
   end

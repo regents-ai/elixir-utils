@@ -38,7 +38,8 @@ defmodule RegentMCPAgents.Test.Site do
       issuer: "http://localhost:4000",
       resource: "http://localhost:4000/mcp",
       scope: "regent.identity.manage",
-      permission_description: "Keep a Regents identity for this app."
+      permission_description: "Keep a Regents identity for this app.",
+      additional_scopes: %{"patchbay.posts.write" => "Post free questions and replies."}
     ]
   end
 

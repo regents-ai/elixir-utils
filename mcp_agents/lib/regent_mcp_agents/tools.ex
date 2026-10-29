@@ -106,6 +106,16 @@ defmodule RegentMCPAgents.Tools do
     }
   end
 
+  @doc """
+  The answer to a tool call the signer or the signed request turned away for now:
+  the error body of a 429, with the seconds its `Retry-After` named.
+  """
+  def wait(seconds) do
+    "Too Many Requests"
+    |> RegentAgentAccess.Recovery.json("Wait #{seconds} seconds, then call the tool again.")
+    |> put_in([:error, :retry_after], seconds)
+  end
+
   defp tool(name, title, description, properties, required, read_only?) do
     %{
       name: name,

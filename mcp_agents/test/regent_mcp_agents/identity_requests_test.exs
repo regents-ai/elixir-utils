@@ -82,6 +82,67 @@ defmodule RegentMCPAgents.IdentityRequestsTest do
     end
   end
 
+  test "a signer that says wait gives the tool's wait, with its seconds" do
+    Req.Test.stub(RegentMCPAgents.HostedSigner, fn conn ->
+      conn
+      |> Plug.Conn.put_resp_header("retry-after", "30")
+      |> Plug.Conn.put_status(429)
+      |> Req.Test.json(%{"error" => %{"code" => "too_many_requests"}})
+    end)
+
+    call = rpc("tools/call", %{"name" => "get_identity", "arguments" => %{}})
+
+    assert %{"result" => %{"isError" => true, "structuredContent" => %{"error" => error}}} =
+             json(mcp(call, token!("did:privy:sol")))
+
+    assert error == %{
+             "code" => "too_many_requests",
+             "message" => "Too Many Requests",
+             "hint" => "Wait 30 seconds, then call the tool again.",
+             "retry_after" => 30
+           }
+  end
+
+  test "a post the posting door turns away for now gives a wait, with its seconds" do
+    config = Application.fetch_env!(:regent_mcp_agents, :config)
+    on_exit(fn -> Application.put_env(:regent_mcp_agents, :config, config) end)
+    Application.put_env(:regent_mcp_agents, :config, Keyword.put(config, :audience, "patchbay"))
+
+    # The signer signs the post; the posting door, over HTTPS, says wait.
+    Req.Test.stub(RegentMCPAgents.HostedSigner, fn
+      %{request_path: "/api/shared/siwa/hosted"} = conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        %{"operation" => "sign", "request" => request} = Jason.decode!(body)
+        Req.Test.json(conn, Map.put(request, "headers", @signed))
+
+      %{request_path: "/chatgpt/agent/mcp"} = conn ->
+        conn
+        |> Plug.Conn.put_resp_header("retry-after", "45")
+        |> Plug.Conn.put_status(429)
+        |> Req.Test.json(%{"error" => %{"code" => "too_many_requests"}})
+    end)
+
+    assert RegentMCPAgents.post(poster!("did:privy:sol"), "ask_question", %{"title" => "Hi"}) ==
+             {:error, {:rate_limited, 45}}
+  end
+
+  # A connection that may post: its principal, as the MCP address verifies it.
+  defp poster!(subject) do
+    %{client_id: client_id} = connect!(subject)
+    client = Boruta.ClientsAdapter.get_client(client_id)
+
+    {:ok, token} =
+      RegentOAuth.AccessTokens.create(
+        %{client: client, sub: subject, scope: "regent.identity.manage patchbay.posts.write"},
+        []
+      )
+
+    {:ok, principal} =
+      RegentOAuth.verify(token.value, RegentOAuth.resource(), "patchbay.posts.write")
+
+    principal
+  end
+
   defp flush do
     receive do
       _message -> flush()

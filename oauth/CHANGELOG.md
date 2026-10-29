@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The consent page only reads the app; it no longer rewrites an app's scopes
+  while a person looks at it. When a site starts offering a scope, its migration
+  calls `RegentOAuth.Migration.ClientScopes.up/1`, which gives every public PKCE
+  app the named scopes it lacks with inserts that leave existing rows alone, and
+  never updates or deletes.
+
 - The refresh grace is 30 seconds (Sean, 29 Oct 05:48Z, "4. a", his latest
   answer, replacing the 10 seconds set earlier that morning): a repeat within
   30 seconds is the app's own retry, so a slow request already on its way is

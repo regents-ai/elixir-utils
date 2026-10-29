@@ -237,33 +237,10 @@ defmodule RegentOAuth.Protocol do
     with {:ok, id} <- Ecto.UUID.cast(params["client_id"]),
          %Client{confidential: false, pkce: true} = client <- Repo.get(Client, id),
          true <- params["redirect_uri"] in client.redirect_uris do
-      ensure_client_scopes(client)
+      {:ok, client}
     else
       _ -> {:error, :invalid_client}
     end
-  end
-
-  # Eligible client scopes are not user grants. Existing DCR clients can ask for
-  # a newly supported permission, but Boruta still requires fresh human consent
-  # and keeps code/refresh tokens limited to their actual granted scopes.
-  defp ensure_client_scopes(client) do
-    Repo.transaction(fn ->
-      locked = Repo.one!(from(c in Client, where: c.id == ^client.id, lock: "FOR UPDATE"))
-      current = Repo.preload(locked, :authorized_scopes)
-      existing = Enum.map(current.authorized_scopes, & &1.name) |> Enum.sort()
-      configured = Enum.sort(RegentOAuth.scopes())
-
-      if existing == configured do
-        current
-      else
-        case Boruta.Ecto.Admin.Clients.update_client(current, %{
-               authorized_scopes: Enum.map(configured, &%{name: &1})
-             }) do
-          {:ok, updated} -> updated
-          {:error, _} -> Repo.rollback(:invalid_client)
-        end
-      end
-    end)
   end
 
   # Every request names the one resource, except that a refresh may leave it

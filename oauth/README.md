@@ -29,6 +29,15 @@ issued (`RegentOAuth.bind/1`), and a row whose values differ from the running
 site's is refused. Never run Boruta's
 historical rename/drop migrations over an existing site.
 
+When a site starts offering a scope, a site migration calls
+`RegentOAuth.Migration.ClientScopes.up/1` with the site's full list of scopes. It
+gives every app the consent page serves the scopes it lacks and only inserts:
+rows already there stay, and a scope taken out of the configuration stays on the
+apps that have it. It runs in the release step, before the new release serves,
+because Boruta keeps apps in memory. The consent page only reads the app, so an
+app registered before a new scope is refused that scope until the migration has
+run, and every token still needs the person's consent for each scope.
+
 API routes call `RegentOAuth.Protocol.call/2` for resource metadata, server
 metadata, registration, token exchange and revocation. Token and registration
 routes need the site's existing per-address rate limiter. Browser routes call

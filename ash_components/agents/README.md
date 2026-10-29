@@ -10,8 +10,8 @@ https://siwa.regents.sh/skill.md.
 
 - `GET /api/agents/v1/whoami` answers `200 {data: {agent, audience,
   authenticated, pairing, account, status, allowed, next_step}}` for every signed
-  agent, without checking in. `status` is `owner` (its wallet is the login wallet
-  of an account, which `account` names), `not_paired` (paired to nobody),
+  agent, without checking in. `status` is `owner` (it opened its own account on
+  this site, which `account` names), `not_paired` (paired to nobody),
   `person_not_here` (paired, but its person has never signed in on this site) or
   `paired` (it acts for its person); `allowed` is the site's list of short
   sentences for that status; `next_step` is one sentence, null when `owner` or

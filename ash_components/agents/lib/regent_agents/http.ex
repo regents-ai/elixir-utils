@@ -15,8 +15,8 @@ defmodule RegentAgents.HTTP do
   service verifies every request for this site's audience; when it refuses
   one, the agent gets its status, code, message and hint back unchanged.
 
-  An agent has one of four statuses on a site: `owner` (its wallet is the login
-  wallet of an account, so it acts as that account's owner), `not_paired` (paired
+  An agent has one of four statuses on a site: `owner` (it opened its own
+  account on this site and acts as that account's owner), `not_paired` (paired
   to nobody), `person_not_here` (paired, but its person has never signed in on
   this site) and `paired` (it acts for its person). The site names what each
   status may do in `config :regent_agents, allowed: %{"owner" => [...],
@@ -25,8 +25,8 @@ defmodule RegentAgents.HTTP do
 
   The site names the account an agent owns with `config :regent_agents,
   owned_account: {Module, :function}`, called with the agent's lowercase wallet
-  and returning a JSON-ready map, or nil when no account's login wallet is that
-  wallet. An owner's `whoami` carries that map as `account`. An agent that owns
+  and returning a JSON-ready map of the account that agent opened for itself, or nil
+  when it opened none. A person's account is never an agent's, whatever wallet signs. An owner's `whoami` carries that map as `account`. An agent that owns
   an account acts for it alone: pairing with a person and checking in are
   refused with `agent_owns_account`.
 

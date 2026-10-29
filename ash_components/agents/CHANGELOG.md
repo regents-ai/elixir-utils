@@ -3,8 +3,8 @@
 ## 0.1.0 (unreleased)
 
 - An agent can own an account: a site names it with `config :regent_agents,
-  owned_account: {Module, :function}` (the agent's wallet in, a JSON-ready map or nil
-  out). `whoami` answers the fourth status `owner` with that map as `account`, and
+  owned_account: {Module, :function}` (the agent's wallet in, a JSON-ready map of the
+  account that agent opened for itself, or nil out). `whoami` answers the fourth status `owner` with that map as `account`, and
   `allowed` needs an `"owner"` entry. An owner's pair request and check-in are
   refused with `agent_owns_account` (409). The `not_paired` next step now also says
   an agent can open its own account with `POST /api/v1/agent/account`.

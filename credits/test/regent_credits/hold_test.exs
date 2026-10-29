@@ -37,22 +37,6 @@ defmodule RegentCredits.HoldTest do
     assert balance(owner).held == "0"
   end
 
-  test "a purchased-only hold never touches given Credits" do
-    owner = fund(person(), "5", "2")
-    only = [purchased_only?: true]
-
-    assert %NotEnoughCredits{shortfall: shortfall} =
-             reason(
-               RegentCredits.hold(key(), owner, d("3"), "chain_buy", only, actor: actor(owner))
-             )
-
-    assert Decimal.eq?(shortfall, d("1"))
-
-    {:ok, hold} = RegentCredits.hold(key(), owner, d("2"), "chain_buy", only, actor: actor(owner))
-    assert {Decimal.to_integer(hold.given), Decimal.to_integer(hold.purchased)} == {0, 2}
-    assert balance(owner) == %{available: "5", given: "5", purchased: "0", held: "2"}
-  end
-
   test "repeating a hold answers with the first; the same key with other details is refused" do
     owner = fund(person(), "0", "5")
     {:ok, first} = hold(owner, "bid-2", "1")
@@ -60,18 +44,6 @@ defmodule RegentCredits.HoldTest do
     assert again.id == first.id
     assert %Refused{reason: :key_reused} = reason(hold(owner, "bid-2", "2"))
     assert balance(owner).held == "1"
-  end
-
-  test "a purchased-only repeat never answers with a hold that took given Credits" do
-    owner = fund(person(), "1", "5")
-    {:ok, _given} = hold(owner, "buy-1", "1")
-
-    assert %Refused{reason: :key_reused} =
-             reason(
-               RegentCredits.hold("buy-1", owner, d("1"), "offer_bid", [purchased_only?: true],
-                 actor: actor(owner)
-               )
-             )
   end
 
   test "a person can only hold their own Credits" do

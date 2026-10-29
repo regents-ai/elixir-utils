@@ -1,8 +1,7 @@
 defmodule RegentPayments.Operator do
   @moduledoc """
   Sends a transaction signed with one of the site's own keys on Base and waits
-  for the chain to take it. `RegentPayments.FeeForward` and
-  `RegentPayments.BuyingWallet` send through it.
+  for the chain to take it. `RegentPayments.FeeForward` sends through it.
 
   The key travels only into the local signer. An exception raised while
   sending comes from a call handed that key, so callers name it and never

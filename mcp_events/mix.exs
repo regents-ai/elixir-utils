@@ -9,7 +9,8 @@ defmodule RegentMCPEvents.MixProject do
       description: "MCP events identity, signed callbacks and safe delivery for Regent products",
       deps: [
         {:jason, "~> 1.4"},
-        {:mint, "~> 1.11"},
+        # Callbacks go through its checked public-address requests.
+        {:regent_http, path: "../http"},
         {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
       ],
       usage_rules: usage_rules(),

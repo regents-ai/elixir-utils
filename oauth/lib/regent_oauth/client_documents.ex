@@ -233,17 +233,26 @@ defmodule RegentOAuth.ClientDocuments do
       end)
 
     case result do
-      {:ok, id} -> {:ok, id}
-      {:error, :raced} -> stored(url)
-      {:error, _} -> :error
+      {:ok, id} ->
+        # Boruta forgets the client inside the transaction too; a request
+        # that read it again before the commit must not keep the old name.
+        :ok = Boruta.Ecto.Clients.invalidate(%Boruta.Oauth.Client{id: id})
+        {:ok, id}
+
+      {:error, :raced} ->
+        stored(url)
+
+      {:error, _} ->
+        :error
     end
   end
 
   # draft-ietf-oauth-client-id-metadata-document-02 section 3: HTTPS, a path,
   # no user, fragment, query or dot segments. Compared as the exact string.
+  # Only the default port, so no address can probe another service on a host.
   defp client_id_url?(url) do
     with true <- address?(url) and RegentHttp.Public.valid_url?(url),
-         %URI{path: path, query: nil} when is_binary(path) and path not in ["", "/"] <-
+         %URI{path: path, query: nil, port: 443} when is_binary(path) and path not in ["", "/"] <-
            URI.parse(url) do
       not Enum.any?(String.split(path, "/"), &(&1 in [".", ".."]))
     else

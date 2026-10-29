@@ -15,7 +15,9 @@
   working for other apps; an address and a registered id are never taken for
   each other. Sites add a migration calling `RegentOAuth.Migration.V3.up()`,
   which only adds `oauth_client_documents`; token exchange needs it.
-  `regent_oauth` now depends on `regent_http`.
+  `regent_oauth` now depends on `regent_http`. A published identity is read
+  only for a signed-in person's consent, never for a signed-out visitor, and
+  only from port 443; sites rate-limit both authorize routes.
 
 - The refresh grace is 30 seconds (Sean, 29 Oct 05:48Z, "4. a", his latest
   answer, replacing the 10 seconds set earlier that morning): a repeat within

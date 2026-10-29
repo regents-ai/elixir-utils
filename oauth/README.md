@@ -32,8 +32,9 @@ site's is refused. Never run Boruta's
 historical rename/drop migrations over an existing site.
 
 API routes call `RegentOAuth.Protocol.call/2` for resource metadata, server
-metadata, registration, token exchange and revocation. Token and registration
-routes need the site's existing per-address rate limiter. Browser routes call
+metadata, registration, token exchange and revocation. Token, registration,
+revocation and both authorize routes need the site's existing per-address rate
+limiter: a signed-in person's consent may read a published identity's address. Browser routes call
 `RegentOAuth.Consent.authorize/1`, `approve/1`, `connections/1` and
 `revoke_connection/1`. They must run through the site's current-session and CSRF
 pipeline. All credential-bearing routes disable request logging. Add `code`,
@@ -63,7 +64,8 @@ as its `client_id` (OAuth Client ID Metadata Documents, draft -02; Claude's is
 advertises with `client_id_metadata_document_supported: true`. Or it registers
 itself (DCR) and uses the id it is given.
 
-A published identity is read with `RegentHttp.Public`: HTTPS only, every DNS
+A published identity is read only for a signed-in person's consent, never for a
+signed-out visitor, with `RegentHttp.Public`: HTTPS on port 443 only, every DNS
 answer must be a public address and the connection goes to the checked one, no
 redirects, at most 5 KB, within five seconds. The document must name exactly
 its own address as `client_id`, be a public client (`none`, no secret) and allow

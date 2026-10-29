@@ -90,7 +90,7 @@ defmodule RegentOAuth.Test.Documents do
     Application.put_env(:regent_oauth, __MODULE__, {self(), %{url => answer}})
   end
 
-  def get(url, _opts) do
+  def request(:get, url, _opts) do
     {test, answers} = Application.fetch_env!(:regent_oauth, __MODULE__)
     send(test, {:read, url})
 

@@ -11,20 +11,23 @@ defmodule RegentOAuth.Consent do
     # forwarded to Boruta or retained in the consent request.
     params = Map.delete(conn.query_params, "ui_locales")
 
+    # The app is looked up only for a signed-in person: a published identity is
+    # read from its address, which no signed-out visitor may cause.
     with true <- RegentOAuth.enabled?(),
          true <- Protocol.authorize_params?(params),
-         true <- byte_size(Jason.encode!(conn.query_params)) <= 2048,
-         {:ok, client} <- Protocol.request_client(params) do
+         true <- byte_size(Jason.encode!(conn.query_params)) <= 2048 do
       case RegentOAuth.site().current_subject(conn) do
         subject when is_binary(subject) ->
-          if RegentOAuth.site().active_subject?(subject) do
+          with true <- RegentOAuth.site().active_subject?(subject),
+               {:ok, client} <- Protocol.request_client(params) do
             Boruta.Oauth.preauthorize(
               conn |> put_private(@session_key, params) |> authorization_conn(params, client),
               %Boruta.Oauth.ResourceOwner{sub: subject},
               __MODULE__
             )
           else
-            Protocol.json(conn, 401, %{error: "login_required"})
+            false -> Protocol.json(conn, 401, %{error: "login_required"})
+            _ -> Protocol.json(conn, 400, %{error: "invalid_request"})
           end
 
         _ ->

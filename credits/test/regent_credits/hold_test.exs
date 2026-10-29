@@ -62,6 +62,18 @@ defmodule RegentCredits.HoldTest do
     assert balance(owner).held == "1"
   end
 
+  test "a purchased-only repeat never answers with a hold that took given Credits" do
+    owner = fund(person(), "1", "5")
+    {:ok, _given} = hold(owner, "buy-1", "1")
+
+    assert %Refused{reason: :key_reused} =
+             reason(
+               RegentCredits.hold("buy-1", owner, d("1"), "offer_bid", [purchased_only?: true],
+                 actor: actor(owner)
+               )
+             )
+  end
+
   test "a person can only hold their own Credits" do
     owner = fund(person(), "0", "5")
     assert {:error, %Ash.Error.Forbidden{}} = hold(owner, key(), "1", actor(person()))

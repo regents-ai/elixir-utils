@@ -28,4 +28,4 @@ config :logger, level: :warning
 config :regent_payments, RegentPayments.Facilitator, receive_timeout_ms: 2_000
 
 # A fee forward reads receipts two seconds apart in production; tests read them back to back.
-config :regent_payments, RegentPayments.FeeForward, receipt_every_ms: 1
+config :regent_payments, RegentPayments.Operator, receipt_every_ms: 1

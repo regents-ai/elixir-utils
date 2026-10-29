@@ -9,7 +9,7 @@ defmodule RegentOAuth.Protocol do
   @authorize_keys ~w(client_id redirect_uri response_type scope state resource code_challenge code_challenge_method)
   @token_keys ~w(client_id redirect_uri grant_type scope resource code code_verifier refresh_token)
   @register_keys ~w(client_name redirect_uris grant_types response_types token_endpoint_auth_method scope)
-  @refresh_grace_seconds 30
+  @refresh_grace_seconds 10
 
   def call(conn, action) do
     if RegentOAuth.enabled?(),

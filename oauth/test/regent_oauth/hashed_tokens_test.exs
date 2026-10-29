@@ -61,7 +61,7 @@ defmodule RegentOAuth.HashedTokensTest do
     assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
 
     Repo.query!(
-      "UPDATE #{tokens()} SET refresh_token_revoked_at = refresh_token_revoked_at - interval '31 seconds' WHERE refresh_token = $1",
+      "UPDATE #{tokens()} SET refresh_token_revoked_at = refresh_token_revoked_at - interval '11 seconds' WHERE refresh_token = $1",
       [RegentOAuth.hash_token(refresh)]
     )
 

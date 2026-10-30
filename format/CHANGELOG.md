@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `RegentFormat.Name.pattern/0` refuses a name of nothing a person can see. The
+  Hangul fillers U+115F, U+1160, U+3164 and U+FFA0 and the blank braille pattern
+  U+2800 count as letters or symbols but draw nothing, so a name of them alone
+  passed as an agent's or a person's name; they are now refused wherever they
+  stand, and a name must show at least one character that is not a space or a
+  mark.
 - `amount/1`, `token_amount/2`, `format_currency/2`, `decimal_to_string/2` and
   `display_bps_percent/1` are exact at any size. An amount of 1e32 or more, such
   as a bid at the largest price a chain allows, raised instead of showing, and a

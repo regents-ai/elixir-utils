@@ -16,8 +16,11 @@ defmodule Siwa.AgentAuthPlug.DeclaredBodyTest do
     # Stands in for siwa-server: the full check with the receipt secret.
     @behaviour Siwa.AgentAuthPlug.Client
 
+    # The audience this site's verify key names at the sign-in server.
+    @audience "testapp"
+
     @impl true
-    def verify_http_request(payload, audience: audience) do
+    def verify_http_request(payload) do
       send(self(), {:sign_in_server, payload})
 
       case RequestAuth.verify_authenticated_request(
@@ -28,13 +31,14 @@ defmodule Siwa.AgentAuthPlug.DeclaredBodyTest do
                body_digest: payload["body_digest"]
              },
              secret: "declared-body-test-secret",
-             audience: audience,
-             wallet_audiences: [audience],
+             audience: @audience,
+             wallet_audiences: [@audience],
              replay_store: fn _key, _expires -> :ok end,
              chain_rpcs: Process.get(:chain_rpcs)
            ) do
-        {:ok, _verified} ->
-          {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => %{}}}}
+        {:ok, verified} ->
+          data = %{"principal" => %{"audience" => verified.claims["aud"]}}
+          {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => data}}}
 
         {:error, reason} ->
           {status, code, _message} = Siwa.Contract.refusal(reason)

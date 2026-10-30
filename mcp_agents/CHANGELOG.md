@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Hosted identity requests are checked through the site's `RegentAgents.Broker`,
+  which now sends the site's own verify key (`config :regent_agents, siwa:
+  [verify_key: ...]`) and no `x-siwa-audience`. The tests' SIWA service stub
+  records that key.
+  Do not re-pin elixir-utils at or after 12311060 until the shared window.
 - Regents, Autolaunch and Techtree can switch hosted identity on: `configure!/0`
   accepts the audiences `regents`, `autolaunch` and `techtree` beside
   `patchbay`, `keyfleet` and `ash-template`. Each still needs its own hosted

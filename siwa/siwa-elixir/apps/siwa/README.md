@@ -174,6 +174,22 @@ Siwa.AgentAuthPlug.call(conn,
 )
 ```
 
+`MyBroker` sends each request to the sign-in server through
+`Siwa.AgentAuthPlug.BrokerClient` with the site's own verify key, which names
+the audience the server checks it for. The plug's `:audience` and that key name
+the same site. A refused key, or a verdict whose principal names any other
+audience, is the site's own setup: the plug logs an error and denies with
+`:siwa_request_failed` (`source: :siwa_config`), so the agent is told to try
+again rather than that its request was wrong.
+
+```elixir
+Siwa.AgentAuthPlug.BrokerClient.verify_http_request(payload,
+  http: MyHttp,
+  base_url: "https://siwa.regents.sh",
+  verify_key: Application.fetch_env!(:my_site, :siwa_site_verify_key)
+)
+```
+
 The check on a lease (`Siwa.RequestAuth.verify_leased_request/3`) is the sign-in
 server's own, against the claims the server read, except for the receipt's
 secret: the exact receipt bytes, the audience, the lease's end, the signature

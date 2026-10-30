@@ -50,7 +50,14 @@ Application.put_env(:ash, :default_string_length_count, :codepoints)
 Application.put_env(:regent_agents, :repo, RegentMCPAgents.Test.AgentsRepo)
 Application.put_env(:regent_agents, :account, {RegentMCPAgents.Test.Accounts, :account})
 
+Application.put_env(
+  :regent_agents,
+  :owned_account,
+  {RegentMCPAgents.Test.Accounts, :owned_account}
+)
+
 Application.put_env(:regent_agents, :allowed, %{
+  "owner" => ["Read public pages.", "Act as your own account."],
   "not_paired" => ["Read public pages."],
   "person_not_here" => ["Read public pages."],
   "paired" => ["Read public pages.", "Act for your person."]

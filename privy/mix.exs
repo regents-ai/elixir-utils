@@ -2,7 +2,7 @@ defmodule RegentPrivy.MixProject do
   use Mix.Project
 
   @version "0.2.1"
-  @description "Shared Privy identity-token verification for Regent Elixir apps."
+  @description "Shared Privy identity-token verification and server calls for Regent Elixir apps."
 
   def project do
     [
@@ -35,6 +35,9 @@ defmodule RegentPrivy.MixProject do
     [
       {:joken, "~> 2.6"},
       {:jason, "~> 1.4"},
+      {:req, "~> 0.7"},
+      # Req.Test answers for Privy in tests.
+      {:plug, "~> 1.16", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
     ]

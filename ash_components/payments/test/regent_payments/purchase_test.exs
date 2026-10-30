@@ -403,6 +403,24 @@ defmodule RegentPayments.PurchaseTest do
     assert {:error, _} = Purchase.complete(%{payer | wallet_addresses: []}, c.intent.id)
   end
 
+  test "the account's second linked wallet finishes a settled payment whose effect failed", c do
+    second = WalletSigner.new()
+    payer = %{c.payer | wallet_addresses: [c.wallet.address, second.address]}
+    c = %{c | payer: payer, wallet: second}
+
+    {worker, _} = execute(c, %{outcome: :fail})
+    assert_receive {:settle, service, _}, 3_000
+    send(service, {:reply, 200, settled("a")})
+    assert_receive {:done, ^worker, {:settled, _, receipt}}, 3_000
+    assert receipt.payer_address == second.address
+
+    assert {:applied, applied, again} = Purchase.complete(payer, c.intent.id)
+    assert applied.status == :applied
+    assert again.id == receipt.id
+    assert Effects.carried_out(c.intent.id) == 1
+    refute_receive {:settle, _, _}, 200
+  end
+
   test "a person signed in without a wallet pays and finishes with one the account links", c do
     "0x" <> hex = c.wallet.address
     payer = %{c.payer | wallet_address: nil, wallet_addresses: ["0x" <> String.upcase(hex)]}

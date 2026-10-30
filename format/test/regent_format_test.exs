@@ -154,6 +154,14 @@ defmodule RegentFormatTest do
       assert RegentFormat.monogram("solo", "AL") == "S"
     end
 
+    test "a wallet name takes the first two characters after 0x" do
+      assert RegentFormat.monogram("0x8f3c..41d2", "AL") == "8F"
+      assert RegentFormat.monogram("0x8f3ca2d9b07e4c51e6a0d3b9f21c7e4a5d0b41d2", "AL") == "8F"
+      assert RegentFormat.monogram("0XAB12", "AL") == "AB"
+      assert RegentFormat.monogram("vault.eth", "AL") == "V"
+      assert RegentFormat.monogram("0xford club", "AL") == "0C"
+    end
+
     test "falls back when no initials can be derived" do
       assert RegentFormat.monogram(nil, "AL") == "AL"
       assert RegentFormat.monogram("", "AL") == "AL"

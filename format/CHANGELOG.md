@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `RegentFormat.Text.pattern/0` is the one rule for text written over several
+  lines, such as a message or a note: each line follows `RegentFormat.Name`, and
+  lines are separated by a line break or a tab.
 - `amount/1`, `token_amount/2`, `format_currency/2`, `decimal_to_string/2` and
   `display_bps_percent/1` are exact at any size. An amount of 1e32 or more, such
   as a bid at the largest price a chain allows, raised instead of showing, and a

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `monogram/2` gives a wallet name, a `0x` address in full or short form, the
+  first two characters after `0x` in capitals (`"0x8f3c..41d2"` -> `"8F"`). It
+  gave `"0"`, so every wallet author's picture read 0.
+
 - `amount/1`, `token_amount/2`, `format_currency/2`, `decimal_to_string/2` and
   `display_bps_percent/1` are exact at any size. An amount of 1e32 or more, such
   as a bid at the largest price a chain allows, raised instead of showing, and a

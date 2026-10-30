@@ -253,16 +253,29 @@ defmodule RegentFormat do
 
   @doc """
   Builds a one-or-two-letter monogram from a name, e.g. `"Helios Relay"` ->
-  `"HR"`. Returns `fallback` when no initials can be derived.
+  `"HR"`. A wallet name, a `0x` address in full or short form, takes the first
+  two characters after `0x`. Returns `fallback` when no initials can be derived.
 
       iex> RegentFormat.monogram("Helios Relay", "AL")
       "HR"
+
+      iex> RegentFormat.monogram("0x8f3c..41d2", "AL")
+      "8F"
 
       iex> RegentFormat.monogram(nil, "AL")
       "AL"
   """
   @spec monogram(term(), String.t()) :: String.t()
   def monogram(name, fallback) when is_binary(name) do
+    case Regex.run(~r/^\s*0x([0-9a-f]{2})/i, name) do
+      [_, start] -> String.upcase(start)
+      nil -> initials(name, fallback)
+    end
+  end
+
+  def monogram(_name, fallback), do: fallback
+
+  defp initials(name, fallback) do
     name
     |> String.split(~r/[\s-]+/, trim: true)
     |> Enum.map(&String.first/1)
@@ -275,8 +288,6 @@ defmodule RegentFormat do
       initials -> initials
     end
   end
-
-  def monogram(_name, fallback), do: fallback
 
   @doc """
   Shortens a `0x` address to the one Regent short form: `0x`, the first four

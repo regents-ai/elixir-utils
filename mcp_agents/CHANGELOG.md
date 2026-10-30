@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Regents, Autolaunch and Techtree can switch hosted identity on: `configure!/0`
+  accepts the audiences `regents`, `autolaunch` and `techtree` beside
+  `patchbay`, `keyfleet` and `ash-template`. Each still needs its own hosted
+  signing key on the sign-in service before its connector goes on.
 - `RegentMCPAgents.address/1`: the lowercase wallet address of the account's one
   identity on this site, from the hosted signer's register answer, for a site
   that admits a connected app as the agent it paired. Nothing is signed for it.

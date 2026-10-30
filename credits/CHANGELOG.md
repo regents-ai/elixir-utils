@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentCredits.Deposits` reads up to 3,000 Base blocks behind the newest,
+  not 300, so it stays ten minutes behind once Base makes five blocks a second
+  (Denim, 5 November 2026 18:00 UTC).
+
 - A Credits history entry for a paid fix paid in Credits (purpose `jev_assist`,
   the payment offer's kind) reads "Fix".
 

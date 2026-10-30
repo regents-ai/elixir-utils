@@ -49,23 +49,52 @@ defmodule RegentCredits.DepositTest do
       TestChain.deposit_log(payer, 9_000_000, @start + 5, tag: tag("another.app"))
     ])
 
-    assert :ok = read(@start + 2_000)
+    assert :ok = read(@start + 4_700)
     assert Decimal.eq?(purchased(owner), "28.5")
     assert_received {:credited, _first, true}
     assert_received {:credited, _second, true}
 
-    # The newest 300 blocks wait for a later read.
+    # The newest 3,000 blocks wait for a later read.
     TestChain.logs([TestChain.deposit_log(payer, 5_000_000, @start + 1_995)])
-    assert :ok = read(@start + 2_294)
+    assert :ok = read(@start + 4_994)
     assert Decimal.eq?(purchased(owner), "28.5")
-    assert :ok = read(@start + 2_295)
+    assert :ok = read(@start + 4_995)
     assert Decimal.eq?(purchased(owner), "33.5")
     assert_received {:credited, _third, true}
 
     read_again_from_start()
-    assert :ok = read(@start + 2_295)
+    assert :ok = read(@start + 4_995)
     assert Decimal.eq?(purchased(owner), "33.5")
     refute_received {:credited, _, _}
+  end
+
+  # Base makes five blocks a second from 5 November 2026 (Denim), so a day the
+  # reader missed is 432,000 blocks.
+  test "a day missed at five blocks a second is read in one run, every block once, in stretches of at most 500" do
+    owner = person()
+    payer = wallet()
+    {:ok, _moved} = RegentCredits.attach_wallets(owner, [payer], actor: site())
+    day = 5 * 60 * 60 * 24
+    last = @start + day - 3_000
+
+    TestChain.logs([
+      TestChain.deposit_log(payer, 1_000_000, @start),
+      TestChain.deposit_log(payer, 2_000_000, @start + div(day, 2)),
+      TestChain.deposit_log(payer, 4_000_000, last),
+      TestChain.deposit_log(payer, 8_000_000, last + 1)
+    ])
+
+    assert :ok = read(@start + day)
+    assert Decimal.eq?(purchased(owner), 7)
+
+    asked = TestChain.asked()
+    assert [{@start, _to} | _rest] = asked
+    assert {_from, ^last} = List.last(asked)
+    assert Enum.all?(asked, fn {from, to} -> to - from < 500 end)
+
+    assert asked
+           |> Enum.chunk_every(2, 1, :discard)
+           |> Enum.all?(fn [{_from, to}, {next, _to}] -> next == to + 1 end)
   end
 
   test "a deposit and the page's report of it credit once between them, whichever comes first" do
@@ -82,7 +111,7 @@ defmodule RegentCredits.DepositTest do
       )
     ])
 
-    assert :ok = read(@start + 400)
+    assert :ok = read(@start + 3_100)
 
     assert RegentCredits.check_purchase!(reported.id,
              actor: actor(reported.privy_user_id, [reported.wallet])
@@ -97,7 +126,7 @@ defmodule RegentCredits.DepositTest do
       )
     ])
 
-    assert :ok = read(@start + 500)
+    assert :ok = read(@start + 3_200)
     assert Decimal.eq?(purchased(owner), 35)
 
     assert length(purchases(Ash.Query.filter(RegentCredits.Purchase, privy_user_id == ^owner))) ==
@@ -120,9 +149,9 @@ defmodule RegentCredits.DepositTest do
       TestChain.deposit_log(b, 1_500_000, @start + 1, tx_hash: hash)
     ])
 
-    assert :ok = read(@start + 400)
+    assert :ok = read(@start + 3_100)
     read_again_from_start()
-    assert :ok = read(@start + 400)
+    assert :ok = read(@start + 3_100)
 
     assert Decimal.eq?(purchased(first), 5)
     assert_received {:credited, _a, true}
@@ -157,7 +186,7 @@ defmodule RegentCredits.DepositTest do
       )
     ])
 
-    assert :ok = read(@start + 400)
+    assert :ok = read(@start + 3_100)
 
     assert RegentCredits.check_purchase!(reported.id,
              actor: actor(reported.privy_user_id, [reported.wallet])
@@ -175,7 +204,7 @@ defmodule RegentCredits.DepositTest do
       TestChain.deposit_log(payer, 10_000_000, @start + 500, tx_hash: hash, number: number)
     ])
 
-    assert :ok = read(@start + 900)
+    assert :ok = read(@start + 3_600)
     refute_received {:credited, _, _}
 
     TestChain.put(hash, TestChain.buy(:base, payer, 10, number), TestChain.mined("0x1"))
@@ -199,7 +228,7 @@ defmodule RegentCredits.DepositTest do
     stranger = wallet()
     TestChain.logs([TestChain.deposit_log(stranger, 40_000_000, @start + 1)])
 
-    assert :ok = read(@start + 400)
+    assert :ok = read(@start + 3_100)
     refute_received {:credited, _, _}
 
     [waiting] = purchases(Ash.Query.filter(RegentCredits.Purchase, wallet == ^stranger))

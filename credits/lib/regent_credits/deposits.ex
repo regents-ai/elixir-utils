@@ -5,13 +5,15 @@ defmodule RegentCredits.Deposits do
 
   A Credits deposit is a `USDCRevenueDeposited` event of REGENT staking whose
   source tag is `regent.credits`. Each run reads from the chain's
-  `RegentCredits.DepositCursor` up to 300 blocks (ten minutes) behind the
-  newest one, 500 blocks at a time, and moves the cursor on after each
-  stretch is credited. The ten minutes keep it clear of a log search that
-  lags the newest block, which would answer an unsearched stretch with no
-  logs; the page's own report credits sooner. A stretch once read is never
-  read again, so the reader assumes Base neither reorganizes nor fills in
-  missing logs more than 300 blocks below its newest block. A stretch the
+  `RegentCredits.DepositCursor` up to 3,000 blocks behind the newest one,
+  500 blocks at a time, and moves the cursor on after each stretch is
+  credited. Base makes five blocks a second (Denim, from 5 November 2026), so
+  3,000 blocks are ten minutes. The ten minutes keep
+  it clear of a log search that lags the newest block, which would answer an
+  unsearched stretch with no logs; the page's own report credits sooner. A
+  stretch once read is never read again, so the reader assumes Base neither
+  reorganizes nor fills in missing logs more than 3,000 blocks below its
+  newest block. A stretch the
   node refuses (`{:rpc, error}`) is read again in halves, down to one block;
   any other error ends the run, and the next run starts from the cursor.
 
@@ -31,9 +33,9 @@ defmodule RegentCredits.Deposits do
   @event "USDCRevenueDeposited(uint256,uint256,uint256,uint8,address,bytes32,bytes32)"
   @direct_deposit "0x" <> String.duplicate("0", 64)
   @span 500
-  @behind 300
+  @behind 3_000
 
-  @doc "Credits the chain's deposits since its cursor, up to 300 blocks behind the newest."
+  @doc "Credits the chain's deposits since its cursor, up to 3,000 blocks behind the newest."
   @spec read(:base) :: :ok | {:error, term()}
   def read(name) do
     # Internal: read by the Oban read of the chain.

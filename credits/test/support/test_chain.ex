@@ -18,8 +18,19 @@ defmodule RegentCredits.TestChain do
 
   def head(chain, number), do: :ets.insert(__MODULE__, {{:head, chain}, number})
 
-  @doc "The logs Base holds, replacing any before."
-  def logs(logs), do: :ets.insert(__MODULE__, {:logs, logs})
+  @doc "The logs Base holds, replacing any before, and forgets the stretches asked for."
+  def logs(logs) do
+    :ets.match_delete(__MODULE__, {{:asked, :_}, :_})
+    :ets.insert(__MODULE__, {:logs, logs})
+  end
+
+  @doc "Every stretch of blocks a log search asked for, as `{from, to}`, lowest first."
+  def asked do
+    __MODULE__
+    |> :ets.match_object({{:asked, :_}, :_})
+    |> Enum.map(fn {{:asked, from}, to} -> {from, to} end)
+    |> Enum.sort()
+  end
 
   @doc "A Credits deposit of `micro` USDC from `wallet` in `block`, as REGENT staking logs it."
   def deposit_log(wallet, micro, block, options \\ []) do
@@ -99,6 +110,7 @@ defmodule RegentCredits.TestChain do
   def logs(_chain, %{"address" => address, "topics" => topics} = filter) do
     {:ok, from} = RegentChain.Abi.quantity(filter["fromBlock"])
     {:ok, to} = RegentChain.Abi.quantity(filter["toBlock"])
+    :ets.insert(__MODULE__, {{:asked, from}, to})
 
     logs =
       case :ets.lookup(__MODULE__, :logs) do

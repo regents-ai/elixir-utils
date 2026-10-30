@@ -8,7 +8,7 @@ defmodule RegentPayments.Operator do
   carry it.
   """
 
-  # Base seals a block every two seconds. Tests read receipts faster through
+  # The receipt is read every two seconds. Tests read receipts faster through
   # `config :regent_payments, RegentPayments.Operator, receipt_every_ms: ...`.
   @receipt_every_ms Application.compile_env(
                       :regent_payments,
@@ -45,8 +45,8 @@ defmodule RegentPayments.Operator do
   end
 
   @doc """
-  Waits for the chain to take the transaction: the receipt is read on Base's
-  two-second beat, for a minute at most. `{:error, :not_mined}` means it may
+  Waits for the chain to take the transaction: the receipt is read every two
+  seconds, for a minute at most. `{:error, :not_mined}` means it may
   still land.
   """
   @spec mined(String.t(), signer()) :: :ok | {:error, :reverted | :not_mined}

@@ -23,7 +23,7 @@ defmodule RegentMCPAgents do
 
   @identity_scope "regent.identity.manage"
   @posting_scope "patchbay.posts.write"
-  @refusal "Connect your Regents account, register the connection, and check its pairing on the account page."
+  @refusal "Connect your Regents account, register the connection, and check its pairing on the Agents page."
 
   # The refusals made here, before anything is signed.
   @pairing_input %{
@@ -110,7 +110,7 @@ defmodule RegentMCPAgents do
       {:ok,
        %{
          identity_id: connection_key(principal),
-         account_url: RegentOAuth.issuer() <> "/account"
+         account_url: RegentOAuth.issuer() <> "/account/agents#account-pairing"
        }}
     end
   end
@@ -143,7 +143,7 @@ defmodule RegentMCPAgents do
        %{
          identity_id: connection_key(principal),
          paired: not is_nil(data["pairing"]),
-         account_url: RegentOAuth.issuer() <> "/account"
+         account_url: RegentOAuth.issuer() <> "/account/agents#account-pairing"
        }}
     end
   end

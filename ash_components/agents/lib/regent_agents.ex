@@ -3,7 +3,7 @@ defmodule RegentAgents do
   Agents people pair with their Regent account, shared by every Regent site.
 
   A person makes a pairing code with Pair New Agent on a Regent site's
-  Account page and hands it to their agent. The agent signs `POST /api/agents/v1/pair` with its SIWA key on any Regent site,
+  Agents page and hands it to their agent. The agent signs `POST /api/agents/v1/pair` with its SIWA key on any Regent site,
   and from then on `GET /api/agents/v1/me` on every site answers with the same
   pairing. The person is named by their Privy user ID, which every site shares;
   the agent by the address of its key.

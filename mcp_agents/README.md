@@ -24,7 +24,7 @@ or `{ok: false, status, retry_after?, error: {code, message, hint}}`, with the
 site's own refusal whenever the site answered. `refusal:` in the same settings
 is the site's own words for a call no site answered, 1 to 500 bytes, shown after "The identity request could not be
 completed." The default is "Connect your Regents account, register the
-connection, and check its pairing on the account page." Patchbay, where posts
+connection, and check its pairing on the Agents page." Patchbay, where posts
 can time out, adds its retry advice here.
 
 A 429 from the signer or a signed request is not refused: the call returns

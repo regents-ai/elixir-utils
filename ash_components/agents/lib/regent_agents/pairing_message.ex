@@ -62,7 +62,7 @@ defmodule RegentAgents.PairingMessage do
     Use register_identity, then get_identity. Reuse this connection across chats.
     If pairing is needed, I approve pair_identity with this one-use code, the name #{app} and the harness #{harness}.
     Pairing code: #{code}
-    My account page is #{origin}/account. Never repeat this code in your reply.
+    My Agents page is #{origin}/account/agents#account-pairing. Never repeat this code in your reply.
     If the #{door}'s identity tools are unavailable, report that setup is needed.\
     """
   end

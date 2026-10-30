@@ -77,7 +77,7 @@ defmodule RegentMCPAgents.PlugTest do
     assert error["message"] == "The identity request could not be completed."
 
     assert error["hint"] ==
-             "Connect your Regents account, register the connection, and check its pairing on the account page."
+             "Connect your Regents account, register the connection, and check its pairing on the Agents page."
 
     config = Application.fetch_env!(:regent_mcp_agents, :config)
     on_exit(fn -> Application.put_env(:regent_mcp_agents, :config, config) end)
@@ -85,11 +85,11 @@ defmodule RegentMCPAgents.PlugTest do
     Application.put_env(
       :regent_mcp_agents,
       :config,
-      Keyword.put(config, :refusal, "Check your pairing on your Keyfleet account page.")
+      Keyword.put(config, :refusal, "Check your pairing on your Keyfleet Agents page.")
     )
 
     assert %{"result" => %{"structuredContent" => %{"error" => error}}} = json(mcp(call, token))
-    assert error["hint"] == "Check your pairing on your Keyfleet account page."
+    assert error["hint"] == "Check your pairing on your Keyfleet Agents page."
   end
 
   test "each connected account has its own request budget" do

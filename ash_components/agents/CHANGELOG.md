@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- Pairing is on each site's Agents page, at `/account/agents#account-pairing`, as
+  ash-template has it. The `pairing_failed`, `agent_limit` and `agent_not_paired`
+  hints and the `not_paired` next step say "on their Agents page", and a hosted
+  runtime's pairing message ends "My Agents page is
+  <origin>/account/agents#account-pairing." instead of the account page.
+
 - A check-in refused as `agent_not_paired` or `person_not_here` ends its hint
   with "Help: https://patchbay.help/errors/<code>", Patchbay's page for that
   refusal, so an agent can read what to do next.

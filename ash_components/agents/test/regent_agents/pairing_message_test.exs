@@ -114,7 +114,7 @@ defmodule RegentAgents.PairingMessageTest do
     assert message =~
              ~r/\AConnect ChatGPT to my existing Regents Labs account on patchbay.sh using/
 
-    assert message =~ "My account page is https://patchbay.sh/account."
+    assert message =~ "My Agents page is https://patchbay.sh/account/agents#account-pairing."
   end
 
   test "Claude connects through the site's connector and pairs as the claude harness" do

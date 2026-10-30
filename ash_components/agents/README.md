@@ -3,7 +3,7 @@
 One pairing between a person and their agent, shared by every Regent site.
 
 A person signs in on a Regent site and makes a pairing code with Pair New Agent
-on its Account page, then gives the code to their agent. The agent pairs on any Regent site, signing the request with its
+on its Agents page, then gives the code to their agent. The agent pairs on any Regent site, signing the request with its
 SIWA key, and afterwards every site's check-in answers with that same pairing.
 The agent's side is described in the sign-in guide at
 https://siwa.regents.sh/skill.md.

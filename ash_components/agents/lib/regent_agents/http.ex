@@ -48,13 +48,13 @@ defmodule RegentAgents.HTTP do
        "Send a name of 1 to 80 characters with no hidden characters: no control, line-break, text-direction or zero-width characters, except a zero-width joiner between two visible characters, as in an emoji. The same code works until it expires."},
     "pairing_failed" =>
       {400, "The pairing code could not be used.",
-       "Ask your person for a new code from Pair New Agent on their Account page on this site. Each code works once and expires ten minutes after it was made."},
+       "Ask your person for a new code from Pair New Agent on their Agents page on this site. Each code works once and expires ten minutes after it was made."},
     "agent_limit" =>
       {409, "This account already has 100 paired agents.",
-       "Ask your person to unpair an agent on their Account page on this site, then pair again. The same code works until it expires."},
+       "Ask your person to unpair an agent on their Agents page on this site, then pair again. The same code works until it expires."},
     "agent_not_paired" =>
       {403, "This agent is not paired with an account.",
-       "Ask your person to sign in on this site and pair you with Pair New Agent on their Account page, then check in again. Help: https://patchbay.help/errors/agent_not_paired"},
+       "Ask your person to sign in on this site and pair you with Pair New Agent on their Agents page, then check in again. Help: https://patchbay.help/errors/agent_not_paired"},
     "person_not_here" =>
       {403, "The person this agent is paired with hasn't signed in on this site yet.",
        "Ask your person to sign in on this site once, then check in again. Help: https://patchbay.help/errors/person_not_here"},
@@ -65,7 +65,7 @@ defmodule RegentAgents.HTTP do
 
   @next_steps %{
     "not_paired" =>
-      "Ask your person to sign in on this site and pair you with Pair New Agent on their Account page.",
+      "Ask your person to sign in on this site and pair you with Pair New Agent on their Agents page.",
     "person_not_here" => "Ask your person to sign in on this site once.",
     "paired" => nil
   }

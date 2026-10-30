@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pairing is on each site's Agents page: `register/1` and `status/1` give
+  `account_url` as `<issuer>/account/agents#account-pairing`, and the default
+  `refusal:` words say "check its pairing on the Agents page".
 - Regents, Autolaunch and Techtree can switch hosted identity on: `configure!/0`
   accepts the audiences `regents`, `autolaunch` and `techtree` beside
   `patchbay`, `keyfleet` and `ash-template`. Each still needs its own hosted

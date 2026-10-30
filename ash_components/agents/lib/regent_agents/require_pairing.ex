@@ -1,12 +1,17 @@
 defmodule RegentAgents.RequirePairing do
-  @moduledoc "Recheck agent delegation inside the product mutation's transaction."
+  @moduledoc """
+  Recheck agent delegation inside the product mutation's transaction. Takes the
+  site's `repo`, or `repo_app`, the application whose `:repo` it is.
+  """
   use Ash.Resource.Change
 
   @impl true
   def change(changeset, opts, %{actor: %{role: :agent} = actor}) do
+    repo = opts[:repo] || Application.fetch_env!(opts[:repo_app], :repo)
+
     Ash.Changeset.before_action(changeset, fn changeset ->
       case RegentAgents.Authority.lock(
-             opts[:repo],
+             repo,
              actor.pairing_id,
              actor.privy_user_id,
              actor.wallet_address

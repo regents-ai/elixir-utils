@@ -121,11 +121,13 @@ defmodule RegentAgents.AgentPicture do
       upsert_fields [:bytes, :updated_at]
       validate RegentAgents.AgentPicture.WebP
       change set_attribute(:updated_at, &DateTime.utc_now/0)
+      change {RegentAgents.RequirePairing, repo_app: :regent_agents}
       change RegentAgents.AgentPicture.Announce
     end
 
     destroy :remove_own do
       require_atomic? false
+      change {RegentAgents.RequirePairing, repo_app: :regent_agents}
       change RegentAgents.AgentPicture.Announce
     end
 

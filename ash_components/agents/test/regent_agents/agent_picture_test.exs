@@ -56,16 +56,23 @@ defmodule RegentAgents.AgentPictureTest do
     assert {:ok, %{bytes: @webp}} = RegentAgents.agent_picture(@sibling_wallet)
   end
 
-  test "an agent unpaired since it signed changes nothing", %{owner: owner, agent: agent} do
-    assert {:ok, _picture} =
-             RegentAgents.set_own_agent_picture(agent.id, @webp, actor: acting(agent))
-
+  test "an agent's old pairing changes nothing once it has paired again",
+       %{owner: owner, agent: agent} do
     {:ok, mine} = RegentAgents.get_my_agent(agent.id, actor: owner)
     RegentAgents.unpair_agent!(mine, actor: owner)
 
-    assert {:error, %Ash.Error.Forbidden{}} =
-             RegentAgents.set_own_agent_picture(agent.id, @webp, actor: acting(agent))
+    {:ok, again} =
+      RegentAgents.pair_agent(code!(owner), "Ada", :claude_code, actor: %Agent{wallet: @wallet})
 
-    assert {:error, _gone} = RegentAgents.remove_own_agent_picture(agent.id, actor: acting(agent))
+    assert {:ok, _picture} =
+             RegentAgents.set_own_agent_picture(again.id, @webp, actor: acting(again))
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             RegentAgents.set_own_agent_picture(again.id, @webp <> <<1>>, actor: acting(agent))
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             RegentAgents.remove_own_agent_picture(again.id, actor: acting(agent))
+
+    assert {:ok, %{bytes: @webp}} = RegentAgents.agent_picture(@wallet)
   end
 end

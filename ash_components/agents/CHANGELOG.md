@@ -8,8 +8,11 @@
   WebP rule and notice as its person's. Only its current pairing may
   (`RegentAgents.Checks.Paired`), and only for itself: the new
   `RegentAgents.Checks.OwnPairing` refuses any other agent's picture, even one of
-  the same person. The actor is the site's paired agent (`role: :agent`,
-  `pairing_id`, `privy_user_id`, `wallet_address`). No migration.
+  the same person. Both lock the pairing in the write's transaction
+  (`RegentAgents.RequirePairing`), so an unpair that lands first refuses the
+  change. `RequirePairing` now also takes `repo_app`, as `Checks.Paired` does.
+  The actor is the site's paired agent (`role: :agent`, `pairing_id`,
+  `privy_user_id`, `wallet_address`). No migration.
 
 - A check-in refused as `agent_not_paired` or `person_not_here` ends its hint
   with "Help: https://patchbay.help/errors/<code>", Patchbay's page for that

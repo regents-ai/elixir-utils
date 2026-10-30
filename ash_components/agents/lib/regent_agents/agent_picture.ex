@@ -52,9 +52,10 @@ end
 
 defmodule RegentAgents.AgentPicture do
   @moduledoc """
-  The picture a person chose for one of their paired agents, shown beside what
-  the agent posts on every Regent site. The person sets and removes it on
-  regents.sh/account; a team member (`RegentAgents.Checks.Admin`) may only
+  The picture of one paired agent, shown beside what the agent posts on every
+  Regent site. The agent's person sets and removes it; the agent itself may set
+  and remove its own (`:set_own`, `:remove_own`), never another agent's, even one
+  of the same person; a team member (`RegentAgents.Checks.Admin`) may only
   remove it. Unpairing the agent removes its picture with it. Each change
   tells every site, as a pairing does (`RegentAgents.topic/1`).
 
@@ -114,6 +115,20 @@ defmodule RegentAgents.AgentPicture do
       change RegentAgents.AgentPicture.Announce
     end
 
+    create :set_own do
+      accept [:paired_agent_id, :bytes]
+      upsert? true
+      upsert_fields [:bytes, :updated_at]
+      validate RegentAgents.AgentPicture.WebP
+      change set_attribute(:updated_at, &DateTime.utc_now/0)
+      change RegentAgents.AgentPicture.Announce
+    end
+
+    destroy :remove_own do
+      require_atomic? false
+      change RegentAgents.AgentPicture.Announce
+    end
+
     destroy :remove_by_team do
       require_atomic? false
       change RegentAgents.AgentPicture.Announce
@@ -135,6 +150,16 @@ defmodule RegentAgents.AgentPicture do
 
     policy action(:remove) do
       authorize_if expr(paired_agent.privy_user_id == ^actor(:privy_user_id))
+    end
+
+    policy action(:set_own) do
+      forbid_unless {RegentAgents.Checks.Paired, repo_app: :regent_agents}
+      authorize_if RegentAgents.Checks.OwnPairing
+    end
+
+    policy action(:remove_own) do
+      forbid_unless {RegentAgents.Checks.Paired, repo_app: :regent_agents}
+      authorize_if expr(paired_agent_id == ^actor(:pairing_id))
     end
 
     policy action(:remove_by_team) do

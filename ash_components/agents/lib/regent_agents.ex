@@ -56,6 +56,8 @@ defmodule RegentAgents do
       define :set_agent_picture, action: :set, args: [:paired_agent_id, :bytes]
       define :remove_agent_picture, action: :remove, get_by: [:paired_agent_id]
       define :remove_agent_picture_by_team, action: :remove_by_team, get_by: [:paired_agent_id]
+      define :set_own_agent_picture, action: :set_own, args: [:paired_agent_id, :bytes]
+      define :remove_own_agent_picture, action: :remove_own, get_by: [:paired_agent_id]
       define :agent_picture, action: :by_wallet, args: [:wallet], not_found_error?: false
     end
   end

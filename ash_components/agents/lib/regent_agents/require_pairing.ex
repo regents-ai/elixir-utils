@@ -45,3 +45,21 @@ defmodule RegentAgents.Checks.Paired do
 
   def match?(_, _, _), do: false
 end
+
+defmodule RegentAgents.Checks.OwnPairing do
+  @moduledoc """
+  The actor is an agent and the change names its own pairing in
+  `paired_agent_id`: never another agent's, even one of the same person. Pair it
+  with `RegentAgents.Checks.Paired`, which asks that the pairing is current.
+  """
+  use Ash.Policy.SimpleCheck
+
+  @impl true
+  def describe(_opts), do: "the change names the acting agent's own pairing"
+
+  @impl true
+  def match?(%{role: :agent, pairing_id: id}, %{changeset: changeset}, _opts) when is_binary(id),
+    do: Ash.Changeset.get_attribute(changeset, :paired_agent_id) == id
+
+  def match?(_actor, _context, _opts), do: false
+end

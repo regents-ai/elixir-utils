@@ -2,6 +2,15 @@
 
 ## 0.1.0 (unreleased)
 
+- A paired agent may set and remove its own picture
+  (`set_own_agent_picture/3`, `remove_own_agent_picture/2`, the
+  `RegentAgents.AgentPicture` `:set_own` and `:remove_own` actions), with the same
+  WebP rule and notice as its person's. Only its current pairing may
+  (`RegentAgents.Checks.Paired`), and only for itself: the new
+  `RegentAgents.Checks.OwnPairing` refuses any other agent's picture, even one of
+  the same person. The actor is the site's paired agent (`role: :agent`,
+  `pairing_id`, `privy_user_id`, `wallet_address`). No migration.
+
 - A check-in refused as `agent_not_paired` or `person_not_here` ends its hint
   with "Help: https://patchbay.help/errors/<code>", Patchbay's page for that
   refusal, so an agent can read what to do next.

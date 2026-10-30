@@ -1,5 +1,10 @@
 defmodule RegentPayments.CompletionActor do
-  @moduledoc "Restricted to finishing one already authorized payment, never an account owner."
+  @moduledoc """
+  Restricted to finishing one already authorized payment, never an account owner.
+  `wallet_address` is the wallet that signed it. While the payment is being
+  found, before that wallet is known, `wallet_address` is empty and
+  `wallet_addresses` holds every wallet the actor acts with.
+  """
   defstruct [
     :id,
     :wallet_address,
@@ -14,6 +19,7 @@ defmodule RegentPayments.CompletionActor do
     :payment_payload_digest,
     :payment_target_id,
     :payment_target_type,
+    wallet_addresses: [],
     origin: :page,
     role: :payment_completion
   ]
@@ -31,6 +37,7 @@ defmodule RegentPayments.AgentAuthority do
 
   alias Ash.Error.Changes.InvalidChanges
   alias RegentPayments.CanonicalJSON
+  alias RegentPayments.WalletPayment
 
   @key "__regent_payments_agent_authority"
   @fields ~w(acting_agent_id beneficiary_profile_id human_account_id pairing_id privy_user_id wallet_address)
@@ -132,14 +139,13 @@ defmodule RegentPayments.AgentAuthority do
     with true <- authorized?(intent),
          true <- Map.get(actor, :id) == intent.actor_profile_id,
          {:ok, stored} <- snapshot(intent),
-         true <- is_binary(Map.get(actor, :wallet_address)),
-         true <- original_signer?(stored, intent, String.downcase(actor.wallet_address)) do
+         signer when is_binary(signer) <- original_signer(stored, intent, actor) do
       {:ok,
        struct(
          RegentPayments.CompletionActor,
          Map.merge(stored_fields(stored), %{
            id: actor.id,
-           wallet_address: String.downcase(actor.wallet_address),
+           wallet_address: signer,
            authentication_origin: Map.get(actor, :authentication_origin),
            origin: Map.get(actor, :origin, :page),
            payment_intent_id: intent.id,
@@ -154,12 +160,16 @@ defmodule RegentPayments.AgentAuthority do
     end
   end
 
-  defp original_signer?(%{} = stored, _intent, wallet), do: stored["wallet_address"] == wallet
+  # An agent's intent is completed only by the agent's own wallet; a person's,
+  # by the person whose account links the wallet that paid.
+  defp original_signer(%{"wallet_address" => wallet}, _intent, %{wallet_address: actor_wallet})
+       when is_binary(actor_wallet),
+       do: if(wallet == String.downcase(actor_wallet), do: wallet)
 
-  defp original_signer?(nil, %{receipt: %{payer_address: payer}}, wallet) when is_binary(payer),
-    do: String.downcase(payer) == wallet
+  defp original_signer(nil, %{receipt: %{payer_address: payer}}, actor) when is_binary(payer),
+    do: WalletPayment.signer(WalletPayment.wallets(actor), String.downcase(payer))
 
-  defp original_signer?(_, _, _), do: false
+  defp original_signer(_, _, _), do: nil
 
   defp stored_fields(nil), do: %{}
 
@@ -245,21 +255,22 @@ defmodule RegentPayments.Checks.AuthorityOwner do
   end
 
   def filter(
-        %{role: :payment_completion, wallet_address: wallet, payment_intent_id: id},
+        %{role: :payment_completion, payment_intent_id: id} = actor,
         %{action: %{name: :for_update}},
         _
       ) do
     key = AgentAuthority.key()
+    wallets = RegentPayments.WalletPayment.wallets(actor)
 
     expr(
       id == ^id and status in [:settlement_pending, :settled, :applied] and
         ((is_nil(fragment("? -> ?", payload, ^key)) and
             fragment(
-              "EXISTS (SELECT 1 FROM regent_payments.payment_receipts WHERE payment_intent_id = ? AND lower(payer_address) = ?)",
+              "EXISTS (SELECT 1 FROM regent_payments.payment_receipts WHERE payment_intent_id = ? AND lower(payer_address) = ANY(?))",
               id,
-              ^wallet
+              ^wallets
             )) or
-           fragment("? -> ? ->> 'wallet_address'", payload, ^key) == ^wallet)
+           fragment("? -> ? ->> 'wallet_address'", payload, ^key) in ^wallets)
     )
   end
 

@@ -2,6 +2,17 @@
 
 ## 0.1.0 (unreleased)
 
+- Every wallet a person's account links pays as the account; none is the special
+  one. The actor carries `wallet_addresses`, every wallet the account links,
+  beside the `wallet_address` it signed in with (`WalletPayment.wallets/1`). A
+  page's open wallet signs when the account links it; any other wallet, or none,
+  answers `{:wallet_unavailable, id}`. The `{:wallet_mismatch, id, note}` answer,
+  `mismatch_note/2` and `signed_in/1` are gone. `Purchase.complete/3` finishes a
+  person's payment paid from any of the account's wallets, also for a person
+  signed in without a wallet, and its completion actor's `wallet_address` is the
+  wallet that paid. An agent pays and finishes only with its own wallet, whatever
+  else its actor lists.
+
 - Signed sends and receipt waits now live in `RegentPayments.Operator`, which
   `FeeForward` uses; its own answers are unchanged. The receipt wait is set
   with `config :regent_payments, RegentPayments.Operator, receipt_every_ms:`.

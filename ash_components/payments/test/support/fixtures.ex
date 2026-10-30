@@ -1,10 +1,10 @@
 defmodule RegentPayments.Test.Actor do
   @moduledoc """
   A signed-in profile as a site hands it to the library: its id, the Privy
-  account it belongs to, the wallet it signed in with, and the door it came
-  through.
+  account it belongs to, the wallet it signed in with, every wallet its account
+  links, and the door it came through.
   """
-  defstruct [:id, :privy_user_id, :wallet_address, origin: :page]
+  defstruct [:id, :privy_user_id, :wallet_address, wallet_addresses: [], origin: :page]
 end
 
 defmodule RegentPayments.Test.AgentActor do

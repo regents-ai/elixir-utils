@@ -50,7 +50,6 @@ defmodule RegentPayments.MixProject do
       {:req, "~> 0.5"},
       {:plug_crypto, "~> 2.1"},
       {:regent_chain, path: "../../chain"},
-      {:regent_format, path: "../../format"},
       {:regent_agents, path: "../agents"},
       {:regent_credits, path: "../../credits"},
       {:bandit, "~> 1.5", only: :test},

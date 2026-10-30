@@ -38,6 +38,7 @@ defmodule RegentPayments.Purchase do
   alias RegentPayments.PaymentReceipt
   alias RegentPayments.Steps
   alias RegentPayments.USDC
+  alias RegentPayments.WalletPayment
   alias X402.Facilitator
   alias X402.PaymentSignature
   alias X402.Scheme.ExactEVM
@@ -179,11 +180,21 @@ defmodule RegentPayments.Purchase do
   def complete(actor, id, context \\ %{})
   def complete(%{role: :payment_completion}, _id, _context), do: AgentAuthority.refused()
 
-  def complete(%{id: actor_id, wallet_address: wallet} = actor, id, context)
-      when is_binary(actor_id) and is_binary(wallet) do
+  def complete(%{id: actor_id} = actor, id, context) when is_binary(actor_id) do
+    case WalletPayment.wallets(actor) do
+      [] -> AgentAuthority.refused()
+      wallets -> finish(actor, wallets, id, context)
+    end
+  end
+
+  def complete(_, _, _), do: AgentAuthority.refused()
+
+  # The payment is found by any wallet the actor acts with; `completion/2` then
+  # names the one that paid.
+  defp finish(actor, wallets, id, context) do
     reader = %CompletionActor{
       id: actor.id,
-      wallet_address: String.downcase(actor.wallet_address),
+      wallet_addresses: wallets,
       payment_intent_id: id,
       authentication_origin: Map.get(actor, :authentication_origin),
       origin: Map.get(actor, :origin, :page)
@@ -210,8 +221,6 @@ defmodule RegentPayments.Purchase do
         {:error, error}
     end
   end
-
-  def complete(_, _, _), do: AgentAuthority.refused()
 
   # Paying with Credits
 

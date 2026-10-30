@@ -387,6 +387,46 @@ defmodule RegentPayments.PurchaseTest do
     nothing_sent()
   end
 
+  # Every wallet the account links pays as the account; none is the special one.
+  test "a payment from the account's second linked wallet is the account's", c do
+    second = WalletSigner.new()
+    payer = %{c.payer | wallet_addresses: [c.wallet.address, second.address]}
+    c = %{c | payer: payer, wallet: second}
+
+    {worker, _} = execute(c)
+    assert_receive {:settle, service, _payload}, 3_000
+    send(service, {:reply, 200, settled("4")})
+    assert_receive {:done, ^worker, {:applied, _, receipt}}, 3_000
+    assert receipt.payer_address == second.address
+
+    assert {:applied, _, _} = Purchase.complete(payer, c.intent.id)
+    assert {:error, _} = Purchase.complete(%{payer | wallet_addresses: []}, c.intent.id)
+  end
+
+  test "a person signed in without a wallet pays and finishes with one the account links", c do
+    "0x" <> hex = c.wallet.address
+    payer = %{c.payer | wallet_address: nil, wallet_addresses: ["0x" <> String.upcase(hex)]}
+    c = %{c | payer: payer}
+
+    {worker, _} = execute(c)
+    assert_receive {:settle, service, _payload}, 3_000
+    send(service, {:reply, 200, settled("5")})
+    assert_receive {:done, ^worker, {:applied, _, receipt}}, 3_000
+    assert receipt.payer_address == c.wallet.address
+    assert {:applied, _, _} = Purchase.complete(payer, c.intent.id)
+  end
+
+  test "an agent pays with its own wallet only, whatever else its actor lists", c do
+    stranger = WalletSigner.new()
+    agent = c |> paired_agent() |> Map.put(:wallet_addresses, [stranger.address])
+    intent = prepare(DirectOffer, agent)
+
+    assert {:wallet_unavailable, _} =
+             WalletPayment.pay(agent, intent.id, %{"active_wallet" => stranger.address}, %{})
+
+    nothing_sent()
+  end
+
   test "an x402 payment must come from the wallet the door names", c do
     review = review(c)
     {:ok, found} = Purchase.read(c.payer, c.intent.id)
@@ -429,14 +469,13 @@ defmodule RegentPayments.PurchaseTest do
       nothing_sent()
     end
 
-    test "an active wallet that is not the one signed in with, unsigned and signed", c do
+    test "a wallet the account doesn't link is as if none were open, unsigned and signed", c do
       stranger = WalletSigner.new()
 
-      assert {:wallet_mismatch, _, note} = pay(c, %{"active_wallet" => stranger.address})
-      assert note =~ RegentFormat.short_address(stranger.address)
+      assert {:wallet_unavailable, _} = pay(c, %{"active_wallet" => stranger.address})
 
       review = review(c)
-      assert {:wallet_mismatch, _, _} = pay(c, signed(stranger, review))
+      assert {:wallet_unavailable, _} = pay(c, signed(stranger, review))
       nothing_sent()
     end
 

@@ -1,6 +1,6 @@
 defmodule RegentPayments.WalletPayment do
   @moduledoc """
-  Paying from a page, with the wallet the person signed in with.
+  Paying from a page, with one of the account's own wallets.
 
   The library writes the USDC transfer authorization itself, for one wallet,
   and hands it to the page as a `RegentChain.Review` with a single signature
@@ -9,8 +9,9 @@ defmodule RegentPayments.WalletPayment do
   came from that wallet, and only then puts the payment through
   `RegentPayments.Purchase`.
 
-  The only wallet that may sign is the one the person signed in with, when the
-  page has it open (`signer/2`). Nothing a page sends changes what is signed:
+  The only wallet that may sign is the page's open wallet, when the account
+  links it (`signer/2`); every wallet the account links counts the same, and
+  any other wallet is as if none were open. Nothing a page sends changes what is signed:
   the authorization is worked out again from the stored intent and the signer
   on every call.
 
@@ -19,8 +20,10 @@ defmodule RegentPayments.WalletPayment do
   id and the wallet. A second press signs the same
   authorization, and USDC moves it at most once.
 
-  The actor is the site's signed-in profile: it carries its `id` and the
-  `wallet_address` it signed in with, which is `nil` for a profile without one.
+  The actor is the site's signed-in profile: it carries its `id`, the
+  `wallet_address` it signed in with (`nil` for a profile without one) and
+  `wallet_addresses`, every wallet its account links. An agent acts with its
+  own `wallet_address` only.
   """
 
   alias RegentChain.Review
@@ -52,15 +55,12 @@ defmodule RegentPayments.WalletPayment do
 
   @typedoc """
   Where a page's payment stands. Besides `Purchase`'s own answers: the review
-  its wallet is to sign; no wallet that could sign, on the page or on the
-  profile; the page's wallet is not the one signed in with, with the note to
-  show beside the button; or a signature or payment that was refused, with
-  the reason.
+  its wallet is to sign; none of the account's wallets open on the page; or a
+  signature or payment that was refused, with the reason.
   """
   @type answer ::
           {:review, PaymentIntent.t(), Review.t()}
           | {:wallet_unavailable, Ash.UUID.t()}
-          | {:wallet_mismatch, Ash.UUID.t(), String.t()}
           | {:payment_refused, Ash.UUID.t(), String.t()}
           | Purchase.answer()
 
@@ -68,8 +68,8 @@ defmodule RegentPayments.WalletPayment do
   A page's payment for `actor`'s intent `id`. `params` carries the page's
   `active_wallet` and, once signed, the `review_id` and `signature`.
 
-  Unsigned, it answers with what the signed-in wallet is to sign, when the
-  page has that wallet open; a payment that already went through is read back
+  Unsigned, it answers with what the page's wallet is to sign, when the
+  account links it; a payment that already went through is read back
   without any wallet. Signed, the signature must be that wallet's over what
   the library wrote, and only then is the payment verified and settled.
   `context` travels to the offer that carries the payment out.
@@ -90,19 +90,11 @@ defmodule RegentPayments.WalletPayment do
     end
   end
 
-  # A profile signed in without a wallet, or a page with no wallet open, has
-  # no wallet that could sign.
+  # A page with none of the account's wallets open has no wallet that could
+  # sign; a wallet the account doesn't link counts as none.
   defp wallet(actor, params) do
-    case {signed_in(actor), active_wallet(params)} do
-      {nil, _active} -> :wallet_unavailable
-      {_signed_in, nil} -> :wallet_unavailable
-      {signed_in, active} -> matching_wallet(signed_in, active)
-    end
-  end
-
-  defp matching_wallet(signed_in, active) do
-    case signer(signed_in, active) do
-      nil -> {:wallet_mismatch, mismatch_note(signed_in, active)}
+    case signer(wallets(actor), active_wallet(params)) do
+      nil -> :wallet_unavailable
       signer -> {:ok, signer}
     end
   end
@@ -121,7 +113,6 @@ defmodule RegentPayments.WalletPayment do
   defp review_or_wallet(waiting, wallet), do: no_wallet(waiting, wallet)
 
   defp no_wallet(found, :wallet_unavailable), do: {:wallet_unavailable, found.id}
-  defp no_wallet(found, {:wallet_mismatch, note}), do: {:wallet_mismatch, found.id, note}
 
   @doc "The page's active wallet as it reported it, lowercased, or `nil`."
   @spec active_wallet(map()) :: String.t() | nil
@@ -131,23 +122,28 @@ defmodule RegentPayments.WalletPayment do
 
   def active_wallet(_params), do: nil
 
-  @doc "The wallet `profile` signed in with, lowercased, or `nil` when it has none."
-  @spec signed_in(struct()) :: String.t() | nil
-  def signed_in(%{wallet_address: address}) when is_binary(address), do: String.downcase(address)
-  def signed_in(_profile), do: nil
+  @doc """
+  Every wallet `profile` acts with, lowercased: the one it signed in with and
+  every other wallet its account links. An agent acts with its own wallet
+  only. Empty for a profile without a wallet.
+  """
+  @spec wallets(struct()) :: [String.t()]
+  def wallets(profile) do
+    [Map.get(profile, :wallet_address) | linked(profile)]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.uniq()
+  end
+
+  defp linked(%{role: :agent}), do: []
+  defp linked(profile), do: List.wrap(Map.get(profile, :wallet_addresses))
 
   @doc """
-  The wallet that may sign: the page's `active` wallet when it is the one
-  signed in with. Any other wallet, or none, may not.
+  The wallet that may sign: the page's `active` wallet when it is one of the
+  account's `wallets`. Any other wallet, or none, may not.
   """
-  @spec signer(String.t(), String.t() | nil) :: String.t() | nil
-  def signer(signed_in, active), do: if(active == signed_in, do: active)
-
-  @doc "The note beside the button while the page's wallet is another one, naming both."
-  @spec mismatch_note(String.t(), String.t()) :: String.t()
-  def mismatch_note(signed_in, active) do
-    "You're signed in as #{short(signed_in)}, but your wallet app has #{short(active)} open."
-  end
+  @spec signer([String.t()], String.t() | nil) :: String.t() | nil
+  def signer(wallets, active), do: if(active in wallets, do: active)
 
   @doc "What `signer` signs to pay for `found`, as the page is handed it."
   @spec review(PaymentIntent.t(), String.t()) :: Review.t()
@@ -253,6 +249,4 @@ defmodule RegentPayments.WalletPayment do
     |> Application.fetch_env!(:payment_chain)
     |> Map.put(:chain_id, USDC.chain_id())
   end
-
-  defp short(address), do: RegentFormat.short_address(address)
 end

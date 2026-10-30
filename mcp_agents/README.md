@@ -15,7 +15,8 @@ listed. The library asks
 `POST /api/shared/siwa/hosted` with `Authorization: Bearer <key>`. The SIWA
 service names the calling site from its key, signs everything for that site's
 audience and keeps each site's signers apart, so the key's site must be the
-configured `audience` (`patchbay`, `keyfleet` or `ash-template`). The package
+configured `audience` (`patchbay`, `keyfleet`, `ash-template`, `regents`,
+`autolaunch` or `techtree`). The package
 is disabled by default. Never expose the key to a client.
 
 Every tool answers as a site's browser tools do: `{ok: true, status, data}`

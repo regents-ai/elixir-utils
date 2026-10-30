@@ -73,7 +73,14 @@ defmodule RegentMCPAgents do
                is_binary(uri.host) and uri.path in [nil, ""] and
                is_nil(uri.query) and is_nil(uri.fragment) and is_nil(uri.userinfo) and
                is_binary(key) and Regex.match?(~r/\A[A-Za-z0-9_-]{32,}\z/, key) and
-               opts[:audience] in ["patchbay", "keyfleet", "ash-template"] and
+               opts[:audience] in [
+                 "patchbay",
+                 "keyfleet",
+                 "ash-template",
+                 "regents",
+                 "autolaunch",
+                 "techtree"
+               ] and
                Harness.hosted() != [] and refusal_text?(Keyword.get(opts, :refusal, @refusal)),
              do:
                raise(

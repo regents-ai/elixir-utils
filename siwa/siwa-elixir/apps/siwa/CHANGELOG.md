@@ -18,9 +18,10 @@ All notable changes to `siwa` should be recorded here.
   `:site_problem`, since the site's settings are at fault, not the agent. A
   site must stage its key before the sign-in server that requires it goes live.
   Live siwa-server still reads `x-siwa-audience`, so a site pinned to this
-  change cannot check any agent's request until the joint release in
-  control/rollouts/2026-10-28-site-verify-keys.md.
-  Do not re-pin elixir-utils at or after 12311060 until the shared window.
+  change cannot check any agent's request. It lands on elixir-utils main inside
+  the shared window (control/rollouts/2026-10-28-site-verify-keys.md), just
+  before siwa-server deploys; until then pin this branch's commit only for local
+  testing.
 
 - `Siwa.sign_request/4` signs a request on the agent's side, from the sign-in
   server's answer (receipt, `key_id`, wallet address and chain), without the

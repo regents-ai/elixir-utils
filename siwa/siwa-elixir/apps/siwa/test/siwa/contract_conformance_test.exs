@@ -75,6 +75,12 @@ defmodule Siwa.ContractConformanceTest do
     assert @fixtures["contract_id"] == Contract.id()
   end
 
+  test "each URL's authority is the one listed" do
+    for %{"url" => url, "authority" => authority} <- @fixtures["authorities"] do
+      assert Contract.authority(url) == authority
+    end
+  end
+
   for %{"name" => name} = fixture <- @fixtures["signed"] do
     @fixture fixture
     test "signed #{name}: the site accepts it and the message is the one listed" do
@@ -113,14 +119,16 @@ defmodule Siwa.ContractConformanceTest do
   end
 
   defp send_request(%{"request" => request} = fixture) do
+    url = "https://" <> request["authority"] <> request["path"]
+
     conn =
       case request["body"] do
         nil ->
-          conn(request["method"], request["path"])
+          conn(request["method"], url)
 
         body ->
           {:ok, ^body, conn} =
-            AgentAuthPlug.read_body(conn(request["method"], request["path"], body), [], 65_536)
+            AgentAuthPlug.read_body(conn(request["method"], url, body), [], 65_536)
 
           conn
       end
@@ -138,6 +146,7 @@ defmodule Siwa.ContractConformanceTest do
     %{
       method: request["method"],
       path: request["path"],
+      authority: request["authority"],
       body_digest: Siwa.content_digest_for_body(request["body"]),
       headers: Map.new(request["headers"], &List.to_tuple/1)
     }

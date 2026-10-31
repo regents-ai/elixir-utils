@@ -12,5 +12,15 @@ they differ from the library.
   with the cases a site or the sign-in server refuses and the ones it accepts.
   `Siwa.Contract.Fixtures` explains each field.
 
+`@authority` is the host the request is sent to: lowercase (an IPv6 address in
+brackets), with `:port` only when
+the port is not the scheme's default (`https://Keyfleet.ai/x` is `keyfleet.ai`,
+`http://localhost:4000/x` is `localhost:4000`). A verifier reads it from the request
+it received and accepts only the hosts of the audience's own origins.
+`fixtures.json` lists URLs with their authority (`authorities`). A local or test
+site signs in only when its origin, such as `http://localhost:4000`, is among its
+audience's origins on the sign-in server it uses; otherwise every request is
+refused as `authority_mismatch`.
+
 The Python and JavaScript signers generate their contract resources and test
 fixtures from these two files.

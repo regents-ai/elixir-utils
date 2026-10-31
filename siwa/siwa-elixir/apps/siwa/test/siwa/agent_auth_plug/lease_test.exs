@@ -10,6 +10,8 @@ defmodule Siwa.AgentAuthPlug.LeaseTest do
 
   @secret "lease-test-secret"
   @audience "testapp"
+  # Plug.Test's host: the site's own.
+  @authority "www.example.com"
 
   defmodule SignInServer do
     # Stands in for siwa-server: the full check with the receipt secret, and a
@@ -20,37 +22,46 @@ defmodule Siwa.AgentAuthPlug.LeaseTest do
     def verify_http_request(payload, audience: audience) do
       send(self(), {:sign_in_server, payload})
 
-      {:ok, verified} =
-        RequestAuth.verify_authenticated_request(
-          %{
-            method: payload["method"],
-            path: payload["path"],
-            headers: payload["headers"],
-            body_digest: payload["body_digest"]
-          },
-          secret: "lease-test-secret",
-          audience: audience,
-          wallet_audiences: [audience],
-          replay_store: fn _key, _expires -> :ok end
-        )
+      case RequestAuth.verify_authenticated_request(
+             %{
+               method: payload["method"],
+               path: payload["path"],
+               authority: payload["authority"],
+               headers: payload["headers"],
+               body_digest: payload["body_digest"]
+             },
+             secret: "lease-test-secret",
+             audience: audience,
+             authorities: ["www.example.com"],
+             wallet_audiences: [audience],
+             replay_store: fn _key, _expires -> :ok end
+           ) do
+        {:ok, verified} ->
+          {:ok,
+           %{
+             status: 200,
+             body: %{"code" => "http_envelope_valid", "data" => data(verified.claims, payload)}
+           }}
 
-      claims = verified.claims
+        {:error, reason} ->
+          {status, code, _message} = Siwa.Contract.refusal(reason)
+          {:ok, %{status: status, body: %{"error" => %{"code" => code}}}}
+      end
+    end
 
-      data =
-        %{
-          "walletAddress" => claims["sub"],
-          "chainId" => claims["chain_id"],
-          "keyId" => claims["key_id"],
-          "receiptExpiresAt" => iso8601(claims["exp"]),
-          "principal" => %{"audience" => claims["aud"]}
-        }
-        |> then(fn data ->
-          if payload["lease"],
-            do: Map.put(data, "leaseExpiresAt", iso8601(Process.get(:lease_until_ms))),
-            else: data
-        end)
-
-      {:ok, %{status: 200, body: %{"code" => "http_envelope_valid", "data" => data}}}
+    defp data(claims, payload) do
+      %{
+        "walletAddress" => claims["sub"],
+        "chainId" => claims["chain_id"],
+        "keyId" => claims["key_id"],
+        "receiptExpiresAt" => iso8601(claims["exp"]),
+        "principal" => %{"audience" => claims["aud"]}
+      }
+      |> then(fn data ->
+        if payload["lease"],
+          do: Map.put(data, "leaseExpiresAt", iso8601(Process.get(:lease_until_ms))),
+          else: data
+      end)
     end
 
     defp iso8601(ms), do: ms |> DateTime.from_unix!(:millisecond) |> DateTime.to_iso8601()
@@ -127,18 +138,39 @@ defmodule Siwa.AgentAuthPlug.LeaseTest do
 
     assert send_request(sign("GET", "/updates", nil, receipt, signer), read_only: true).assigns.accepted
 
-    assert {:ok, lease} = Leases.fetch(@audience, receipt, receipt_ends_ms - 1)
+    assert {:ok, lease} = Leases.fetch(@audience, @authority, receipt, receipt_ends_ms - 1)
     assert lease.until_ms == receipt_ends_ms
-    assert Leases.fetch(@audience, receipt, receipt_ends_ms) == :none
+    assert Leases.fetch(@audience, @authority, receipt, receipt_ends_ms) == :none
 
     request = sign("GET", "/updates", nil, receipt, signer)
 
     assert RequestAuth.verify_leased_request(
-             %{method: "GET", path: "/updates", headers: request.headers, body_digest: nil},
+             %{
+               method: "GET",
+               path: "/updates",
+               authority: @authority,
+               headers: request.headers,
+               body_digest: nil
+             },
              lease,
              audience: @audience,
              now: DateTime.from_unix!(lease.until_ms, :millisecond)
            ) == {:error, :invalid_receipt}
+  end
+
+  test "a lease is for one host: a read signed for another goes to the sign-in server",
+       %{signer: signer, receipt: receipt} do
+    assert send_request(sign("GET", "/updates", nil, receipt, signer), read_only: true).assigns.accepted
+
+    assert_received {:sign_in_server, _payload}
+
+    elsewhere = sign("GET", "/updates", nil, receipt, signer, "other.example")
+    assert {:ok, _lease} = Leases.fetch(@audience, @authority, receipt, 0)
+    assert Leases.fetch(@audience, "other.example", receipt, 0) == :none
+
+    assert send_request(elsewhere, [read_only: true], "https://other.example").halted
+    assert_received {:sign_in_server, %{"authority" => "other.example"}}
+    assert_received {:deny, %{siwa_code: "http_signature_invalid", source: :siwa_http}}
   end
 
   test "a request without read_only never uses a lease", %{signer: signer, receipt: receipt} do
@@ -172,10 +204,10 @@ defmodule Siwa.AgentAuthPlug.LeaseTest do
     receipt.token
   end
 
-  defp sign(method, path, body, receipt, signer) do
+  defp sign(method, path, body, receipt, signer, authority \\ @authority) do
     {:ok, signed} =
       RequestAuth.sign_authenticated_request(
-        %{method: method, path: path, body: body, headers: %{}},
+        %{method: method, path: path, authority: authority, body: body, headers: %{}},
         receipt,
         signer,
         secret: @secret,
@@ -186,8 +218,8 @@ defmodule Siwa.AgentAuthPlug.LeaseTest do
     signed
   end
 
-  defp send_request(signed, opts) do
-    conn = Enum.reduce(signed.headers, conn(signed.method, signed.path), &put_header/2)
+  defp send_request(signed, opts, origin \\ "") do
+    conn = Enum.reduce(signed.headers, conn(signed.method, origin <> signed.path), &put_header/2)
 
     conn =
       case signed.body do

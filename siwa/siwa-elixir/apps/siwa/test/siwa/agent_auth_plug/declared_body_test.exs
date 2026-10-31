@@ -24,11 +24,13 @@ defmodule Siwa.AgentAuthPlug.DeclaredBodyTest do
              %{
                method: payload["method"],
                path: payload["path"],
+               authority: payload["authority"],
                headers: payload["headers"],
                body_digest: payload["body_digest"]
              },
              secret: "declared-body-test-secret",
              audience: audience,
+             authorities: ["www.example.com"],
              wallet_audiences: [audience],
              replay_store: fn _key, _expires -> :ok end,
              chain_rpcs: Process.get(:chain_rpcs)
@@ -247,7 +249,7 @@ defmodule Siwa.AgentAuthPlug.DeclaredBodyTest do
   defp sign(method, path, body, receipt, signer) do
     {:ok, signed} =
       RequestAuth.sign_authenticated_request(
-        %{method: method, path: path, body: body, headers: %{}},
+        %{method: method, path: path, authority: "www.example.com", body: body, headers: %{}},
         receipt,
         signer,
         secret: @secret,

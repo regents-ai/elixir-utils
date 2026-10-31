@@ -273,7 +273,8 @@ defmodule RegentMCPAgents do
   # The only requests the hosted signer is ever asked to sign, each for this
   # account's one identity on this site: the identity probe, the check-in, the
   # pairing and Patchbay's free posts, with the permission each needs. The
-  # method and path come from here alone; a tool's arguments reach only the
+  # method and path come from here alone, and every one is sent to this site's
+  # own host (`perform/2` names it); a tool's arguments reach only the
   # pairing's and a post's body, which their own tools build.
   defp signable(:whoami),
     do: {@identity_scope, %{"method" => "GET", "path" => "/api/agents/v1/whoami"}}
@@ -292,6 +293,7 @@ defmodule RegentMCPAgents do
   # only the headers the signer returned.
   defp perform(principal, operation) do
     {required, request} = signable(operation)
+    request = Map.put(request, "authority", Siwa.Contract.authority(RegentOAuth.issuer()))
 
     with {:ok, envelope} <-
            signer_request(principal, %{"operation" => "sign", "request" => request}),

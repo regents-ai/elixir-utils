@@ -4,6 +4,19 @@ All notable changes to `siwa` should be recorded here.
 
 ## Unreleased
 
+- Contract version 2: every signed request covers `@authority`, the host it is
+  sent to (`Siwa.Contract.authority/1`: lowercase, with `:port` only when it is not
+  the scheme's default), after `@path`. Signing needs the request's `authority`
+  (`{:error, :authority_required}` without one).
+  `Siwa.verify_authenticated_request/2` takes `authorities:`, the hosts the
+  audience is served at, and refuses any other as `:authority_mismatch` (401
+  `http_signature_invalid`, "signed request is for another site"), so a request
+  signed for one host cannot be replayed at another. `Siwa.AgentAuthPlug` and
+  `Siwa.Plug` pass the host the request reached; the http-verify payload carries
+  it as `"authority"`. A lease is for the one host the sign-in server accepted:
+  leases are kept per audience, authority and receipt, and
+  `verify_leased_request/3` takes the lease's `:authority`. A request without
+  `@authority` is refused as `:missing_covered_components`.
 - `Siwa.sign_request/4` signs a request on the agent's side, from the sign-in
   server's answer (receipt, `key_id`, wallet address and chain), without the
   receipt's secret. `Siwa.sign_authenticated_request/4` still checks the receipt

@@ -10,12 +10,15 @@ defmodule Siwa.Contract do
   The contract id is the sha-256 of `contract.json`.
 
   Each covered component and signature parameter names the value it comes
-  `from`: `method`, `path`, `receipt`, `key_id`, `created`, `expires`, `nonce`,
-  `wallet_address` or `chain_id`. `query` says how a query string is handled and
-  `refusals` what the sign-in server answers for each verifier refusal.
+  `from`: `method`, `path`, `authority`, `receipt`, `key_id`, `created`,
+  `expires`, `nonce`, `wallet_address` or `chain_id`. `authority` is the host the
+  request is sent to, lowercase, with `:port` only when the port is not the
+  scheme's default (`authority/1`); a site accepts only its own. `query` says how
+  a query string is handled and `refusals` what the sign-in server answers for
+  each verifier refusal.
   """
 
-  @version 1
+  @version 2
   @label "sig1"
   @signature_header "x-siwa-signature"
   @signature_input_header "x-siwa-signature-input"
@@ -23,6 +26,7 @@ defmodule Siwa.Contract do
   @components [
     {"@method", "method"},
     {"@path", "path"},
+    {"@authority", "authority"},
     {"x-siwa-receipt", "receipt"},
     {"x-key-id", "key_id"},
     {"x-timestamp", "created"},
@@ -69,6 +73,7 @@ defmodule Siwa.Contract do
      "missing required covered components"},
     {:invalid_covered_components, 401, "http_signature_input_invalid",
      "invalid covered components"},
+    {:authority_mismatch, 401, "http_signature_invalid", "signed request is for another site"},
     {:request_body_required, 401, "http_body_binding_missing",
      "request body is required when content-digest is present"},
     {:missing_content_digest, 401, "http_body_binding_missing", "missing content-digest header"},
@@ -110,6 +115,25 @@ defmodule Siwa.Contract do
       {_reason, status, code, message} -> {status, code, message}
       nil -> nil
     end
+  end
+
+  @doc """
+  The `@authority` of a request sent to `url` (a URL or origin), or of the
+  request a `Plug.Conn` received: its host, lowercase (an IPv6 address in
+  brackets), with `:port` only when the port is not the scheme's default.
+  """
+  def authority(url) when is_binary(url), do: url |> URI.parse() |> authority()
+
+  def authority(%Plug.Conn{scheme: scheme, host: host, port: port}),
+    do: authority(%URI{scheme: Atom.to_string(scheme), host: host, port: port})
+
+  def authority(%URI{scheme: scheme, host: host, port: port}) when is_binary(host) do
+    host =
+      if String.contains?(host, ":"),
+        do: "[#{String.downcase(host)}]",
+        else: String.downcase(host)
+
+    if port in [nil, URI.default_port(scheme)], do: host, else: "#{host}:#{port}"
   end
 
   @doc "The covered components in signing order, as `{name, from}`; a body adds `body_component/0` last."

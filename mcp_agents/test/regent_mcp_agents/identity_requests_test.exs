@@ -72,7 +72,13 @@ defmodule RegentMCPAgents.IdentityRequestsTest do
       assert %{"result" => %{"isError" => true}} = json(mcp(call, token)), tool
 
       assert_received {:verify, "/api/shared/siwa/http-verify", ["keyfleet"], payload}
-      assert payload == %{"method" => "GET", "path" => path, "headers" => @signed}
+
+      assert payload == %{
+               "method" => "GET",
+               "path" => path,
+               "authority" => "localhost:4000",
+               "headers" => @signed
+             }
 
       # Only this test's own request to the MCP address has told this process
       # it was answered; the in-process request left nothing behind.

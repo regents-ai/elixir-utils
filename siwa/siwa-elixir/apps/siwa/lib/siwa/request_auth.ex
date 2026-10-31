@@ -6,6 +6,11 @@ defmodule Siwa.RequestAuth do
   An agent signs the request's body; a verifier is given only that body's
   digest (`content_digest_for_body/1`), worked out by whoever read the body,
   and `nil` when the request had none.
+
+  Every request names its `authority`, the host it is sent to
+  (`Siwa.Contract.authority/1`). The signer signs it; a verifier accepts it only
+  when it is one of the site's own (`:authorities`), so a request signed for one
+  host is refused at every other.
   """
 
   alias Siwa.{Contract, Receipt, WalletSignature}
@@ -43,7 +48,8 @@ defmodule Siwa.RequestAuth do
     request = normalize_request(request)
     claims = %{"key_id" => key_id, "sub" => wallet_address, "chain_id" => chain_id}
 
-    with :ok <- ensure_request_body(request) do
+    with :ok <- ensure_request_body(request),
+         :ok <- ensure_request_authority(request) do
       sign(request, receipt, claims, signer, opts)
     end
   end
@@ -56,6 +62,7 @@ defmodule Siwa.RequestAuth do
     request = normalize_request(request)
 
     with :ok <- ensure_request_body(request),
+         :ok <- ensure_request_authority(request),
          {:ok, receipt_payload} <- verify_receipt(receipt, opts),
          :ok <- ensure_wallet_receipt(receipt_payload, opts) do
       sign(request, receipt, receipt_payload, signer, opts)
@@ -93,12 +100,19 @@ defmodule Siwa.RequestAuth do
     end
   end
 
+  @doc """
+  Verifies a request with the receipt's secret: the sign-in server's check.
+  `opts[:authorities]` lists the hosts the request's audience is served at; a
+  request whose `authority` is not one of them is refused as
+  `:authority_mismatch`.
+  """
   def verify_authenticated_request(request, opts \\ []) do
     body_digest = request[:body_digest] || request["body_digest"]
     request = normalize_request(request)
 
     with :ok <- ensure_body_digest(body_digest),
          :ok <- ensure_required_headers(request.headers, body_digest),
+         :ok <- ensure_authority(request.authority, Keyword.get(opts, :authorities, [])),
          {:ok, receipt_payload} <-
            verify_receipt(Map.fetch!(request.headers, @receipt_header), opts),
          :ok <- ensure_wallet_receipt(receipt_payload, opts) do
@@ -117,18 +131,19 @@ defmodule Siwa.RequestAuth do
   checked for this site, without the receipt's secret: a site's lease
   (`Siwa.AgentAuthPlug.Leases`). `lease` carries the receipt's exact bytes, the
   claims the sign-in server read from it (`"sub"`, `"key_id"`, `"chain_id"`,
-  `"aud"`) and `:until_ms`, the lease's end in Unix milliseconds, never after the
-  receipt's own.
+  `"aud"`), the `:authority` the sign-in server accepted, and `:until_ms`, the
+  lease's end in Unix milliseconds, never after the receipt's own.
 
-  The request must carry those exact receipt bytes, `opts[:audience]` must be the
-  claims' audience, and the lease must not have ended. Every other check is the
+  The request must carry those exact receipt bytes and be for that authority,
+  `opts[:audience]` must be the claims' audience, and the lease must not have
+  ended. Every other check is the
   sign-in server's own: the signature window, the covered components, the body
   and header bindings, the wallet's signature and single use. Only an ordinary
   wallet's signature is checked here; a smart wallet is never given a lease.
   """
   def verify_leased_request(
         request,
-        %{receipt: receipt, claims: claims, until_ms: until_ms},
+        %{receipt: receipt, claims: claims, authority: authority, until_ms: until_ms},
         opts
       ) do
     body_digest = request[:body_digest] || request["body_digest"]
@@ -141,6 +156,7 @@ defmodule Siwa.RequestAuth do
 
     with :ok <- ensure_body_digest(body_digest),
          :ok <- ensure_required_headers(request.headers, body_digest),
+         :ok <- ensure_authority(request.authority, [authority]),
          :ok <- ensure_leased_receipt(Map.fetch!(request.headers, @receipt_header), receipt),
          {:ok, audience} <- required_audience(opts),
          :ok <- ensure_leased_claims(claims, audience, until_ms, now_ms) do
@@ -170,13 +186,7 @@ defmodule Siwa.RequestAuth do
          :ok <- ensure_body_binding(request.headers, body_digest),
          :ok <- ensure_header_binding(request.headers, claims),
          {:ok, signature} <- decode_signature(Map.fetch!(request.headers, @signature_header)),
-         signing_message <-
-           build_http_signing_message(
-             request.method,
-             request.path,
-             request.headers,
-             parsed_signature_input
-           ),
+         signing_message <- build_http_signing_message(request, parsed_signature_input),
          {:ok, verification_method} <- verify_signature.(signing_message, signature),
          :ok <-
            consume_replay_window(
@@ -204,13 +214,7 @@ defmodule Siwa.RequestAuth do
 
     with {:ok, parsed_signature_input} <-
            parse_signature_input(Map.get(request.headers, @signature_input_header)) do
-      {:ok,
-       build_http_signing_message(
-         request.method,
-         request.path,
-         request.headers,
-         parsed_signature_input
-       )}
+      {:ok, build_http_signing_message(request, parsed_signature_input)}
     end
   end
 
@@ -220,6 +224,7 @@ defmodule Siwa.RequestAuth do
     %{
       method: request[:method] || request["method"] || "GET",
       path: path,
+      authority: request[:authority] || request["authority"],
       body: request[:body] || request["body"],
       headers: lowercase_headers(request[:headers] || request["headers"] || %{})
     }
@@ -273,6 +278,18 @@ defmodule Siwa.RequestAuth do
 
   defp ensure_request_body(%{body: body}) when is_nil(body) or is_binary(body), do: :ok
   defp ensure_request_body(_request), do: {:error, :invalid_request_body}
+
+  defp ensure_request_authority(%{authority: authority})
+       when is_binary(authority) and authority != "",
+       do: :ok
+
+  defp ensure_request_authority(_request), do: {:error, :authority_required}
+
+  defp ensure_authority(authority, authorities) do
+    if is_binary(authority) and authority in authorities,
+      do: :ok,
+      else: {:error, :authority_mismatch}
+  end
 
   defp ensure_body_digest(body_digest) when is_nil(body_digest) or is_binary(body_digest), do: :ok
   defp ensure_body_digest(_body_digest), do: {:error, :invalid_request_body}
@@ -612,14 +629,15 @@ defmodule Siwa.RequestAuth do
 
   defp encode_signature_header(_signature), do: {:error, :invalid_signature}
 
-  defp build_http_signing_message(method, request_path, headers, parsed_signature_input) do
+  defp build_http_signing_message(request, parsed_signature_input) do
     parsed_signature_input.components
     |> Enum.map(fn component ->
       value =
         case Contract.source(component) do
-          "method" -> String.downcase(method)
-          "path" -> request_path
-          _header -> Map.fetch!(headers, component)
+          "method" -> String.downcase(request.method)
+          "path" -> request.path
+          "authority" -> request.authority
+          _header -> Map.fetch!(request.headers, component)
         end
 
       ~s("#{component}": #{value})

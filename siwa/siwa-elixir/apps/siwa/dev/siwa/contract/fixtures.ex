@@ -9,7 +9,10 @@ defmodule Siwa.Contract.Fixtures do
   `refused` cases with the given reason and accepts the `accepted` ones with the
   given principal.
 
-  Request headers are `[name, value]` pairs sorted by name, so a repeated header
+  Every request names its `authority`, the host it was sent to; the verifier is
+  given the site's own hosts in `verify.authorities`. `authorities` lists URLs
+  with the `@authority` a signer writes for each, the same on both sides. Request headers are
+  `[name, value]` pairs sorted by name, so a repeated header
   can be written down. `body` is `null` when the request has none. `query` is the
   site's query setting: `"refuse"`, or `"signed"` when the query string is signed.
   `checked_by` names the first layer that refuses a case: `verifier` (the
@@ -27,6 +30,7 @@ defmodule Siwa.Contract.Fixtures do
   @private_key "0x" <> String.duplicate("0", 63) <> "1"
   @secret "siwa-contract-fixture-secret"
   @audience "siwa-contract-fixture"
+  @authority "fixture.example"
   @chain_id 8453
   @created 1_790_000_000
   @nonce "sig-nonce-fixture"
@@ -34,6 +38,16 @@ defmodule Siwa.Contract.Fixtures do
   @json_body ~s({"a":1})
   @platform_signature_input ~s|sig1=("@method" "@path");created=1790000000;keyid="platform-bot"|
   @platform_signature "sig1=:" <> Base.encode64(:binary.copy(<<1>>, 64)) <> ":"
+  @authority_urls [
+    "https://fixture.example/fixture",
+    "https://Fixture.EXAMPLE/fixture",
+    "https://fixture.example:443/fixture",
+    "https://fixture.example:8443/fixture",
+    "http://localhost:4000/fixture",
+    "http://127.0.0.1:4000/fixture",
+    "http://localhost/fixture",
+    "http://[::1]:4000/fixture"
+  ]
 
   @doc "The fixtures as the JSON written to `siwa/contract/fixtures.json`."
   def json do
@@ -48,7 +62,8 @@ defmodule Siwa.Contract.Fixtures do
       signer: Jason.OrderedObject.new(private_key: @private_key, address: signer.address),
       receipt:
         Jason.OrderedObject.new(secret: @secret, token: receipt.token, payload: receipt.payload),
-      verify: Jason.OrderedObject.new(audience: @audience, now: @created),
+      verify:
+        Jason.OrderedObject.new(audience: @audience, authorities: [@authority], now: @created),
       signing:
         Jason.OrderedObject.new(
           created: @created,
@@ -56,6 +71,11 @@ defmodule Siwa.Contract.Fixtures do
           nonce: @nonce
         ),
       principal: principal(signer),
+      authorities:
+        Enum.map(
+          @authority_urls,
+          &Jason.OrderedObject.new(url: &1, authority: Contract.authority(&1))
+        ),
       signed: [
         signed_case("no_body", no_body, "refuse"),
         signed_case("json_body", json_body, "refuse"),
@@ -75,6 +95,12 @@ defmodule Siwa.Contract.Fixtures do
         ),
         refused_case("wrong_audience", no_body, "verifier", :receipt_binding_mismatch,
           audience: "another-site"
+        ),
+        refused_case(
+          "other_authority",
+          %{no_body | authority: "other.example"},
+          "verifier",
+          :authority_mismatch
         ),
         refused_case("replay", no_body, "siwa_server", :replayed_request, sends: 2),
         refused_case(
@@ -184,6 +210,7 @@ defmodule Siwa.Contract.Fixtures do
     [
       secret: @secret,
       audience: audience,
+      authorities: [@authority],
       wallet_audiences: [audience],
       now: DateTime.from_unix!(@created)
     ]
@@ -218,7 +245,7 @@ defmodule Siwa.Contract.Fixtures do
   defp sign(signer, receipt, method, path, body, created \\ @created) do
     {:ok, signed} =
       RequestAuth.sign_authenticated_request(
-        %{method: method, path: path, body: body, headers: %{}},
+        %{method: method, path: path, authority: @authority, body: body, headers: %{}},
         receipt.token,
         signer,
         Keyword.merge(verify_opts(), created_at: created, nonce: @nonce)
@@ -272,6 +299,7 @@ defmodule Siwa.Contract.Fixtures do
     Jason.OrderedObject.new(
       method: request.method,
       path: request.path,
+      authority: request.authority,
       body: request.body,
       headers: Enum.map(request.headers, &Tuple.to_list/1)
     )

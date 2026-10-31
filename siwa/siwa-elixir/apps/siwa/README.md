@@ -69,6 +69,7 @@ the audience that owns the request.
 request = %{
   method: "POST",
   path: "/v1/platform/actions",
+  authority: Siwa.Contract.authority("https://platform.example"),
   headers: %{"content-type" => "application/json"},
   body: Jason.encode!(%{"action" => "publish"})
 }
@@ -93,8 +94,10 @@ secret. Where that secret is known, `Siwa.sign_authenticated_request/4` takes th
 receipt alone and checks it against the `audience` and `wallet_audiences` it is given
 before signing.
 
-The request signature is bound to the method, path, selected headers, timestamp,
-receipt, and exact body digest.
+The request signature is bound to the method, path, authority, selected headers,
+timestamp, receipt, and exact body digest. The authority is the host the request is
+sent to (`Siwa.Contract.authority/1`: lowercase, with `:port` only when it is not
+the scheme's default), so a request signed for one host is refused at every other.
 
 ## Verify A Protected Request
 
@@ -102,15 +105,18 @@ receipt, and exact body digest.
 {:ok, verified} =
   Siwa.verify_authenticated_request(signed_request,
     audience: "platform",
+    authorities: ["platform.example"],
     wallet_audiences: ["platform"],
     replay_store: Siwa.RequestAuth.ReplayStore,
     chain_rpcs: %{1 => [rpc_url: ethereum_rpc_url], 8453 => [rpc_url: base_rpc_url]}
   )
 ```
 
-`signed_request` carries the method, path and headers, and `body_digest`: the
+`signed_request` carries the method, path, authority and headers, and `body_digest`: the
 `Siwa.content_digest_for_body/1` of the body the verifier's caller read, or
-`nil` for a request without one. The body itself is never passed in.
+`nil` for a request without one. The body itself is never passed in. A request
+whose authority is not one of `authorities`, the hosts the audience is served at,
+is refused as `{:error, :authority_mismatch}`.
 
 Verify the signature before consuming replay state, and keep product permission
 checks outside this package. `verified.verification_method` says how the wallet
@@ -135,6 +141,7 @@ both when verifying and when signing through this library:
 ```elixir
 Siwa.verify_authenticated_request(signed_request,
   audience: "patchbay",
+  authorities: ["patchbay.regents.sh"],
   wallet_audiences: ["patchbay"],
   replay_store: MyDurableReplayStore
 )
@@ -163,7 +170,7 @@ A site marks a route or tool that changes nothing and spends nothing with
 `read_only: true` on `Siwa.AgentAuthPlug`. Such a request asks the sign-in server
 for a lease; for an agent signing with its own key, the server answers with
 `leaseExpiresAt`, never past the receipt's expiry. Until then the site checks
-read-only requests under that receipt itself:
+read-only requests under that receipt, at the host the server accepted, itself:
 
 ```elixir
 Siwa.AgentAuthPlug.call(conn,
@@ -176,7 +183,7 @@ Siwa.AgentAuthPlug.call(conn,
 
 The check on a lease (`Siwa.RequestAuth.verify_leased_request/3`) is the sign-in
 server's own, against the claims the server read, except for the receipt's
-secret: the exact receipt bytes, the audience, the lease's end, the signature
+secret: the exact receipt bytes, the audience, the authority, the lease's end, the signature
 window, covered components, body and header bindings, the key's signature, and
 single use in `Siwa.RequestAuth.ReplayStore`. A smart wallet is never given a
 lease. Every request without `read_only: true` goes to the sign-in server, which

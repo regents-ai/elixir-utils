@@ -16,9 +16,12 @@ defmodule Siwa.RequestAuthTest do
   alias Siwa.RequestAuthTest.SmartWalletSigner
 
   @now DateTime.utc_now() |> DateTime.truncate(:second)
+  # Plug.Test's host, so a signed request can also be sent through a plug.
+  @authority "www.example.com"
   @opts [
     secret: "wallet-test-only",
     audience: "patchbay",
+    authorities: [@authority],
     wallet_audiences: ["patchbay"],
     now: @now
   ]
@@ -43,6 +46,7 @@ defmodule Siwa.RequestAuthTest do
     components = ~w(
       @method
       @path
+      @authority
       x-siwa-receipt
       x-key-id
       x-timestamp
@@ -165,6 +169,34 @@ defmodule Siwa.RequestAuthTest do
     end
 
     assert {:ok, _} = verify(signed, @opts)
+  end
+
+  test "a request is accepted only at one of the site's hosts, and only the one it was signed for",
+       ctx do
+    signed = sign(ctx)
+    elsewhere = %{signed | authority: "other.example"}
+    no_wallet = Siwa.RpcStub.start(Siwa.RpcStub.wallet_answers({true, <<>>}))
+
+    assert {:error, :authority_mismatch} = verify(elsewhere, @opts)
+
+    assert {:error, :signature_invalid} =
+             verify(
+               elsewhere,
+               Keyword.merge(@opts,
+                 authorities: ["other.example", @authority],
+                 chain_rpcs: %{8453 => [rpc_url: no_wallet]}
+               )
+             )
+
+    assert {:ok, _} = verify(signed, @opts)
+
+    assert {:error, :authority_required} =
+             RequestAuth.sign_authenticated_request(
+               Map.delete(request(), :authority),
+               ctx.receipt.token,
+               ctx.signer,
+               @opts
+             )
   end
 
   test "invalid signatures cannot burn a wallet's valid request", ctx do
@@ -419,6 +451,7 @@ defmodule Siwa.RequestAuthTest do
     do: %{
       method: "POST",
       path: "/api/agent/payment-intents?mode=create",
+      authority: @authority,
       body: ~s({"kind":"special_post"}),
       headers: %{}
     }

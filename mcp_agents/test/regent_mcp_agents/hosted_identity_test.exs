@@ -133,12 +133,15 @@ defmodule RegentMCPAgents.HostedIdentityTest do
                      }}
 
     assert Jason.decode!(signed["body"]) == arguments
+    # Signed for this site's own host, the one the request is then sent to.
+    assert signed["authority"] == "localhost:4000"
 
     assert_received {:verify, _headers, ["keyfleet"], _raw, payload}
 
     assert payload == %{
              "method" => "POST",
              "path" => "/api/agents/v1/pair",
+             "authority" => "localhost:4000",
              "headers" => @signed,
              "body_digest" => Siwa.content_digest_for_body(signed["body"])
            }

@@ -17,7 +17,9 @@ defmodule Siwa.AgentAuthPlug do
       its one spelling (`Siwa.content_digest_for_body/1`'s).
 
   It then builds the canonical `POST /api/shared/siwa/http-verify` payload
-  carrying only the signed headers and, for a request with a body, that body's
+  carrying the request's method, path and authority (the host it reached,
+  `Siwa.Contract.authority/1`), only the signed headers and, for a request with
+  a body, that body's
   digest (`Siwa.content_digest_for_body/1`) from the bytes this site read, or
   with `body: :declared` the digest the request declares. The body itself never
   leaves the site. It sends the payload through the app-provided client,
@@ -56,7 +58,7 @@ defmodule Siwa.AgentAuthPlug do
   (`"lease": true` in the payload). For an agent that signs with its own key,
   the server answers with `leaseExpiresAt`: about ten minutes, never past the
   receipt's expiry. Until then, a read-only request under the same receipt at
-  the same audience is checked on this node instead
+  the same audience and authority is checked on this node instead
   (`Siwa.RequestAuth.verify_leased_request/3`): every check the server makes
   except the receipt's secret, against the claims it read, with single use kept
   in `Siwa.RequestAuth.ReplayStore`. A smart wallet is never given a lease.
@@ -303,40 +305,44 @@ defmodule Siwa.AgentAuthPlug do
   defp verify_read(conn, headers, body_digest, opts) do
     audience = Keyword.fetch!(opts, :audience)
     receipt = Map.get(headers, Contract.header_for("receipt"))
+    authority = Contract.authority(conn)
     now = DateTime.utc_now()
 
-    case Leases.fetch(audience, receipt, DateTime.to_unix(now, :millisecond)) do
+    case Leases.fetch(audience, authority, receipt, DateTime.to_unix(now, :millisecond)) do
       {:ok, lease} ->
         check_on_lease(conn, headers, body_digest, lease, now, opts)
 
       :none ->
         with {:ok, data} <-
                verify_envelope(conn, headers, body_digest, opts, %{"lease" => true}) do
-          begin_lease(conn, headers, body_digest, receipt, data, now, opts)
+          begin_lease(conn, headers, body_digest, receipt, authority, data, now, opts)
         end
     end
   end
 
-  # The sign-in server has verified this request. With a lease, the request is
-  # also recorded here as used, so it cannot be served again on the lease.
+  # The sign-in server has verified this request, at this authority. With a
+  # lease, the request is also recorded here as used, so it cannot be served
+  # again on the lease.
   defp begin_lease(
          conn,
          headers,
          body_digest,
          receipt,
+         authority,
          %{"leaseExpiresAt" => lease_expires_at} = data,
          now,
          opts
        ) do
-    with {:ok, lease} <- lease(receipt, data, lease_expires_at) do
+    with {:ok, lease} <- lease(receipt, authority, data, lease_expires_at) do
       :ok = Leases.keep(Keyword.fetch!(opts, :audience), lease)
       check_on_lease(conn, headers, body_digest, lease, now, opts)
     end
   end
 
-  defp begin_lease(_conn, _headers, _body_digest, _receipt, data, _now, _opts), do: {:ok, data}
+  defp begin_lease(_conn, _headers, _body_digest, _receipt, _authority, data, _now, _opts),
+    do: {:ok, data}
 
-  defp lease(receipt, data, lease_expires_at) do
+  defp lease(receipt, authority, data, lease_expires_at) do
     with %{
            "walletAddress" => wallet,
            "keyId" => key_id,
@@ -350,6 +356,7 @@ defmodule Siwa.AgentAuthPlug do
        %{
          receipt: receipt,
          claims: %{"sub" => wallet, "key_id" => key_id, "chain_id" => chain_id, "aud" => audience},
+         authority: authority,
          until_ms:
            min(
              DateTime.to_unix(lease_ends, :millisecond),
@@ -424,6 +431,7 @@ defmodule Siwa.AgentAuthPlug do
     payload = %{
       "method" => conn.method,
       "path" => signed_path(conn),
+      "authority" => Contract.authority(conn),
       "headers" => Map.take(headers, Contract.forwarded_headers())
     }
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Every request the hosted signer signs names this site's own host, the issuer's
+  (`authority`, sign-in contract version 2), so the sign-in service signs it for that
+  host only and every other site refuses it. Needs the sign-in service that accepts
+  `authority` in hosted requests; the two ship in one window.
 - Pairing is on each site's Agents page: `register/1` and `status/1` give
   `account_url` as `<issuer>/account/agents#account-pairing`, and the default
   `refusal:` words say "check its pairing on the Agents page".

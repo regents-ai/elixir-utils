@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.pairing_history/1` (by pairing id, `{:ok, pairing | nil}`) and
+  `RegentAgents.pairing_histories/1` (by Privy user ID, oldest first) read the
+  kept pairings, unpaired ones included, as `id`, `privy_user_id`, `wallet`,
+  `name`, `paired_at` and `revoked_at`, so a site no longer queries
+  `regent_agents.pairing_history` itself.
+
 - `RegentAgents.Signals` `:agent_paired` (`paired_agent_id`, `privy_user_id`) is
   emitted by `PairedAgent` `:record` inside the pairing's transaction, so a site
   can react to a new pairing (Points' "First paired agent") with `signals_in`.

@@ -179,6 +179,12 @@ transaction: work it queues commits with the pairing, and a listener that fails
 refuses it. `paired_agent_id` is also the pairing's row in
 `regent_agents.pairing_history`, which outlives an unpair.
 
+A site reads that history with `RegentAgents.pairing_history(id)`, which gives
+`{:ok, pairing}` or `{:ok, nil}`, and `RegentAgents.pairing_histories(privy_user_id)`,
+which gives every pairing that person has had, oldest first. Each pairing has
+`id`, `privy_user_id`, `wallet`, `name`, `paired_at` and `revoked_at` (nil while
+it lasts).
+
 ## Migrations
 
 Regents alone runs `RegentAgents.Migrator.up(Regents.Repo)` in its release step.

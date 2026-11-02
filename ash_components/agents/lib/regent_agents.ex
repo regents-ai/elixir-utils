@@ -36,6 +36,8 @@ defmodule RegentAgents do
 
   use Ash.Domain, otp_app: :regent_agents
 
+  import Ecto.Query, only: [from: 2, where: 3, order_by: 3]
+
   resources do
     resource RegentAgents.PairingCode do
       define :issue_pairing_code, action: :issue
@@ -69,6 +71,48 @@ defmodule RegentAgents do
   """
   @spec topic(String.t()) :: String.t()
   def topic(privy_user_id), do: "regent_agents:" <> privy_user_id
+
+  @typedoc """
+  One pairing, kept after an unpair: `revoked_at` is nil while it lasts. Its `id`
+  is the `paired_agent_id` of the `:agent_paired` signal.
+  """
+  @type pairing :: %{
+          id: Ecto.UUID.t(),
+          privy_user_id: String.t(),
+          wallet: String.t(),
+          name: String.t(),
+          paired_at: DateTime.t(),
+          revoked_at: DateTime.t() | nil
+        }
+
+  @doc "The pairing with this id, whether or not it has been unpaired."
+  @spec pairing_history(Ecto.UUID.t()) :: {:ok, pairing() | nil}
+  def pairing_history(id) do
+    {:ok, repo(nil, :read).one(where(pairings(), [h], h.id == type(^id, Ecto.UUID)))}
+  end
+
+  @doc "Every pairing a person has had, oldest first, unpaired ones included."
+  @spec pairing_histories(String.t()) :: {:ok, [pairing()]}
+  def pairing_histories(privy_user_id) do
+    pairings()
+    |> where([h], h.privy_user_id == ^privy_user_id)
+    |> order_by([h], asc: h.paired_at, asc: h.id)
+    |> repo(nil, :read).all()
+    |> then(&{:ok, &1})
+  end
+
+  defp pairings do
+    from h in "pairing_history",
+      prefix: "regent_agents",
+      select: %{
+        id: type(h.id, Ecto.UUID),
+        privy_user_id: h.privy_user_id,
+        wallet: h.wallet,
+        name: h.name,
+        paired_at: type(h.paired_at, :utc_datetime_usec),
+        revoked_at: type(h.revoked_at, :utc_datetime_usec)
+      }
+  end
 
   @doc false
   def channel, do: "regent_agents"

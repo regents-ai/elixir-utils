@@ -240,6 +240,39 @@ defmodule RegentAgents.PairingTest do
     refute_received {:paired, _, _, _}
   end
 
+  # Invariant: sites read a pairing's owner, wallet and dates through these two
+  # calls, and an unpaired pairing is still found, marked revoked.
+  test "a pairing's history is read by its id and by its person, unpaired ones included" do
+    owner = person("kept")
+
+    first =
+      RegentAgents.pair_agent!(code!(owner), "First", :hermes, actor: %Agent{wallet: @wallet})
+
+    RegentAgents.pair_agent!(code!(person("someone-else")), "Theirs", :codex,
+      actor: %Agent{wallet: @other_wallet}
+    )
+
+    assert {:ok, %{revoked_at: nil} = kept} = RegentAgents.pairing_history(first.id)
+
+    assert %{id: id, privy_user_id: "did:privy:kept", wallet: @wallet, name: "First"} = kept
+    assert id == first.id
+    assert %DateTime{} = kept.paired_at
+
+    :ok = RegentAgents.unpair_agent(first, actor: owner)
+
+    second =
+      RegentAgents.pair_agent!(code!(owner), "Second", :muse, actor: %Agent{wallet: @wallet})
+
+    assert {:ok, %{revoked_at: %DateTime{}}} = RegentAgents.pairing_history(first.id)
+
+    assert {:ok, [%{id: ^id, revoked_at: %DateTime{}}, %{name: "Second", revoked_at: nil} = now]} =
+             RegentAgents.pairing_histories(owner.privy_user_id)
+
+    assert now.id == second.id
+    assert {:ok, nil} = RegentAgents.pairing_history(Ecto.UUID.generate())
+    assert {:ok, []} = RegentAgents.pairing_histories("did:privy:nobody")
+  end
+
   test "a person's agents need a signed-in person" do
     assert {:error, _error} = RegentAgents.list_my_agents(actor: %Agent{wallet: @wallet})
     assert {:error, _error} = RegentAgents.issue_pairing_code(actor: %Agent{wallet: @wallet})

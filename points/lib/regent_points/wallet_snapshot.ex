@@ -92,4 +92,28 @@ defmodule RegentPoints.WalletSnapshot do
       authorize_if actor_attribute_equals(:role, :system)
     end
   end
+
+  @doc """
+  The account whose verified wallets held `wallet`, a lowercase address, at
+  `at`. Only the last version of each account at that moment counts, so a
+  wallet removed before `at` has no owner then. No version, or more than one
+  account holding the wallet, is `:unknown_owner`; it never answers with a
+  later or current owner.
+  """
+  @spec owner(String.t(), DateTime.t()) :: {:ok, integer()} | {:error, :unknown_owner}
+  def owner(wallet, %DateTime{} = at) do
+    sql = """
+    WITH latest AS (
+      SELECT DISTINCT ON (account_id) account_id, wallet_addresses
+      FROM regent_points.wallet_snapshots WHERE effective_at <= $2
+      ORDER BY account_id, effective_at DESC, id DESC
+    )
+    SELECT account_id FROM latest WHERE $1 = ANY(wallet_addresses)
+    """
+
+    case RegentPoints.repo(nil, :read).query!(sql, [wallet, DateTime.to_naive(at)]) do
+      %{rows: [[account_id]]} -> {:ok, account_id}
+      %{rows: _none_or_many} -> {:error, :unknown_owner}
+    end
+  end
 end

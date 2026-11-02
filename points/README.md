@@ -179,6 +179,10 @@ reconstructed from current account state and are refused. Conflicting wallet own
 at period end also refuses the tally. Snapshot creation is serialized, so concurrent
 jobs reuse the same saved block. The generated capture migration wraps its statements
 in one SQL block because Postgrex prepares one statement per call.
+`RegentPoints.WalletSnapshot.owner/2` reads the same history for a site's
+source action: the account holding a wallet at the moment of the event, or
+`:unknown_owner` when no account, or more than one, held it then. It never
+answers with the wallet's current owner.
 
 Refunding a Credits purchase does not remove the Points it earned, including when
 verification happens after the refund (Sean, 9 October 2026).

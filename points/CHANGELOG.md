@@ -9,3 +9,9 @@
   places, as `RegentFormat` does since its exact-at-any-size change.
 - `RegentPoints.Amount.format/1` shows Points the one Regent way
   (`RegentFormat.amount/1`): "1,234.56", "0.400".
+- `RegentPoints.WalletSnapshot.owner/2` answers the account holding a wallet at
+  a moment, from the wallet history: `{:ok, account_id}`, or
+  `{:error, :unknown_owner}` when no account or more than one held it then. A
+  wallet removed earlier has no owner, and the current owner is never used.
+  The package's tests now run on an isolated local database
+  (`regent_points_test_local*`), created on first run.

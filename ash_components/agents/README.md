@@ -171,6 +171,14 @@ site's own reader key from the SIWA service:
 config :regent_agents, activity_read_token: System.get_env("SIWA_ACTIVITY_READ_TOKEN")
 ```
 
+Pairing tells the site through `RegentAgents.Signals`: `:agent_paired`, with
+`paired_agent_id` and `privy_user_id`, inside the pairing's own transaction. The
+site listens with `signals_in` on a resource of its own and adds the
+`:ash_signals` compiler. A listener with the default delivery runs in that
+transaction: work it queues commits with the pairing, and a listener that fails
+refuses it. `paired_agent_id` is also the pairing's row in
+`regent_agents.pairing_history`, which outlives an unpair.
+
 ## Migrations
 
 Regents alone runs `RegentAgents.Migrator.up(Regents.Repo)` in its release step.

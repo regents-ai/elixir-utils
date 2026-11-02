@@ -219,6 +219,27 @@ defmodule RegentAgents.PairingTest do
              )
   end
 
+  test "a pairing tells the site once, inside its own transaction, naming its history row" do
+    owner = person("told")
+    code = code!(owner)
+
+    assert {:ok, agent} =
+             RegentAgents.pair_agent(code, "Told", :codex, actor: %Agent{wallet: @wallet})
+
+    assert_received {:paired, id, "did:privy:told", true} when id == agent.id
+
+    assert %{rows: [[_row]]} =
+             RegentAgents.TestRepo.query!(
+               "SELECT 1 FROM regent_agents.pairing_history WHERE id = $1 AND privy_user_id = $2",
+               [Ecto.UUID.dump!(agent.id), owner.privy_user_id]
+             )
+
+    assert {:error, _used} =
+             RegentAgents.pair_agent(code, "Again", :muse, actor: %Agent{wallet: @other_wallet})
+
+    refute_received {:paired, _, _, _}
+  end
+
   test "a person's agents need a signed-in person" do
     assert {:error, _error} = RegentAgents.list_my_agents(actor: %Agent{wallet: @wallet})
     assert {:error, _error} = RegentAgents.issue_pairing_code(actor: %Agent{wallet: @wallet})

@@ -250,6 +250,9 @@ defmodule RegentAgents.PairedAgent do
       change set_attribute(:wallet, actor(:wallet))
       change set_attribute(:human_id, actor(:human_id))
       change set_attribute(:same_person_agent_count, actor(:same_person_agent_count))
+
+      emit RegentAgents.Signals, :agent_paired,
+        fields: [paired_agent_id: :id, privy_user_id: :privy_user_id]
     end
 
     read :by_wallet do

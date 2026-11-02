@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.Signals` `:agent_paired` (`paired_agent_id`, `privy_user_id`) is
+  emitted by `PairedAgent` `:record` inside the pairing's transaction, so a site
+  can react to a new pairing (Points' "First paired agent") with `signals_in`.
+  A site that does not listen is unchanged.
+
 - Pairing is on each site's Agents page, at `/account/agents#account-pairing`, as
   ash-template has it. The `pairing_failed`, `agent_limit` and `agent_not_paired`
   hints and the `not_paired` next step say "on their Agents page", and a hosted

@@ -36,6 +36,7 @@ defmodule RegentPoints.MixProject do
       {:simple_sat, "~> 0.1"},
       {:oban, "~> 2.24"},
       {:phoenix_pubsub, "~> 2.1"},
+      {:telemetry, "~> 1.3"},
       {:decimal, "~> 2.0 or ~> 3.0"},
       {:regent_format, path: "../format"},
       {:postgrex, "~> 0.22"},

@@ -3,6 +3,10 @@ defmodule RegentPoints.TallyPeriods do
   Daily cron on the one designated owner site (Regents): queues one tally for each
   account that earned points in an ended 30-day program period and has no bonus for it yet.
   A tally that ran out of attempts is queued again by the next day's run.
+
+  Every run ends with `[:regent_points, :tally_periods, :finished]`, measuring the
+  tallies it queued (`accounts`), with the ended `periods` as metadata. It is emitted
+  when there is nothing to queue too, so the site can tell when the cron last ran.
   """
   use Oban.Worker,
     queue: :points,
@@ -15,10 +19,18 @@ defmodule RegentPoints.TallyPeriods do
   @impl true
   def perform(_job) do
     program = Rules.program()
+    periods = Rules.ended_periods(DateTime.utc_now())
 
-    for period <- Rules.ended_periods(DateTime.utc_now()), id <- untallied(program, period) do
-      Oban.insert!(TallyAccount.new(%{program_id: program, account_id: id, period: period}))
-    end
+    queued =
+      for period <- periods, id <- untallied(program, period) do
+        Oban.insert!(TallyAccount.new(%{program_id: program, account_id: id, period: period}))
+      end
+
+    :telemetry.execute(
+      [:regent_points, :tally_periods, :finished],
+      %{accounts: length(queued)},
+      %{periods: periods}
+    )
 
     :ok
   end

@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentPoints.TallyPeriods` emits `[:regent_points, :tally_periods, :finished]`
+  at the end of every daily run, with the tallies it queued (`accounts`) and the
+  ended `periods`, including a run with nothing to queue, so the owner site can
+  export when the tally last ran.
 - `RegentPoints.Amount.format/1` is exact at any size. It divided micro-Points
   by 1,000,000 with Decimal's 34-digit precision, so an amount longer than 34
   digits was rounded half up and a page could show more Points than there are

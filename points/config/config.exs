@@ -13,3 +13,5 @@ config :regent_points, RegentPoints.Repo,
   database: "regent_points_dev",
   username: System.get_env("USER"),
   pool_size: 5
+
+if config_env() == :test, do: import_config("test.exs")

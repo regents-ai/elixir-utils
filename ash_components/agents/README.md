@@ -185,6 +185,11 @@ which gives every pairing that person has had, oldest first. Each pairing has
 `id`, `privy_user_id`, `wallet`, `name`, `paired_at` and `revoked_at` (nil while
 it lasts).
 
+`RegentAgents.pairing_at(wallet, at)` gives the one pairing that held a
+lowercase wallet at `at`, or `{:error, :unknown_owner}` when none or more than
+one did. A site credits an agent's own-wallet action, such as a bid or a stake,
+to that pairing's person.
+
 ## Migrations
 
 Regents alone runs `RegentAgents.Migrator.up(Regents.Repo)` in its release step.

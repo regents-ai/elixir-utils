@@ -273,6 +273,45 @@ defmodule RegentAgents.PairingTest do
     assert {:ok, []} = RegentAgents.pairing_histories("did:privy:nobody")
   end
 
+  # Invariant: a wallet's action at a moment belongs to the one pairing that held
+  # the wallet then, never to a later or current pairing, and never to a guess
+  # between two.
+  test "a wallet's pairing at a moment is the one pairing holding it then" do
+    owner = person("at")
+
+    first =
+      RegentAgents.pair_agent!(code!(owner), "Then", :hermes, actor: %Agent{wallet: @wallet})
+
+    {:ok, %{paired_at: paired_at}} = RegentAgents.pairing_history(first.id)
+
+    assert {:ok, %{id: id, privy_user_id: "did:privy:at"}} =
+             RegentAgents.pairing_at(@wallet, paired_at)
+
+    assert id == first.id
+
+    before = DateTime.add(paired_at, -1, :microsecond)
+    assert {:error, :unknown_owner} = RegentAgents.pairing_at(@wallet, before)
+    assert {:error, :unknown_owner} = RegentAgents.pairing_at(@other_wallet, paired_at)
+
+    :ok = RegentAgents.unpair_agent(first, actor: owner)
+    {:ok, %{revoked_at: revoked_at}} = RegentAgents.pairing_history(first.id)
+    assert {:error, :unknown_owner} = RegentAgents.pairing_at(@wallet, revoked_at)
+
+    assert {:ok, %{id: ^id}} =
+             RegentAgents.pairing_at(@wallet, DateTime.add(revoked_at, -1, :microsecond))
+
+    RegentAgents.TestRepo.query!(
+      """
+      INSERT INTO regent_agents.pairing_history
+        (id, privy_user_id, wallet, name, harness, paired_at, last_contact_at)
+      VALUES ($1, 'did:privy:overlap', $2, 'Overlap', 'codex', $3, $3)
+      """,
+      [Ecto.UUID.bingenerate(), @wallet, DateTime.add(paired_at, -1, :hour)]
+    )
+
+    assert {:error, :unknown_owner} = RegentAgents.pairing_at(@wallet, paired_at)
+  end
+
   test "a person's agents need a signed-in person" do
     assert {:error, _error} = RegentAgents.list_my_agents(actor: %Agent{wallet: @wallet})
     assert {:error, _error} = RegentAgents.issue_pairing_code(actor: %Agent{wallet: @wallet})

@@ -19,7 +19,10 @@ config :regent_agents, RegentAgents.TestRepo,
   username: System.get_env("USER"),
   database: "regent_agents_test_local#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: 8
+  pool_size: 8,
+  # The shared database runs in UTC, and pairing history stamps an unpair with
+  # the database clock, so tests run in UTC whatever this machine's server uses.
+  parameters: [timezone: "UTC"]
 
 config :logger, level: :warning
 

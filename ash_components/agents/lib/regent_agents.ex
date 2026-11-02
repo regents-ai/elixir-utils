@@ -36,7 +36,7 @@ defmodule RegentAgents do
 
   use Ash.Domain, otp_app: :regent_agents
 
-  import Ecto.Query, only: [from: 2, where: 3, order_by: 3]
+  import Ecto.Query, only: [from: 2, where: 3, order_by: 3, limit: 2]
 
   resources do
     resource RegentAgents.PairingCode do
@@ -99,6 +99,24 @@ defmodule RegentAgents do
     |> order_by([h], asc: h.paired_at, asc: h.id)
     |> repo(nil, :read).all()
     |> then(&{:ok, &1})
+  end
+
+  @doc """
+  The pairing that held `wallet`, a lowercase address, at `at`: paired at or
+  before `at` and not unpaired by then. No such pairing, or more than one, is
+  `:unknown_owner`; it never answers with a later or current pairing.
+  """
+  @spec pairing_at(String.t(), DateTime.t()) :: {:ok, pairing()} | {:error, :unknown_owner}
+  def pairing_at(wallet, %DateTime{} = at) do
+    pairings()
+    |> where([h], h.wallet == ^wallet and h.paired_at <= type(^at, :utc_datetime_usec))
+    |> where([h], is_nil(h.revoked_at) or h.revoked_at > type(^at, :utc_datetime_usec))
+    |> limit(2)
+    |> repo(nil, :read).all()
+    |> case do
+      [pairing] -> {:ok, pairing}
+      _none_or_many -> {:error, :unknown_owner}
+    end
   end
 
   defp pairings do

@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.pairing_at/2` gives the one pairing that held a wallet at a
+  moment (paired by then, not yet unpaired), or `{:error, :unknown_owner}` when
+  none or more than one did, the same answer as `RegentPoints.WalletSnapshot.owner/2`.
+  It never answers with a later or current pairing.
+
 - `RegentAgents.pairing_history/1` (by pairing id, `{:ok, pairing | nil}`) and
   `RegentAgents.pairing_histories/1` (by Privy user ID, oldest first) read the
   kept pairings, unpaired ones included, as `id`, `privy_user_id`, `wallet`,

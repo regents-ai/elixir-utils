@@ -24,6 +24,12 @@ defmodule RegentCredits.TestChain do
     :ets.insert(__MODULE__, {:logs, logs})
   end
 
+  @doc "Reads of `method` (`:block_number` or `:logs`) give `{:error, reason}` from now on."
+  def fail(method, reason), do: :ets.insert(__MODULE__, {{:fail, method}, reason})
+
+  @doc "Every read answers again."
+  def answer, do: :ets.match_delete(__MODULE__, {{:fail, :_}, :_})
+
   @doc "Every stretch of blocks a log search asked for, as `{from, to}`, lowest first."
   def asked do
     __MODULE__
@@ -101,30 +107,41 @@ defmodule RegentCredits.TestChain do
 
   @impl true
   def block_number(%{chain_id: chain_id}) do
-    name = if chain_id == Chains.chain(:base).chain_id, do: :base, else: :ethereum
-    [{_key, number}] = :ets.lookup(__MODULE__, {:head, name})
-    {:ok, number}
+    with :ok <- answering(:block_number) do
+      name = if chain_id == Chains.chain(:base).chain_id, do: :base, else: :ethereum
+      [{_key, number}] = :ets.lookup(__MODULE__, {:head, name})
+      {:ok, number}
+    end
   end
 
   @impl true
   def logs(_chain, %{"address" => address, "topics" => topics} = filter) do
-    {:ok, from} = RegentChain.Abi.quantity(filter["fromBlock"])
-    {:ok, to} = RegentChain.Abi.quantity(filter["toBlock"])
-    :ets.insert(__MODULE__, {{:asked, from}, to})
+    with :ok <- answering(:logs) do
+      {:ok, from} = RegentChain.Abi.quantity(filter["fromBlock"])
+      {:ok, to} = RegentChain.Abi.quantity(filter["toBlock"])
+      :ets.insert(__MODULE__, {{:asked, from}, to})
 
-    logs =
-      case :ets.lookup(__MODULE__, :logs) do
-        [{:logs, logs}] -> logs
-        [] -> []
-      end
+      logs =
+        case :ets.lookup(__MODULE__, :logs) do
+          [{:logs, logs}] -> logs
+          [] -> []
+        end
 
-    {:ok,
-     Enum.filter(logs, fn log ->
-       {:ok, block} = RegentChain.Abi.quantity(log["blockNumber"])
+      {:ok,
+       Enum.filter(logs, fn log ->
+         {:ok, block} = RegentChain.Abi.quantity(log["blockNumber"])
 
-       block in from..to and RegentChain.Address.equal?(log["address"], address) and
-         Enum.take(log["topics"], length(topics)) == topics
-     end)}
+         block in from..to and RegentChain.Address.equal?(log["address"], address) and
+           Enum.take(log["topics"], length(topics)) == topics
+       end)}
+    end
+  end
+
+  defp answering(method) do
+    case :ets.lookup(__MODULE__, {:fail, method}) do
+      [{_key, reason}] -> {:error, reason}
+      [] -> :ok
+    end
   end
 
   defp read(hash, field) do

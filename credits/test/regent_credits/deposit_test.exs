@@ -97,6 +97,54 @@ defmodule RegentCredits.DepositTest do
            |> Enum.all?(fn [{_from, to}, {next, _to}] -> next == to + 1 end)
   end
 
+  describe "the Oban read when a read fails" do
+    setup do
+      on_exit(&TestChain.answer/0)
+    end
+
+    defp run_the_job do
+      RegentCredits.DepositCursor.AshOban.Worker.Read.perform(%Oban.Job{
+        args: %{"primary_key" => %{"chain" => "base"}}
+      })
+    end
+
+    # Why it snoozes: a provider blip saved as a crash hides a real reader failure
+    # on the crash list.
+    for method <- [:block_number, :logs] do
+      test "a node that does not answer #{method} waits a minute, and the deposit is credited once it answers" do
+        owner = person()
+        payer = wallet()
+        {:ok, _moved} = RegentCredits.attach_wallets(owner, [payer], actor: site())
+        TestChain.logs([TestChain.deposit_log(payer, 25_000_000, @start + 1)])
+        TestChain.head(:base, @start + 3_100)
+        before = Ash.get!(DepositCursor, :base, authorize?: false).next_block
+
+        TestChain.fail(unquote(method), %Req.TransportError{reason: :timeout})
+
+        log =
+          ExUnit.CaptureLog.capture_log(fn ->
+            assert {:snooze, 60} = run_the_job()
+          end)
+
+        assert log =~ "the node did not answer"
+        assert Ash.get!(DepositCursor, :base, authorize?: false).next_block == before
+        assert Decimal.eq?(purchased(owner), 0)
+
+        TestChain.answer()
+        assert :ok = run_the_job()
+        assert Decimal.eq?(purchased(owner), 25)
+      end
+    end
+
+    @tag :capture_log
+    test "a node that refuses one block is still an error, so the job records it" do
+      TestChain.head(:base, @start + 3_100)
+      TestChain.fail(:logs, {:rpc, %{"code" => -32_000, "message" => "refused"}})
+
+      assert_raise Ash.Error.Unknown, fn -> run_the_job() end
+    end
+  end
+
   test "a deposit and the page's report of it credit once between them, whichever comes first" do
     owner = person()
     payer = wallet()

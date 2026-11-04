@@ -14,8 +14,10 @@ defmodule RegentCredits.Deposits do
   stretch once read is never read again, so the reader assumes Base neither
   reorganizes nor fills in missing logs more than 3,000 blocks below its
   newest block. A stretch the
-  node refuses (`{:rpc, error}`) is read again in halves, down to one block;
-  any other error ends the run, and the next run starts from the cursor.
+  node refuses (`{:rpc, error}`) is read again in halves, down to one block. A
+  node that does not answer is one warning line and a minute's wait, never an
+  error, so a provider blip is never saved as a crash. Any other error ends the
+  run; a later run starts from the cursor.
 
   Two sites reading the same chain at once credit each deposit once between
   them; the one that finds the cursor already past its stretch stops there.
@@ -27,6 +29,9 @@ defmodule RegentCredits.Deposits do
   database transaction; each deposit is credited in a transaction of its own.
   """
 
+  require Logger
+
+  alias AshOban.Errors.SnoozeJob
   alias RegentChain.{Abi, Address, Event}
   alias RegentCredits.{Chains, DepositCursor, Purchase}
 
@@ -34,6 +39,7 @@ defmodule RegentCredits.Deposits do
   @direct_deposit "0x" <> String.duplicate("0", 64)
   @span 500
   @behind 3_000
+  @no_answer_wait 60
 
   @doc "Credits the chain's deposits since its cursor, up to 3,000 blocks behind the newest."
   @spec read(:base) :: :ok | {:error, term()}
@@ -42,8 +48,9 @@ defmodule RegentCredits.Deposits do
     cursor = Ash.get!(DepositCursor, name, authorize?: false)
     chain = Chains.chain(name)
 
-    with {:ok, head} <- Chains.client().block_number(chain) do
-      read_on(cursor, chain, head - @behind, @span)
+    case Chains.client().block_number(chain) do
+      {:ok, head} -> read_on(cursor, chain, head - @behind, @span)
+      {:error, reason} -> stopped(reason)
     end
   end
 
@@ -64,8 +71,17 @@ defmodule RegentCredits.Deposits do
         read_on(cursor, chain, last, div(span, 2))
 
       {:error, reason} ->
-        {:error, reason}
+        stopped(reason)
     end
+  end
+
+  # `RegentCredits.ChainClient`: a node that refused answered, and every other
+  # error means no answer.
+  defp stopped({:rpc, _refused} = reason), do: {:error, reason}
+
+  defp stopped(_no_answer) do
+    Logger.warning("Credits deposits: the node did not answer, reading again in a minute")
+    {:error, SnoozeJob.exception(snooze_for: @no_answer_wait)}
   end
 
   defp filter(from, to) do

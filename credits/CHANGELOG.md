@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- The Oban read of Credits deposits treats a node that does not answer as one
+  warning line and a minute's wait (`AshOban.Errors.SnoozeJob`), not an error, so
+  a provider blip is no longer saved as a crash. A node that refuses a read, and
+  every other failure, is still an error.
+
 - `ash_double_entry` 1.1 and `ash_money` 0.2.7. Credits never deletes a transfer,
   so 1.1.1's change to deleting one does not reach it, and the tables are the same.
 

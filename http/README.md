@@ -47,6 +47,25 @@ A request line names the error's module, up to four immediate causes and a SHA-2
 of the request id; a job logs once, when it gives up, never on an attempt it will
 retry. Messages, bodies and job arguments are never written.
 
+## Crash saving
+
+`RegentHttp.ErrorSaving` keeps ErrorTracker saving crashes after one save fails. A
+site that uses ErrorTracker attaches it once at start:
+
+```elixir
+# application.ex
+:ok = RegentHttp.ErrorSaving.attach()
+```
+
+A save that fails, such as one that finds every database connection in use, writes
+one warning line naming the exception (`Crash not saved: DBConnection.ConnectionError`)
+and the next crash is saved as usual. That one crash stays off the error list.
+
+## Tests
+
+The crash saving tests use a local Postgres database, `regent_http_test` plus
+`MIX_TEST_PARTITION`, which `mix test` creates when it is missing.
+
 ## Test injection
 
 ```elixir

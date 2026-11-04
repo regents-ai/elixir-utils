@@ -10,6 +10,9 @@
   request id), and `attach_jobs/0` writes one line for each Oban job that runs out of
   attempts, from Oban's own `[:oban, :job, :exception]` event. Error messages, request
   bodies and job arguments never reach the log.
+- `RegentHttp.ErrorSaving`: a site calls `attach/0` once at start, and a crash that
+  ErrorTracker cannot save is one warning line instead of removing ErrorTracker's
+  handler until the next restart. ErrorTracker is an optional dependency.
 
 ### Fixed
 

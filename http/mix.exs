@@ -9,6 +9,7 @@ defmodule RegentHttp.MixProject do
       app: :regent_http,
       version: @version,
       elixir: "~> 1.20",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       description: @description,
       package: package(),
@@ -31,11 +32,18 @@ defmodule RegentHttp.MixProject do
     ]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
+
   defp deps do
     [
       {:req, "~> 0.7"},
       {:plug, "~> 1.16"},
       {:telemetry, "~> 1.0"},
+      # RegentHttp.ErrorSaving runs ErrorTracker's handlers; a site brings ErrorTracker.
+      {:error_tracker, "~> 0.9", optional: true},
+      {:oban, "~> 2.24", only: :test},
+      {:postgrex, "~> 0.22", only: :test},
       {:stream_data, "~> 1.1", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
@@ -60,6 +68,7 @@ defmodule RegentHttp.MixProject do
 
   defp aliases do
     [
+      test: ["ecto.create --quiet", "test"],
       check: [
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",

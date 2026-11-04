@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- `ash_double_entry` 1.1 and `ash_money` 0.2.7. Credits never deletes a transfer,
+  so 1.1.1's change to deleting one does not reach it, and the tables are the same.
+
 - `RegentCredits.Deposits` reads up to 3,000 Base blocks behind the newest,
   not 300, so it stays ten minutes behind once Base makes five blocks a second
   (Denim, 5 November 2026 18:00 UTC).

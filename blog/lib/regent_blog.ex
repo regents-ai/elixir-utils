@@ -75,7 +75,8 @@ defmodule RegentBlog do
           strikethrough: true,
           tasklist: true,
           footnotes: true,
-          math_dollars: true
+          math_dollars: true,
+          inline_code_attributes: false
         ],
         render: [unsafe: false]
       )

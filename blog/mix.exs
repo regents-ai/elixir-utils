@@ -8,7 +8,7 @@ defmodule RegentBlog.MixProject do
       elixir: "~> 1.20",
       description: "File-authored Markdown blog catalogs for Regent Phoenix products",
       deps: [
-        {:mdex, "== 0.14.2"},
+        {:mdex, "== 0.14.6"},
         {:yaml_elixir, "~> 2.12"},
         {:floki, "~> 0.38"},
         {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}

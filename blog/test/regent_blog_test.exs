@@ -26,4 +26,10 @@ defmodule RegentBlogTest do
     assert post.markdown == "## Hello\n\nSome *words*."
     assert post.html =~ "<em>words</em>"
   end
+
+  test "text in braces after inline code stays in the post" do
+    {html, _toc} = RegentBlog.markdown("Call `run`{limit: 3} once.")
+
+    assert html =~ "{limit: 3}"
+  end
 end

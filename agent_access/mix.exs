@@ -10,7 +10,7 @@ defmodule RegentAgentAccess.MixProject do
         "Accept negotiation, Vary merging and recovery responses for Regent Phoenix products",
       deps: [
         {:phoenix, "~> 1.8"},
-        {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
+        {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
       ],
       usage_rules: usage_rules(),
       aliases: [

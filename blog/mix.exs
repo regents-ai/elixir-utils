@@ -11,7 +11,7 @@ defmodule RegentBlog.MixProject do
         {:mdex, "== 0.14.6"},
         {:yaml_elixir, "~> 2.12"},
         {:floki, "~> 0.38"},
-        {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
+        {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
       ],
       usage_rules: usage_rules(),
       aliases: [

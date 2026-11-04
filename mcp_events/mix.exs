@@ -10,7 +10,7 @@ defmodule RegentMCPEvents.MixProject do
       deps: [
         {:jason, "~> 1.4"},
         {:mint, "~> 1.11"},
-        {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
+        {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
       ],
       usage_rules: usage_rules(),
       aliases: [

@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- The catalog no longer has `identity.ens_selected`, `keyfleet.integration.marimo` or
+  `keyfleet.integration.ddocs`. The milestone catalog totals 290. Sean, 4 Nov 2026.
 - `RegentPoints.TallyPeriods` emits `[:regent_points, :tally_periods, :finished]`
   at the end of every daily run, with the tallies it queued (`accounts`) and the
   ended `periods`, including a run with nothing to queue, so the owner site can

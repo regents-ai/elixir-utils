@@ -10,7 +10,6 @@ defmodule RegentPoints.Rules do
     {"social.x", 10, "X account linked"},
     {"social.github", 10, "GitHub account linked"},
     {"social.farcaster", 10, "Farcaster account linked"},
-    {"identity.ens_selected", 25, "Verified ENS name chosen"},
     {"agent.activated", 25, "First paired agent"},
     {"patchbay.first_report", 10, "First Patchbay report"},
     {"patchbay.first_reply", 10, "First Patchbay reply"},
@@ -23,8 +22,6 @@ defmodule RegentPoints.Rules do
     {"keyfleet.first_authorized_agent", 10, "First agent authorized on Keyfleet"},
     {"keyfleet.first_message", 5, "First Keyfleet message"},
     {"keyfleet.first_vote", 10, "First Keyfleet vote"},
-    {"keyfleet.integration.marimo", 10, "Marimo used with Keyfleet"},
-    {"keyfleet.integration.ddocs", 10, "dDocs used with Keyfleet"},
     {"keyfleet.integration.twigpine", 10, "Twigpine used with Keyfleet"},
     {"keyfleet.integration.activegraph", 10, "ActiveGraph used with Keyfleet"},
     {"template.first_agent_note", 10, "First note written by your agent"}

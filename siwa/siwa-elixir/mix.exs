@@ -6,7 +6,7 @@ defmodule SiwaElixir.MixProject do
       apps_path: "apps",
       version: "0.1.1",
       start_permanent: Mix.env() == :prod,
-      deps: [{:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}],
+      deps: [{:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}],
       usage_rules: usage_rules(),
       aliases: aliases()
     ]

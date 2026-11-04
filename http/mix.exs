@@ -38,7 +38,7 @@ defmodule RegentHttp.MixProject do
       {:telemetry, "~> 1.0"},
       {:stream_data, "~> 1.1", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
     ]
   end
 

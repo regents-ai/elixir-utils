@@ -40,7 +40,7 @@ defmodule AgentEns.MixProject do
       {:siwa, path: "../siwa/siwa-elixir/apps/siwa"},
       {:ex_keccak, "~> 0.7.8"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
     ]
   end
 

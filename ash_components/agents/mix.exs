@@ -48,7 +48,7 @@ defmodule RegentAgents.MixProject do
       {:siwa, path: "../../siwa/siwa-elixir/apps/siwa"},
       {:regent_format, path: "../../format"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false},
+      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
       {:credo_ash, path: "../../credo_ash", only: [:dev, :test], runtime: false}

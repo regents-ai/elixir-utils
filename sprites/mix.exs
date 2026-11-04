@@ -37,7 +37,7 @@ defmodule RegentSprites.MixProject do
       {:jason, "~> 1.4"},
       {:plug, "~> 1.16", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.2.8", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
     ]
   end
 

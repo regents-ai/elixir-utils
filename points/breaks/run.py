@@ -6,7 +6,8 @@ Run from anywhere, with the package's Elixir and Postgres on PATH:
     python3 -I breaks/run.py 06 C2      # only these
 
 Each break changes one piece of the library or the migration, runs
-test/regent_points/spending_test.exs, then writes the original back. A break the
+test/regent_points/spending_test.exs and test/review3/findings_test.exs, then writes
+the original back. A break the
 tests stay green on is MISSED. Breaks in the migration run on their own test
 database, made fresh before each and removed after. It is not part of `mix check`.
 
@@ -21,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TESTS = ["test/regent_points/spending_test.exs", "--seed", "0"]
+TESTS = ["test/regent_points/spending_test.exs", "test/review3/findings_test.exs", "--seed", "0"]
 
 AWD = "lib/regent_points/award.ex"
 INT = "lib/regent_points/intake_worker.ex"
@@ -29,6 +30,7 @@ REV = "lib/regent_points/reverse.ex"
 RUL = "lib/regent_points/rules.ex"
 STO = "lib/regent_points/store.ex"
 MIG = "priv/repo/migrations/20261106172400_payment_once.exs"
+TOP = "lib/regent_points.ex"
 
 PAYER = 'text?(payer, ~r/\\A0x[0-9a-f]{40}\\z/)'
 PRICE = 'text?(price, ~r/\\A(0|[1-9][0-9]{0,29})(\\.[0-9]{1,30})?\\z/)'
@@ -137,7 +139,7 @@ BREAKS = [
      "text?(token, ~r/\\A0x[0-9a-f]{40}\\z/) and", "is_binary(token) and"),
     ("36 the block number is unchecked", INT, "is_integer(block) and\n      block > 0", "block != nil"),
     ("37 the log index is unchecked", INT, "is_integer(log) and log >= 0", "log != nil"),
-    ("38 a blank price source", INT, "text?(source, ~r/\\S/)", "is_binary(source)"),
+    ("38 a blank price source", INT, " and source =~ ~r/\\S/", ""),
     ("39 a clipped payment is not marked used", AWD, USES,
      '(base > 0 and (kind != :payment or reason == "qualified"))'),
     ("40 a spending rule earns without approval", RUL,
@@ -154,12 +156,28 @@ BREAKS = [
      "0),\n    do: used_payment?(original)", "0),\n    do: false"),
     ("44 no ceiling on a payment's dollars", INT,
      'facts.evidence["usd_micros"] > @most_usd_micros ->', "false ->"),
+    ("45 no limit on the price source's length", INT, "byte_size(source) <= 200 and ", ""),
+    ("46 the price source's limit counts letters, not bytes", INT,
+     "byte_size(source) <= 200", "String.length(source) <= 200"),
+    ("47 a price source may hold a NUL byte", INT,
+     " and\n        not String.contains?(source, <<0>>)", ""),
+    ("48 a price source need not be valid UTF-8", INT, "String.valid?(source) and", ""),
+    ("49 the source id after a take-back joins the two keys", TOP,
+     'do: "after:" <> RegentPoints.Store.digest({source_event_key, correction_key})',
+     'do: source_event_key <> "/after/" <> correction_key'),
+    ("50 the source id after a take-back ignores the correction key", TOP,
+     'do: "after:" <> RegentPoints.Store.digest({source_event_key, correction_key})',
+     'do: "after:" <> RegentPoints.Store.digest({source_event_key})'),
+    ("51 a pinned note's source id ignores the site", TOP,
+     'do: "pinned_note:" <> RegentPoints.Store.digest({site_app, note_id})',
+     'do: "pinned_note:" <> RegentPoints.Store.digest({note_id})'),
     ("D1 the database allows a 0 correction of any entry", MIG,
      "(points_micro_delta = 0 AND category = 'spending')", "points_micro_delta = 0"),
     ("D2 the database allows many 0 corrections of one entry", MIG,
      "create unique_index(:point_entries,", "create index(:point_entries,"),
-    ("D3 the database allows many rows for one payment", MIG,
-     "create unique_index(:point_cap_usage,", "create index(:point_cap_usage,"),
+    ("D3 the database allows a payment's row on any account, program or day", MIG,
+     "\"cap_scope NOT LIKE 'payment:%' OR (account_id = 0 AND program_id = 'lifetime' AND "
+     "window_start = '1970-01-01')\"", '"true"'),
 ]
 
 

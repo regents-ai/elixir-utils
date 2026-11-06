@@ -1,4 +1,5 @@
-ExUnit.start()
+# The races (test/review3/races_test.exs) run on their own database, by hand.
+ExUnit.start(exclude: [:races])
 config = RegentPoints.Repo.config()
 
 unless Regex.match?(~r/^regent_points_test_[a-z0-9_]+$/, Keyword.fetch!(config, :database)),

@@ -1,7 +1,8 @@
 defmodule RegentPoints.Repo.Migrations.PaymentOnce do
   @moduledoc """
   One payment pays dollar points once: one row per payment on account 0, counting
-  at most one award (RegentPoints.Award). A correction may be 0, only of a
+  at most one award (RegentPoints.Award). A payment's row has one fixed account,
+  program and window, so the allowance identity alone keeps one row per payment. A correction may be 0, only of a
   spending award and at most once, to free a 0-point spending award's payment
   (RegentPoints.Reverse).
 
@@ -22,9 +23,9 @@ defmodule RegentPoints.Repo.Migrations.PaymentOnce do
              prefix: @prefix
            )
 
-    create unique_index(:point_cap_usage, [:cap_scope],
-             name: "point_cap_usage_payment_row_once_index",
-             where: "cap_scope LIKE 'payment:%'",
+    create constraint(:point_cap_usage, :payment_row,
+             check:
+               "cap_scope NOT LIKE 'payment:%' OR (account_id = 0 AND program_id = 'lifetime' AND window_start = '1970-01-01')",
              prefix: @prefix
            )
 
@@ -66,12 +67,7 @@ defmodule RegentPoints.Repo.Migrations.PaymentOnce do
              prefix: @prefix
            )
 
-    drop(
-      index(:point_cap_usage, [:cap_scope],
-        name: "point_cap_usage_payment_row_once_index",
-        prefix: @prefix
-      )
-    )
+    drop(constraint(:point_cap_usage, :payment_row, prefix: @prefix))
 
     drop(constraint(:point_cap_usage, :payment_once, prefix: @prefix))
   end

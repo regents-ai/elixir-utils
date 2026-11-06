@@ -15,9 +15,24 @@ defmodule RegentPoints do
   made again: the wrong account's own report, or the right account's report that
   earned 0 as a repeat while the wrong account held the payment. One source id
   is one award, so a freed payment is never reported again under its old id.
+
+  It is `"after:" <> RegentPoints.Store.digest({source_event_key, correction_key})`:
+  70 bytes, however long either key is and however many take-backs came before.
   """
-  def source_after_take_back(source_event_key, correction_key),
-    do: source_event_key <> "/after/" <> correction_key
+  def source_after_take_back(source_event_key, correction_key)
+      when is_binary(source_event_key) and is_binary(correction_key),
+      do: "after:" <> RegentPoints.Store.digest({source_event_key, correction_key})
+
+  @doc """
+  The source id of a pinned note's spending (`template.pinned_note_spend`), from the
+  reporting site's own app name and the note's id. Every site reports this rule as
+  `source_app: "template"`, so the site's name inside the id keeps two sites' notes
+  apart. A site never builds this id itself.
+
+  It is `"pinned_note:" <> RegentPoints.Store.digest({site_app, note_id})`: 76 bytes.
+  """
+  def pinned_note_source(site_app, note_id) when is_binary(site_app) and is_binary(note_id),
+    do: "pinned_note:" <> RegentPoints.Store.digest({site_app, note_id})
 
   resources do
     resource RegentPoints.PeriodSnapshot

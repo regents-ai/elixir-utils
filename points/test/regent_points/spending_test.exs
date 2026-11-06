@@ -326,17 +326,22 @@ defmodule RegentPoints.SpendingTest do
   test "the database keeps one row per payment" do
     row = Store.payment(payment(5_000_000), @midnight)
 
-    assert {:error, _} =
-             RegentPoints.reserve_cap(
-               %{
-                 account_id: person(),
-                 program_id: row.program_id,
-                 cap_scope: row.cap_scope,
-                 window_start: row.window_start,
-                 window_end: row.window_end
-               },
-               actor: Store.system()
-             )
+    fields = %{
+      account_id: row.account_id,
+      program_id: row.program_id,
+      cap_scope: row.cap_scope,
+      window_start: row.window_start,
+      window_end: row.window_end
+    }
+
+    for other <- [
+          %{account_id: person()},
+          %{program_id: Rules.program()},
+          %{window_start: DateTime.to_date(@midnight)}
+        ] do
+      assert {:error, _} =
+               RegentPoints.reserve_cap(Map.merge(fields, other), actor: Store.system())
+    end
   end
 
   property "the holder bonus applies to dollar points like any others" do
@@ -393,6 +398,9 @@ defmodule RegentPoints.SpendingTest do
               {"price_usd", "1e0"},
               {"price_usd", "one"},
               {"price_source", " "},
+              {"price_source", String.duplicate("é", 101)},
+              {"price_source", "face\0value"},
+              {"price_source", <<255, 65>>},
               {"chain_id", "8453"},
               {"chain_id", 0},
               {"block_number", 0},
@@ -410,6 +418,10 @@ defmodule RegentPoints.SpendingTest do
 
     assert spent(account) == []
     assert earned(pay("patchbay.payment_spend", account, @midnight, good)) == 5_000_000
+
+    # A price source of 200 bytes is the longest kept.
+    long = payment(5_000_000, %{"price_source" => String.duplicate("é", 100)})
+    assert earned(pay("patchbay.payment_spend", account, @midnight, long)) == 5_000_000
   end
 
   test "a payment's dollars follow from its token amount, decimals and price, rounded down" do

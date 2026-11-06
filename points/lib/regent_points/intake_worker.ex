@@ -100,11 +100,17 @@ defmodule RegentPoints.IntakeWorker do
       text?(token, ~r/\A0x[0-9a-f]{40}\z/) and text?(amount, ~r/\A[1-9][0-9]{0,77}\z/) and
       is_integer(decimals) and decimals in 0..255 and
       text?(price, ~r/\A(0|[1-9][0-9]{0,29})(\.[0-9]{1,30})?\z/) and price =~ ~r/[1-9]/ and
-      text?(source, ~r/\S/) and is_integer(chain) and chain > 0 and is_integer(block) and
+      price_source?(source) and is_integer(chain) and chain > 0 and is_integer(block) and
       block > 0 and text?(tx, ~r/\A0x[0-9a-f]{64}\z/) and is_integer(log) and log >= 0
   end
 
   defp paid?(_evidence), do: false
+
+  # Where the price came from: readable text the database can store, at most 200 bytes.
+  defp price_source?(source),
+    do:
+      is_binary(source) and byte_size(source) <= 200 and String.valid?(source) and
+        not String.contains?(source, <<0>>) and source =~ ~r/\S/
 
   # The payment's dollars in millionths, rounded down, from a price of at most 30
   # digits each side of the dot:

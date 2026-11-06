@@ -15,15 +15,18 @@
   them, or with another figure, is rejected as `invalid_spending_evidence`; one above
   10^15 as `spending_amount_too_large`; one reported by a site other than the app in the
   rule's id as `ineligible_spending_app`. A price has at most 30 digits each side of
-  the dot. A payment counts on its block's UTC day and
+  the dot; a price source is valid UTF-8 of at most 200 bytes with no NUL byte. A payment counts on its block's UTC day and
   pays once whichever rule, site or account reports it, used by its first report even
   when clipped to nothing; a full take-back, or a 0 correction of a 0-point award that
   used it, frees it for the right account, reported again under
-  `RegentPoints.source_after_take_back/2`. The holder
+  `RegentPoints.source_after_take_back/2` (`"after:"` and a 64-hex digest, 70 bytes).
+  Every site reports a pinned note's spending as `template` under
+  `RegentPoints.pinned_note_source/2`, which carries the site's own name. The holder
   bonus applies as to any points. `Rules.base_micro/2` takes the rule and the evidence.
   `RegentPoints.summary/1` also answers `dollars_today`. Migration `20261106172400` adds
-  the `payment_once` check and one row per payment on `point_cap_usage`, and lets a
-  correction be 0 only for a spending award, once per award (`entry_direction` and
+  the `payment_once` and `payment_row` checks on `point_cap_usage` (one row per payment,
+  counting one award), and lets a correction row of category `spending` be 0, once per
+  award (`entry_direction` and
   `point_entries_one_zero_correction_index`); no new column. It applies in one
   transaction and waits at most 5 seconds for a lock. Rolling it back is refused once a
   0 correction exists.

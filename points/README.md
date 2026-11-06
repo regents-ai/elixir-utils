@@ -100,7 +100,8 @@ token's lowercase address), `"token_amount"` (its atomic amount as a digit strin
 most 78 digits), `"token_decimals"` (the token's decimals, 0 to 255), `"price_usd"`
 (the dollar price of one whole token, a decimal string of at most 30 digits each
 side of the dot, `"1"` at face value),
-`"price_source"` (where the price came from), `"chain_id"`, `"block_number"`,
+`"price_source"` (where the price came from: valid UTF-8 text of at most 200 bytes,
+with no NUL byte), `"chain_id"`, `"block_number"`,
 `"tx_hash"` (lowercase) and `"log_index"`. The award saves all of them. `"usd_micros"`
 must equal `floor(token_amount × price_usd × 10^6 / 10^token_decimals)`, worked out
 exactly in whole numbers, so every award can be checked from its own record; any
@@ -127,7 +128,17 @@ award, so a payment freed by a take-back is reported again under a new source id
 `RegentPoints.source_after_take_back(source_event_key, correction_key)`: the
 source id of the report being made again (the wrong account's own report, or the
 right account's report that earned 0 as a repeat while the wrong account held the
-payment) and the take-back's correction key. A site never builds that id itself.
+payment) and the take-back's correction key. It is
+`"after:" <> RegentPoints.Store.digest({source_event_key, correction_key})`, 70 bytes
+however long either key is and however many take-backs came before. A site never
+builds that id itself.
+
+Every site that has pinned notes reports the template's rule
+`template.pinned_note_spend` as `source_app: "template"`, the app in the rule's id, so
+the source id carries the site's own name:
+`RegentPoints.pinned_note_source(site_app, note_id)`, which is
+`"pinned_note:" <> RegentPoints.Store.digest({site_app, note_id})` (76 bytes). Two
+sites' note 42 are then two sources. A site never builds that id itself.
 
 What an account already has at the start earns its one-time points at the start,
 without the person doing anything: the account (`account.activated`), its linked X,
@@ -193,8 +204,11 @@ full (`RegentPoints.reverse`) free the payment, so it can be reported again for 
 right account under `RegentPoints.source_after_take_back/2`; the wrong account's day
 stays used, and a partial take-back frees nothing. A payment that earned 0 for the
 wrong account is freed by a correction of 0; only the award that used the payment
-can be corrected by 0, once. The database holds one row per payment, lets a
-correction be 0 only for a spending award, and allows one 0 correction per award. A spending rule is reported only by its own site: `source_app` is the app in
+can be corrected by 0, once. The database holds one row per payment (a payment's
+row is always account 0, program `lifetime`, window 1970-01-01, check `payment_row`, so
+the allowance identity keeps it single), lets a correction row be 0 only when its own
+category is `spending`, and allows one 0 correction per award. That the 0 correction is
+of the award that used the payment is the library's rule, not the database's. A spending rule is reported only by its own site: `source_app` is the app in
 the rule's id. Each kind of spending has its own rule, so each is switched on by itself:
 `keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend` and
 `autolaunch.auction_bid_spend`. Autolaunch token buys earn no dollar points. Money that can still

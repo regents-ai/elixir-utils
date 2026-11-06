@@ -2,7 +2,7 @@ defmodule RegentPoints.Store do
   @moduledoc false
   require Ash.Query
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, CapUsage, Entry, Event, PeriodBonus, Rules}
+  alias RegentPoints.{Account, Entry, Event, PeriodBonus, Rules}
   @system %{role: :system}
 
   def system, do: @system
@@ -79,20 +79,17 @@ defmodule RegentPoints.Store do
   end
 
   def cap(account_id, program, scope, {start, stop}) do
-    row =
-      Points.reserve_cap!(
-        %{
-          account_id: account_id,
-          program_id: program,
-          cap_scope: scope,
-          window_start: start,
-          window_end: stop
-        },
-        actor: @system
-      )
-
-    query = CapUsage |> Ash.Query.filter(id == ^row.id) |> Ash.Query.lock(:for_update)
-    Points.read_caps!(query: query, actor: @system) |> List.first()
+    # The upsert locks the row it finds (ON CONFLICT DO UPDATE ... WHERE false).
+    Points.reserve_cap!(
+      %{
+        account_id: account_id,
+        program_id: program,
+        cap_scope: scope,
+        window_start: start,
+        window_end: stop
+      },
+      actor: @system
+    )
   end
 
   # One payment's row on account 0, by chain, transaction and log: a spending

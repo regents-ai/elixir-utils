@@ -8,6 +8,8 @@ defmodule RegentPoints.MixProject do
       elixir: "~> 1.20",
       elixirc_paths: paths(Mix.env()),
       deps: deps(),
+      # Loaded by the review's tests themselves.
+      test_ignore_filters: ["test/review3/helpers.exs"],
       aliases: [
         check: [
           "compile --warnings-as-errors",

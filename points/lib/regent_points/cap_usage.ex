@@ -20,14 +20,12 @@ defmodule RegentPoints.CapUsage do
       check_constraint(:award_count, "payment_once",
         check: "cap_scope NOT LIKE 'payment:%' OR award_count <= 1"
       )
-    end
 
-    custom_indexes do
-      # One row per payment, whatever account, program or window names it.
-      index([:cap_scope],
-        unique: true,
-        where: "cap_scope LIKE 'payment:%'",
-        name: "point_cap_usage_payment_row_once_index"
+      # A payment's row has one fixed account, program and window, so the
+      # allowance identity holds one row per payment.
+      check_constraint(:cap_scope, "payment_row",
+        check:
+          "cap_scope NOT LIKE 'payment:%' OR (account_id = 0 AND program_id = 'lifetime' AND window_start = '1970-01-01')"
       )
     end
   end

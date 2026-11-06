@@ -7,7 +7,7 @@
   host only and every other site refuses it. Needs the sign-in service that accepts
   `authority` in hosted requests; the two ship in one window.
 - Pairing is on each site's Agents page: `register/1` and `status/1` give
-  `account_url` as `<issuer>/account/agents#account-pairing`, and the default
+  `account_url` as `<issuer>/account/agents`, and the default
   `refusal:` words say "check its pairing on the Agents page".
 - Regents, Autolaunch and Techtree can switch hosted identity on: `configure!/0`
   accepts the audiences `regents`, `autolaunch` and `techtree` beside

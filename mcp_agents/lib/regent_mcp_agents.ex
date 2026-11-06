@@ -110,7 +110,7 @@ defmodule RegentMCPAgents do
       {:ok,
        %{
          identity_id: connection_key(principal),
-         account_url: RegentOAuth.issuer() <> "/account/agents#account-pairing"
+         account_url: RegentOAuth.issuer() <> "/account/agents"
        }}
     end
   end
@@ -143,7 +143,7 @@ defmodule RegentMCPAgents do
        %{
          identity_id: connection_key(principal),
          paired: not is_nil(data["pairing"]),
-         account_url: RegentOAuth.issuer() <> "/account/agents#account-pairing"
+         account_url: RegentOAuth.issuer() <> "/account/agents"
        }}
     end
   end

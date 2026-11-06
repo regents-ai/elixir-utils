@@ -10,7 +10,9 @@
   the start line when a pairing link names a page.
   The ten-minute line, the `SIWA_AGENT_HOME` folder, the Codex, Grok Bot,
   Hermes and Muse lines and the `setup:` option are gone from the message;
-  each runtime's skill says them now. ChatGPT and Claude are unchanged.
+  each runtime's skill says them now. ChatGPT and Claude's message names the
+  Agents page as `<origin>/account/agents`; pairing moved into the Pair New
+  Agent window, so the `#account-pairing` section is gone.
 
 - `RegentAgents.pairings_held_from_before/1` lists each person's earliest
   pairing made before a moment that is still paired, one per person, for the

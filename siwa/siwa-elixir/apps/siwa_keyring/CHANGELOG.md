@@ -4,6 +4,17 @@ All notable changes to `siwa_keyring` should be recorded here.
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-05
+
+### Changed
+
+- `SiwaKeyring.HostedIdentity` no longer keeps files. `new/1` makes a hosted
+  connection's key encrypted with a password, the caller stores it, and
+  `signer/2` signs with it. A site that runs on more than one machine keeps the
+  keys in its database. `ensure/1` and `signer/1`, which wrote and read files
+  beside the key store, are gone.
+- `SiwaKeyring.Keystore.new_wallet/0` makes a wallet without storing it.
+
 ## 0.2.0 - 2026-10-27
 
 ### Removed

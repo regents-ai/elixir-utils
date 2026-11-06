@@ -55,6 +55,18 @@ action = %{
 {:ok, signed} = SiwaKeyring.sign_transaction(action)
 ```
 
+## Hosted Connections
+
+A hosted connection's key is kept by the caller, for example in a database row,
+so every machine of a site signs with the same key:
+
+```elixir
+{:ok, encrypted} = SiwaKeyring.HostedIdentity.new(password)
+{:ok, signer} = SiwaKeyring.HostedIdentity.signer(encrypted, password)
+```
+
+The key is encrypted with AES-256-GCM, signs only messages, and is never exported.
+
 ## Security Boundaries
 
 - The key store is used only inside the process that holds it; there are no HTTP routes.

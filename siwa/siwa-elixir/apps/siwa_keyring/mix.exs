@@ -1,7 +1,7 @@
 defmodule SiwaKeyring.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @description "Encrypted key store and in-process signing for SIWA flows."
 
   def project do

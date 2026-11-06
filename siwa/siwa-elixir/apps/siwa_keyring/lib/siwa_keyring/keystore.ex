@@ -3,17 +3,22 @@ defmodule SiwaKeyring.Keystore do
 
   def create_wallet(config) do
     with {:ok, _path} <- wallet_path(config),
-         {:ok, signer} <- LocalSigner.new() do
-      wallet = %{
-        private_key: signer.private_key,
-        public_key: signer.public_key,
-        address: signer.address,
-        signer_type: signer.signer_type
-      }
+         {:ok, wallet} <- new_wallet(),
+         :ok <- persist_wallet(config, wallet) do
+      {:ok, public_wallet(wallet)}
+    end
+  end
 
-      with :ok <- persist_wallet(config, wallet) do
-        {:ok, public_wallet(wallet)}
-      end
+  @doc "A new wallet with its private key, not yet stored anywhere."
+  def new_wallet do
+    with {:ok, signer} <- LocalSigner.new() do
+      {:ok,
+       %{
+         private_key: signer.private_key,
+         public_key: signer.public_key,
+         address: signer.address,
+         signer_type: signer.signer_type
+       }}
     end
   end
 

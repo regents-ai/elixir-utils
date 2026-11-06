@@ -57,7 +57,34 @@ defmodule RegentPoints.IntakeWorker do
     if Rules.activity_app?(facts.source_app), do: :ok, else: {:error, :ineligible_activity_app}
   end
 
+  # A spending award names the one payment it is for and the dollars it proves.
+  defp eligible_source(%{"category" => "spending"}, %{evidence: evidence}) do
+    if paid?(evidence), do: :ok, else: {:error, :invalid_spending_evidence}
+  end
+
   defp eligible_source(_, _), do: :ok
+
+  defp paid?(%{
+         "usd_micros" => usd,
+         "token" => token,
+         "token_amount" => amount,
+         "price_usd" => price,
+         "price_source" => source,
+         "chain_id" => chain,
+         "block_number" => block,
+         "tx_hash" => tx,
+         "log_index" => log
+       }) do
+    is_integer(usd) and usd > 0 and text?(token, ~r/\A0x[0-9a-f]{40}\z/) and
+      text?(amount, ~r/\A[1-9][0-9]*\z/) and
+      text?(price, ~r/\A(0|[1-9][0-9]*)(\.[0-9]+)?\z/) and price =~ ~r/[1-9]/ and
+      text?(source, ~r/\S/) and is_integer(chain) and chain > 0 and is_integer(block) and
+      block > 0 and text?(tx, ~r/\A0x[0-9a-f]{64}\z/) and is_integer(log) and log >= 0
+  end
+
+  defp paid?(_evidence), do: false
+
+  defp text?(value, pattern), do: is_binary(value) and value =~ pattern
 
   defp reject(input, reason) do
     # Rejections survive Oban pruning and never overwrite a previously accepted event.

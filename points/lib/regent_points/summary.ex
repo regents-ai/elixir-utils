@@ -66,6 +66,7 @@ defmodule RegentPoints.Summary do
          agent_names: agent_names,
          more?: entries.more?,
          allowances: allowances(caps),
+         dollars_today: dollars_today(caps),
          done: done(caps)
        }}
     end
@@ -123,6 +124,19 @@ defmodule RegentPoints.Summary do
         %{scope: scope, limit: limit, remaining: max(0, limit - used)}
       end
     )
+  end
+
+  # The dollars of spending that earned today, out of the day's limit, in
+  # millionths of a dollar.
+  defp dollars_today(caps) do
+    used =
+      case Enum.find(caps, &(&1.cap_scope == "spending:account")) do
+        nil -> 0
+        cap -> cap.points_micro
+      end
+
+    rate = Rules.points_per_dollar()
+    %{counted_micro: div(used, rate), limit_micro: div(Rules.daily_cap("spending:account"), rate)}
   end
 
   # How many times the account has had each listed rule's award inside the rule's

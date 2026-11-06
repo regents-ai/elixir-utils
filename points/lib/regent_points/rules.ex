@@ -7,8 +7,13 @@ defmodule RegentPoints.Rules do
   A rule's id never changes. A changed rule keeps its id and gets the next
   version, so what an account earned under the old version still counts
   against the new one; a new id is only for a new action.
+
+  A spending rule earns one point per dollar a payment's evidence proves, up to
+  100 dollars per account per UTC day (Sean, 6 November 2026). It earns beside
+  the action's fixed points, under its own daily limit.
   """
   @unit 1_000_000
+  @points_per_dollar 1
   @milestones [
     {"account.activated", 1, 25, "Account activated"},
     {"social.x", 1, 10, "X account linked"},
@@ -36,10 +41,18 @@ defmodule RegentPoints.Rules do
     {"patchbay.report_published", 1, 10, 1, "day", "Patchbay report published"},
     {"patchbay.reply_published", 1, 5, 1, "day", "Patchbay reply published"}
   ]
+  @spending [
+    {"keyfleet.key_spend", 1, "Keyfleet key spending"},
+    {"patchbay.payment_spend", 1, "Patchbay payment spending"},
+    {"template.pinned_note_spend", 1, "Pinned note spending"},
+    {"autolaunch.auction_bid_spend", 1, "Autolaunch bid spending"},
+    {"autolaunch.token_buy_spend", 1, "Autolaunch token buy spending"}
+  ]
 
   @labels Map.new(
             for({id, _version, _points, label} <- @milestones, do: {id, label}) ++
-              for({id, _version, _points, _count, _period, label} <- @activity, do: {id, label})
+              for({id, _version, _points, _count, _period, label} <- @activity, do: {id, label}) ++
+              for({id, _version, label} <- @spending, do: {id, label})
           )
 
   # One-time rules an account could already meet before the start: they earn at the
@@ -60,7 +73,21 @@ defmodule RegentPoints.Rules do
         rule(id, version, "activity", points, count, period)
       end)
 
-    milestones ++ activity
+    spending =
+      Enum.map(@spending, fn {id, version, _label} ->
+        %{
+          "id" => id,
+          "version" => version,
+          "category" => "spending",
+          "points_per_dollar" => @points_per_dollar,
+          "count" => nil,
+          "period" => "day",
+          "daily_caps_micro" => %{"spending:account" => daily_cap("spending:account")},
+          "milestone_key" => nil
+        }
+      end)
+
+    milestones ++ activity ++ spending
   end
 
   def config, do: Application.get_all_env(:regent_points)
@@ -121,15 +148,25 @@ defmodule RegentPoints.Rules do
     end
   end
 
-  def base_micro(%{"points" => points}) when is_integer(points), do: {:ok, points * @unit}
-  def base_micro(_), do: {:error, :invalid_rule_snapshot}
+  @doc "A rule's points before limits: fixed, or one per dollar the payment's evidence proves."
+  def base_micro(%{"points" => points}, _evidence) when is_integer(points),
+    do: {:ok, points * @unit}
+
+  def base_micro(%{"category" => "spending", "points_per_dollar" => rate}, %{
+        "usd_micros" => usd
+      })
+      when is_integer(rate) and is_integer(usd) and usd > 0,
+      do: {:ok, usd * rate}
+
+  def base_micro(_rule, _evidence), do: {:error, :invalid_rule_snapshot}
 
   @doc """
   The daily limit a rule's points count against: every repeat action shares
-  one, whoever acted, the person or any of their agents. One-time rules count
-  against none.
+  one, and every spending rule shares another, whoever acted, the person or
+  any of their agents. One-time rules count against none.
   """
   def allowance_scope(%{"category" => "activity"}), do: "activity:account"
+  def allowance_scope(%{"category" => "spending"}), do: "spending:account"
   def allowance_scope(_rule), do: nil
 
   def window("lifetime", _at), do: {~D[1970-01-01], nil}
@@ -140,6 +177,10 @@ defmodule RegentPoints.Rules do
   end
 
   def daily_cap("activity:account"), do: 100 * @unit
+  def daily_cap("spending:account"), do: 100 * @points_per_dollar * @unit
+
+  @doc "Points a spending rule gives for each dollar."
+  def points_per_dollar, do: @points_per_dollar
 
   @doc "The apps the daily rules among `rules` come from."
   def daily_apps(rules) do

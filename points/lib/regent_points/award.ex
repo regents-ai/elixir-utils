@@ -28,7 +28,7 @@ defmodule RegentPoints.Award do
   defp award(event) do
     rule = event.rule_snapshot
 
-    case Rules.base_micro(rule) do
+    case Rules.base_micro(rule, event.evidence) do
       {:ok, requested} ->
         award_amount(event, rule, requested)
 
@@ -149,14 +149,29 @@ defmodule RegentPoints.Award do
         []
       end
 
-    count ++ daily ++ subject
+    count ++ daily ++ subject ++ payment(event, rule)
   end
+
+  # One payment pays dollar points once, whichever spending rule, site or account
+  # reports it. Account 0 holds one row per payment, as it does for proof claims.
+  defp payment(event, %{"category" => "spending"}) do
+    %{"chain_id" => chain, "tx_hash" => tx, "log_index" => log} = event.evidence
+    scope = "payment:" <> Store.digest({chain, tx, log})
+
+    [
+      {:payment,
+       Store.cap(0, "lifetime", scope, Rules.window("lifetime", event.source_action_at))}
+    ]
+  end
+
+  defp payment(_event, _rule), do: []
 
   defp allowed(caps, requested, rule) do
     exhausted =
       Enum.any?(caps, fn
         {:count, cap} -> cap.award_count >= rule["count"]
         {:subject, cap} -> cap.award_count >= 1
+        {:payment, cap} -> cap.award_count >= 1
         _ -> false
       end)
 

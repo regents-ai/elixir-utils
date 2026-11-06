@@ -93,7 +93,14 @@ Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_
 at action time. Source identity must match the job.
 Agent evidence contains `"attribution_link_id"`; Keyfleet additionally needs
 `"key_id"` and `"ownership_epoch"`; social milestones need a stable
-restricted `"subject_key"`. Reports through WebMCP, HTTP, CLI, MCP or the site UI
+restricted `"subject_key"`. A spending rule's evidence names the one payment it is
+for, every key required: `"usd_micros"` (the dollars, in millionths, a positive
+integer), `"token"` (the paid token's lowercase address), `"token_amount"` (its atomic
+amount as a digit string), `"price_usd"` (the dollar price used, a decimal string,
+`"1"` at face value), `"price_source"` (where the price came from), `"chain_id"`,
+`"block_number"`, `"tx_hash"` (lowercase) and `"log_index"`. `source_action_at` is the
+payment block's time, so the payment counts on its block's UTC day. The site works
+out the dollars before it reports; Points reads no price. Reports through WebMCP, HTTP, CLI, MCP or the site UI
 must use the same business source identity for the same completed action. Transport
 never establishes agent identity or creates a second award.
 
@@ -147,6 +154,20 @@ Two approved candidates stay out of the catalog until their products exist (Sean
 October): Keyfleet rollcall, 5 once/day, and independently verified Patchbay repair, 15
 twice/day. All rules remain operationally disabled in the template.
 
+Spending earns one point per dollar, at most 100 dollars per account per UTC day
+(Sean, 6 November 2026), beside the action's fixed points and under its own
+limit, `spending:account`: one account can earn 100 points a day from actions and 100
+more from dollars. The account, all its wallets and all its paired agents share the
+100 dollars, on every site. A payment that crosses the limit earns only what is left of
+the day, and the rest of that day earns nothing. One payment, by chain, transaction and
+log, pays once whichever rule, site or account reports it; a repeat writes a 0-point
+entry. Each kind of spending has its own rule, so each is switched on by itself:
+`keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend`,
+`autolaunch.auction_bid_spend` and `autolaunch.token_buy_spend`. Money that can still
+come back, deposits, payments to yourself, sells and network fees are never reported.
+`RegentPoints.summary/1` answers `dollars_today`: the dollars counted today and the
+day's limit, in millionths of a dollar.
+
 Awards save points only. The NFT bonus is added once per program period, at the
 tally when the period ends (Sean, 9 October). Periods last 30 days, counted from
 `starts_at`. Animata I, Animata II and Regents Club count together across the
@@ -158,7 +179,7 @@ the tier held at period end, and Oban retries a Base outage. The tier is never r
 again for that period: an award checked after the tally, or a correction, moves the
 period's earned total and bonus at the saved tier in the same locked transaction as
 its ledger entry. An account's balance is its entries plus its period bonuses. Repeat actions earn at
-most 100 base Points a UTC day, excluding one-time awards. The milestone catalog
+most 100 base Points a UTC day, and spending at most 100 more, excluding one-time awards. The milestone catalog
 totals 250 (`RegentPoints.Rules.milestone_total/0`); `template.first_agent_note` is
 not approved at launch, so 240 can be earned then (Sean, 6 November). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,

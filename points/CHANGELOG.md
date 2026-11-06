@@ -2,6 +2,17 @@
 
 ## 0.1.0 (unreleased)
 
+- Spending earns Points (Sean, 6 November 2026): one point per dollar, at most 100
+  dollars per account per UTC day, under its own `spending:account` limit beside the
+  100 a day from actions. Five rules, each switched on by itself:
+  `keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend`,
+  `autolaunch.auction_bid_spend` and `autolaunch.token_buy_spend`; none is approved yet.
+  Their evidence names the payment (`usd_micros`, `token`, `token_amount`, `price_usd`,
+  `price_source`, `chain_id`, `block_number`, `tx_hash`, `log_index`); an award without
+  all of them is rejected as `invalid_spending_evidence`. A payment counts on its
+  block's UTC day and pays once whichever rule, site or account reports it. The holder
+  bonus applies as to any points. `Rules.base_micro/2` takes the rule and the evidence.
+  `RegentPoints.summary/1` also answers `dollars_today`. No new column.
 - Points no longer has a Credits rule (Sean, 6 November 2026): `credits.purchase_settled`,
   its `credits` category and 50-a-day limit, and the per-USDC rate are gone, so a rule
   snapshot's `daily_caps_micro` holds only `activity:account` and repeat actions earn

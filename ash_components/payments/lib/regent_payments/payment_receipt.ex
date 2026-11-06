@@ -28,6 +28,11 @@ defmodule RegentPayments.PaymentReceipt do
   attributes do
     uuid_primary_key :id
 
+    # Every payment is in USDC. The column stays, with the receipts written
+    # before Credits were dropped, until it is removed with them; no action
+    # accepts it, so each new receipt takes this default.
+    attribute :paid_with, :string, allow_nil?: false, default: "usdc", public?: false
+
     attribute :payer_address, :string, allow_nil?: false, public?: true
     attribute :network, :string, allow_nil?: false, public?: true
     attribute :asset, :string, allow_nil?: false, public?: true

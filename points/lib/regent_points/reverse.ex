@@ -3,8 +3,9 @@ defmodule RegentPoints.Reverse do
   Auditable partial corrections; a tallied period's bonus follows. Earning
   allowances never reopen, but a payment's dollar points taken back in full free
   the payment, so it can pay the right account. A partial take-back frees nothing.
-  A spending award that used its payment and earned 0 is corrected by 0, which
-  frees the payment the same way.
+  A spending award that used its payment and earned 0 is corrected by 0, once,
+  which frees the payment the same way. The freed payment is reported again under
+  `RegentPoints.source_after_take_back/2`.
   """
   use Ash.Resource.Actions.Implementation
   require Ash.Query

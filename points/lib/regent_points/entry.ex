@@ -15,7 +15,7 @@ defmodule RegentPoints.Entry do
     check_constraints do
       check_constraint(:points_micro_delta, "entry_direction",
         check:
-          "(reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR (reversal_of_entry_id IS NOT NULL AND points_micro_delta <= 0)"
+          "(reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR (reversal_of_entry_id IS NOT NULL AND (points_micro_delta < 0 OR (points_micro_delta = 0 AND category = 'spending')))"
       )
 
       check_constraint(:cap_reduction_micro, "entry_cap_nonnegative",
@@ -26,6 +26,13 @@ defmodule RegentPoints.Entry do
     custom_indexes do
       index([:account_id, :recorded_at])
       index([:reversal_of_entry_id])
+
+      # A 0 correction frees a 0-point spending award's payment once (RegentPoints.Reverse).
+      index([:reversal_of_entry_id],
+        unique: true,
+        where: "points_micro_delta = 0",
+        name: "point_entries_one_zero_correction_index"
+      )
     end
   end
 

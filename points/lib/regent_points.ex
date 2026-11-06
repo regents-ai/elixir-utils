@@ -9,6 +9,16 @@ defmodule RegentPoints do
   @doc false
   def chain_client, do: Application.fetch_env!(:regent_points, :chain_client)
 
+  @doc """
+  The source id a payment is reported under again once the take-back
+  `correction_key` has freed it, built from the source id of the report being
+  made again: the wrong account's own report, or the right account's report that
+  earned 0 as a repeat while the wrong account held the payment. One source id
+  is one award, so a freed payment is never reported again under its old id.
+  """
+  def source_after_take_back(source_event_key, correction_key),
+    do: source_event_key <> "/after/" <> correction_key
+
   resources do
     resource RegentPoints.PeriodSnapshot
     resource RegentPoints.WalletSnapshot

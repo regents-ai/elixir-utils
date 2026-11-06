@@ -14,14 +14,19 @@
   `floor(token_amount × price_usd × 10^6 / 10^token_decimals)`. An award without all of
   them, or with another figure, is rejected as `invalid_spending_evidence`; one above
   10^15 as `spending_amount_too_large`; one reported by a site other than the app in the
-  rule's id as `ineligible_spending_app`. A payment counts on its block's UTC day and
+  rule's id as `ineligible_spending_app`. A price has at most 30 digits each side of
+  the dot. A payment counts on its block's UTC day and
   pays once whichever rule, site or account reports it, used by its first report even
   when clipped to nothing; a full take-back, or a 0 correction of a 0-point award that
-  used it, frees it for the right account. The holder
+  used it, frees it for the right account, reported again under
+  `RegentPoints.source_after_take_back/2`. The holder
   bonus applies as to any points. `Rules.base_micro/2` takes the rule and the evidence.
   `RegentPoints.summary/1` also answers `dollars_today`. Migration `20261106172400` adds
-  the `payment_once` check on `point_cap_usage` and lets a correction be 0
-  (`entry_direction`); no new column.
+  the `payment_once` check and one row per payment on `point_cap_usage`, and lets a
+  correction be 0 only for a spending award, once per award (`entry_direction` and
+  `point_entries_one_zero_correction_index`); no new column. Each step waits at most 5
+  seconds for a lock, and its checks are validated after they are added. Rolling it
+  back is refused once a 0 correction exists.
 - Points no longer has a Credits rule (Sean, 6 November 2026): `credits.purchase_settled`,
   its `credits` category and 50-a-day limit, and the per-USDC rate are gone, so a rule
   snapshot's `daily_caps_micro` holds only `activity:account` and repeat actions earn

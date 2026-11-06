@@ -21,6 +21,15 @@ defmodule RegentPoints.CapUsage do
         check: "cap_scope NOT LIKE 'payment:%' OR award_count <= 1"
       )
     end
+
+    custom_indexes do
+      # One row per payment, whatever account, program or window names it.
+      index([:cap_scope],
+        unique: true,
+        where: "cap_scope LIKE 'payment:%'",
+        name: "point_cap_usage_payment_row_once_index"
+      )
+    end
   end
 
   attributes do

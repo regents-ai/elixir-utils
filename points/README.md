@@ -98,7 +98,8 @@ for, every key required: `"usd_micros"` (the dollars, in millionths, a positive
 integer), `"payer"` (the paying wallet's lowercase address), `"token"` (the paid
 token's lowercase address), `"token_amount"` (its atomic amount as a digit string, at
 most 78 digits), `"token_decimals"` (the token's decimals, 0 to 255), `"price_usd"`
-(the dollar price of one whole token, a decimal string, `"1"` at face value),
+(the dollar price of one whole token, a decimal string of at most 30 digits each
+side of the dot, `"1"` at face value),
 `"price_source"` (where the price came from), `"chain_id"`, `"block_number"`,
 `"tx_hash"` (lowercase) and `"log_index"`. The award saves all of them. `"usd_micros"`
 must equal `floor(token_amount × price_usd × 10^6 / 10^token_decimals)`, worked out
@@ -121,7 +122,12 @@ What a site reporting spending must do:
 
 Reports through WebMCP, HTTP, CLI, MCP or the site UI
 must use the same business source identity for the same completed action. Transport
-never establishes agent identity or creates a second award.
+never establishes agent identity or creates a second award. One source id is one
+award, so a payment freed by a take-back is reported again under a new source id,
+`RegentPoints.source_after_take_back(source_event_key, correction_key)`: the
+source id of the report being made again (the wrong account's own report, or the
+right account's report that earned 0 as a repeat while the wrong account held the
+payment) and the take-back's correction key. A site never builds that id itself.
 
 What an account already has at the start earns its one-time points at the start,
 without the person doing anything: the account (`account.activated`), its linked X,
@@ -183,10 +189,12 @@ has another rate. One payment, by chain, transaction and log, pays once whicheve
 site or account reports it; a repeat writes a 0-point entry. Its first report uses it,
 even when the day's limit clips it to part or to nothing, and the database refuses a
 second use (`point_cap_usage` check `payment_once`). A payment's points taken back in
-full (`RegentPoints.reverse`) free the payment, so it can pay the right account; the
-wrong account's day stays used, and a partial take-back frees nothing. A payment that
-earned 0 for the wrong account is freed by a correction of 0; only the award that used
-the payment can be corrected by 0. A spending rule is reported only by its own site: `source_app` is the app in
+full (`RegentPoints.reverse`) free the payment, so it can be reported again for the
+right account under `RegentPoints.source_after_take_back/2`; the wrong account's day
+stays used, and a partial take-back frees nothing. A payment that earned 0 for the
+wrong account is freed by a correction of 0; only the award that used the payment
+can be corrected by 0, once. The database holds one row per payment, lets a
+correction be 0 only for a spending award, and allows one 0 correction per award. A spending rule is reported only by its own site: `source_app` is the app in
 the rule's id. Each kind of spending has its own rule, so each is switched on by itself:
 `keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend` and
 `autolaunch.auction_bid_spend`. Autolaunch token buys earn no dollar points. Money that can still
@@ -225,8 +233,10 @@ holding it at the period-end snapshot determines the confirmed bonus.
 
 Only the server system actor may intake, award or correct. Human actors with a
 verified `human_account_id` can read only their own entries and summary. Rejections
-and raw evidence are system-only. Corrections append negative entries and never
-reopen allowances. There is no browser award API.
+and raw evidence are system-only. Corrections append negative entries, or a 0 entry
+for a 0-point spending award, and never reopen a daily or count limit; the one thing
+a correction frees is a spending award's payment, once it is taken back in full.
+There is no browser award API.
 
 ## Migrate and verify
 

@@ -312,6 +312,43 @@ defmodule RegentAgents.PairingTest do
     assert {:error, :unknown_owner} = RegentAgents.pairing_at(@wallet, paired_at)
   end
 
+  # Invariant: what a person already had at a moment is their earliest pairing from
+  # before it that is still paired, once per person, whatever came later.
+  test "the pairings held from before a moment, one per person" do
+    at = ~U[2026-01-10 00:00:00.000000Z]
+    did = "did:privy:held-" <> Ecto.UUID.generate()
+    other = "did:privy:held-other-" <> Ecto.UUID.generate()
+
+    history = fn privy_user_id, paired_at, revoked_at ->
+      id = Ecto.UUID.generate()
+
+      RegentAgents.TestRepo.query!(
+        """
+        INSERT INTO regent_agents.pairing_history
+          (id, privy_user_id, wallet, name, harness, paired_at, last_contact_at, revoked_at)
+        VALUES ($1, $2, $3, 'Held', 'codex', $4, $4, $5)
+        """,
+        [
+          Ecto.UUID.dump!(id),
+          privy_user_id,
+          "0x" <> Base.encode16(:crypto.strong_rand_bytes(20), case: :lower),
+          paired_at,
+          revoked_at
+        ]
+      )
+
+      id
+    end
+
+    _unpaired = history.(did, ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-02 00:00:00.000000Z])
+    held = history.(did, ~U[2026-01-03 00:00:00.000000Z], nil)
+    _later = history.(did, ~U[2026-01-05 00:00:00.000000Z], nil)
+    _after = history.(other, ~U[2026-01-11 00:00:00.000000Z], nil)
+
+    assert {:ok, pairings} = RegentAgents.pairings_held_from_before(at)
+    assert [%{id: ^held}] = Enum.filter(pairings, &(&1.privy_user_id in [did, other]))
+  end
+
   test "a person's agents need a signed-in person" do
     assert {:error, _error} = RegentAgents.list_my_agents(actor: %Agent{wallet: @wallet})
     assert {:error, _error} = RegentAgents.issue_pairing_code(actor: %Agent{wallet: @wallet})

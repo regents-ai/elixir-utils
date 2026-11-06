@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.pairings_held_from_before/1` lists each person's earliest
+  pairing made before a moment that is still paired, one per person, for the
+  agents people already had when Points started (`RegentPoints.StartAwards`).
+
 - `RegentAgents.pairing_at/2` gives the one pairing that held a wallet at a
   moment (paired by then, not yet unpaired), or `{:error, :unknown_owner}` when
   none or more than one did, the same answer as `RegentPoints.WalletSnapshot.owner/2`.

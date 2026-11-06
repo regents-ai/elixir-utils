@@ -190,6 +190,10 @@ lowercase wallet at `at`, or `{:error, :unknown_owner}` when none or more than
 one did. A site credits an agent's own-wallet action, such as a bid or a stake,
 to that pairing's person.
 
+`RegentAgents.pairings_held_from_before(at)` gives each person's earliest pairing
+made before `at` that is still paired, one per person: Points uses it to give the
+first-pairing points to agents people already had at the start.
+
 ## Migrations
 
 Regents alone runs `RegentAgents.Migrator.up(Regents.Repo)` in its release step.

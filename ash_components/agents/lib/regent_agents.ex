@@ -36,7 +36,7 @@ defmodule RegentAgents do
 
   use Ash.Domain, otp_app: :regent_agents
 
-  import Ecto.Query, only: [from: 2, where: 3, order_by: 3, limit: 2]
+  import Ecto.Query, only: [from: 2, where: 3, order_by: 3, limit: 2, distinct: 3]
 
   resources do
     resource RegentAgents.PairingCode do
@@ -117,6 +117,20 @@ defmodule RegentAgents do
       [pairing] -> {:ok, pairing}
       _none_or_many -> {:error, :unknown_owner}
     end
+  end
+
+  @doc """
+  Each person's earliest pairing made before `at` that is still paired, one per
+  person: the agents people already had when something started, such as Points.
+  """
+  @spec pairings_held_from_before(DateTime.t()) :: {:ok, [pairing()]}
+  def pairings_held_from_before(%DateTime{} = at) do
+    pairings()
+    |> where([h], h.paired_at < type(^at, :utc_datetime_usec) and is_nil(h.revoked_at))
+    |> distinct([h], asc: h.privy_user_id)
+    |> order_by([h], asc: h.paired_at, asc: h.id)
+    |> repo(nil, :read).all()
+    |> then(&{:ok, &1})
   end
 
   defp pairings do

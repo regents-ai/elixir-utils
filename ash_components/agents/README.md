@@ -147,17 +147,14 @@ and Pi. The message a person pastes to their agent is
 `RegentAgents.PairingMessage.text(code, origin, harness, opts)`, the same words on
 every site. It opens "Pair with my Regents Labs account on <site's host>", so the
 agent learns the account is the person's one Regents Labs account and which site
-it pairs on. ChatGPT and Claude are told to connect through the site's plugin or
-connector and to pair with `pair_identity`, naming their harness. Every other
-agent is told to keep its own key: "begin every
-shell with export SIWA_AGENT_HOME=~/.siwa-agent/<runtime>", the folder named
-after its runtime (`claude-code`, `codex`, `grok-bot` and so on, and
-`YOUR-RUNTIME` for any agent or none named), so agents sharing one computer pair
-as separate agents. Codex, Grok Bot, Hermes and Muse get one more line, for the
-mistake each most often makes on its first pairing. `setup:` adds the site's own
-lines for that agent after those. `start:`, a path on the same site taken from a
-pairing link, ends the message "Once paired, start at <page>"; without it the
-line is left out.
+it pairs on, then gives the pairing code and the agent's own skill on that site,
+`PairingMessage.skill_url(origin, harness)` (`/agents/SLUG/skill.md`, `other` for
+any agent), whose "Pair with a person's account" steps say the rest: how long the
+code lasts, the key's folder, and the line for the mistake that agent most often
+makes. ChatGPT and Claude are told to connect through the site's plugin or
+connector and to pair with `pair_identity`, naming their harness. `start:`, a
+path on the same site taken from a pairing link, ends the message "Once paired,
+start at <page>"; without it the line is left out.
 
 `RegentAgents.Activity.recent(agent)` reads where a paired agent has been
 active across the Regent sites since it paired: a line per site and day for the

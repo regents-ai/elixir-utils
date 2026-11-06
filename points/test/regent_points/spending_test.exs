@@ -214,6 +214,34 @@ defmodule RegentPoints.SpendingTest do
     assert earned(pay("keyfleet.key_spend", wrong, @midnight, @limit)) == 40_000_000
   end
 
+  # A payment that found the wrong account's day full earned 0 but is used, so a
+  # 0 correction frees it. Only the award that used the payment can be corrected
+  # by 0: not a repeat of it, and not a 0-point action.
+  test "a payment that earned 0 for the wrong account is freed by a 0 correction" do
+    [wrong, right, other] = [person(), person(), person()]
+    pay("keyfleet.key_spend", wrong, @midnight, @limit)
+    evidence = payment(30_000_000)
+
+    %{id: id, points_micro_delta: 0} =
+      entry(pay("keyfleet.key_spend", wrong, @midnight, evidence))
+
+    assert {:ok, _} = RegentPoints.reverse(id, "wrong", 0, "wrong_account", actor: Store.system())
+
+    assert {:error, _} =
+             RegentPoints.reverse(id, "again", 0, "wrong_account", actor: Store.system())
+
+    assert earned(pay("keyfleet.key_spend", right, @midnight, evidence)) == 30_000_000
+
+    %{id: repeat} = entry(pay("patchbay.payment_spend", other, @midnight, evidence))
+    assert {:error, _} = RegentPoints.reverse(repeat, "repeat", 0, "wrong", actor: Store.system())
+
+    for _ <- 1..2, do: report("patchbay.reply_published", other, @midnight, %{})
+    assert [_, %{id: action, points_micro_delta: 0}] = entries(other, "activity")
+    assert {:error, _} = RegentPoints.reverse(action, "action", 0, "wrong", actor: Store.system())
+
+    assert earned(pay("patchbay.payment_spend", other, @midnight, evidence)) == 0
+  end
+
   property "the holder bonus applies to dollar points like any others" do
     check all(
             percent <- member_of([20, 45, 75]),
@@ -517,10 +545,12 @@ defmodule RegentPoints.SpendingTest do
     id
   end
 
-  defp spent(account) do
+  defp spent(account), do: entries(account, "spending")
+
+  defp entries(account, category) do
     Entry
     |> Ash.Query.filter(
-      account_id == ^account and program_id == ^Rules.program() and category == "spending"
+      account_id == ^account and program_id == ^Rules.program() and category == ^category
     )
     |> Ash.Query.sort(recorded_at: :asc)
     |> then(&RegentPoints.read_entries!(query: &1, actor: Store.system()))

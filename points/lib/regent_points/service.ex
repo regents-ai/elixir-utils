@@ -26,7 +26,7 @@ defmodule RegentPoints.Service do
     action :reverse, :map do
       argument :entry_id, :uuid, allow_nil?: false
       argument :correction_key, :string, allow_nil?: false, constraints: [min_length: 1]
-      argument :points_micro, :integer, allow_nil?: false, constraints: [min: 1]
+      argument :points_micro, :integer, allow_nil?: false, constraints: [min: 0]
       argument :reason, :string, allow_nil?: false, constraints: [min_length: 1]
       run RegentPoints.Reverse
     end

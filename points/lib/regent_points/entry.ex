@@ -15,7 +15,7 @@ defmodule RegentPoints.Entry do
     check_constraints do
       check_constraint(:points_micro_delta, "entry_direction",
         check:
-          "(reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR (reversal_of_entry_id IS NOT NULL AND points_micro_delta < 0)"
+          "(reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR (reversal_of_entry_id IS NOT NULL AND points_micro_delta <= 0)"
       )
 
       check_constraint(:cap_reduction_micro, "entry_cap_nonnegative",

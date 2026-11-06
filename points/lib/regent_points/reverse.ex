@@ -3,6 +3,8 @@ defmodule RegentPoints.Reverse do
   Auditable partial corrections; a tallied period's bonus follows. Earning
   allowances never reopen, but a payment's dollar points taken back in full free
   the payment, so it can pay the right account. A partial take-back frees nothing.
+  A spending award that used its payment and earned 0 is corrected by 0, which
+  frees the payment the same way.
   """
   use Ash.Resource.Actions.Implementation
   require Ash.Query
@@ -10,17 +12,30 @@ defmodule RegentPoints.Reverse do
   alias RegentPoints.{Account, Entry, Store}
   @impl true
   def run(%{arguments: args}, _, _) do
-    case Store.entry(args.entry_id) do
-      %{reversal_of_entry_id: nil, points_micro_delta: points} = original when points > 0 ->
-        Ash.transact(Account, fn ->
-          Store.lock_account(original.account_id)
-          correct(original, args)
-        end)
+    original = Store.entry(args.entry_id)
 
-      _ ->
-        {:error, "Only a positive original award can be corrected"}
+    if correctable?(original, args.points_micro) do
+      Ash.transact(Account, fn ->
+        Store.lock_account(original.account_id)
+        correct(original, args)
+      end)
+    else
+      {:error,
+       "Only a positive original award, or a 0-point one that used its payment, can be corrected"}
     end
   end
+
+  defp correctable?(%{reversal_of_entry_id: nil, points_micro_delta: points}, by) when points > 0,
+    do: by > 0
+
+  defp correctable?(%{reversal_of_entry_id: nil, points_micro_delta: 0} = original, 0),
+    do: used_payment?(original)
+
+  defp correctable?(_original, _by), do: false
+
+  # A spending award used its payment unless it repeated one already used.
+  defp used_payment?(entry),
+    do: entry.category == "spending" and entry.reason_code != "allowance_used"
 
   defp correct(original, args) do
     key = "correction:" <> Store.digest({original.id, args.correction_key})
@@ -45,8 +60,10 @@ defmodule RegentPoints.Reverse do
       |> Ash.sum!(:points_micro_delta)
 
     reversed = -(corrected || 0)
+    remaining = original.points_micro_delta - reversed
 
-    if reversed + args.points_micro > original.points_micro_delta do
+    # Nothing remains once an award is corrected in full, a 0-point one included.
+    if args.points_micro > remaining or (corrected != nil and remaining == 0) do
       {:error, "Correction exceeds the original remaining award"}
     else
       attrs =
@@ -79,8 +96,7 @@ defmodule RegentPoints.Reverse do
 
       Store.follow_period_bonus(row)
 
-      if original.category == "spending" and
-           reversed + args.points_micro == original.points_micro_delta do
+      if used_payment?(original) and args.points_micro == remaining do
         event = Store.event(original.event_id)
         payment = Store.payment(event.evidence, event.source_action_at)
         Points.release_cap!(payment, original.points_micro_delta, actor: Store.system())

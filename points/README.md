@@ -184,7 +184,9 @@ site or account reports it; a repeat writes a 0-point entry. Its first report us
 even when the day's limit clips it to part or to nothing, and the database refuses a
 second use (`point_cap_usage` check `payment_once`). A payment's points taken back in
 full (`RegentPoints.reverse`) free the payment, so it can pay the right account; the
-wrong account's day stays used, and a partial take-back frees nothing. A spending rule is reported only by its own site: `source_app` is the app in
+wrong account's day stays used, and a partial take-back frees nothing. A payment that
+earned 0 for the wrong account is freed by a correction of 0; only the award that used
+the payment can be corrected by 0. A spending rule is reported only by its own site: `source_app` is the app in
 the rule's id. Each kind of spending has its own rule, so each is switched on by itself:
 `keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend`,
 `autolaunch.auction_bid_spend` and `autolaunch.token_buy_spend`. Money that can still

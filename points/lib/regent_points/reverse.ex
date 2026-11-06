@@ -1,5 +1,9 @@
 defmodule RegentPoints.Reverse do
-  @moduledoc "Auditable partial corrections; earning allowances never reopen; a tallied period's bonus follows."
+  @moduledoc """
+  Auditable partial corrections; a tallied period's bonus follows. Earning
+  allowances never reopen, but a payment's dollar points taken back in full free
+  the payment, so it can pay the right account. A partial take-back frees nothing.
+  """
   use Ash.Resource.Actions.Implementation
   require Ash.Query
   alias RegentPoints, as: Points
@@ -74,6 +78,14 @@ defmodule RegentPoints.Reverse do
         )
 
       Store.follow_period_bonus(row)
+
+      if original.category == "spending" and
+           reversed + args.points_micro == original.points_micro_delta do
+        event = Store.event(original.event_id)
+        payment = Store.payment(event.evidence, event.source_action_at)
+        Points.release_cap!(payment, original.points_micro_delta, actor: Store.system())
+      end
+
       %{id: row.id}
     end
   end

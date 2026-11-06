@@ -135,8 +135,7 @@ defmodule RegentPoints.Summary do
         cap -> cap.points_micro
       end
 
-    rate = Rules.points_per_dollar()
-    %{counted_micro: div(used, rate), limit_micro: div(Rules.daily_cap("spending:account"), rate)}
+    %{counted_micro: used, limit_micro: Rules.daily_cap("spending:account")}
   end
 
   # How many times the account has had each listed rule's award inside the rule's

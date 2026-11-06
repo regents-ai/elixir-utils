@@ -95,12 +95,31 @@ Agent evidence contains `"attribution_link_id"`; Keyfleet additionally needs
 `"key_id"` and `"ownership_epoch"`; social milestones need a stable
 restricted `"subject_key"`. A spending rule's evidence names the one payment it is
 for, every key required: `"usd_micros"` (the dollars, in millionths, a positive
-integer), `"token"` (the paid token's lowercase address), `"token_amount"` (its atomic
-amount as a digit string), `"price_usd"` (the dollar price used, a decimal string,
-`"1"` at face value), `"price_source"` (where the price came from), `"chain_id"`,
-`"block_number"`, `"tx_hash"` (lowercase) and `"log_index"`. `source_action_at` is the
-payment block's time, so the payment counts on its block's UTC day. The site works
-out the dollars before it reports; Points reads no price. Reports through WebMCP, HTTP, CLI, MCP or the site UI
+integer), `"payer"` (the paying wallet's lowercase address), `"token"` (the paid
+token's lowercase address), `"token_amount"` (its atomic amount as a digit string, at
+most 78 digits), `"token_decimals"` (the token's decimals, 0 to 255), `"price_usd"`
+(the dollar price of one whole token, a decimal string, `"1"` at face value),
+`"price_source"` (where the price came from), `"chain_id"`, `"block_number"`,
+`"tx_hash"` (lowercase) and `"log_index"`. The award saves all of them. `"usd_micros"`
+must equal `floor(token_amount × price_usd × 10^6 / 10^token_decimals)`, worked out
+exactly in whole numbers, so every award can be checked from its own record; any
+other figure is refused as `invalid_spending_evidence`, and one above 10^15 (a
+billion dollars) as `spending_amount_too_large`. The site works out the dollars
+before it reports; Points reads no price.
+
+What a site reporting spending must do:
+
+- `"log_index"` is the receipt's block-wide `logIndex` of the one event the rule
+  names, never a position within the transaction.
+- Each spending rule names exactly one event, so a payment has one log whichever
+  rule reports it.
+- `source_action_at` is the block's time from the block header, never the site's
+  clock: the payment counts on its block's UTC day.
+- A block time ahead of the server's clock is refused as
+  `invalid_qualification_time`; the site reports that payment again once the time
+  has passed.
+
+Reports through WebMCP, HTTP, CLI, MCP or the site UI
 must use the same business source identity for the same completed action. Transport
 never establishes agent identity or creates a second award.
 
@@ -159,9 +178,14 @@ Spending earns one point per dollar, at most 100 dollars per account per UTC day
 limit, `spending:account`: one account can earn 100 points a day from actions and 100
 more from dollars. The account, all its wallets and all its paired agents share the
 100 dollars, on every site. A payment that crosses the limit earns only what is left of
-the day, and the rest of that day earns nothing. One payment, by chain, transaction and
-log, pays once whichever rule, site or account reports it; a repeat writes a 0-point
-entry. Each kind of spending has its own rule, so each is switched on by itself:
+the day, and the rest of that day earns nothing. One point per dollar is fixed; no rule
+has another rate. One payment, by chain, transaction and log, pays once whichever rule,
+site or account reports it; a repeat writes a 0-point entry. Its first report uses it,
+even when the day's limit clips it to part or to nothing, and the database refuses a
+second use (`point_cap_usage` check `payment_once`). A payment's points taken back in
+full (`RegentPoints.reverse`) free the payment, so it can pay the right account; the
+wrong account's day stays used, and a partial take-back frees nothing. A spending rule is reported only by its own site: `source_app` is the app in
+the rule's id. Each kind of spending has its own rule, so each is switched on by itself:
 `keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend`,
 `autolaunch.auction_bid_spend` and `autolaunch.token_buy_spend`. Money that can still
 come back, deposits, payments to yourself, sells and network fees are never reported.

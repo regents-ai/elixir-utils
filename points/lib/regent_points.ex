@@ -44,6 +44,7 @@ defmodule RegentPoints do
       define :reserve_cap, action: :reserve
       define :read_caps, action: :read
       define :consume_cap, action: :consume, args: [:points]
+      define :release_cap, action: :release, args: [:points]
     end
 
     resource RegentPoints.PeriodBonus do

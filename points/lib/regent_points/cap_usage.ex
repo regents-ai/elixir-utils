@@ -15,6 +15,11 @@ defmodule RegentPoints.CapUsage do
       check_constraint(:award_count, "cap_nonnegative",
         check: "award_count >= 0 AND points_micro >= 0"
       )
+
+      # One payment pays dollar points once (RegentPoints.Award).
+      check_constraint(:award_count, "payment_once",
+        check: "cap_scope NOT LIKE 'payment:%' OR award_count <= 1"
+      )
     end
   end
 
@@ -47,6 +52,13 @@ defmodule RegentPoints.CapUsage do
       argument :points, :integer, allow_nil?: false, constraints: [min: 0]
       change atomic_update(:award_count, expr(award_count + 1))
       change atomic_update(:points_micro, expr(points_micro + ^arg(:points)))
+    end
+
+    # A fully taken-back payment can be paid again (RegentPoints.Reverse).
+    update :release do
+      argument :points, :integer, allow_nil?: false, constraints: [min: 0]
+      change atomic_update(:award_count, expr(award_count - 1))
+      change atomic_update(:points_micro, expr(points_micro - ^arg(:points)))
     end
   end
 

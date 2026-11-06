@@ -61,10 +61,9 @@ defmodule RegentPoints.Award do
   end
 
   defp append(event, rule, requested, caps, base, reason) do
-    if base > 0 do
-      Enum.each(caps, fn {_kind, cap} ->
-        Points.consume_cap!(cap, base, actor: Store.system())
-      end)
+    # A payment is used by its first report, even one the day's limit clips to 0.
+    for {kind, cap} <- caps, base > 0 or (kind == :payment and reason != "allowance_used") do
+      Points.consume_cap!(cap, base, actor: Store.system())
     end
 
     entry =
@@ -154,15 +153,8 @@ defmodule RegentPoints.Award do
 
   # One payment pays dollar points once, whichever spending rule, site or account
   # reports it. Account 0 holds one row per payment, as it does for proof claims.
-  defp payment(event, %{"category" => "spending"}) do
-    %{"chain_id" => chain, "tx_hash" => tx, "log_index" => log} = event.evidence
-    scope = "payment:" <> Store.digest({chain, tx, log})
-
-    [
-      {:payment,
-       Store.cap(0, "lifetime", scope, Rules.window("lifetime", event.source_action_at))}
-    ]
-  end
+  defp payment(event, %{"category" => "spending"}),
+    do: [{:payment, Store.payment(event.evidence, event.source_action_at)}]
 
   defp payment(_event, _rule), do: []
 

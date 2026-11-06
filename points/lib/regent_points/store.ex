@@ -95,6 +95,12 @@ defmodule RegentPoints.Store do
     Points.read_caps!(query: query, actor: @system) |> List.first()
   end
 
+  # One payment's row on account 0, by chain, transaction and log: a spending
+  # award marks it used, and a full take-back frees it.
+  def payment(%{"chain_id" => chain, "tx_hash" => tx, "log_index" => log}, at) do
+    cap(0, "lifetime", "payment:" <> digest({chain, tx, log}), Rules.window("lifetime", at))
+  end
+
   def human(id) do
     RegentPoints.accounts().human(id)
   end

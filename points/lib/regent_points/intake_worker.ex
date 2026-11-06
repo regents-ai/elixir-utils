@@ -5,6 +5,9 @@ defmodule RegentPoints.IntakeWorker do
   alias RegentPoints, as: Points
   alias RegentPoints.{Account, Event, Rules, Store, Worker}
 
+  # A payment worth more than a billion dollars is not a purchase on a Regent site.
+  @most_usd_micros 1_000_000_000_000_000
+
   @required ~w(source_app source_kind source_event_key account_id actor_kind actor_id source_action_at qualified_at evidence_ref evidence)a
 
   @impl true
@@ -57,17 +60,35 @@ defmodule RegentPoints.IntakeWorker do
     if Rules.activity_app?(facts.source_app), do: :ok, else: {:error, :ineligible_activity_app}
   end
 
-  # A spending award names the one payment it is for and the dollars it proves.
-  defp eligible_source(%{"category" => "spending"}, %{evidence: evidence}) do
-    if paid?(evidence), do: :ok, else: {:error, :invalid_spending_evidence}
+  # A spending rule is reported only by its own site, and names the one payment it
+  # is for and the dollars it proves.
+  defp eligible_source(%{"category" => "spending", "id" => id}, facts) do
+    cond do
+      facts.source_app != hd(String.split(id, ".")) ->
+        {:error, :ineligible_spending_app}
+
+      not paid?(facts.evidence) ->
+        {:error, :invalid_spending_evidence}
+
+      facts.evidence["usd_micros"] > @most_usd_micros ->
+        {:error, :spending_amount_too_large}
+
+      facts.evidence["usd_micros"] != dollars(facts.evidence) ->
+        {:error, :invalid_spending_evidence}
+
+      true ->
+        :ok
+    end
   end
 
   defp eligible_source(_, _), do: :ok
 
   defp paid?(%{
          "usd_micros" => usd,
+         "payer" => payer,
          "token" => token,
          "token_amount" => amount,
+         "token_decimals" => decimals,
          "price_usd" => price,
          "price_source" => source,
          "chain_id" => chain,
@@ -75,14 +96,31 @@ defmodule RegentPoints.IntakeWorker do
          "tx_hash" => tx,
          "log_index" => log
        }) do
-    is_integer(usd) and usd > 0 and text?(token, ~r/\A0x[0-9a-f]{40}\z/) and
-      text?(amount, ~r/\A[1-9][0-9]*\z/) and
+    is_integer(usd) and usd > 0 and text?(payer, ~r/\A0x[0-9a-f]{40}\z/) and
+      text?(token, ~r/\A0x[0-9a-f]{40}\z/) and text?(amount, ~r/\A[1-9][0-9]{0,77}\z/) and
+      is_integer(decimals) and decimals in 0..255 and
       text?(price, ~r/\A(0|[1-9][0-9]*)(\.[0-9]+)?\z/) and price =~ ~r/[1-9]/ and
       text?(source, ~r/\S/) and is_integer(chain) and chain > 0 and is_integer(block) and
       block > 0 and text?(tx, ~r/\A0x[0-9a-f]{64}\z/) and is_integer(log) and log >= 0
   end
 
   defp paid?(_evidence), do: false
+
+  # The payment's dollars in millionths, rounded down:
+  # token_amount × price_usd × 10^6 / 10^token_decimals. Whole numbers keep every
+  # digit; Decimal's default 28 would round a 78-digit token amount.
+  defp dollars(%{"token_amount" => amount, "price_usd" => price, "token_decimals" => decimals}) do
+    {digits, places} =
+      case String.split(price, ".") do
+        [whole] -> {whole, 0}
+        [whole, fraction] -> {whole <> fraction, byte_size(fraction)}
+      end
+
+    div(
+      String.to_integer(amount) * String.to_integer(digits) * 1_000_000,
+      10 ** (places + decimals)
+    )
+  end
 
   defp text?(value, pattern), do: is_binary(value) and value =~ pattern
 

@@ -13,7 +13,6 @@ defmodule RegentPoints.Rules do
   the action's fixed points, under its own daily limit.
   """
   @unit 1_000_000
-  @points_per_dollar 1
   @milestones [
     {"account.activated", 1, 25, "Account activated"},
     {"social.x", 1, 10, "X account linked"},
@@ -79,7 +78,6 @@ defmodule RegentPoints.Rules do
           "id" => id,
           "version" => version,
           "category" => "spending",
-          "points_per_dollar" => @points_per_dollar,
           "count" => nil,
           "period" => "day",
           "daily_caps_micro" => %{"spending:account" => daily_cap("spending:account")},
@@ -148,15 +146,14 @@ defmodule RegentPoints.Rules do
     end
   end
 
-  @doc "A rule's points before limits: fixed, or one per dollar the payment's evidence proves."
+  @doc """
+  A rule's points before limits: fixed, or one per dollar the payment's evidence
+  proves, which the intake has already checked.
+  """
   def base_micro(%{"points" => points}, _evidence) when is_integer(points),
     do: {:ok, points * @unit}
 
-  def base_micro(%{"category" => "spending", "points_per_dollar" => rate}, %{
-        "usd_micros" => usd
-      })
-      when is_integer(rate) and is_integer(usd) and usd > 0,
-      do: {:ok, usd * rate}
+  def base_micro(%{"category" => "spending"}, %{"usd_micros" => usd}), do: {:ok, usd}
 
   def base_micro(_rule, _evidence), do: {:error, :invalid_rule_snapshot}
 
@@ -177,10 +174,7 @@ defmodule RegentPoints.Rules do
   end
 
   def daily_cap("activity:account"), do: 100 * @unit
-  def daily_cap("spending:account"), do: 100 * @points_per_dollar * @unit
-
-  @doc "Points a spending rule gives for each dollar."
-  def points_per_dollar, do: @points_per_dollar
+  def daily_cap("spending:account"), do: 100 * @unit
 
   @doc "The apps the daily rules among `rules` come from."
   def daily_apps(rules) do

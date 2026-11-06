@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- The guide gives the daily limit the code applies: repeat actions and Credits
+  bought earn at most 150 base Points a UTC day together (100 and 50). It said 200.
 - The catalog no longer has `identity.ens_selected`, `keyfleet.integration.marimo` or
   `keyfleet.integration.ddocs`. The milestone catalog totals 290. Sean, 4 Nov 2026.
 - `RegentPoints.TallyPeriods` emits `[:regent_points, :tally_periods, :finished]`

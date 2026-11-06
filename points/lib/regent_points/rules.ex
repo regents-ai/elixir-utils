@@ -44,8 +44,7 @@ defmodule RegentPoints.Rules do
     {"keyfleet.key_spend", 1, "Keyfleet key spending"},
     {"patchbay.payment_spend", 1, "Patchbay payment spending"},
     {"template.pinned_note_spend", 1, "Pinned note spending"},
-    {"autolaunch.auction_bid_spend", 1, "Autolaunch bid spending"},
-    {"autolaunch.token_buy_spend", 1, "Autolaunch token buy spending"}
+    {"autolaunch.auction_bid_spend", 1, "Autolaunch bid spending"}
   ]
 
   @labels Map.new(

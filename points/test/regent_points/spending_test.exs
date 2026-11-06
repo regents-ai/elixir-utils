@@ -27,7 +27,7 @@ defmodule RegentPoints.SpendingTest do
     def people(ids), do: {:ok, Map.new(ids, &{&1, %{name: nil, wallet: nil}})}
   end
 
-  @spending ~w(keyfleet.key_spend patchbay.payment_spend template.pinned_note_spend autolaunch.auction_bid_spend autolaunch.token_buy_spend)
+  @spending ~w(keyfleet.key_spend patchbay.payment_spend template.pinned_note_spend autolaunch.auction_bid_spend)
   @rules ["patchbay.reply_published" | @spending]
   @start DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -5 * 86_400)
   # A UTC midnight two days ago: payments on either side of it fall on two days.
@@ -250,7 +250,7 @@ defmodule RegentPoints.SpendingTest do
           ) do
       account = person()
       bonus = held_bonus(account, percent)
-      for usd <- amounts, do: pay("autolaunch.token_buy_spend", account, @midnight, usd)
+      for usd <- amounts, do: pay("autolaunch.auction_bid_spend", account, @midnight, usd)
 
       earned = Enum.sum(clip(amounts))
 
@@ -329,10 +329,13 @@ defmodule RegentPoints.SpendingTest do
     }
 
     {key, {:ok, _}} =
-      report("autolaunch.token_buy_spend", account, @midnight, %{regent | "usd_micros" => 30_865})
+      report("autolaunch.auction_bid_spend", account, @midnight, %{
+        regent
+        | "usd_micros" => 30_865
+      })
 
     assert rejections(key) == ["invalid_spending_evidence"]
-    assert earned(pay("autolaunch.token_buy_spend", account, @midnight, regent)) == 30_864
+    assert earned(pay("autolaunch.auction_bid_spend", account, @midnight, regent)) == 30_864
   end
 
   test "a payment of more than a billion dollars is refused" do

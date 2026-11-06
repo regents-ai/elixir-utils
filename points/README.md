@@ -188,8 +188,8 @@ wrong account's day stays used, and a partial take-back frees nothing. A payment
 earned 0 for the wrong account is freed by a correction of 0; only the award that used
 the payment can be corrected by 0. A spending rule is reported only by its own site: `source_app` is the app in
 the rule's id. Each kind of spending has its own rule, so each is switched on by itself:
-`keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend`,
-`autolaunch.auction_bid_spend` and `autolaunch.token_buy_spend`. Money that can still
+`keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend` and
+`autolaunch.auction_bid_spend`. Autolaunch token buys earn no dollar points. Money that can still
 come back, deposits, payments to yourself, sells and network fees are never reported.
 `RegentPoints.summary/1` answers `dollars_today`: the dollars counted today and the
 day's limit, in millionths of a dollar.

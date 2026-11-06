@@ -4,9 +4,10 @@
 
 - Spending earns Points (Sean, 6 November 2026): one point per dollar, at most 100
   dollars per account per UTC day, under its own `spending:account` limit beside the
-  100 a day from actions. Five rules, each switched on by itself:
+  100 a day from actions. Four rules, each switched on by itself:
   `keyfleet.key_spend`, `patchbay.payment_spend`, `template.pinned_note_spend`,
-  `autolaunch.auction_bid_spend` and `autolaunch.token_buy_spend`; none is approved yet.
+  and `autolaunch.auction_bid_spend`; none is approved yet. Autolaunch token buys earn
+  no dollar points.
   Their evidence names the payment (`usd_micros`, `payer`, `token`, `token_amount`,
   `token_decimals`, `price_usd`, `price_source`, `chain_id`, `block_number`, `tx_hash`,
   `log_index`), and `usd_micros` must equal

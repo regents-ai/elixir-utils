@@ -21,15 +21,26 @@ defmodule RegentPoints.Summary do
       |> Ash.Query.filter(account_id == ^id and earned_at >= ^day_start)
       |> Ash.Query.for_read(:read, %{}, actor: actor)
 
+    yesterday_query =
+      Entry
+      |> Ash.Query.filter(
+        account_id == ^id and earned_at >= ^DateTime.add(day_start, -1, :day) and
+          earned_at < ^day_start
+      )
+      |> Ash.Query.for_read(:read, %{}, actor: actor)
+
     pending_query =
       Event
       |> Ash.Query.filter(account_id == ^id and processing_status == :pending)
       |> Ash.Query.for_read(:read, %{}, actor: Store.system())
 
+    # Today's counts and allowances, and the one-time awards the account has had.
     cap_query =
       Ash.Query.filter(
         CapUsage,
-        account_id == ^id and program_id == ^Rules.program() and window_start == ^today
+        account_id == ^id and
+          ((program_id == ^Rules.program() and window_start == ^today) or
+             program_id == "lifetime")
       )
 
     bonuses_query =
@@ -39,6 +50,7 @@ defmodule RegentPoints.Summary do
          {:ok, period_bonuses} <- Points.read_period_bonuses(query: bonuses_query, actor: actor),
          {:ok, entries} <- Points.history(query: entries_query, actor: actor),
          {:ok, today_points} <- Ash.sum(today_query, :points_micro_delta),
+         {:ok, yesterday_points} <- Ash.sum(yesterday_query, :points_micro_delta),
          {:ok, pending} <- Ash.count(pending_query),
          {:ok, caps} <- Points.read_caps(query: cap_query, actor: actor),
          {:ok, agent_names} <- agent_names(id, entries.results) do
@@ -46,13 +58,15 @@ defmodule RegentPoints.Summary do
        %{
          balance_micro: balance(List.first(accounts)),
          earned_today_micro: today_points || 0,
+         earned_yesterday_micro: yesterday_points || 0,
          pending: pending,
          entries: entries.results,
          period_bonuses: period_bonuses,
          current_period: current_period(id),
          agent_names: agent_names,
          more?: entries.more?,
-         allowances: allowances(caps)
+         allowances: allowances(caps),
+         done: done(caps)
        }}
     end
   end
@@ -105,9 +119,21 @@ defmodule RegentPoints.Summary do
             cap -> cap.points_micro
           end
 
-        %{scope: scope, remaining: max(0, Rules.daily_cap(scope) - used)}
+        limit = Rules.daily_cap(scope)
+        %{scope: scope, limit: limit, remaining: max(0, limit - used)}
       end
     )
+  end
+
+  # How many times the account has had each listed rule's award inside the rule's
+  # own window: ever for a one-time rule, today for a daily one. The award reads
+  # the same rows to decide what is left.
+  defp done(caps) do
+    counts = Map.new(caps, &{&1.cap_scope, &1.award_count})
+
+    for %{"count" => count} = rule when is_integer(count) <- Rules.tracked(), into: %{} do
+      {rule["id"], Map.get(counts, Rules.count_scope(rule), 0)}
+    end
   end
 
   defp filters(query, filters) do

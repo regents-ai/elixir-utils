@@ -2,6 +2,14 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentPoints.leaderboard/1`: the ten highest totals by public name, and the
+  reader's own place among every account with points. Accounts level on points
+  share a place; an account with none is left out. Any signed-in person or paired
+  agent may read it. A total and the name and pictures the site already shows are all
+  that leave an account. Each site's accounts module adds `people/1`.
+- `RegentPoints.summary/1` also answers `earned_yesterday_micro`, `done` (how many
+  times the account has done each listed action, today for a daily one) and each
+  daily limit beside what is left of it. `Amount.format/1` drops a trailing ".00".
 - What an account already has at the start earns its one-time points at the start:
   the account, linked X, GitHub and Farcaster accounts and the first paired agent, at
   most 80 points. `RegentPoints.StartAwards` runs from an hourly cron line on every

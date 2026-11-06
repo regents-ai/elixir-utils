@@ -28,7 +28,9 @@ later, empty `approved_rules`.
 
 The accounts module implements `RegentPoints.Accounts`: `human/1` supplies the
 verified wallet set for a canonical integer account ID; `agent_names/2` returns names
-only for agents belonging to that account, as `{:ok, names}`. Return `{:error, reason}`
+only for agents belonging to that account, as `{:ok, names}`; `people/1` returns the
+public name and pictures of each listed account, as the site shows them to other
+people, for the leaderboard. Return `{:error, reason}`
 on lookup failure so the account page shows an error rather than a false missing-agent label. Agent `actor_id` is the verified paired
 agent record ID. The shared `regent_names.platform_human_users` table must exist;
 this package references it but never creates, updates or merges people.

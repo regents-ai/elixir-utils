@@ -6,4 +6,20 @@ defmodule RegentPoints.Accounts do
             }
   @callback agent_names(pos_integer(), [String.t()]) ::
               {:ok, %{String.t() => String.t()}} | {:error, term()}
+
+  @doc """
+  The public name and picture of each account, as the site shows them to other
+  people: `squares` and `picture` are image addresses, either may be `nil`.
+  Nothing else about an account is returned.
+  """
+  @callback people([pos_integer()]) ::
+              {:ok,
+               %{
+                 pos_integer() => %{
+                   name: String.t(),
+                   squares: String.t() | nil,
+                   picture: String.t() | nil
+                 }
+               }}
+              | {:error, term()}
 end

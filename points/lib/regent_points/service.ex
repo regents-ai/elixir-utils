@@ -9,6 +9,10 @@ defmodule RegentPoints.Service do
       run RegentPoints.Summary
     end
 
+    action :leaderboard, :map do
+      run RegentPoints.Leaderboard
+    end
+
     action :record_event, :map do
       argument :event, :map, allow_nil?: false
       run RegentPoints.Intake
@@ -29,7 +33,7 @@ defmodule RegentPoints.Service do
   end
 
   policies do
-    policy action(:summary) do
+    policy action([:summary, :leaderboard]) do
       authorize_if actor_attribute_equals(:role, :human)
       authorize_if {RegentAgents.Checks.Paired, repo_app: :regent_points}
     end

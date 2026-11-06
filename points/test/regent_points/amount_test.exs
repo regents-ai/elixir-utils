@@ -12,5 +12,8 @@ defmodule RegentPoints.AmountTest do
     assert Amount.format(1_234_567_891) == "1,234.56"
     assert Amount.format(400_000) == "0.400"
     assert Amount.format(0) == "0"
+    assert Amount.format(35_000_000) == "35"
+    assert Amount.format(1_250_000_000) == "1,250"
+    assert Amount.format(35_500_000) == "35.50"
   end
 end

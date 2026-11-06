@@ -19,15 +19,20 @@ defmodule RegentAgents.PairingMessageTest do
     end
   end
 
-  test "an agent's skill is its harness's page, and any agent's is other's" do
+  # Sites serve a skill for each featured agent only; any other agent pairs as any agent.
+  test "each featured agent has its own skill, and every other agent gets any agent's" do
     assert PairingMessage.skill_url("https://keyfleet.ai", :grok_bot) ==
              "https://keyfleet.ai/agents/grok-bot/skill.md"
 
-    assert PairingMessage.skill_url("https://keyfleet.ai", nil) ==
-             PairingMessage.skill_url("https://keyfleet.ai", :other)
+    urls =
+      for harness <- Harness.featured(), do: PairingMessage.skill_url("https://x.sh", harness)
 
-    urls = for harness <- Harness.values(), do: PairingMessage.skill_url("https://x.sh", harness)
     assert Enum.uniq(urls) == urls
+
+    for harness <- [nil | Harness.values() -- Harness.featured()] do
+      assert PairingMessage.skill_url("https://x.sh", harness) ==
+               "https://x.sh/agents/other/skill.md"
+    end
   end
 
   test "a pairing link's page is where the agent starts once paired" do

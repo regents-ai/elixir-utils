@@ -5,8 +5,9 @@
 - `RegentAgents.PairingMessage.text/4` is three lines for every agent but
   ChatGPT and Claude: "Pair with my Regents Labs account on <host>", the
   pairing code, and the "Pair with a person's account" steps in the agent's
-  own skill, `<origin>/agents/SLUG/skill.md` (`PairingMessage.skill_url/2`,
-  `other` for any agent), then the start line when a pairing link names a page.
+  own skill, `<origin>/agents/SLUG/skill.md` (`PairingMessage.skill_url/2`; an
+  agent outside `Harness.featured/0`, or on none named, gets `other`'s), then
+  the start line when a pairing link names a page.
   The ten-minute line, the `SIWA_AGENT_HOME` folder, the Codex, Grok Bot,
   Hermes and Muse lines and the `setup:` option are gone from the message;
   each runtime's skill says them now. ChatGPT and Claude are unchanged.

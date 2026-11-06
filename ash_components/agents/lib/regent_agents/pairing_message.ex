@@ -25,11 +25,17 @@ defmodule RegentAgents.PairingMessage do
 
   @doc """
   The agent's skill on the site at `origin`: `/agents/SLUG/skill.md`, its
-  harness with `-` for `_`, and `other` for an agent on none named.
+  harness with `-` for `_`. Every site has a skill for each of the ten agents in
+  `RegentAgents.Harness.featured/0`; an agent on any other harness, or on none
+  named, pairs as any agent and gets `other`'s.
   """
-  def skill_url(origin, harness), do: "#{origin}/agents/#{slug(harness || :other)}/skill.md"
+  def skill_url(origin, harness), do: "#{origin}/agents/#{slug(harness)}/skill.md"
 
-  defp slug(harness), do: harness |> Atom.to_string() |> String.replace("_", "-")
+  defp slug(harness) do
+    if harness in RegentAgents.Harness.featured(),
+      do: harness |> Atom.to_string() |> String.replace("_", "-"),
+      else: "other"
+  end
 
   defp pairing(code, origin, :chatgpt), do: hosted(code, origin, "ChatGPT", "plugin", :chatgpt)
   defp pairing(code, origin, :claude), do: hosted(code, origin, "Claude", "connector", :claude)

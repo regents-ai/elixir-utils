@@ -5,73 +5,74 @@ defmodule RegentPoints.Repo.Migrations.PaymentOnce do
   spending award and at most once, to free a 0-point spending award's payment
   (RegentPoints.Reverse).
 
-  Each step is its own transaction and waits at most 5 seconds for a lock. A check
-  is added unvalidated, which holds its table only for a moment, then validated,
-  which reads every row without stopping writes. So the steps are not wrapped in
-  one transaction, and the migration lock is off: only Regents runs production
-  migrations, from one place. Each step can run again.
-
-  Rolling back is refused once any 0 correction exists, and then changes nothing:
-  the old direction check allows none.
+  It applies in one transaction and waits at most 5 seconds for a lock. Rolling
+  back is refused once any 0 correction exists, and then changes nothing: the old
+  direction check allows none.
   """
 
   use Ecto.Migration
 
-  @disable_ddl_transaction true
-  @disable_migration_lock true
-
-  @caps "regent_points.point_cap_usage"
-  @entries "regent_points.point_entries"
+  @prefix "regent_points"
 
   def up do
-    step("""
-    ALTER TABLE #{@caps} DROP CONSTRAINT IF EXISTS payment_once,
-      ADD CONSTRAINT payment_once
-      CHECK (cap_scope NOT LIKE 'payment:%' OR award_count <= 1) NOT VALID
-    """)
+    execute("SET LOCAL lock_timeout = '5s'")
 
-    step("ALTER TABLE #{@caps} VALIDATE CONSTRAINT payment_once")
+    create constraint(:point_cap_usage, :payment_once,
+             check: "cap_scope NOT LIKE 'payment:%' OR award_count <= 1",
+             prefix: @prefix
+           )
 
-    step("""
-    CREATE UNIQUE INDEX IF NOT EXISTS point_cap_usage_payment_row_once_index
-      ON #{@caps} (cap_scope) WHERE cap_scope LIKE 'payment:%'
-    """)
+    create unique_index(:point_cap_usage, [:cap_scope],
+             name: "point_cap_usage_payment_row_once_index",
+             where: "cap_scope LIKE 'payment:%'",
+             prefix: @prefix
+           )
 
-    step("""
-    ALTER TABLE #{@entries} DROP CONSTRAINT IF EXISTS entry_direction,
-      ADD CONSTRAINT entry_direction
-      CHECK ((reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR
-        (reversal_of_entry_id IS NOT NULL AND
-          (points_micro_delta < 0 OR (points_micro_delta = 0 AND category = 'spending'))))
-      NOT VALID
-    """)
+    drop(constraint(:point_entries, :entry_direction, prefix: @prefix))
 
-    step("ALTER TABLE #{@entries} VALIDATE CONSTRAINT entry_direction")
+    create constraint(:point_entries, :entry_direction,
+             check: """
+             (reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR
+             (reversal_of_entry_id IS NOT NULL AND
+               (points_micro_delta < 0 OR (points_micro_delta = 0 AND category = 'spending')))
+             """,
+             prefix: @prefix
+           )
 
-    step("""
-    CREATE UNIQUE INDEX IF NOT EXISTS point_entries_one_zero_correction_index
-      ON #{@entries} (reversal_of_entry_id) WHERE points_micro_delta = 0
-    """)
+    create unique_index(:point_entries, [:reversal_of_entry_id],
+             name: "point_entries_one_zero_correction_index",
+             where: "points_micro_delta = 0",
+             prefix: @prefix
+           )
   end
 
   def down do
-    step("""
-    ALTER TABLE #{@entries} DROP CONSTRAINT IF EXISTS entry_direction,
-      ADD CONSTRAINT entry_direction
-      CHECK ((reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR
-        (reversal_of_entry_id IS NOT NULL AND points_micro_delta < 0))
-    """)
+    execute("SET LOCAL lock_timeout = '5s'")
 
-    step("DROP INDEX IF EXISTS regent_points.point_entries_one_zero_correction_index")
-    step("DROP INDEX IF EXISTS regent_points.point_cap_usage_payment_row_once_index")
-    step("ALTER TABLE #{@caps} DROP CONSTRAINT IF EXISTS payment_once")
-  end
+    drop(
+      index(:point_entries, [:reversal_of_entry_id],
+        name: "point_entries_one_zero_correction_index",
+        prefix: @prefix
+      )
+    )
 
-  defp step(sql) do
-    {:ok, _} =
-      repo().transaction(fn ->
-        repo().query!("SET LOCAL lock_timeout = '5s'")
-        repo().query!(sql)
-      end)
+    drop(constraint(:point_entries, :entry_direction, prefix: @prefix))
+
+    create constraint(:point_entries, :entry_direction,
+             check: """
+             (reversal_of_entry_id IS NULL AND points_micro_delta >= 0) OR
+             (reversal_of_entry_id IS NOT NULL AND points_micro_delta < 0)
+             """,
+             prefix: @prefix
+           )
+
+    drop(
+      index(:point_cap_usage, [:cap_scope],
+        name: "point_cap_usage_payment_row_once_index",
+        prefix: @prefix
+      )
+    )
+
+    drop(constraint(:point_cap_usage, :payment_once, prefix: @prefix))
   end
 end

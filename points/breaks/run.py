@@ -157,11 +157,9 @@ BREAKS = [
     ("D1 the database allows a 0 correction of any entry", MIG,
      "(points_micro_delta = 0 AND category = 'spending')", "points_micro_delta = 0"),
     ("D2 the database allows many 0 corrections of one entry", MIG,
-     "CREATE UNIQUE INDEX IF NOT EXISTS point_entries_one_zero_correction_index",
-     "CREATE INDEX IF NOT EXISTS point_entries_one_zero_correction_index"),
+     "create unique_index(:point_entries,", "create index(:point_entries,"),
     ("D3 the database allows many rows for one payment", MIG,
-     "CREATE UNIQUE INDEX IF NOT EXISTS point_cap_usage_payment_row_once_index",
-     "CREATE INDEX IF NOT EXISTS point_cap_usage_payment_row_once_index"),
+     "create unique_index(:point_cap_usage,", "create index(:point_cap_usage,"),
 ]
 
 

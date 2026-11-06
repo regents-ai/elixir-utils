@@ -24,9 +24,9 @@
   `RegentPoints.summary/1` also answers `dollars_today`. Migration `20261106172400` adds
   the `payment_once` check and one row per payment on `point_cap_usage`, and lets a
   correction be 0 only for a spending award, once per award (`entry_direction` and
-  `point_entries_one_zero_correction_index`); no new column. Each step waits at most 5
-  seconds for a lock, and its checks are validated after they are added. Rolling it
-  back is refused once a 0 correction exists.
+  `point_entries_one_zero_correction_index`); no new column. It applies in one
+  transaction and waits at most 5 seconds for a lock. Rolling it back is refused once a
+  0 correction exists.
 - Points no longer has a Credits rule (Sean, 6 November 2026): `credits.purchase_settled`,
   its `credits` category and 50-a-day limit, and the per-USDC rate are gone, so a rule
   snapshot's `daily_caps_micro` holds only `activity:account` and repeat actions earn

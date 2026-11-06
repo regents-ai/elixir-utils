@@ -15,6 +15,7 @@ defmodule RegentPoints.IntakeWorker do
          {:ok, facts} <- Rules.adapter(id).verify(input),
          :ok <- valid(facts, id),
          :ok <- same_source(input, facts),
+         facts = at_start(id, facts),
          {:ok, rule} <- Rules.snapshot(id, facts.source_action_at),
          :ok <- eligible_source(rule, facts),
          {:ok, event} <- Ash.transact(Account, fn -> record(facts, rule) end) do
@@ -35,6 +36,21 @@ defmodule RegentPoints.IntakeWorker do
          [:source_app, :source_kind, :source_event_key],
          &(input[to_string(&1)] == facts[&1])
        ), do: :ok, else: {:error, :source_reference_mismatch}
+  end
+
+  # What an account already had before the start earns at the start
+  # (RegentPoints.StartAwards); every other rule earns only for what happens after it.
+  defp at_start(id, facts) do
+    start = Keyword.get(Rules.config(), :starts_at)
+
+    if Rules.start_rule?(id) and start != nil and
+         DateTime.before?(facts.source_action_at, start),
+       do: %{
+         facts
+         | source_action_at: start,
+           qualified_at: Enum.max([facts.qualified_at, start], DateTime)
+       },
+       else: facts
   end
 
   defp eligible_source(%{"category" => "activity"}, facts) do

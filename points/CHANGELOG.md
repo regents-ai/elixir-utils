@@ -2,6 +2,20 @@
 
 ## 0.1.0 (unreleased)
 
+- What an account already has at the start earns its one-time points at the start:
+  the account, linked X, GitHub and Farcaster accounts and the first paired agent, at
+  most 80 points. `RegentPoints.StartAwards` runs from an hourly cron line on every
+  site and asks each approved start rule's adapter for `existing(rule_id, starts_at)`;
+  each reference goes through `record_event/2` and earns at the start time. Sean,
+  6 November 2026.
+- Each catalog entry carries its version. A changed rule keeps its id and gets the
+  next version; an account that earned a one-time rule never earns it again, and a
+  daily rule's count carries across the change.
+- The approved list is the one switch: `Rules.tracked/0` lists only approved rules
+  with an adapter, so a site's Points page drops a stopped rule.
+- The catalog no longer has `patchbay.first_report`, `patchbay.first_reply` or
+  `autolaunch.first_launch`. The milestone catalog totals 250; 240 can be earned at
+  launch, with `template.first_agent_note` not approved. Sean, 6 November 2026.
 - The guide gives the daily limit the code applies: repeat actions and Credits
   bought earn at most 150 base Points a UTC day together (100 and 50). It said 200.
 - The catalog no longer has `identity.ens_selected`, `keyfleet.integration.marimo` or

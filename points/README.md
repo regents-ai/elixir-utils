@@ -42,7 +42,8 @@ missing historical evidence retries rather than falling back to current holdings
 
 Add `points: 5` and `points_chain: 2` queues to the site's existing Oban instance.
 Only Regents, the one tally owner, adds a daily cron for `RegentPoints.TallyPeriods`;
-every other site leaves it out. All hosts use the same shared database and schema.
+every other site leaves it out. Every site adds `{"@hourly", RegentPoints.StartAwards}`
+for the start awards below. All hosts use the same shared database and schema.
 Use the same Repo for source actions and Oban. The package's notifier broadcasts
 on the configured host PubSub under `points:<account_id>`; cross-node notification
 delivery follows the host's PubSub topology.
@@ -92,10 +93,19 @@ restricted `"subject_key"`. Reports through WebMCP, HTTP, CLI, MCP or the site U
 must use the same business source identity for the same completed action. Transport
 never establishes agent identity or creates a second award.
 
-Existing verified social, ENS and pairing state may qualify
-once, using its actual verification time after program start, without reconnecting.
-This is not historical activity backfill. The source adapter must prove current
-eligibility and preserve the same account and subject milestone identities.
+What an account already has at the start earns its one-time points at the start,
+without the person doing anything: the account (`account.activated`), its linked X,
+GitHub and Farcaster accounts (`social.*`) and its first paired agent
+(`agent.activated`), at most 80 points (`RegentPoints.Rules.start_rules/0`). Sean,
+6 November. `RegentPoints.StartAwards` asks each approved start rule's adapter for
+`existing(rule_id, starts_at)`: one `{account_id, reference}` per account for state
+that existed before the start and still holds (a pairing still paired, a link still
+linked). It records each reference through `record_event/2`, so the adapter's
+`verify/1` proves it as usual and reports the real time; Points earns it at the start
+time. The milestone ids are the same as for new actions, so an account earns each once
+whichever site records it. No other rule earns for anything before the start. A site
+lists only the start rules it has a source for: Patchbay has no linked accounts, so it
+lists the account and the first pairing.
 
 ## Rates and allowances
 
@@ -126,8 +136,11 @@ first-vote milestone. Every Patchbay report and reply must be accepted by Patchb
 own quality check before it is published and earns; that check is Patchbay's, not
 this package's.
 Once Points has started, a rule that has ever earned is never removed from the
-catalog: the points it awarded are still read against it. A rule that should stop
-earning is given no adapter, and a new rule gets a new id.
+catalog: the points it awarded are still read against it. A rule's id never changes:
+a changed rule keeps its id and gets the next version in the catalog, so what an
+account earned under the old version still counts against the new one, and each
+ledger entry keeps the version it earned under. A new id is only for a new action. To
+stop a rule, take it off `approved_rules`.
 Two approved candidates stay out of the catalog until their products exist (Sean, 8
 October): Keyfleet rollcall, 5 once/day, and independently verified Patchbay repair, 15
 twice/day. All rules remain operationally disabled in the template.
@@ -145,16 +158,18 @@ period's earned total and bonus at the saved tier in the same locked transaction
 its ledger entry. An account's balance is its entries plus its period bonuses. Repeat actions and
 Credits bought together earn at most 150 base Points a UTC day (100 and 50), excluding
 one-time awards. The milestone catalog
-totals 290 (`RegentPoints.Rules.milestone_total/0`). Sean approved the trial
+totals 250 (`RegentPoints.Rules.milestone_total/0`); `template.first_agent_note` is
+not approved at launch, so 240 can be earned then (Sean, 6 November). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
-`tracked/0` lists the rules this site has a source adapter for, and a site's Points
-page shows only those, so it never offers an action nothing records; `daily_apps/1`
+`tracked/0` lists the rules that are approved and have a source adapter on this site,
+and a site's Points page shows only those, so it never offers an action that earns
+nothing; `daily_apps/1`
 names the apps of the daily rules it shows. There is no uncapped revenue-points rule.
 
 Accepted events save the Credits rate and daily limits with the rule. Delayed
-processing uses that snapshot. Rule versions must remain immutable after approval;
-future rate revisions need prospective versioned rules. `RegentPoints.Bonus` owns
+processing uses that snapshot. A rule version never changes after approval; a rate revision is the rule's next
+version. `RegentPoints.Bonus` owns
 the tiers used by the tally and the database constraint. `Bonus.current/1` reads
 the tier an account's wallets hold now. The page shows a projected bonus and total,
 with the actual period-end snapshot date. Moving an NFT changes this preview; only

@@ -621,13 +621,22 @@ defmodule RegentPoints.SpendingTest do
              })
            ) == {1_000_000, []}
 
-    for price <- [
-          whole <> "0",
-          "0." <> String.duplicate("0", 30) <> "1",
-          "1." <> String.duplicate("0", 10_000),
-          "1." <> String.duplicate("0", 2_000_000)
+    # Each is a payment whose dollars are right; only the price's length refuses it.
+    for {usd, amount, decimals, price} <- [
+          {1_000_000, "1", 30, whole <> "0"},
+          {1_000_000, "1" <> String.duplicate("0", 31), 0,
+           "0." <> String.duplicate("0", 30) <> "1"},
+          {5_000_000, "5000000", 6, "1." <> String.duplicate("0", 10_000)},
+          {5_000_000, "5000000", 6, "1." <> String.duplicate("0", 2_000_000)}
         ] do
-      assert outcome(payment(5_000_000, %{"price_usd" => price})) == refused()
+      evidence =
+        payment(usd, %{
+          "token_amount" => amount,
+          "token_decimals" => decimals,
+          "price_usd" => price
+        })
+
+      assert outcome(evidence) == refused()
     end
   end
 

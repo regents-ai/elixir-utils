@@ -179,7 +179,7 @@ def run(path):
     out = subprocess.run(["mix", "test", *TESTS], cwd=ROOT, env=env(path),
                          capture_output=True, text=True)
     text = out.stdout + out.stderr
-    result = re.findall(r"^\d+ (?:propert|tests?).*failures?.*$", text, re.M)
+    result = re.findall(r"^Result: .*$", text, re.M)
     red = re.findall(r"^\s+\d+\) (?:test|property) (.*) \(", text, re.M)
     return out.returncode, (result[-1] if result else "no result"), red
 

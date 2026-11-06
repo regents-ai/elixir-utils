@@ -8,15 +8,18 @@ defmodule RegentPoints.Accounts do
               {:ok, %{String.t() => String.t()}} | {:error, term()}
 
   @doc """
-  The public name and picture of each account, as the site shows them to other
-  people: `squares` and `picture` are image addresses, either may be `nil`.
-  Nothing else about an account is returned.
+  How each account shows to other people, for the leaderboard: `name` is the name
+  the site shows for it, or `nil` when it shows the account's `wallet` instead,
+  labelled with `ens_name` when the wallet has one; `squares` and `picture` are
+  image addresses. Any of them may be `nil`.
   """
   @callback people([pos_integer()]) ::
               {:ok,
                %{
                  pos_integer() => %{
-                   name: String.t(),
+                   name: String.t() | nil,
+                   wallet: String.t() | nil,
+                   ens_name: String.t() | nil,
                    squares: String.t() | nil,
                    picture: String.t() | nil
                  }

@@ -31,7 +31,15 @@ defmodule RegentPoints.PageReadsTest do
         {:ok,
          Map.new(
            ids,
-           &{&1, %{name: "Person #{&1}", squares: nil, picture: nil, wallet: "0xsecret"}}
+           &{&1,
+            %{
+              name: "Person #{&1}",
+              wallet: "0x#{&1}",
+              ens_name: nil,
+              squares: nil,
+              picture: nil,
+              email: "kept@example.com"
+            }}
          )}
   end
 
@@ -125,16 +133,16 @@ defmodule RegentPoints.PageReadsTest do
     assert {:error, %Ash.Error.Forbidden{}} = RegentPoints.leaderboard(actor: reader(account))
   end
 
-  # A row carries the public name and pictures the site supplied, its place and its
-  # total, and the account id the site needs to mark the reader's own row: no
-  # wallet or anything else the site's lookup happened to return.
-  test "a row holds a name, pictures, a place, a total and the account id" do
+  # A row carries the name, wallet and pictures the site supplied, its place and its
+  # total, and the account id the site needs to mark the reader's own row: nothing
+  # else the site's lookup happened to return.
+  test "a row holds a name, a wallet, pictures, a place, a total and the account id" do
     earn("account.activated", person(), DateTime.utc_now())
 
     assert %{top: [row]} = RegentPoints.leaderboard!(actor: Store.system())
 
     assert row |> Map.keys() |> Enum.sort() ==
-             [:account_id, :name, :picture, :points_micro, :rank, :squares]
+             [:account_id, :ens_name, :name, :picture, :points_micro, :rank, :squares, :wallet]
   end
 
   # Each account earns some of four one-time awards (25, 10, 10 and 10), so many

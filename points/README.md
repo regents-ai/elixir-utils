@@ -27,9 +27,9 @@ later, empty `approved_rules`.
 
 The accounts module implements `RegentPoints.Accounts`: `human/1` supplies the
 verified wallet set for a canonical integer account ID; `agent_names/2` returns names
-only for agents belonging to that account, as `{:ok, names}`; `people/1` returns the
-public name and pictures of each listed account, as the site shows them to other
-people, for the leaderboard. Return `{:error, reason}`
+only for agents belonging to that account, as `{:ok, names}`; `people/1` returns how
+each listed account shows to other people, for the leaderboard: its name, or `nil` and
+its wallet (every wallet is public), the wallet's ENS name, and its pictures. Return `{:error, reason}`
 on lookup failure so the account page shows an error rather than a false missing-agent label. Agent `actor_id` is the verified paired
 agent record ID. The shared `regent_names.platform_human_users` table must exist;
 this package references it but never creates, updates or merges people.
@@ -52,7 +52,8 @@ delivery follows the host's PubSub topology.
 
 `RegentPoints.leaderboard/1` is system-only. The site reads it once for every reader,
 on `points:board` and on a schedule, and keeps the answer on the server: the ten
-highest rows (`account_id`, `name`, `squares`, `picture`, `rank`, `points_micro`) and
+highest rows (`account_id`, `name`, `wallet`, `ens_name`, `squares`, `picture`, `rank`,
+`points_micro`) and
 `totals`, every positive total, highest first. A reader gets the rows without their
 account ids, a mark on their own row, and their own place from
 `RegentPoints.Leaderboard.place(totals, own_total)`, never the list of totals.

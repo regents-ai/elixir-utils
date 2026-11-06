@@ -9,6 +9,9 @@
   entries no longer read or write `purchased_usdc_atomic`; the column leaves the
   `point_entries` table in a later shared change, once every site runs this version,
   because a site on an older version still reads it.
+- `people/1` also answers each account's `wallet` and its `ens_name`, and `name` is
+  `nil` when the site shows the wallet in place of a name; leaderboard rows carry
+  both. Every wallet is public (Sean, 6 November 2026).
 - `RegentPoints.leaderboard/1`: the board a site reads once for every reader, under
   the system actor only. It answers the ten highest totals by public name, each with
   its account id, and `totals`, every positive total, highest first; highest total

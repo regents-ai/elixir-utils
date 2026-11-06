@@ -8,7 +8,7 @@ defmodule RegentPoints.Leaderboard do
 
   Each row carries its account id so the site can mark the reader's own row. The
   site keeps the ids and the list of totals on the server: a page or an agent gets
-  the rows' names, pictures, places and totals, and its own place.
+  the rows' names or wallets, pictures, places and totals, and its own place.
   """
   use Ash.Resource.Actions.Implementation
   require Ash.Query
@@ -47,7 +47,7 @@ defmodule RegentPoints.Leaderboard do
   defp row(account, totals, people) do
     people
     |> Map.fetch!(account.id)
-    |> Map.take([:name, :squares, :picture])
+    |> Map.take([:name, :wallet, :ens_name, :squares, :picture])
     |> Map.merge(%{
       account_id: account.id,
       rank: place(totals, account.balance_micro),

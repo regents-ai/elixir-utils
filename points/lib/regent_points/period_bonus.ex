@@ -98,5 +98,8 @@ defmodule RegentPoints.PeriodBonus do
     transform fn _notification -> :points_changed end
     publish :record, [:account_id]
     publish :follow, [:account_id]
+    # Any account's total moved: the site's shared board reads again.
+    publish :record, ["board"]
+    publish :follow, ["board"]
   end
 end

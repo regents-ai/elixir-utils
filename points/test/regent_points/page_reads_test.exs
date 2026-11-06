@@ -1,9 +1,12 @@
 defmodule RegentPoints.PageReadsTest do
-  # What the Points page reads for one person: their figures by day, what they have
-  # done of each action, and the leaderboard. Actions are recorded the way a site
-  # records them, on a real database, with Oban running each job as it is queued.
+  # What the Points page reads: one person's figures by day and what they have done
+  # of each action, and the board a site reads once for every reader. Actions are
+  # recorded the way a site records them, on a real database, with Oban running each
+  # job as it is queued.
   use ExUnit.Case, async: false
-  alias RegentPoints.Store
+  use ExUnitProperties
+  require Ash.Query
+  alias RegentPoints.{Leaderboard, Store}
 
   defmodule Source do
     @moduledoc false
@@ -32,7 +35,8 @@ defmodule RegentPoints.PageReadsTest do
          )}
   end
 
-  @rules ~w(account.activated social.x credits.purchase_settled)
+  @board_rules ~w(account.activated social.x social.github social.farcaster)
+  @rules @board_rules ++ ["credits.purchase_settled"]
   @start DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -5 * 86_400)
 
   setup do
@@ -76,7 +80,7 @@ defmodule RegentPoints.PageReadsTest do
              RegentPoints.summary!(actor: reader(account)).done
   end
 
-  test "the leaderboard orders by total, shares a place on a tie and leaves out zero" do
+  test "the board orders by total, shares a place on a tie and leaves out zero" do
     [first, level_a, level_b, last, none] = for _ <- 1..5, do: person()
     now = DateTime.utc_now()
 
@@ -85,7 +89,7 @@ defmodule RegentPoints.PageReadsTest do
     earn("social.x", last, now)
     RegentPoints.open_account!(%{id: none}, actor: Store.system())
 
-    assert %{top: top, you: you} = RegentPoints.leaderboard!(actor: reader(last))
+    assert %{top: top, totals: totals} = RegentPoints.leaderboard!(actor: Store.system())
 
     assert Enum.map(top, &{&1.rank, &1.points_micro}) == [
              {1, 35_000_000},
@@ -94,38 +98,76 @@ defmodule RegentPoints.PageReadsTest do
              {4, 10_000_000}
            ]
 
-    assert Enum.map(top, & &1.you?) == [false, false, false, true]
-    assert you == %{rank: 4, points_micro: 10_000_000}
+    # Inside a tie the lower account id comes first, so every read agrees.
+    assert Enum.map(top, & &1.account_id) ==
+             [first, min(level_a, level_b), max(level_a, level_b), last]
+
+    assert totals == [35_000_000, 25_000_000, 25_000_000, 10_000_000]
+    assert Leaderboard.place(totals, 10_000_000) == 4
+    assert Leaderboard.place(totals, 0) == nil
   end
 
-  test "a reader with no points has no place" do
-    earn("account.activated", person(), DateTime.utc_now())
-    assert %{you: nil, top: [_]} = RegentPoints.leaderboard!(actor: reader(person()))
-  end
-
-  test "a reader below the listed ten still gets their own place" do
+  test "the board lists ten rows and every total, for a place below them" do
     now = DateTime.utc_now()
     for _ <- 1..10, do: earn("account.activated", person(), now)
-    reader = person()
-    earn("social.x", reader, now)
+    earn("social.x", person(), now)
 
-    assert %{top: top, you: %{rank: 11, points_micro: 10_000_000}} =
-             RegentPoints.leaderboard!(actor: reader(reader))
-
+    assert %{top: top, totals: totals} = RegentPoints.leaderboard!(actor: Store.system())
     assert length(top) == 10
-    refute Enum.any?(top, & &1.you?)
+    assert length(totals) == 11
+    assert Leaderboard.place(totals, 10_000_000) == 11
   end
 
-  # A row carries the public name and pictures the site supplied and the total:
-  # no account id, wallet or anything else the site's lookup happened to return.
-  test "nothing but a name, pictures, a place and a total leaves an account" do
+  # The board carries account ids for the site to keep, so only the site reads it.
+  test "a person cannot read the board themselves" do
     account = person()
     earn("account.activated", account, DateTime.utc_now())
 
-    assert %{top: [row]} = RegentPoints.leaderboard!(actor: reader(account))
+    assert {:error, %Ash.Error.Forbidden{}} = RegentPoints.leaderboard(actor: reader(account))
+  end
+
+  # A row carries the public name and pictures the site supplied, its place and its
+  # total, and the account id the site needs to mark the reader's own row: no
+  # wallet or anything else the site's lookup happened to return.
+  test "a row holds a name, pictures, a place, a total and the account id" do
+    earn("account.activated", person(), DateTime.utc_now())
+
+    assert %{top: [row]} = RegentPoints.leaderboard!(actor: Store.system())
 
     assert row |> Map.keys() |> Enum.sort() ==
-             [:name, :picture, :points_micro, :rank, :squares, :you?]
+             [:account_id, :name, :picture, :points_micro, :rank, :squares]
+  end
+
+  # Each account earns some of four one-time awards (25, 10, 10 and 10), so many
+  # are level on points; the accounts from earlier runs stay, so the field grows.
+  property "a place from the board's totals is the count of accounts above, plus one" do
+    # Each number's bits pick which of the four awards one account earns.
+    check all(earned <- list_of(integer(0..15), min_length: 1, max_length: 6), max_runs: 12) do
+      now = DateTime.utc_now()
+
+      for bits <- earned do
+        account = person()
+
+        for {rule, bit} <- Enum.with_index(@board_rules),
+            Bitwise.band(bits, Bitwise.bsl(1, bit)) != 0,
+            do: earn(rule, account, now)
+      end
+
+      %{totals: totals} = RegentPoints.leaderboard!(actor: Store.system())
+
+      for account <- RegentPoints.read_accounts!(load: [:balance_micro], actor: Store.system()) do
+        assert Leaderboard.place(totals, account.balance_micro) ==
+                 counted_place(account.balance_micro)
+      end
+    end
+  end
+
+  # The per-reader count the board replaced: every account with more points, plus one.
+  defp counted_place(0), do: nil
+
+  defp counted_place(total) do
+    ahead = Ash.Query.filter(RegentPoints.Account, balance_micro > ^total)
+    Ash.count!(ahead, actor: Store.system()) + 1
   end
 
   defp reader(account), do: %{role: :human, human_account_id: account}

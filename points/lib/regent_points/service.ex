@@ -33,12 +33,14 @@ defmodule RegentPoints.Service do
   end
 
   policies do
-    policy action([:summary, :leaderboard]) do
+    policy action(:summary) do
       authorize_if actor_attribute_equals(:role, :human)
       authorize_if {RegentAgents.Checks.Paired, repo_app: :regent_points}
     end
 
-    policy action([:record_event, :process_event, :reverse]) do
+    # The board is read once for every reader by the site, which hands each reader
+    # only the rows and their own place (RegentPoints.Leaderboard).
+    policy action([:leaderboard, :record_event, :process_event, :reverse]) do
       authorize_if actor_attribute_equals(:role, :system)
     end
   end

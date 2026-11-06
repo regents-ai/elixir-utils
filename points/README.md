@@ -47,8 +47,16 @@ Only Regents, the one tally owner, adds a daily cron for `RegentPoints.TallyPeri
 every other site leaves it out. Every site adds `{"@hourly", RegentPoints.StartAwards}`
 for the start awards below. All hosts use the same shared database and schema.
 Use the same Repo for source actions and Oban. The package's notifier broadcasts
-on the configured host PubSub under `points:<account_id>`; cross-node notification
+on the configured host PubSub under `points:<account_id>` when that account's total
+moves, and under `points:board` when any account's does; cross-node notification
 delivery follows the host's PubSub topology.
+
+`RegentPoints.leaderboard/1` is system-only. The site reads it once for every reader,
+on `points:board` and on a schedule, and keeps the answer on the server: the ten
+highest rows (`account_id`, `name`, `squares`, `picture`, `rank`, `points_micro`) and
+`totals`, every positive total, highest first. A reader gets the rows without their
+account ids, a mark on their own row, and their own place from
+`RegentPoints.Leaderboard.place(totals, own_total)`, never the list of totals.
 
 ## Record committed actions
 

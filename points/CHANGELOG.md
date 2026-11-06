@@ -2,11 +2,16 @@
 
 ## 0.1.0 (unreleased)
 
-- `RegentPoints.leaderboard/1`: the ten highest totals by public name, and the
-  reader's own place among every account with points. Accounts level on points
-  share a place; an account with none is left out. Any signed-in person or paired
-  agent may read it. A total and the name and pictures the site already shows are all
-  that leave an account. Each site's accounts module adds `people/1`.
+- `RegentPoints.leaderboard/1`: the board a site reads once for every reader, under
+  the system actor only. It answers the ten highest totals by public name, each with
+  its account id, and `totals`, every positive total, highest first; highest total
+  first, then the lowest account id. `RegentPoints.Leaderboard.place/2` gives a
+  reader's place from their own total: one more than the totals strictly above it,
+  so accounts level on points share a place; an account with none has no place. The
+  site keeps the ids and totals on the server. Each site's accounts module adds
+  `people/1`.
+- Every award, correction and period bonus also broadcasts `points:board`, so a
+  site's shared board reads again when any account's total moves.
 - `RegentPoints.summary/1` also answers `earned_yesterday_micro`, `done` (how many
   times the account has done each listed action, today for a daily one) and each
   daily limit beside what is left of it. `Amount.format/1` drops a trailing ".00".

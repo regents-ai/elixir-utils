@@ -126,5 +126,7 @@ defmodule RegentPoints.Entry do
     broadcast_type :broadcast
     transform fn _notification -> :points_changed end
     publish :append, [:account_id]
+    # Any account's total moved: the site's shared board reads again.
+    publish :append, ["board"]
   end
 end

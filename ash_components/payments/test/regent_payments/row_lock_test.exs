@@ -106,7 +106,6 @@ defmodule RegentPayments.RowLockTest do
       Steps.record_receipt(
         %{
           payment_intent_id: pending.id,
-          paid_with: :usdc,
           payer_address: payer.wallet_address,
           network: pending.network,
           asset: pending.asset,

@@ -35,8 +35,7 @@ defmodule RegentPayments.MixProject do
     [
       {:ash, "~> 3.36"},
       # Regent's copy of 2.15.2 with ash-project/ash_postgres#910: upserts use the
-      # repo's prefix, which picks each site's schema on the shared database. It
-      # stands in for the Hex release regent_credits' ash_money asks for.
+      # repo's prefix, which picks each site's schema on the shared database.
       {:ash_postgres,
        git: "https://github.com/regents-ai/ash_postgres.git",
        ref: "cc886ab3efc8b05d51b7b1f57e609341fb6a0873",
@@ -51,7 +50,6 @@ defmodule RegentPayments.MixProject do
       {:plug_crypto, "~> 2.1"},
       {:regent_chain, path: "../../chain"},
       {:regent_agents, path: "../agents"},
-      {:regent_credits, path: "../../credits"},
       {:bandit, "~> 1.5", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false},

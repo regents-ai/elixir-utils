@@ -116,8 +116,7 @@ database. Listening needs a connection of its own on the database's direct
 address: a pooler that hands out connections per transaction drops it. The
 site opens one `Postgrex.Notifications` connection, names it in the
 `:notifications` setting, and starts the listener after it and PubSub under a
-`:rest_for_one` supervisor, so a new connection brings a new listener. Credits'
-listener shares the same connection:
+`:rest_for_one` supervisor, so a new connection brings a new listener:
 
 ```elixir
 config :regent_agents, notifications: MySite.Notifications

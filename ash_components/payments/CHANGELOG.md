@@ -2,6 +2,19 @@
 
 ## 0.1.0 (unreleased)
 
+- Payments are in USDC on Base only; Regent Credits no longer pay for anything.
+  `Purchase.pay_with_credits/4`, the `{:credits_refused, intent, words}` answer,
+  `RegentPayments.credits_pay_to?/1` and `config :regent_payments, credits_pay_to:`
+  are gone. An offer's terms no longer carry `credits:`, and the frozen payload no
+  longer gets a `"credits"` key. Receipts no longer have `paid_with`;
+  `payer_address`, `network`, `asset` and `facilitator` are required on every new
+  receipt, and `Purchase.receipt_payload/1` answers `transaction_hash`,
+  `payer_address` and `settled_at`. `FeeForward` forwards a fee only when its
+  receipt names the wallet that paid; `:paid_with_credits` is gone. Migration
+  `20261106200000_receipts_paid_in_usdc` gives `paid_with` its `usdc` default
+  again, so new receipts fill it; earlier receipts, the column and its check stay
+  as they are. The library no longer depends on `regent_credits`.
+
 - Every wallet a person's account links pays as the account; none is the special
   one. The actor carries `wallet_addresses`, every wallet the account links,
   beside the `wallet_address` it signed in with (`WalletPayment.wallets/1`). A

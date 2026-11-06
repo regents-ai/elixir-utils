@@ -16,6 +16,5 @@ Ecto.Migrator.run(
 
 RegentPayments.Migrator.up(RegentPayments.TestRepo)
 RegentAgents.Migrator.up(RegentPayments.TestRepo)
-RegentCredits.Migrator.up(RegentPayments.TestRepo)
 
 Ecto.Adapters.SQL.Sandbox.mode(RegentPayments.TestRepo, :manual)

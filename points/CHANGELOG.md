@@ -8,6 +8,8 @@
   site and asks each approved start rule's adapter for `existing(rule_id, starts_at)`;
   each reference goes through `record_event/2` and earns at the start time. Sean,
   6 November 2026.
+- `StartAwards` reads the accounts that already have an event for a rule once per
+  rule and leaves them out, so a later run offers nothing and costs one read per rule.
 - Each catalog entry carries its version. A changed rule keeps its id and gets the
   next version; an account that earned a one-time rule never earns it again, and a
   daily rule's count carries across the change.

@@ -127,6 +127,37 @@ defmodule RegentPoints.StartAndVersionsTest do
              entries(account) |> Enum.sort_by(& &1.rule_id)
   end
 
+  test "a second run records nothing more" do
+    account = person()
+    before = DateTime.add(@start, -86_400)
+    existing(account, "account.activated", "account:#{account}", before)
+    existing(account, "agent.activated", "pairing:#{account}", before, agent: true)
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    first = events(account)
+    assert length(first) == 2
+
+    # Each record is an offer to the intake; the second run makes none.
+    test = self()
+    handler = "start-awards-offers-#{account}"
+
+    :ok =
+      :telemetry.attach(
+        handler,
+        [:oban, :job, :start],
+        fn _, _, %{job: job}, _ ->
+          send(test, {:offered, job.worker})
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    refute_received {:offered, "RegentPoints.IntakeWorker"}
+    assert events(account) == first
+  end
+
   test "a start rule off the approved list earns nothing at the start" do
     account = person()
 
@@ -256,6 +287,14 @@ defmodule RegentPoints.StartAndVersionsTest do
     do: %{rule_id: rule_id, source_app: app, source_kind: "test", source_event_key: key}
 
   defp rule(catalog, id), do: Enum.find(catalog, &(&1["id"] == id))
+
+  defp events(account) do
+    RegentPoints.Event
+    |> Ash.Query.filter(account_id == ^account and program_id == ^Rules.program())
+    |> Ash.Query.sort(:id)
+    |> Ash.read!(actor: Store.system())
+    |> Enum.map(& &1.id)
+  end
 
   defp entries(account) do
     Entry

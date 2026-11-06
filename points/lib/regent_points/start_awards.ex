@@ -10,8 +10,9 @@ defmodule RegentPoints.StartAwards do
   source, `existing(rule_id, starts_at)`, for what was there before the start, one
   `{account_id, reference}` per account, and records
   it through `RegentPoints.record_event/2` like any action, so the source still
-  proves it and an account earns each rule once whichever site records it. An
-  account that already has an event for the rule is left out.
+  proves it and an account earns each rule once whichever site records it. The
+  accounts that already have an event for the rule are read once per rule and
+  left out.
 
   Unique while queued or done, so it runs once; after Oban prunes the finished
   job, the next run finds nothing new to record.
@@ -35,23 +36,26 @@ defmodule RegentPoints.StartAwards do
   defp at(_start, wait) when wait > 0, do: {:snooze, wait}
 
   defp at(start, _wait) do
-    for id <- Rules.start_rules(),
-        Rules.enabled?(id),
-        {account_id, reference} <- Rules.adapter(id).existing(id, start),
-        not recorded?(account_id, id) do
-      {:ok, _} =
-        RegentPoints.record_event(Map.put(reference, :rule_id, id), actor: Store.system())
-    end
-
+    for id <- Rules.start_rules(), Rules.enabled?(id), do: record_existing(id, start)
     :ok
   end
 
-  defp recorded?(account_id, rule_id) do
+  defp record_existing(id, start) do
+    recorded = recorded(id)
+
+    for {account_id, reference} <- Rules.adapter(id).existing(id, start),
+        not MapSet.member?(recorded, account_id) do
+      {:ok, _} =
+        RegentPoints.record_event(Map.put(reference, :rule_id, id), actor: Store.system())
+    end
+  end
+
+  defp recorded(rule_id) do
     Event
-    |> Ash.Query.filter(
-      program_id == ^Rules.program() and account_id == ^account_id and rule_id == ^rule_id
-    )
-    |> Ash.Query.for_read(:read, %{}, actor: Store.system())
-    |> Ash.exists?()
+    |> Ash.Query.filter(program_id == ^Rules.program() and rule_id == ^rule_id)
+    |> Ash.Query.select([:account_id])
+    |> Ash.Query.distinct([:account_id])
+    |> Ash.read!(actor: Store.system())
+    |> MapSet.new(& &1.account_id)
   end
 end

@@ -44,7 +44,6 @@ defmodule RegentPoints.Entry do
     attribute :milestone_key, :string
     attribute :cap_reduction_micro, :integer, allow_nil?: false, default: 0
     attribute :points_micro_delta, :integer, allow_nil?: false
-    attribute :purchased_usdc_atomic, :integer
     attribute :earned_at, :utc_datetime_usec, allow_nil?: false
     create_timestamp :recorded_at
     attribute :reversal_of_entry_id, :uuid
@@ -97,7 +96,6 @@ defmodule RegentPoints.Entry do
         :milestone_key,
         :cap_reduction_micro,
         :points_micro_delta,
-        :purchased_usdc_atomic,
         :earned_at,
         :reversal_of_entry_id,
         :reason_code

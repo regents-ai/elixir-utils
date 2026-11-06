@@ -4,7 +4,6 @@ Share one account-linked Points ledger across Regent sites. The package owns the
 `regent_points` schema, rules, award calculations, corrections and NFT reads.
 Each host supplies verified source facts, its account lookups, Repo, PubSub and
 Oban instance. Including the package starts no server, worker loop or migration.
-Points and Credits have separate code and tables.
 
 ## Configure the host
 
@@ -65,10 +64,10 @@ In the source action's transaction, call the system-only domain action:
 ```elixir
 {:ok, _} =
   RegentPoints.record_event(%{
-    rule_id: "credits.purchase_settled",
-    source_app: "regents",
-    source_kind: "credits_purchase",
-    source_event_key: purchase.id
+    rule_id: "patchbay.reply_published",
+    source_app: "patchbay",
+    source_kind: "reply",
+    source_event_key: reply.id
   }, actor: %{role: :system})
 ```
 
@@ -76,8 +75,8 @@ Only those four reference fields enter the Oban job. No adapter, Points table or
 chain read runs in the product transaction. The job is inserted in the source's own
 transaction, so the action and its Points job commit or roll back together; an insert
 failure raises and rolls back the action. Outside a transaction, the same API can
-resubmit a reference to an already committed source. Never repeat a purchase, post
-or wallet action to recover Points; reconcile from authoritative source records.
+resubmit a reference to an already committed source. Never repeat a post or
+wallet action to recover Points; reconcile from authoritative source records.
 
 The background verifier calls the rule's configured adapter `verify(reference)`.
 It must load authoritative persisted records, not trust browser assertions. Return
@@ -91,12 +90,6 @@ Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_
 `actor_kind` (`"human"` or `"agent"`), `actor_id`, `source_action_at`, `qualified_at`,
 `evidence_ref` and `evidence`. Both times are UTC DateTimes. Freeze the beneficiary
 at action time. Source identity must match the job.
-Credits evidence contains settled non-promotional `"purchased_usdc_atomic"`.
-Any site that lists `RegentCredits` may credit any purchase, and its listener of
-`RegentCredits.Signals` (`:purchase_credited` and `:purchase_attributed`) records
-`credits.purchase_settled` with `source_app: "regents"`, so the award
-key is the same wherever it credits. Approve that rule and its start time on every
-Credits host in one change; a host with it off would let a purchase it credits earn nothing.
 Agent evidence contains `"attribution_link_id"`; Keyfleet additionally needs
 `"key_id"` and `"ownership_epoch"`; social milestones need a stable
 restricted `"subject_key"`. Reports through WebMCP, HTTP, CLI, MCP or the site UI
@@ -119,11 +112,9 @@ lists the account and the first pairing.
 
 ## Rates and allowances
 
-Credits bought earn 1 point per USDC, up to 50 points per UTC day, and that limit
-is separate from actions (Sean, 13 October).
 Repeat actions share one limit of 100 points per UTC day for the account and all its
 paired agents, across every interface, with one count per action for the account
-whoever acted; a person can therefore earn up to 150 points a day. The actions add up
+whoever acted. The actions add up
 to more than 100 on purpose: the limit decides. One-time actions use no daily limit
 and remain once per canonical account: one ledger entry, however many qualifying
 actions arrive. Once the account has earned one, or while that award is still
@@ -165,9 +156,8 @@ earned in that period after all limits and corrections, one-time awards included
 the tier held at period end, and Oban retries a Base outage. The tier is never read
 again for that period: an award checked after the tally, or a correction, moves the
 period's earned total and bonus at the saved tier in the same locked transaction as
-its ledger entry. An account's balance is its entries plus its period bonuses. Repeat actions and
-Credits bought together earn at most 150 base Points a UTC day (100 and 50), excluding
-one-time awards. The milestone catalog
+its ledger entry. An account's balance is its entries plus its period bonuses. Repeat actions earn at
+most 100 base Points a UTC day, excluding one-time awards. The milestone catalog
 totals 250 (`RegentPoints.Rules.milestone_total/0`); `template.first_agent_note` is
 not approved at launch, so 240 can be earned then (Sean, 6 November). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
@@ -177,9 +167,9 @@ and a site's Points page shows only those, so it never offers an action that ear
 nothing; `daily_apps/1`
 names the apps of the daily rules it shows. There is no uncapped revenue-points rule.
 
-Accepted events save the Credits rate and daily limits with the rule. Delayed
-processing uses that snapshot. A rule version never changes after approval; a rate revision is the rule's next
-version. `RegentPoints.Bonus` owns
+Accepted events save the rule's points and daily limits with the rule. Delayed
+processing uses that snapshot. A rule version never changes after approval; a changed
+value is the rule's next version. `RegentPoints.Bonus` owns
 the tiers used by the tally and the database constraint. `Bonus.current/1` reads
 the tier an account's wallets hold now. The page shows a projected bonus and total,
 with the actual period-end snapshot date. Moving an NFT changes this preview; only
@@ -209,9 +199,6 @@ in one SQL block because Postgrex prepares one statement per call.
 source action: the account holding a wallet at the moment of the event, or
 `:unknown_owner` when no account, or more than one, held it then. It never
 answers with the wallet's current owner.
-
-Refunding a Credits purchase does not remove the Points it earned, including when
-verification happens after the refund (Sean, 9 October 2026).
 
 Shared Ash SQL extensions belong to the host and are not migrated by this package.
 

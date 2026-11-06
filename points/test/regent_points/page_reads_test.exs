@@ -35,8 +35,7 @@ defmodule RegentPoints.PageReadsTest do
          )}
   end
 
-  @board_rules ~w(account.activated social.x social.github social.farcaster)
-  @rules @board_rules ++ ["credits.purchase_settled"]
+  @rules ~w(account.activated social.x social.github social.farcaster)
   @start DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -5 * 86_400)
 
   setup do
@@ -148,7 +147,7 @@ defmodule RegentPoints.PageReadsTest do
       for bits <- earned do
         account = person()
 
-        for {rule, bit} <- Enum.with_index(@board_rules),
+        for {rule, bit} <- Enum.with_index(@rules),
             Bitwise.band(bits, Bitwise.bsl(1, bit)) != 0,
             do: earn(rule, account, now)
       end

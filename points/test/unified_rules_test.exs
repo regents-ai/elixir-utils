@@ -25,10 +25,7 @@ defmodule RegentPoints.UnifiedRulesTest do
 
     assert {:ok, rule} = Rules.snapshot("patchbay.reply_published", ~U[2020-01-02 00:00:00Z])
 
-    assert rule["daily_caps_micro"] == %{
-             "credits" => 50_000_000,
-             "activity:account" => 100_000_000
-           }
+    assert rule["daily_caps_micro"] == %{"activity:account" => 100_000_000}
 
     assert Rules.count_scope(rule) == "patchbay.reply_published"
     assert Rules.allowance_scope(rule) == "activity:account"

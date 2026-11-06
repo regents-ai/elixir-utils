@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- Points no longer has a Credits rule (Sean, 6 November 2026): `credits.purchase_settled`,
+  its `credits` category and 50-a-day limit, and the per-USDC rate are gone, so a rule
+  snapshot's `daily_caps_micro` holds only `activity:account` and repeat actions earn
+  at most 100 base Points a UTC day. `Rules.base_micro/1` takes the rule alone. Ledger
+  entries no longer read or write `purchased_usdc_atomic`; the column leaves the
+  `point_entries` table in a later shared change, once every site runs this version,
+  because a site on an older version still reads it.
 - `RegentPoints.leaderboard/1`: the board a site reads once for every reader, under
   the system actor only. It answers the ten highest totals by public name, each with
   its account id, and `totals`, every positive total, highest first; highest total

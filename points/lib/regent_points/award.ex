@@ -28,7 +28,7 @@ defmodule RegentPoints.Award do
   defp award(event) do
     rule = event.rule_snapshot
 
-    case Rules.base_micro(rule, event.evidence) do
+    case Rules.base_micro(rule) do
       {:ok, requested} ->
         award_amount(event, rule, requested)
 
@@ -83,7 +83,6 @@ defmodule RegentPoints.Award do
           milestone_key: rule["milestone_key"],
           points_micro_delta: base,
           cap_reduction_micro: requested - base,
-          purchased_usdc_atomic: event.evidence["purchased_usdc_atomic"],
           earned_at: event.source_action_at,
           reason_code: reason
         },

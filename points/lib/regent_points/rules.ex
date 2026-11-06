@@ -37,10 +37,8 @@ defmodule RegentPoints.Rules do
     {"patchbay.reply_published", 1, 5, 1, "day", "Patchbay reply published"}
   ]
 
-  @credits {"credits.purchase_settled", 1, "Credits bought"}
   @labels Map.new(
-            [Tuple.delete_at(@credits, 1)] ++
-              for({id, _version, _points, label} <- @milestones, do: {id, label}) ++
+            for({id, _version, _points, label} <- @milestones, do: {id, label}) ++
               for({id, _version, _points, _count, _period, label} <- @activity, do: {id, label})
           )
 
@@ -62,9 +60,7 @@ defmodule RegentPoints.Rules do
         rule(id, version, "activity", points, count, period)
       end)
 
-    {credits, version, _label} = @credits
-
-    [rule(credits, version, "credits", nil, nil, "day") | milestones ++ activity]
+    milestones ++ activity
   end
 
   def config, do: Application.get_all_env(:regent_points)
@@ -125,27 +121,14 @@ defmodule RegentPoints.Rules do
     end
   end
 
-  def base_micro(%{"category" => "credits", "micro_points_per_atomic_usdc" => rate}, evidence)
-      when is_integer(rate) and rate > 0 do
-    # Purchased, non-promotional Credits only. A source adapter must prove the
-    # settled purchase and funding provenance; a client amount is never evidence.
-    case evidence["purchased_usdc_atomic"] do
-      n when is_integer(n) and n > 0 -> {:ok, n * rate}
-      _ -> {:error, :invalid_purchase_amount}
-    end
-  end
-
-  def base_micro(%{"points" => points}, _evidence) when is_integer(points),
-    do: {:ok, points * @unit}
-
-  def base_micro(_, _), do: {:error, :invalid_rule_snapshot}
+  def base_micro(%{"points" => points}) when is_integer(points), do: {:ok, points * @unit}
+  def base_micro(_), do: {:error, :invalid_rule_snapshot}
 
   @doc """
-  The daily limit a rule's points count against: Credits bought have their
-  own, and every repeat action shares one, whoever acted, the person or any
-  of their agents. One-time rules count against none.
+  The daily limit a rule's points count against: every repeat action shares
+  one, whoever acted, the person or any of their agents. One-time rules count
+  against none.
   """
-  def allowance_scope(%{"category" => "credits"}), do: "credits"
   def allowance_scope(%{"category" => "activity"}), do: "activity:account"
   def allowance_scope(_rule), do: nil
 
@@ -156,7 +139,6 @@ defmodule RegentPoints.Rules do
     {day, Date.add(day, 1)}
   end
 
-  def daily_cap("credits"), do: 50 * @unit
   def daily_cap("activity:account"), do: 100 * @unit
 
   @doc "The apps the daily rules among `rules` come from."
@@ -179,8 +161,7 @@ defmodule RegentPoints.Rules do
       "points" => points,
       "count" => count,
       "period" => period,
-      "daily_caps_micro" => Map.new(["credits", "activity:account"], &{&1, daily_cap(&1)}),
-      "micro_points_per_atomic_usdc" => if(category == "credits", do: 1),
+      "daily_caps_micro" => %{"activity:account" => daily_cap("activity:account")},
       "milestone_key" => if(category == "milestone", do: id)
     }
 end

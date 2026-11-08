@@ -1,11 +1,12 @@
 defmodule RegentAgents.OpenedAccount do
   @moduledoc """
-  An account an agent opened for itself on a Regent site: the agent's own
-  signing wallet (lowercase) and the Privy user that opening signed in to, one
-  per wallet. Accounts are shared by every site, so this record is too: each
-  site reads it to know an account is an agent's own (`whoami`'s `owner`) and
-  gives such an account none of the one-time Points awards a script could
-  collect by opening accounts.
+  An account an agent opened for itself on a Regent site: the Privy user that
+  opening signed in to, and the agent's own signing wallet (lowercase). One per
+  Privy user, and never removed: an account an agent opened stays the agent's,
+  whatever its wallet does later. Accounts are shared by every site, so this
+  record is too: each site reads it to know an account is an agent's own
+  (`whoami`'s `owner`) and gives such an account none of the one-time Points
+  awards a script could collect by opening accounts.
 
   Only a site's opening writes it, and only a site reads it, each with its own
   system actor (`role: :system`); no person or agent reaches it directly.
@@ -25,8 +26,8 @@ defmodule RegentAgents.OpenedAccount do
   end
 
   attributes do
-    attribute :wallet, :string, primary_key?: true, allow_nil?: false
-    attribute :privy_user_id, :string, allow_nil?: false, sensitive?: true
+    attribute :privy_user_id, :string, primary_key?: true, allow_nil?: false, sensitive?: true
+    attribute :wallet, :string, allow_nil?: false
     create_timestamp :opened_at
   end
 
@@ -35,17 +36,17 @@ defmodule RegentAgents.OpenedAccount do
       primary? true
     end
 
+    # Every account a wallet opened; a site keeps the one it still signs in to.
     read :by_wallet do
-      get? true
       argument :wallet, :string, allow_nil?: false
       filter expr(wallet == ^arg(:wallet))
     end
 
-    # Opening again from a wallet whose account moved names the new one.
+    # The same Privy user opening again names the wallet it signs in with now.
     create :record do
       accept [:wallet, :privy_user_id]
       upsert? true
-      upsert_fields [:privy_user_id]
+      upsert_fields [:wallet]
     end
   end
 

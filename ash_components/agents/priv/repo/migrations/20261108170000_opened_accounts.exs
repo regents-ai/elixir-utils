@@ -12,8 +12,8 @@ defmodule RegentAgents.Migrations.OpenedAccounts do
     execute("SET LOCAL lock_timeout = '5s'")
 
     create table(:opened_accounts, prefix: "regent_agents", primary_key: false) do
-      add(:wallet, :text, null: false, primary_key: true)
-      add(:privy_user_id, :text, null: false)
+      add(:privy_user_id, :text, null: false, primary_key: true)
+      add(:wallet, :text, null: false)
 
       add(:opened_at, :utc_datetime_usec,
         null: false,
@@ -21,8 +21,8 @@ defmodule RegentAgents.Migrations.OpenedAccounts do
       )
     end
 
-    # Sites ask whether an account (by its Privy user) was opened by an agent.
-    create index(:opened_accounts, [:privy_user_id], prefix: "regent_agents")
+    # A site finds the account an agent's wallet opened by that wallet.
+    create index(:opened_accounts, [:wallet], prefix: "regent_agents")
   end
 
   def down do

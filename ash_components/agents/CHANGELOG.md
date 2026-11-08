@@ -8,11 +8,11 @@
   (primary key), `wallet` (the agent's lowercase signing wallet) and
   `opened_at`. A row is never removed, so an account an agent opened stays its
   own whatever its wallet does later. `record_opened_account/3` writes it (the
-  same Privy user recorded again names its wallet now); only a site's system
+  same Privy user recorded again keeps its first row); only a site's system
   actor (`role: :system`) writes or reads it. A site records it when an agent
   opens its account and when someone signs in to a Privy user an agent's opening
   made (`RegentPrivy.Session`'s `agent_wallet`), and its `owned_account` reads
-  it through the site's own accounts, so an agent
+  it through the site's own accounts, and regent_points' intake reads it, so an agent
   that opened its account on one site is its owner on every site that adopts
   this, and each such site gives the account none of the one-time Points
   awards. The migration is a shared change and needs the founder's named go

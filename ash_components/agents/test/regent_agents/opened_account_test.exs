@@ -8,12 +8,12 @@ defmodule RegentAgents.OpenedAccountTest do
   @wallet "0x00000000000000000000000000000000000000aa"
   @moved "0x00000000000000000000000000000000000000bb"
 
-  test "an opening is kept for each Privy user; opening again names its wallet now" do
+  test "an opening is kept for each Privy user; recording it again changes nothing" do
     RegentAgents.record_opened_account!(@wallet, "did:privy:first", actor: @system)
     RegentAgents.record_opened_account!(@wallet, "did:privy:second", actor: @system)
     RegentAgents.record_opened_account!(@moved, "did:privy:first", actor: @system)
 
-    assert [{"did:privy:first", @moved}, {"did:privy:second", @wallet}] =
+    assert [{"did:privy:first", @wallet}, {"did:privy:second", @wallet}] =
              RegentAgents.OpenedAccount
              |> Ash.read!(actor: @system)
              |> Enum.map(&{&1.privy_user_id, &1.wallet})

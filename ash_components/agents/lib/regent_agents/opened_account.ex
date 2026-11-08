@@ -38,11 +38,11 @@ defmodule RegentAgents.OpenedAccount do
       primary? true
     end
 
-    # The same Privy user recorded again names the wallet it signs in with now.
+    # The same Privy user recorded again keeps its first record.
     create :record do
       accept [:wallet, :privy_user_id]
       upsert? true
-      upsert_fields [:wallet]
+      upsert_fields []
     end
   end
 

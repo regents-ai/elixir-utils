@@ -1,10 +1,11 @@
 defmodule RegentMCPAgents do
   @moduledoc """
-  A connected app's (ChatGPT's or Claude's) persistent connection to a Regents
-  account identity, shared across chats. OAuth authorizes the connection; the
-  SIWA service's hosted signing holds its signer, asked with this site's own
-  hosted signing key. Every identity request it signs still passes
-  exact-request SIWA verification. A site's own tools admit the connection's
+  A connected app's (ChatGPT's or Claude's) persistent identity for a Regents
+  account, shared across that app's chats. Each app the person connects has its
+  own identity, which pairs only with a code the person gives it. OAuth
+  authorizes the connection; the SIWA service's hosted signing holds its
+  signer, asked with this site's own hosted signing key. Every identity request
+  it signs still passes exact-request SIWA verification. A site's own tools admit the connection's
   token as the agent it paired, by its address (`address/1`), and sign
   nothing. Conversation IDs, tool arguments and MCP sessions never select the
   signer.
@@ -103,7 +104,7 @@ defmodule RegentMCPAgents do
 
   defp refusal_text?(text), do: is_binary(text) and byte_size(text) in 1..500
 
-  @doc "Create or return this account's persistent signer, without pairing it."
+  @doc "Create or return this app's persistent signer for the account, without pairing it."
   def register(principal) do
     with :ok <- authority(principal, @identity_scope),
          {:ok, _public} <- signer_request(principal, %{"operation" => "register"}) do
@@ -116,12 +117,13 @@ defmodule RegentMCPAgents do
   end
 
   @doc """
-  The wallet address of this account's one identity on this site, lowercase, as
-  the hosted signer's register answer gives it. A site admits a connected app
-  as the agent it paired by this address: the token is the sign-in, the site's
-  own pairing record says whose agent it is, and its policies decide the rest,
-  so nothing is signed. An account's address on a site never changes, so the
-  site may keep it.
+  The wallet address of this app's identity for this account on this site,
+  lowercase, as the hosted signer's register answer gives it. A site admits a
+  connected app as the agent it paired by this address: the token is the
+  sign-in, the site's own pairing record says whose agent it is, and its
+  policies decide the rest, so nothing is signed. An app's address for an
+  account on a site never changes, so the site may keep it, by the account and
+  the app's client together.
   """
   def address(principal) do
     with :ok <- authority(principal, @identity_scope),
@@ -203,13 +205,16 @@ defmodule RegentMCPAgents do
   def post(_, _, _), do: {:error, :posting_refused}
 
   @doc """
-  The key one account's connection has on one site, derived from the site's
-  audience and the account. Two sites never derive the same key, so one person's
-  signers on different sites are unrelated and their addresses cannot link the
-  person's accounts across sites.
+  The key one connected app has for one account on one site, derived from the
+  site's audience, the account and the app's OAuth client. Each app a person
+  connects keeps its own identity, which pairs only with a code the person gives
+  that app, so a second app never inherits the first one's pairing. Two sites
+  never derive the same key, so one person's signers on different sites are
+  unrelated and their addresses cannot link the person's accounts across sites.
   """
-  def identity_key(audience, subject) when is_binary(audience) and is_binary(subject) do
-    :crypto.hash(:sha256, Jason.encode!(["regent-chatgpt-account-v1", audience, subject]))
+  def identity_key(audience, subject, client)
+      when is_binary(audience) and is_binary(subject) and is_binary(client) do
+    :crypto.hash(:sha256, Jason.encode!(["regent-connected-app-v2", audience, subject, client]))
     |> Base.encode16(case: :lower)
   end
 
@@ -225,7 +230,7 @@ defmodule RegentMCPAgents do
          %{subject: subject, token_id: token, client_id: client, scopes: scopes},
          required
        )
-       when is_binary(subject) and is_list(scopes) do
+       when is_binary(subject) and is_binary(client) and is_list(scopes) do
     if config()[:enabled?] == true and required in scopes and
          RegentOAuth.live_token?(token, subject, client),
        do: :ok,
@@ -235,7 +240,7 @@ defmodule RegentMCPAgents do
   defp authority(_, _), do: {:error, :connection_required}
 
   defp connection_key(principal),
-    do: identity_key(Keyword.fetch!(config(), :audience), principal.subject)
+    do: identity_key(Keyword.fetch!(config(), :audience), principal.subject, principal.client_id)
 
   defp own_code(subject, code) do
     codes =
@@ -271,9 +276,9 @@ defmodule RegentMCPAgents do
   end
 
   # The only requests the hosted signer is ever asked to sign, each for this
-  # account's one identity on this site: the identity probe, the check-in, the
-  # pairing and Patchbay's free posts, with the permission each needs. The
-  # method and path come from here alone, and every one is sent to this site's
+  # app's identity for the account on this site: the identity probe, the
+  # check-in, the pairing and Patchbay's free posts, with the permission each
+  # needs. The method and path come from here alone, and every one is sent to this site's
   # own host (`perform/2` names it); a tool's arguments reach only the
   # pairing's and a post's body, which their own tools build.
   defp signable(:whoami),

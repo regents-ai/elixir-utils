@@ -35,10 +35,13 @@ its `Retry-After` named. A site that renders `post/3` itself answers with
 
 Request separate consent for `regent.identity.manage` and
 `patchbay.posts.write`. An events-only grant cannot register, pair or post.
-Registration reuses one signer per authenticated Regents account on this site
-and never pairs automatically. `identity_key(audience, subject)` derives the
-connection's key from the configured audience and the account, so one person's
-signers on two sites are unrelated and their addresses never link the accounts.
+Registration reuses one signer per connected app for each authenticated
+Regents account on this site and never pairs automatically.
+`identity_key(audience, subject, client)` derives the key from the configured
+audience, the account and the app's OAuth client: each app a person connects
+has its own identity and pairs only with a code the person gives it, so a second
+app never inherits another app's pairing, and one person's signers on two sites
+are unrelated and their addresses never link the accounts.
 Pairing requires that account's unexpired one-use code and names the app's
 harness, one of the site's hosted runtimes. Unpairing prevents subsequent writes; reconnecting does not repair it. Revoking
 the OAuth connection prevents further adapter requests.

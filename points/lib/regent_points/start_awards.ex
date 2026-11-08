@@ -42,10 +42,10 @@ defmodule RegentPoints.StartAwards do
   end
 
   defp record_existing(id, start) do
-    left_out = MapSet.union(recorded(id), agent_opened(id))
+    existing = Rules.adapter(id).existing(id, start)
+    left_out = MapSet.union(recorded(id), agent_opened(id, Enum.map(existing, &elem(&1, 0))))
 
-    for {account_id, reference} <- Rules.adapter(id).existing(id, start),
-        not MapSet.member?(left_out, account_id) do
+    for {account_id, reference} <- existing, not MapSet.member?(left_out, account_id) do
       {:ok, _} =
         RegentPoints.record_event(Map.put(reference, :rule_id, id), actor: Store.system())
     end
@@ -60,10 +60,11 @@ defmodule RegentPoints.StartAwards do
     |> MapSet.new(& &1.account_id)
   end
 
-  defp agent_opened(rule_id) do
+  # Of the accounts listed for the rule, those agents opened, when the rule is refused them.
+  defp agent_opened(rule_id, account_ids) do
     if Rules.closed_to_agent_opened?(rule_id) do
       HumanAccount
-      |> Ash.Query.filter(agent_opened)
+      |> Ash.Query.filter(id in ^account_ids and agent_opened)
       |> Ash.Query.select([:id])
       |> Ash.read!(actor: Store.system())
       |> MapSet.new(& &1.id)

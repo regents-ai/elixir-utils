@@ -5,6 +5,7 @@ unless Regex.match?(~r/^regent_points_test_[a-z0-9_]+$/, Keyword.fetch!(config, 
   do: raise("refusing unowned database name")
 
 # A new database each run, so its tables always have the shape this run creates.
+# Runs at the same time each need their own MIX_TEST_PARTITION.
 :ok =
   case Ecto.Adapters.Postgres.storage_down(config) do
     :ok -> :ok

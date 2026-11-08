@@ -63,7 +63,6 @@ defmodule RegentAgents do
 
     resource RegentAgents.OpenedAccount do
       define :record_opened_account, action: :record, args: [:wallet, :privy_user_id]
-      define :opened_accounts, action: :by_wallet, args: [:wallet]
     end
   end
 

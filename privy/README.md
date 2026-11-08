@@ -50,6 +50,8 @@ even one that signs in with nothing but that wallet, and another wallet later li
 to the agent's user is not the agent's. Only a server holding the app secret writes that metadata. `opts` are `app_id:`, `app_secret:` (the app's server secret) and
 `req_options:` (tests pass `plug: {Req.Test, RegentPrivy.Users}`). The user is an
 ordinary Privy user, so the agent can later sign in on the website with the same
-wallet. These are the only calls in this library that need the app secret.
+wallet; that sign-in's verified session names the agent's wallet as `agent_wallet`,
+read from the same metadata, and is nil for every other user. These are the only
+calls in this library that need the app secret.
 
 `mix check` compiles, checks formatting and runs tests without changing lockfiles.

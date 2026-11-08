@@ -18,11 +18,17 @@ defmodule RegentPrivy do
   so Privy making the embedded wallet during a sign-in never takes the main
   wallet from the person's own.
 
+  `agent_wallet` is the wallet named as `regent_agent` in the user's custom
+  metadata (the `custom_metadata` claim, a JSON object Privy sends as a string):
+  the agent whose opening made this Privy user (`RegentPrivy.Users`). Only a
+  server holding the app secret writes it. It is nil for every other user.
+
   Apps own their Privy configuration (app id, verification key) and pass it
   per call; this library holds no configuration or secrets.
   """
 
   @wallet_address_pattern ~r/\A0x[0-9a-fA-F]{40}\z/u
+  @agent_wallet_pattern ~r/\A0x[0-9a-f]{40}\z/u
   @issued_at_leeway_seconds 60
 
   @type linked_social :: %{
@@ -39,6 +45,7 @@ defmodule RegentPrivy do
           wallet_addresses: [String.t()],
           embedded_wallet_address: String.t() | nil,
           user_wallet_address: String.t() | nil,
+          agent_wallet: String.t() | nil,
           linked_socials: [linked_social()]
         }
 
@@ -56,7 +63,7 @@ defmodule RegentPrivy do
   `:invalid_verification_key`, `:token_verification_failed`,
   `:invalid_issuer`, `:invalid_audience`, `:token_expired`,
   `:token_not_yet_valid`, `:token_issued_in_future`, `:invalid_subject`,
-  `:invalid_linked_accounts`, or `:invalid_token`.
+  `:invalid_linked_accounts`, `:invalid_custom_metadata`, or `:invalid_token`.
   """
   @spec verify_token(String.t(), keyword()) :: {:ok, verified()} | {:error, term()}
   def verify_token(token, opts) when is_binary(token) do
@@ -71,7 +78,8 @@ defmodule RegentPrivy do
          {:ok, privy_user_id} <- fetch_subject(claims),
          {:ok, linked_accounts} <- fetch_linked_accounts(claims),
          {:ok, wallets} <- fetch_wallets(linked_accounts),
-         {:ok, linked_socials} <- fetch_linked_socials(linked_accounts) do
+         {:ok, linked_socials} <- fetch_linked_socials(linked_accounts),
+         {:ok, agent_wallet} <- fetch_agent_wallet(claims) do
       user_wallet = wallets |> Enum.reject(& &1.embedded?) |> signed_in_wallet()
       embedded_wallet = embedded_wallet(wallets)
 
@@ -83,6 +91,7 @@ defmodule RegentPrivy do
          wallet_addresses: wallets |> Enum.map(& &1.address) |> Enum.uniq(),
          embedded_wallet_address: embedded_wallet,
          user_wallet_address: user_wallet,
+         agent_wallet: agent_wallet,
          linked_socials: linked_socials
        }}
     end
@@ -179,6 +188,29 @@ defmodule RegentPrivy do
     do: {:error, :invalid_linked_accounts}
 
   defp fetch_linked_accounts(_claims), do: {:ok, []}
+
+  defp fetch_agent_wallet(%{"custom_metadata" => metadata}) when is_binary(metadata) do
+    case Jason.decode(metadata) do
+      {:ok, %{"regent_agent" => wallet}} when is_binary(wallet) ->
+        if Regex.match?(@agent_wallet_pattern, wallet),
+          do: {:ok, wallet},
+          else: {:error, :invalid_custom_metadata}
+
+      {:ok, %{"regent_agent" => _invalid}} ->
+        {:error, :invalid_custom_metadata}
+
+      {:ok, %{}} ->
+        {:ok, nil}
+
+      _other ->
+        {:error, :invalid_custom_metadata}
+    end
+  end
+
+  defp fetch_agent_wallet(%{"custom_metadata" => _invalid}),
+    do: {:error, :invalid_custom_metadata}
+
+  defp fetch_agent_wallet(_claims), do: {:ok, nil}
 
   defp fetch_wallets(linked_accounts),
     do: {:ok, Enum.flat_map(linked_accounts, &linked_account_wallet/1)}

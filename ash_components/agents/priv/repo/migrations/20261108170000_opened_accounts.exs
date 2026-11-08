@@ -1,7 +1,7 @@
 defmodule RegentAgents.Migrations.OpenedAccounts do
   @moduledoc """
   Adds `regent_agents.opened_accounts` (`RegentAgents.OpenedAccount`): the
-  accounts agents opened for themselves. It only creates a table and its index;
+  accounts agents opened for themselves. It only creates one table;
   no existing table, row or column changes, and nothing else is locked. Its
   locks wait at most five seconds, then it fails rather than holding up a site.
   """
@@ -20,9 +20,6 @@ defmodule RegentAgents.Migrations.OpenedAccounts do
         default: fragment("(now() AT TIME ZONE 'utc')")
       )
     end
-
-    # A site finds the account an agent's wallet opened by that wallet.
-    create index(:opened_accounts, [:wallet], prefix: "regent_agents")
   end
 
   def down do

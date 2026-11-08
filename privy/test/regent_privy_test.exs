@@ -404,6 +404,37 @@ defmodule RegentPrivyTest do
     end
   end
 
+  # Only a server holding the app secret writes custom metadata; an agent's
+  # opening names its wallet there as `regent_agent` (RegentPrivy.Users).
+  test "the agent whose opening made the user is read from its custom metadata", ctx do
+    wallet = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+    with_metadata = &(base_claims() |> Map.put("custom_metadata", &1) |> sign(ctx.private_pem))
+
+    assert {:ok, %{agent_wallet: ^wallet}} =
+             verify(with_metadata.(Jason.encode!(%{regent_agent: wallet})), ctx)
+
+    assert {:ok, %{agent_wallet: nil}} = verify(with_metadata.("{}"), ctx)
+    assert {:ok, %{agent_wallet: nil}} = verify(sign(base_claims(), ctx.private_pem), ctx)
+
+    for invalid <- [
+          "{not json",
+          "[]",
+          Jason.encode!(%{regent_agent: String.upcase(wallet)}),
+          Jason.encode!(%{regent_agent: 42}),
+          %{"regent_agent" => wallet}
+        ] do
+      assert {:error, :invalid_custom_metadata} = verify(with_metadata.(invalid), ctx)
+    end
+
+    identity =
+      base_claims()
+      |> Map.put("linked_accounts", "[]")
+      |> Map.put("custom_metadata", Jason.encode!(%{regent_agent: wallet}))
+
+    assert {:ok, %RegentPrivy.Session{agent_wallet: ^wallet}} =
+             verify_pair(Map.put(base_claims(), "sid", "session-1"), identity, ctx)
+  end
+
   test "paired proof keeps signed X identity without requiring a wallet", ctx do
     identity =
       Map.put(

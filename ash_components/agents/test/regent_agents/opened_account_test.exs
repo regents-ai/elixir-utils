@@ -13,11 +13,11 @@ defmodule RegentAgents.OpenedAccountTest do
     RegentAgents.record_opened_account!(@wallet, "did:privy:second", actor: @system)
     RegentAgents.record_opened_account!(@moved, "did:privy:first", actor: @system)
 
-    assert [%{privy_user_id: "did:privy:second"}] =
-             RegentAgents.opened_accounts!(@wallet, actor: @system)
-
-    assert [%{privy_user_id: "did:privy:first"}] =
-             RegentAgents.opened_accounts!(@moved, actor: @system)
+    assert [{"did:privy:first", @moved}, {"did:privy:second", @wallet}] =
+             RegentAgents.OpenedAccount
+             |> Ash.read!(actor: @system)
+             |> Enum.map(&{&1.privy_user_id, &1.wallet})
+             |> Enum.sort()
   end
 
   test "a person or an agent can neither record nor read one" do
@@ -28,7 +28,7 @@ defmodule RegentAgents.OpenedAccountTest do
                RegentAgents.record_opened_account(@wallet, "did:privy:other", actor: actor)
 
       assert {:error, %Ash.Error.Forbidden{}} =
-               RegentAgents.opened_accounts(@wallet, actor: actor)
+               Ash.read(RegentAgents.OpenedAccount, actor: actor)
     end
   end
 end

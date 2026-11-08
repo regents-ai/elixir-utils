@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `verify_token/2` and `RegentPrivy.Session` name `agent_wallet`: the wallet the
+  user's custom metadata names as `regent_agent` (the `custom_metadata` claim, a
+  JSON object sent as a string), so a site knows at sign-in that an agent's opening
+  made this Privy user. It is nil for every other user. A `custom_metadata` claim
+  that is not a JSON object, or whose `regent_agent` is not a lowercase `0x`
+  address, fails with `:invalid_custom_metadata`.
 - `RegentPrivy.Users`, Privy's server API for an agent that owns its account:
   `by_wallet/2` finds the Privy user a wallet is linked to, and
   `create_with_wallet/2` makes a Privy user for an agent, whose only login is that

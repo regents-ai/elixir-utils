@@ -14,6 +14,7 @@ defmodule RegentPoints.HumanAccount do
 
   attributes do
     integer_primary_key :id
+    attribute :privy_user_id, :string, allow_nil?: false, sensitive?: true
   end
 
   actions do

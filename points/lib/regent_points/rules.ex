@@ -46,6 +46,11 @@ defmodule RegentPoints.Rules do
   # start, through RegentPoints.StartAwards, without the person doing anything.
   @start_rules ~w(account.activated social.x social.github social.farcaster agent.activated)
 
+  # One-time rules a script could collect by opening accounts: an account an agent
+  # opened for itself, on any Regent site (`RegentAgents.OpenedAccount`), earns none
+  # of them. Every other rule is unchanged for it.
+  @closed_to_agent_opened ~w(account.activated agent.activated template.first_agent_note)
+
   @doc "The customer name of every catalog rule, including the source app."
   def label(id), do: Map.fetch!(@labels, id)
 
@@ -75,6 +80,9 @@ defmodule RegentPoints.Rules do
   approved list is the one switch; a rule taken off it leaves the page too.
   """
   def tracked, do: Enum.filter(catalog(), &enabled?(&1["id"]))
+
+  @doc "Whether an account an agent opened for itself is refused the rule."
+  def closed_to_agent_opened?(id), do: id in @closed_to_agent_opened
 
   @doc "The one-time rules whose state from before the start earns at the start."
   def start_rules, do: @start_rules

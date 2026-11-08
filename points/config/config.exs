@@ -1,5 +1,6 @@
 import Config
-config :regent_agents, ash_domains: [RegentAgents]
+# The shared record of accounts agents opened lives in the same database.
+config :regent_agents, ash_domains: [RegentAgents], repo: RegentPoints.Repo
 config :ash, default_string_length_count: :codepoints
 
 config :regent_points,

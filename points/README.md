@@ -111,6 +111,14 @@ whichever site records it. No other rule earns for anything before the start. A 
 lists only the start rules it has a source for: Patchbay has no linked accounts, so it
 lists the account and the first pairing.
 
+An account an agent opened for itself, on any Regent site, earns none of the one-time
+awards a script could collect by opening accounts: Account activated, First paired
+agent and First note written by your agent (`RegentPoints.Rules.closed_to_agent_opened?/1`).
+Intake turns each down as `agent_opened_account`, at the start too, by reading the
+account's Privy user in the shared `RegentAgents.OpenedAccount`; a site's adapter does
+nothing for it. Every other rule is unchanged for such an account. `config
+:regent_agents, repo:` names the repository that holds that record.
+
 ## Rates and allowances
 
 Repeat actions share one limit of 100 points per UTC day for the account and all its

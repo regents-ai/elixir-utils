@@ -39,15 +39,30 @@ Ecto.Migrator.run(
 
 {:ok, _} = Oban.start_link(repo: RegentPoints.Repo, testing: :inline)
 
-# The host owns the canonical account table; Points only needs its wallet columns.
+# The host owns the canonical account table; Points only needs its Privy user and
+# wallet columns.
 for sql <- [
       "CREATE SCHEMA IF NOT EXISTS regent_names",
       """
       CREATE TABLE IF NOT EXISTS regent_names.platform_human_users
-      (id bigserial PRIMARY KEY, wallet_address text, wallet_addresses text[])
-      """
+      (id bigserial PRIMARY KEY,
+       privy_user_id text NOT NULL DEFAULT ('did:privy:' || gen_random_uuid()),
+       wallet_address text, wallet_addresses text[])
+      """,
+      "CREATE SCHEMA IF NOT EXISTS regent_agents"
     ],
     do: RegentPoints.Repo.query!(sql)
+
+# The shared record of accounts agents opened, from the agents library's own migration.
+[{opened_accounts, _}] =
+  :regent_agents
+  |> Application.app_dir("priv/repo/migrations/20261108170000_opened_accounts.exs")
+  |> Code.require_file()
+
+Ecto.Migrator.run(RegentPoints.Repo, [{20_261_108_170_000, opened_accounts}], :up,
+  all: true,
+  log: false
+)
 
 RegentPoints.Migrator.up(RegentPoints.Repo)
 Ecto.Adapters.SQL.Sandbox.mode(RegentPoints.Repo, :manual)

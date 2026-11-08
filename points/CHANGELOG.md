@@ -2,6 +2,14 @@
 
 ## 0.1.0 (unreleased)
 
+- An account an agent opened for itself, on any Regent site (a row for its Privy user
+  in the shared `RegentAgents.OpenedAccount`), earns none of the one-time awards a
+  script could collect by opening accounts: `account.activated`, `agent.activated` and
+  `template.first_agent_note` (`Rules.closed_to_agent_opened?/1`). Intake turns each
+  down as `agent_opened_account`, at the Points start too, before anything is recorded,
+  so every site that runs this version refuses them without code of its own. Every
+  other rule is unchanged. `RegentPoints.HumanAccount` reads the account's
+  `privy_user_id`, and a site sets `config :regent_agents, repo:`.
 - Points no longer has a Credits rule (Sean, 6 November 2026): `credits.purchase_settled`,
   its `credits` category and 50-a-day limit, and the per-USDC rate are gone, so a rule
   snapshot's `daily_caps_micro` holds only `activity:account` and repeat actions earn

@@ -3,7 +3,7 @@ defmodule RegentPoints.IntakeWorker do
   use Oban.Worker, queue: :points, max_attempts: 10
   require Ash.Query
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, Event, Rules, Store, Worker}
+  alias RegentPoints.{Account, Event, HumanAccount, Rules, Store, Worker}
 
   @required ~w(source_app source_kind source_event_key account_id actor_kind actor_id source_action_at qualified_at evidence_ref evidence)a
 
@@ -15,6 +15,7 @@ defmodule RegentPoints.IntakeWorker do
          {:ok, facts} <- Rules.adapter(id).verify(input),
          :ok <- valid(facts, id),
          :ok <- same_source(input, facts),
+         :ok <- open_to(id, facts.account_id),
          facts = at_start(id, facts),
          {:ok, rule} <- Rules.snapshot(id, facts.source_action_at),
          :ok <- eligible_source(rule, facts),
@@ -36,6 +37,22 @@ defmodule RegentPoints.IntakeWorker do
          [:source_app, :source_kind, :source_event_key],
          &(input[to_string(&1)] == facts[&1])
        ), do: :ok, else: {:error, :source_reference_mismatch}
+  end
+
+  # An account an agent opened for itself, on any Regent site, is refused the
+  # one-time awards a script could collect by opening accounts, at the start too.
+  defp open_to(id, account_id) do
+    if Rules.closed_to_agent_opened?(id) and agent_opened?(account_id),
+      do: {:error, :agent_opened_account},
+      else: :ok
+  end
+
+  defp agent_opened?(account_id) do
+    %{privy_user_id: did} = Ash.get!(HumanAccount, account_id, actor: Store.system())
+
+    RegentAgents.OpenedAccount
+    |> Ash.Query.filter(privy_user_id == ^did)
+    |> Ash.exists?(actor: Store.system())
   end
 
   # What an account already had before the start earns at the start

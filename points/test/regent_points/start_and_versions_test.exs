@@ -91,6 +91,41 @@ defmodule RegentPoints.StartAndVersionsTest do
     assert Enum.all?(entries(account), &(DateTime.compare(&1.earned_at, @start) == :eq))
   end
 
+  # An agent's opening on any Regent site records its account in the shared
+  # RegentAgents.OpenedAccount; Points reads it whichever site offers the award.
+  test "an account an agent opened earns none of the one-time awards a script could collect" do
+    opened = person()
+    person = person()
+    before = DateTime.add(@start, -86_400)
+
+    RegentAgents.record_opened_account!(wallet(), privy_user_id(opened), actor: Store.system())
+
+    for account <- [opened, person] do
+      existing(account, "account.activated", "account:#{account}", before)
+      existing(account, "social.x", "x:#{account}", before, %{"subject_key" => "x:#{account}"})
+      existing(account, "agent.activated", "pairing:#{account}", before, agent: true)
+    end
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+
+    earn("agent.activated", opened, "pairing-later:#{opened}", after_start(60), %{
+      "attribution_link_id" => "l"
+    })
+
+    earn("patchbay.reply_published", opened, "reply:#{opened}", after_start(60), %{}, "patchbay")
+
+    assert earned(opened) == ["patchbay.reply_published", "social.x"]
+    assert earned(person) == ["account.activated", "agent.activated", "social.x"]
+
+    assert turned_down(opened) == [
+             {"account.activated", "agent_opened_account"},
+             {"agent.activated", "agent_opened_account"},
+             {"agent.activated", "agent_opened_account"}
+           ]
+
+    assert turned_down(person) == []
+  end
+
   test "a social linked after the start, before the job first runs, earns once" do
     account = person()
     linked = after_start(30)
@@ -196,6 +231,28 @@ defmodule RegentPoints.StartAndVersionsTest do
       )
 
     id
+  end
+
+  defp privy_user_id(account) do
+    %{rows: [[did]]} =
+      RegentPoints.Repo.query!(
+        "SELECT privy_user_id FROM regent_names.platform_human_users WHERE id = $1",
+        [account]
+      )
+
+    did
+  end
+
+  defp wallet, do: "0x" <> Base.encode16(:crypto.strong_rand_bytes(20), case: :lower)
+
+  defp earned(account), do: account |> entries() |> Enum.map(& &1.rule_id) |> Enum.sort()
+
+  defp turned_down(account) do
+    RegentPoints.Rejection
+    |> Ash.read!(actor: Store.system())
+    |> Enum.filter(&(&1.source["source_event_key"] =~ ":#{account}"))
+    |> Enum.map(&{&1.source["rule_id"], &1.reason_code})
+    |> Enum.sort()
   end
 
   defp after_start(seconds), do: DateTime.add(@start, seconds)

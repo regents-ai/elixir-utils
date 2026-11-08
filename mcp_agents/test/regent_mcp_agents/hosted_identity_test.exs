@@ -6,7 +6,6 @@ defmodule RegentMCPAgents.HostedIdentityTest do
 
   alias RegentAgents.Person
 
-  @wallet "0x2222222222222222222222222222222222222222"
   @site_key String.duplicate("k", 32)
   @signed %{
     "x-siwa-signature" => "sig1=:c2lnbmVk:",
@@ -15,7 +14,6 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     "x-siwa-receipt" => "receipt",
     "x-key-id" => "k",
     "x-timestamp" => "1",
-    "x-agent-wallet-address" => @wallet,
     "x-agent-chain-id" => "8453"
   }
 
@@ -39,30 +37,34 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     test = self()
 
     # The hosted signer, asked with the site's key: it registers the identity
-    # and signs the request it is asked to, as the one hosted wallet.
+    # and signs the request it is asked to, as that identity's own wallet.
     Req.Test.stub(RegentMCPAgents.HostedSigner, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       asked = Jason.decode!(body)
       send(test, {:signer, Plug.Conn.get_req_header(conn, "authorization"), body, asked})
+      wallet = wallet(asked["identity_key"])
 
       case asked do
         %{"operation" => "register"} ->
-          Req.Test.json(conn, %{"address" => @wallet})
+          Req.Test.json(conn, %{"address" => wallet})
 
         %{"operation" => "sign", "request" => request} ->
-          Req.Test.json(conn, Map.put(request, "headers", @signed))
+          headers = Map.put(@signed, "x-agent-wallet-address", wallet)
+          Req.Test.json(conn, Map.put(request, "headers", headers))
       end
     end)
 
-    # The SIWA service verifies the signed request as the hosted wallet's, for
+    # The SIWA service verifies the signed request as the signing wallet's, for
     # this site's audience.
     Req.Test.stub(RegentAgents.Broker, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
 
+      payload = Jason.decode!(body)
+
       send(
         test,
         {:verify, conn.req_headers, Plug.Conn.get_req_header(conn, "x-siwa-audience"), body,
-         Jason.decode!(body)}
+         payload}
       )
 
       Req.Test.json(conn, %{
@@ -71,7 +73,7 @@ defmodule RegentMCPAgents.HostedIdentityTest do
           "verified" => true,
           "principal" => %{
             "kind" => "wallet",
-            "wallet_address" => @wallet,
+            "wallet_address" => payload["headers"]["x-agent-wallet-address"],
             "chain_id" => 8453,
             "audience" => "keyfleet"
           },
@@ -84,6 +86,11 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     :ok
   end
 
+  # Each hosted identity has its own wallet.
+  defp wallet(identity_key), do: "0x" <> binary_part(identity_key, 0, 40)
+
+  defp key(subject, client), do: RegentMCPAgents.identity_key("keyfleet", subject, client)
+
   defp person(subject), do: %Person{privy_user_id: subject}
 
   defp agents(subject), do: RegentAgents.list_my_agents!(actor: person(subject))
@@ -91,7 +98,9 @@ defmodule RegentMCPAgents.HostedIdentityTest do
   defp pair!(token, subject) do
     arguments = %{"code" => code!(subject), "name" => "Claude", "harness" => "claude"}
     assert %{"isError" => false} = tool(token, "pair_identity", arguments)
-    [agent] = agents(subject)
+    principal = principal!(token)
+    wallet = wallet(key(subject, principal.client_id))
+    [agent] = Enum.filter(agents(subject), &(&1.wallet == wallet))
     agent
   end
 
@@ -116,7 +125,8 @@ defmodule RegentMCPAgents.HostedIdentityTest do
   end
 
   test "pair_identity's POST is verified in process with the exact body the hosted signer signed" do
-    token = token!("did:privy:sol")
+    %{client_id: client, access: token} = connect!("did:privy:sol")
+    wallet = wallet(key("did:privy:sol", client))
     code = code!("did:privy:sol")
     arguments = %{"code" => code, "name" => "Claude", "harness" => "claude"}
 
@@ -142,12 +152,12 @@ defmodule RegentMCPAgents.HostedIdentityTest do
              "method" => "POST",
              "path" => "/api/agents/v1/pair",
              "authority" => "localhost:4000",
-             "headers" => @signed,
+             "headers" => Map.put(@signed, "x-agent-wallet-address", wallet),
              "body_digest" => Siwa.content_digest_for_body(signed["body"])
            }
 
-    # An ordinary paired agent of the authorizing account, as the hosted wallet.
-    assert [%{harness: :claude, wallet: @wallet, name: "Claude"}] = agents("did:privy:sol")
+    # An ordinary paired agent of the authorizing account, as this app's hosted wallet.
+    assert [%{harness: :claude, wallet: ^wallet, name: "Claude"}] = agents("did:privy:sol")
   end
 
   test "a pairing code must belong to the authorizing account; another's is refused before anything is signed" do
@@ -163,7 +173,7 @@ defmodule RegentMCPAgents.HostedIdentityTest do
   end
 
   test "the hosted signer signs only the identity requests, for one identity, and the connection's token never leaves the site" do
-    %{access: token} = connect!("did:privy:sol")
+    %{client_id: client, access: token} = connect!("did:privy:sol")
 
     assert %{"isError" => false} = tool(token, "register_identity")
     assert %{"isError" => false} = tool(token, "get_identity")
@@ -175,12 +185,12 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     assert %{"error" => _} = json(mcp(rpc("tools/call", %{"name" => "ask_question"}), token))
     assert %{"isError" => true} = tool(token, "get_identity", %{"path" => "/api/anything"})
 
-    key = RegentMCPAgents.identity_key("keyfleet", "did:privy:sol")
+    key = key("did:privy:sol", client)
     asked = collect_signer()
     assert length(asked) == 4
 
     for {auth, raw, request} <- asked do
-      # Asked with the site's own hosted signing key, for the account's one identity.
+      # Asked with the site's own hosted signing key, for this app's one identity.
       assert auth == ["Bearer " <> @site_key]
       assert request["identity_key"] == key
       refute raw =~ token
@@ -194,39 +204,76 @@ defmodule RegentMCPAgents.HostedIdentityTest do
       assert_received {:verify, headers, ["keyfleet"], raw, payload}
       refute raw =~ token
       refute Enum.any?(headers, fn {_name, value} -> value =~ token end)
-      assert payload["headers"] == @signed
+      assert payload["headers"] == Map.put(@signed, "x-agent-wallet-address", wallet(key))
     end
   end
 
-  test "reconnecting or refreshing keeps the account's one hosted identity; another account has its own" do
+  test "one app keeps its identity across refreshed tokens; every other app, and every other account, has its own" do
     first = connect!("did:privy:sol")
-    again = connect!("did:privy:sol")
     assert {200, %{"access_token" => refreshed}} = refresh(first.client_id, first.refresh)
 
-    ids =
-      for token <- [first.access, again.access, refreshed] do
+    # The same app, before and after a refresh: one identity, one address.
+    answers =
+      for token <- [first.access, refreshed] do
         assert %{"isError" => false, "structuredContent" => %{"data" => answer}} =
                  tool(token, "register_identity")
 
-        answer["identity_id"]
+        answer
       end
 
-    assert Enum.uniq(ids) == [RegentMCPAgents.identity_key("keyfleet", "did:privy:sol")]
+    assert [%{"identity_id" => id}] = Enum.uniq_by(answers, & &1["identity_id"])
+    assert id == key("did:privy:sol", first.client_id)
+
+    # A second app the same account connects: its own key and its own address.
+    second = connect!("did:privy:sol")
+    refute second.client_id == first.client_id
+
+    assert %{"structuredContent" => %{"data" => %{"identity_id" => second_id}}} =
+             tool(second.access, "register_identity")
+
+    assert second_id == key("did:privy:sol", second.client_id)
+    refute second_id == id
+    refute wallet(second_id) == wallet(id)
 
     assert %{"structuredContent" => %{"data" => %{"identity_id" => other}}} =
              tool(token!("did:privy:ana"), "register_identity")
 
-    refute other in ids
+    refute other in [id, second_id]
 
-    # The reconnected app finds the pairing it made, and pairing again makes no second agent.
+    # The refreshed token finds the pairing its app made; pairing again makes no second agent.
     agent = pair!(first.access, "did:privy:sol")
 
     assert %{"structuredContent" => %{"data" => %{"paired" => true}}} =
              tool(refreshed, "get_identity")
 
-    assert %{"isError" => false} = tool(again.access, "check_in")
-    assert [%{id: id}] = agents("did:privy:sol")
-    assert id == agent.id
+    assert %{"isError" => false} = tool(refreshed, "check_in")
+    assert [%{id: id_paired}] = agents("did:privy:sol")
+    assert id_paired == agent.id
+  end
+
+  test "a second app of an account already paired gets no pairing until it pairs with its own code" do
+    first = connect!("did:privy:sol")
+    first_agent = pair!(first.access, "did:privy:sol")
+
+    second = connect!("did:privy:sol")
+
+    assert %{"structuredContent" => %{"data" => %{"paired" => false}}} =
+             tool(second.access, "get_identity")
+
+    assert %{"isError" => true} = tool(second.access, "check_in")
+    assert [%{id: only}] = agents("did:privy:sol")
+    assert only == first_agent.id
+
+    # Paired with a code of its own, it is a second agent with its own wallet.
+    second_agent = pair!(second.access, "did:privy:sol")
+    refute second_agent.id == first_agent.id
+    refute second_agent.wallet == first_agent.wallet
+    assert second_agent.wallet == wallet(key("did:privy:sol", second.client_id))
+
+    assert %{"structuredContent" => %{"data" => %{"paired" => true}}} =
+             tool(second.access, "get_identity")
+
+    assert length(agents("did:privy:sol")) == 2
   end
 
   test "only a check-in moves the agent's last check-in; ping, the handshake, a refresh and the identity probe leave it" do

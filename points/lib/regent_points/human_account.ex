@@ -26,8 +26,8 @@ defmodule RegentPoints.HumanAccount do
   end
 
   aggregates do
-    # Read whatever the shared record's own rules say: an opening hidden from this
-    # read would count the account as a person's and pay it.
+    # Reads the opening whatever OpenedAccount's read rules say: an opening hidden
+    # from this read would count the account as a person's and pay it.
     exists :agent_opened, :opening do
       authorize? false
     end

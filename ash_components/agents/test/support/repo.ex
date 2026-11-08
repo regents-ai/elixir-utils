@@ -16,7 +16,15 @@ defmodule RegentAgents.TestRepo.AshFunctions do
 end
 
 defmodule RegentAgents.Test.Site do
-  @moduledoc "How the test site names a person's account in a check-in; one person has never signed in here."
+  @moduledoc """
+  How the test site names a person's account in a check-in, and the account an
+  agent owns; one person has never signed in here, and one wallet owns an account.
+  """
   def account("did:privy:away"), do: nil
   def account(privy_user_id), do: %{display_name: "Person " <> privy_user_id}
+
+  def owned_account("0x3333333333333333333333333333333333333333"),
+    do: %{display_name: "Agent account"}
+
+  def owned_account(_wallet), do: nil
 end

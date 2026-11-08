@@ -60,6 +60,11 @@ defmodule RegentAgents do
       define :remove_agent_picture_by_team, action: :remove_by_team, get_by: [:paired_agent_id]
       define :agent_picture, action: :by_wallet, args: [:wallet], not_found_error?: false
     end
+
+    resource RegentAgents.OpenedAccount do
+      define :record_opened_account, action: :record, args: [:wallet, :privy_user_id]
+      define :opened_account, action: :by_wallet, args: [:wallet], not_found_error?: false
+    end
   end
 
   @doc false

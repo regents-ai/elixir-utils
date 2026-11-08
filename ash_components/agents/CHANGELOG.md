@@ -2,6 +2,19 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.OpenedAccount` keeps the account each agent opened for itself,
+  shared by every site: table `regent_agents.opened_accounts` (migration
+  `20261108170000`, add-only), one row per agent wallet with `wallet` (lowercase,
+  primary key), `privy_user_id` (indexed) and `opened_at`.
+  `record_opened_account/3` writes it (opening again from the same wallet names
+  the new Privy user) and `opened_account/2` reads one; only a site's system
+  actor (`role: :system`) reaches either. A site's opening records it and its
+  `owned_account` reads it, so an agent that opened its account on one site is
+  its owner on every site that adopts this, and each such site gives the
+  account none of the one-time Points awards. The migration is a shared change
+  and needs the founder's named go (`migrate-shared`) before the first site
+  that carries it deploys.
+
 - `RegentAgents.pairings_held_from_before/1` lists each person's earliest
   pairing made before a moment that is still paired, one per person, for the
   agents people already had when Points started (`RegentPoints.StartAwards`).

@@ -25,6 +25,9 @@ end
 defmodule RegentMCPAgents.Test.Accounts do
   @moduledoc "How the test site names a person's account in a check-in; every person has signed in here."
   def account(privy_user_id), do: %{display_name: "Person " <> privy_user_id}
+
+  @doc "No agent owns an account on the test site."
+  def owned_account(_wallet), do: nil
 end
 
 defmodule RegentMCPAgents.Test.Site do

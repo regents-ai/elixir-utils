@@ -241,6 +241,45 @@ defmodule RegentAgents.HTTPTest do
     assert {200, %{"data" => _checked_in}} = send_request(:get, "/api/agents/v1/me")
   end
 
+  test "an agent whose wallet owns an account is its owner, and neither pairs nor checks in" do
+    owner_wallet = "0x3333333333333333333333333333333333333333"
+    siwa_verifies(owner_wallet)
+    allowed = Application.fetch_env!(:regent_agents, :allowed)
+
+    assert {200, %{"data" => owner}} = send_request(:get, "/api/agents/v1/whoami")
+
+    assert %{
+             "status" => "owner",
+             "pairing" => nil,
+             "account" => %{"display_name" => "Agent account"},
+             "next_step" => nil
+           } = owner
+
+    assert owner["allowed"] == allowed["owner"]
+
+    body = %{"code" => code!(person("sol")), "name" => "Sol", "harness" => "codex"}
+
+    assert {409, %{"error" => %{"code" => "agent_owns_account", "hint" => hint}}} =
+             send_request(:post, "/api/agents/v1/pair", body)
+
+    assert hint =~ "GET /api/agents/v1/whoami"
+
+    assert {409, %{"error" => %{"code" => "agent_owns_account"}}} =
+             send_request(:get, "/api/agents/v1/me")
+
+    siwa_verifies()
+    assert {201, _paired} = send_request(:post, "/api/agents/v1/pair", body)
+  end
+
+  test "an agent that owns no account is told it can open one" do
+    siwa_verifies()
+
+    assert {200, %{"data" => %{"status" => "not_paired", "account" => nil} = unpaired}} =
+             send_request(:get, "/api/agents/v1/whoami")
+
+    assert unpaired["next_step"] =~ "POST /api/v1/agent/account"
+  end
+
   test "the SIWA service's refusal reaches the agent as the SIWA service wrote it" do
     siwa_refuses(409, "request_replayed")
 

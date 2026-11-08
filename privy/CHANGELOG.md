@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `RegentPrivy.Users`, Privy's server API for an agent that owns its account:
+  `by_wallet/2` finds the Privy user a wallet is linked to, and
+  `create_with_wallet/2` makes a Privy user for an agent, whose only login is that
+  wallet and whose custom metadata names that wallet as `regent_agent`. Both answer
+  the Privy id and `agent`, whether an agent opening made that user for the wallet
+  asked about. Apps
+  pass `:app_id`, `:app_secret` and `:req_options` per call; errors are fixed atoms.
+  Adds Req to the package's dependencies.
 - jose 1.11.13 in the lock, which fixes the eight jose advisories of 26 Oct
   (EEF-CVE-2026-65625 to -65632, one high).
 - `verify_token/2` and `RegentPrivy.Session` now name two wallets apart:

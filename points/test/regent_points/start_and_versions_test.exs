@@ -94,6 +94,7 @@ defmodule RegentPoints.StartAndVersionsTest do
   # An agent's opening on any Regent site records its account in the shared
   # RegentAgents.OpenedAccount; Points reads it whichever site offers the award.
   test "an account an agent opened earns none of the one-time awards a script could collect" do
+    Application.put_env(:regent_points, :approved_rules, @rules)
     opened = person()
     person = person()
     before = DateTime.add(@start, -86_400)
@@ -106,7 +107,19 @@ defmodule RegentPoints.StartAndVersionsTest do
       existing(account, "agent.activated", "pairing:#{account}", before, agent: true)
     end
 
+    # The start leaves the agent's account out of the lists for those rules, every run.
     assert :ok = StartAwards.perform(%Oban.Job{})
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    assert turned_down(opened) == []
+
+    for account <- [opened, person] do
+      earn("template.first_agent_note", account, "note:#{account}", after_start(60), %{
+        "attribution_link_id" => "l"
+      })
+    end
+
+    # Offered again after the start, as an agent's later pairing would be.
+    earn("account.activated", opened, "account-later:#{opened}", after_start(60))
 
     earn("agent.activated", opened, "pairing-later:#{opened}", after_start(60), %{
       "attribution_link_id" => "l"
@@ -115,12 +128,18 @@ defmodule RegentPoints.StartAndVersionsTest do
     earn("patchbay.reply_published", opened, "reply:#{opened}", after_start(60), %{}, "patchbay")
 
     assert earned(opened) == ["patchbay.reply_published", "social.x"]
-    assert earned(person) == ["account.activated", "agent.activated", "social.x"]
+
+    assert earned(person) == [
+             "account.activated",
+             "agent.activated",
+             "social.x",
+             "template.first_agent_note"
+           ]
 
     assert turned_down(opened) == [
              {"account.activated", "agent_opened_account"},
              {"agent.activated", "agent_opened_account"},
-             {"agent.activated", "agent_opened_account"}
+             {"template.first_agent_note", "agent_opened_account"}
            ]
 
     assert turned_down(person) == []

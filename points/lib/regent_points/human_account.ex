@@ -17,6 +17,18 @@ defmodule RegentPoints.HumanAccount do
     attribute :privy_user_id, :string, allow_nil?: false, sensitive?: true
   end
 
+  relationships do
+    # The shared record of an account an agent opened for itself (elixir-utils agents).
+    has_one :opening, RegentAgents.OpenedAccount do
+      source_attribute :privy_user_id
+      destination_attribute :privy_user_id
+    end
+  end
+
+  aggregates do
+    exists :agent_opened, :opening
+  end
+
   actions do
     defaults [:read]
   end

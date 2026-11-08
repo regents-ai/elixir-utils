@@ -4,10 +4,14 @@ config = RegentPoints.Repo.config()
 unless Regex.match?(~r/^regent_points_test_[a-z0-9_]+$/, Keyword.fetch!(config, :database)),
   do: raise("refusing unowned database name")
 
-case Ecto.Adapters.Postgres.storage_up(config) do
-  :ok -> :ok
-  {:error, :already_up} -> :ok
-end
+# A new database each run, so its tables always have the shape this run creates.
+:ok =
+  case Ecto.Adapters.Postgres.storage_down(config) do
+    :ok -> :ok
+    {:error, :already_down} -> :ok
+  end
+
+:ok = Ecto.Adapters.Postgres.storage_up(config)
 
 {:ok, _} = RegentPoints.Repo.start_link()
 # Points broadcasts ledger changes, and queues its checks and awards on the site's Oban;
@@ -44,7 +48,7 @@ Ecto.Migrator.run(
 for sql <- [
       "CREATE SCHEMA IF NOT EXISTS regent_names",
       """
-      CREATE TABLE IF NOT EXISTS regent_names.platform_human_users
+      CREATE TABLE regent_names.platform_human_users
       (id bigserial PRIMARY KEY,
        privy_user_id text NOT NULL DEFAULT ('did:privy:' || gen_random_uuid()),
        wallet_address text, wallet_addresses text[])

@@ -47,13 +47,9 @@ defmodule RegentPoints.IntakeWorker do
       else: :ok
   end
 
-  defp agent_opened?(account_id) do
-    %{privy_user_id: did} = Ash.get!(HumanAccount, account_id, actor: Store.system())
-
-    RegentAgents.OpenedAccount
-    |> Ash.Query.filter(privy_user_id == ^did)
-    |> Ash.exists?(actor: Store.system())
-  end
+  defp agent_opened?(account_id),
+    do:
+      Ash.get!(HumanAccount, account_id, load: :agent_opened, actor: Store.system()).agent_opened
 
   # What an account already had before the start earns at the start
   # (RegentPoints.StartAwards); every other rule earns only for what happens after it.

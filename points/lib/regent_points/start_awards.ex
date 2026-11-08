@@ -12,7 +12,8 @@ defmodule RegentPoints.StartAwards do
   it through `RegentPoints.record_event/2` like any action, so the source still
   proves it and an account earns each rule once whichever site records it. The
   accounts that already have an event for the rule are read once per rule and
-  left out.
+  left out, and so are accounts agents opened for themselves, for the rules they
+  are refused (`RegentPoints.Rules.closed_to_agent_opened?/1`).
 
   Unique while queued or done, so it runs once; after Oban prunes the finished
   job, the next run finds nothing new to record.
@@ -23,7 +24,7 @@ defmodule RegentPoints.StartAwards do
     unique: [period: :infinity, states: :successful]
 
   require Ash.Query
-  alias RegentPoints.{Event, Rules, Store}
+  alias RegentPoints.{Event, HumanAccount, Rules, Store}
 
   @impl true
   def perform(_job) do
@@ -41,10 +42,10 @@ defmodule RegentPoints.StartAwards do
   end
 
   defp record_existing(id, start) do
-    recorded = recorded(id)
+    left_out = MapSet.union(recorded(id), agent_opened(id))
 
     for {account_id, reference} <- Rules.adapter(id).existing(id, start),
-        not MapSet.member?(recorded, account_id) do
+        not MapSet.member?(left_out, account_id) do
       {:ok, _} =
         RegentPoints.record_event(Map.put(reference, :rule_id, id), actor: Store.system())
     end
@@ -57,5 +58,17 @@ defmodule RegentPoints.StartAwards do
     |> Ash.Query.distinct([:account_id])
     |> Ash.read!(actor: Store.system())
     |> MapSet.new(& &1.account_id)
+  end
+
+  defp agent_opened(rule_id) do
+    if Rules.closed_to_agent_opened?(rule_id) do
+      HumanAccount
+      |> Ash.Query.filter(agent_opened)
+      |> Ash.Query.select([:id])
+      |> Ash.read!(actor: Store.system())
+      |> MapSet.new(& &1.id)
+    else
+      MapSet.new()
+    end
   end
 end

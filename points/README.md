@@ -114,9 +114,10 @@ lists the account and the first pairing.
 An account an agent opened for itself, on any Regent site, earns none of the one-time
 awards a script could collect by opening accounts: Account activated, First paired
 agent and First note written by your agent (`RegentPoints.Rules.closed_to_agent_opened?/1`).
-Intake turns each down as `agent_opened_account`, at the start too, by reading the
-account's Privy user in the shared `RegentAgents.OpenedAccount`; a site's adapter does
-nothing for it. Every other rule is unchanged for such an account. `config
+Intake turns each down as `agent_opened_account`, and the start leaves such accounts out
+of those rules' lists, both by reading the account's Privy user in the shared
+`RegentAgents.OpenedAccount` (`RegentPoints.HumanAccount`'s `agent_opened`); a site's
+adapter does nothing for it. Every other rule is unchanged for such an account. `config
 :regent_agents, repo:` names the repository that holds that record.
 
 ## Rates and allowances

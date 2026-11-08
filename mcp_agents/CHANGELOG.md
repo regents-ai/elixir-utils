@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- One identity per connected app: `identity_key(audience, subject, client)`
+  derives each hosted identity from the site's audience, the account and the
+  app's OAuth client (label `regent-connected-app-v2`). A second app the person
+  allows, even with the agent permission, gets its own unpaired identity and
+  pairs only with a code the person gives it; it no longer inherits another
+  app's pairing. A principal without a client is refused. Apps connected before
+  this change keep their tokens but get a fresh, unpaired identity: their person
+  pairs them again with Pair New Agent. A site that keeps hosted addresses keys
+  them by account and client together.
 - Every request the hosted signer signs names this site's own host, the issuer's
   (`authority`, sign-in contract version 2), so the sign-in service signs it for that
   host only and every other site refuses it. Needs the sign-in service that accepts

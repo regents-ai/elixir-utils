@@ -119,8 +119,8 @@ defmodule RegentOAuth.Test.Schema do
   @migrations [
     {1, RegentOAuth.Test.CreateTables},
     {2, RegentOAuth.Test.HashTokens},
-    {3, RegentOAuth.Test.AddRoomsScope},
-    {4, RegentOAuth.Test.ClientDocuments}
+    {3, RegentOAuth.Test.ClientDocuments},
+    {4, RegentOAuth.Test.AddRoomsScope}
   ]
 
   # As a site runs them: its schema is the repo's `migration_default_prefix`.

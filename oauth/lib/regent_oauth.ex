@@ -10,7 +10,9 @@ defmodule RegentOAuth do
 
   Its rows live in the site's own schema and go through the site's repository
   and pool (`repo/0`): the repository puts that schema on every query, as each
-  Regent site's does in `default_options/1`. The provider starts no repository.
+  Regent site's does in `default_options/1`, and `configure/1` refuses one that
+  does not. The provider starts no repository, and its own reads and writes are
+  never logged (`log: false`): they carry authorization codes and token hashes.
   """
 
   import Ecto.Query
@@ -91,6 +93,15 @@ defmodule RegentOAuth do
     unless is_nil(note) or (is_binary(note) and byte_size(note) in 1..500),
       do: raise(ArgumentError, "OAuth consent_note must be bounded text")
 
+    prefix = site.repo().default_options(:all)[:prefix]
+
+    unless is_binary(prefix) and prefix != "",
+      do:
+        raise(
+          ArgumentError,
+          "OAuth requires a site repository that puts the site's schema on every query"
+        )
+
     Application.put_env(:regent_oauth, :site, site)
 
     Application.put_env(:boruta, Boruta.Oauth,
@@ -149,7 +160,7 @@ defmodule RegentOAuth do
     with true <- enabled?() and expected_resource == resource(),
          {:ok, _} <- Boruta.Oauth.Authorization.AccessToken.authorize(value: bearer),
          %Token{} = token <-
-           repo().get_by(Token, value: hash_token(bearer), type: "access_token"),
+           repo().get_by(Token, [value: hash_token(bearer), type: "access_token"], log: false),
          true <- live?(token) and required_scope in String.split(token.scope) do
       {:ok, principal(token)}
     else
@@ -169,7 +180,7 @@ defmodule RegentOAuth do
   @doc "Recheck delivery authority without retaining a bearer token in a subscription."
   def live_token?(id, subject, client_id) do
     enabled?() and
-      case repo().get(Token, id) do
+      case repo().get(Token, id, log: false) do
         %Token{sub: ^subject, client_id: ^client_id} = token -> live?(token)
         _ -> false
       end
@@ -187,7 +198,8 @@ defmodule RegentOAuth do
        when is_binary(subject) and is_integer(expires_at) do
     bound?(id) and expires_at > System.system_time(:second) and
       valid_scopes?(granted) and
-      site().active_subject?(subject) and public_client?(repo().get(Client, client_id))
+      site().active_subject?(subject) and
+      public_client?(repo().get(Client, client_id, log: false))
   end
 
   defp live?(_), do: false
@@ -198,8 +210,10 @@ defmodule RegentOAuth do
   """
   def bind(id) do
     {1, _} =
-      repo().update_all(from(t in "oauth_tokens", where: t.id == type(^id, :binary_id)),
-        set: [oauth_issuer: issuer(), mcp_resource: resource()]
+      repo().update_all(
+        from(t in "oauth_tokens", where: t.id == type(^id, :binary_id)),
+        [set: [oauth_issuer: issuer(), mcp_resource: resource()]],
+        log: false
       )
 
     :ok
@@ -207,7 +221,9 @@ defmodule RegentOAuth do
 
   @doc "`bind/1` for the authorization code Boruta has just stored."
   def bind_code(code) when is_binary(code) do
-    repo().one!(from(t in Token, where: t.type == "code" and t.value == ^code, select: t.id))
+    repo().one!(from(t in Token, where: t.type == "code" and t.value == ^code, select: t.id),
+      log: false
+    )
     |> bind()
   end
 
@@ -218,7 +234,8 @@ defmodule RegentOAuth do
         where:
           t.id == type(^id, :binary_id) and t.oauth_issuer == ^issuer() and
             t.mcp_resource == ^resource()
-      )
+      ),
+      log: false
     )
   end
 
@@ -250,7 +267,8 @@ defmodule RegentOAuth do
         where: t.sub == ^subject and t.type == "access_token" and is_nil(t.revoked_at),
         distinct: c.id,
         select: %{id: c.id, name: c.name}
-      )
+      ),
+      log: false
     )
   end
 
@@ -259,16 +277,12 @@ defmodule RegentOAuth do
     repo().transaction(fn ->
       # Token issuance takes this same standard row lock. A concurrent refresh
       # cannot commit an unseen successor after disconnect has scanned its tokens.
-      repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
+      repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"), log: false)
 
-      tokens =
-        repo().all(from(t in Token, where: t.sub == ^subject and t.client_id == ^client_id))
-
+      mine = from(t in Token, where: t.sub == ^subject and t.client_id == ^client_id)
+      tokens = repo().all(mine, log: false)
       now = DateTime.utc_now()
-
-      repo().update_all(from(t in Token, where: t.sub == ^subject and t.client_id == ^client_id),
-        set: [revoked_at: now, refresh_token_revoked_at: now]
-      )
+      repo().update_all(mine, [set: [revoked_at: now, refresh_token_revoked_at: now]], log: false)
 
       # Boruta caches authorization codes; access tokens are never cached
       # (`RegentOAuth.AccessTokens`). The database check remains decisive.

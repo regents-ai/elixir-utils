@@ -52,7 +52,7 @@ defmodule RegentOAuth.AccessTokens do
     changeset
     |> Ecto.Changeset.update_change(:value, &RegentOAuth.hash_token/1)
     |> Ecto.Changeset.update_change(:refresh_token, &RegentOAuth.hash_token/1)
-    |> RegentOAuth.repo().insert()
+    |> RegentOAuth.repo().insert(log: false)
     |> case do
       {:ok, row} ->
         :ok = RegentOAuth.bind(row.id)
@@ -73,7 +73,7 @@ defmodule RegentOAuth.AccessTokens do
     hash = RegentOAuth.hash_token(plain)
     query = from(t in Token, where: t.type == "access_token" and field(t, ^field) == ^hash)
 
-    case RegentOAuth.repo().one(query) do
+    case RegentOAuth.repo().one(query, log: false) do
       %Token{} = row -> to_oauth_schema(row)
       nil -> nil
     end
@@ -82,12 +82,14 @@ defmodule RegentOAuth.AccessTokens do
   defp stored(_field, _plain), do: nil
 
   defp stamp(%Oauth.Token{client: %Oauth.Client{id: client_id}, value: hash}, field) do
-    case RegentOAuth.repo().get_by(Token, type: "access_token", client_id: client_id, value: hash) do
+    clauses = [type: "access_token", client_id: client_id, value: hash]
+
+    case RegentOAuth.repo().get_by(Token, clauses, log: false) do
       %Token{} = row ->
         {:ok, row} =
           row
           |> Ecto.Changeset.change(%{field => DateTime.utc_now()})
-          |> RegentOAuth.repo().update()
+          |> RegentOAuth.repo().update(log: false)
 
         {:ok, to_oauth_schema(row)}
 

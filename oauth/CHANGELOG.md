@@ -9,7 +9,10 @@
   supervision tree; the connector's sign-in then shares the site's pool, so a
   machine holds two fewer database connections. The site's repository puts the
   site's schema on every query (`default_options/1`), as every Regent site's
-  does; Boruta's and the provider's queries log as the site's own do, which
+  does, and `configure/1` refuses one that does not, so no row lands in
+  `public`. The provider's own reads and writes pass `log: false`, as its own
+  repository's did, so codes and token hashes never reach a log; Boruta's own
+  (storing a code, registering an app) log as the site's queries do, which
   production keeps out of its logs at the info level.
 
 - The consent page only reads the app; it no longer rewrites an app's scopes

@@ -10,8 +10,8 @@ Application.put_env(:regent_oauth, RegentOAuth.Test.Repo,
 )
 
 _ = Ecto.Adapters.Postgres.storage_up(RegentOAuth.Test.Repo.config())
-:ok = RegentOAuth.configure(RegentOAuth.Test.Site)
 Application.put_env(:regent_oauth, :test_schema, "regent_oauth_site")
+:ok = RegentOAuth.configure(RegentOAuth.Test.Site)
 
 # The migrator's lock would wait on the one sandboxed connection a test holds.
 Application.put_env(

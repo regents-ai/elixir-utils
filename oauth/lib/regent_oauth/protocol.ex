@@ -84,7 +84,10 @@ defmodule RegentOAuth.Protocol do
       result =
         RegentOAuth.repo().transaction(fn ->
           client_id = params["client_id"]
-          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
+
+          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"),
+            log: false
+          )
 
           case lock_credential(params) do
             %Token{revoked_at: nil, refresh_token_revoked_at: revoked, client_id: ^client_id} =
@@ -143,7 +146,10 @@ defmodule RegentOAuth.Protocol do
       {:ok, :ok} =
         RegentOAuth.repo().transaction(fn ->
           client_id = params["client_id"]
-          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
+
+          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"),
+            log: false
+          )
 
           hash = RegentOAuth.hash_token(params["token"])
 
@@ -153,7 +159,8 @@ defmodule RegentOAuth.Protocol do
                 where:
                   t.client_id == ^client_id and t.type == "access_token" and is_nil(t.revoked_at) and
                     (t.value == ^hash or t.refresh_token == ^hash)
-              )
+              ),
+              log: false
             )
 
           if token && RegentOAuth.bound?(token.id) do
@@ -176,7 +183,8 @@ defmodule RegentOAuth.Protocol do
        when is_binary(code),
        do:
          RegentOAuth.repo().one(
-           from(t in Token, where: t.type == "code" and t.value == ^code, lock: "FOR UPDATE")
+           from(t in Token, where: t.type == "code" and t.value == ^code, lock: "FOR UPDATE"),
+           log: false
          )
 
   defp lock_credential(%{"grant_type" => "refresh_token", "refresh_token" => token})
@@ -187,7 +195,8 @@ defmodule RegentOAuth.Protocol do
       from(t in Token,
         where: t.type == "access_token" and t.refresh_token == ^hash,
         lock: "FOR UPDATE"
-      )
+      ),
+      log: false
     )
   end
 
@@ -234,7 +243,8 @@ defmodule RegentOAuth.Protocol do
   @doc false
   def request_client(params) do
     with {:ok, id} <- Ecto.UUID.cast(params["client_id"]),
-         %Client{confidential: false, pkce: true} = client <- RegentOAuth.repo().get(Client, id),
+         %Client{confidential: false, pkce: true} = client <-
+           RegentOAuth.repo().get(Client, id, log: false),
          true <- params["redirect_uri"] in client.redirect_uris do
       {:ok, client}
     else

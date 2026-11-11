@@ -18,9 +18,10 @@ production. A loopback HTTP issuer is only for local checks.
 Call `RegentOAuth.configure(Site.OAuth)` before starting the site. The provider
 starts nothing: its rows go through the site's repository and pool (`repo/0`),
 whose `default_options/1` must put the site's schema on every query, as each
-Regent site's repository does. Its queries log as the site's own do, so keep
-production at the info level. Never supervise another Oban instance or any
-delivery loop here.
+Regent site's repository does; `configure/1` refuses one that does not. The
+provider's own reads and writes are never logged. Boruta's own (storing a code,
+registering an app) log as the site's queries do, so keep production at the info
+level. Never supervise another Oban instance or any delivery loop here.
 The site's migration calls `RegentOAuth.Migration.up()`. This additive
 migration creates only `oauth_*` tables. A second site migration calls
 `RegentOAuth.Migration.V2.up()`, which replaces every stored access and refresh

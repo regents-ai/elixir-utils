@@ -3,7 +3,7 @@ defmodule RegentOAuth.Case do
   use ExUnit.CaseTemplate
 
   setup do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(RegentOAuth.Repo, shared: true)
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(RegentOAuth.Test.Repo, shared: true)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
     :ok
   end

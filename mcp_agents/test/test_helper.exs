@@ -4,7 +4,8 @@ Application.put_env(:regent_mcp_agents, RegentMCPAgents.Test.Repo,
   hostname: "127.0.0.1",
   port: 5432,
   username: System.get_env("USER"),
-  database: "regent_mcp_agents_test"
+  database: "regent_mcp_agents_test",
+  log: false
 )
 
 Application.put_env(:regent_mcp_agents, :config,
@@ -17,25 +18,21 @@ _ = Ecto.Adapters.Postgres.storage_up(RegentMCPAgents.Test.Repo.config())
 :ok = RegentOAuth.configure(RegentMCPAgents.Test.Site)
 
 Application.put_env(
-  :regent_oauth,
-  RegentOAuth.Repo,
-  Keyword.put(
-    Application.fetch_env!(:regent_oauth, RegentOAuth.Repo),
-    :pool,
-    Ecto.Adapters.SQL.Sandbox
-  )
+  :regent_mcp_agents,
+  RegentMCPAgents.Test.Repo,
+  Keyword.put(RegentMCPAgents.Test.Repo.config(), :pool, Ecto.Adapters.SQL.Sandbox)
 )
 
-{:ok, _} = RegentOAuth.Repo.start_link()
-RegentOAuth.Repo.query!(~s(CREATE SCHEMA IF NOT EXISTS "regent_mcp_agents_test"))
+{:ok, _} = RegentMCPAgents.Test.Repo.start_link()
+RegentMCPAgents.Test.Repo.query!(~s(CREATE SCHEMA IF NOT EXISTS "regent_mcp_agents_test"))
 
-Ecto.Migrator.run(RegentOAuth.Repo, [{1, RegentMCPAgents.Test.OAuthTables}], :up,
+Ecto.Migrator.run(RegentMCPAgents.Test.Repo, [{1, RegentMCPAgents.Test.OAuthTables}], :up,
   all: true,
   prefix: "regent_mcp_agents_test",
   log: false
 )
 
-Ecto.Adapters.SQL.Sandbox.mode(RegentOAuth.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(RegentMCPAgents.Test.Repo, :manual)
 
 # The site's agent records (`RegentAgents`), in the same database: pairing
 # codes, paired agents and their check-ins, migrated as a site migrates them.

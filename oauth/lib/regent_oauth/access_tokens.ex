@@ -18,7 +18,6 @@ defmodule RegentOAuth.AccessTokens do
 
   alias Boruta.Ecto.Token
   alias Boruta.Oauth
-  alias RegentOAuth.Repo
 
   @impl true
   def get_by(value: value), do: stored(:value, value)
@@ -53,7 +52,7 @@ defmodule RegentOAuth.AccessTokens do
     changeset
     |> Ecto.Changeset.update_change(:value, &RegentOAuth.hash_token/1)
     |> Ecto.Changeset.update_change(:refresh_token, &RegentOAuth.hash_token/1)
-    |> Repo.insert()
+    |> RegentOAuth.repo().insert(log: false)
     |> case do
       {:ok, row} ->
         :ok = RegentOAuth.bind(row.id)
@@ -72,8 +71,9 @@ defmodule RegentOAuth.AccessTokens do
 
   defp stored(field, plain) when is_binary(plain) do
     hash = RegentOAuth.hash_token(plain)
+    query = from(t in Token, where: t.type == "access_token" and field(t, ^field) == ^hash)
 
-    case Repo.one(from(t in Token, where: t.type == "access_token" and field(t, ^field) == ^hash)) do
+    case RegentOAuth.repo().one(query, log: false) do
       %Token{} = row -> to_oauth_schema(row)
       nil -> nil
     end
@@ -82,9 +82,15 @@ defmodule RegentOAuth.AccessTokens do
   defp stored(_field, _plain), do: nil
 
   defp stamp(%Oauth.Token{client: %Oauth.Client{id: client_id}, value: hash}, field) do
-    case Repo.get_by(Token, type: "access_token", client_id: client_id, value: hash) do
+    clauses = [type: "access_token", client_id: client_id, value: hash]
+
+    case RegentOAuth.repo().get_by(Token, clauses, log: false) do
       %Token{} = row ->
-        {:ok, row} = row |> Ecto.Changeset.change(%{field => DateTime.utc_now()}) |> Repo.update()
+        {:ok, row} =
+          row
+          |> Ecto.Changeset.change(%{field => DateTime.utc_now()})
+          |> RegentOAuth.repo().update(log: false)
+
         {:ok, to_oauth_schema(row)}
 
       nil ->

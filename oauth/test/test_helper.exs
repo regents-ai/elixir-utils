@@ -5,22 +5,24 @@ Application.put_env(:regent_oauth, RegentOAuth.Test.Repo,
   hostname: "127.0.0.1",
   port: 5432,
   username: System.get_env("USER"),
-  database: "regent_oauth_test"
+  database: "regent_oauth_test",
+  log: false
 )
 
 _ = Ecto.Adapters.Postgres.storage_up(RegentOAuth.Test.Repo.config())
+Application.put_env(:regent_oauth, :test_schema, "regent_oauth_site")
 :ok = RegentOAuth.configure(RegentOAuth.Test.Site)
 
 # The migrator's lock would wait on the one sandboxed connection a test holds.
 Application.put_env(
   :regent_oauth,
-  RegentOAuth.Repo,
-  Application.fetch_env!(:regent_oauth, RegentOAuth.Repo)
+  RegentOAuth.Test.Repo,
+  Application.fetch_env!(:regent_oauth, RegentOAuth.Test.Repo)
   |> Keyword.merge(pool: Ecto.Adapters.SQL.Sandbox, migration_lock: false)
 )
 
-{:ok, _} = RegentOAuth.Repo.start_link()
+{:ok, _} = RegentOAuth.Test.Repo.start_link()
 RegentOAuth.Test.Schema.migrate!("regent_oauth_site", [1, 2])
-Ecto.Adapters.SQL.Sandbox.mode(RegentOAuth.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(RegentOAuth.Test.Repo, :manual)
 
 ExUnit.start()

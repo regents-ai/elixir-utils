@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- The provider keeps its rows through the site's own repository and pool
+  (`RegentOAuth.repo/0`, the site's `repo/0`) and starts no repository of its
+  own: `RegentOAuth.Repo`, its pool of two and the copy of the site's
+  connection settings are gone. A site removes `RegentOAuth.Repo` from its
+  supervision tree; the connector's sign-in then shares the site's pool, so a
+  machine holds two fewer database connections. The site's repository puts the
+  site's schema on every query (`default_options/1`), as every Regent site's
+  does, and `configure/1` refuses one that does not, so no row lands in
+  `public`. The provider's own reads and writes pass `log: false`, as its own
+  repository's did, so codes and token hashes never reach a log; Boruta's own
+  (storing a code, registering an app) log as the site's queries do, which
+  production keeps out of its logs at the info level.
+
 - The consent page only reads the app; it no longer rewrites an app's scopes
   while a person looks at it. When a site starts offering a scope, its migration
   calls `RegentOAuth.Migration.ClientScopes.up/1`, which gives every public PKCE

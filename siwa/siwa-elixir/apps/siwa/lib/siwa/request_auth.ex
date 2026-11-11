@@ -195,7 +195,7 @@ defmodule Siwa.RequestAuth do
              request.method,
              request.path,
              body_digest,
-             replay_kept_until(parsed_signature_input, opts),
+             parsed_signature_input.expires,
              opts
            ) do
       {:ok,
@@ -508,6 +508,12 @@ defmodule Siwa.RequestAuth do
         parsed_signature_input.key_id != Map.get(headers, @key_id_header) ->
           {:error, :signature_key_id_mismatch}
 
+        # A request lasts no longer than the tolerance, and its single-use entry is
+        # kept until it expires, so the entry outlives every moment any verifier,
+        # whatever its own tolerance, could accept the request.
+        parsed_signature_input.expires - parsed_signature_input.created > tolerance_seconds ->
+          {:error, :request_lifetime_too_long}
+
         parsed_signature_input.created > now + tolerance_seconds ->
           {:error, :request_not_yet_valid}
 
@@ -644,16 +650,6 @@ defmodule Siwa.RequestAuth do
     end)
     |> Kernel.++([~s("@signature-params": #{parsed_signature_input.signature_params})])
     |> Enum.join("\n")
-  end
-
-  # A request is refused once its created time is more than the tolerance old,
-  # so its single-use entry is never needed past that second, whatever expires
-  # says. The entry ends at the first second the request is refused anyway.
-  defp replay_kept_until(%{created: created, expires: expires}, opts) do
-    tolerance_seconds =
-      Keyword.get(opts, :signature_tolerance_seconds, @default_signature_tolerance_seconds)
-
-    min(expires, created + tolerance_seconds + 1)
   end
 
   defp consume_replay_window(

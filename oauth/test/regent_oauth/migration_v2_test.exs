@@ -4,15 +4,14 @@ defmodule RegentOAuth.MigrationV2Test do
   use RegentOAuth.Case
 
   alias Boruta.Ecto.Token
-  alias RegentOAuth.Repo
-  alias RegentOAuth.Test.{Flow, Schema}
+  alias RegentOAuth.Test.{Flow, Repo, Schema}
 
   @schema "regent_oauth_v1_test"
 
   setup do
-    prefix = Application.fetch_env!(:regent_oauth, :prefix)
-    Application.put_env(:regent_oauth, :prefix, @schema)
-    on_exit(fn -> Application.put_env(:regent_oauth, :prefix, prefix) end)
+    prefix = Application.fetch_env!(:regent_oauth, :test_schema)
+    Application.put_env(:regent_oauth, :test_schema, @schema)
+    on_exit(fn -> Application.put_env(:regent_oauth, :test_schema, prefix) end)
     Schema.migrate!(@schema, [1])
     :ok
   end

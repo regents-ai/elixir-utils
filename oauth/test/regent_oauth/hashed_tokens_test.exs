@@ -4,11 +4,10 @@ defmodule RegentOAuth.HashedTokensTest do
   use RegentOAuth.Case
 
   alias Boruta.Ecto.Token
-  alias RegentOAuth.Repo
-  alias RegentOAuth.Test.Flow
+  alias RegentOAuth.Test.{Flow, Repo}
 
   # The site's own schema, where the provider keeps its rows.
-  defp tokens, do: ~s("#{Application.fetch_env!(:regent_oauth, :prefix)}".oauth_tokens)
+  defp tokens, do: ~s("#{Application.fetch_env!(:regent_oauth, :test_schema)}".oauth_tokens)
 
   defp stored_anywhere?(plain) do
     %{rows: [[count]]} =

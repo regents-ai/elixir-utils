@@ -15,10 +15,12 @@ own words that the consent page shows under the requested permissions, such as
 what no connection can do there. The issuer and resource must be HTTPS in
 production. A loopback HTTP issuer is only for local checks.
 
-Call `RegentOAuth.configure(Site.OAuth)` before starting the site, and supervise
-`RegentOAuth.Repo` only while the feature is enabled. It uses the site's database
-and prefix with a separate small pool; SQL parameter logging and query telemetry
-are disabled. Never supervise another Oban instance or any delivery loop here.
+Call `RegentOAuth.configure(Site.OAuth)` before starting the site. The provider
+starts nothing: its rows go through the site's repository and pool (`repo/0`),
+whose `default_options/1` must put the site's schema on every query, as each
+Regent site's repository does. Its queries log as the site's own do, so keep
+production at the info level. Never supervise another Oban instance or any
+delivery loop here.
 The site's migration calls `RegentOAuth.Migration.up()`. This additive
 migration creates only `oauth_*` tables. A second site migration calls
 `RegentOAuth.Migration.V2.up()`, which replaces every stored access and refresh

@@ -1,8 +1,9 @@
 defmodule RegentMCPAgents.Test.Repo do
-  @moduledoc "The test database's settings, which RegentOAuth.Repo copies."
+  @moduledoc "The test site's repository, which puts the site's schema on every query as a site's does."
   use Ecto.Repo, otp_app: :regent_mcp_agents, adapter: Ecto.Adapters.Postgres
 
-  def default_prefix, do: "regent_mcp_agents_test"
+  @impl true
+  def default_options(_operation), do: [prefix: "regent_mcp_agents_test"]
 end
 
 defmodule RegentMCPAgents.Test.AgentsRepo do
@@ -103,7 +104,7 @@ defmodule RegentMCPAgents.Case do
   end
 
   setup do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(RegentOAuth.Repo, shared: true)
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(RegentMCPAgents.Test.Repo, shared: true)
     agents = Ecto.Adapters.SQL.Sandbox.start_owner!(RegentMCPAgents.Test.AgentsRepo, shared: true)
     start_supervised!(RegentMCPAgents.Test.Limiter)
     Application.put_env(:regent_agents, :hosted_pairing, [:claude])

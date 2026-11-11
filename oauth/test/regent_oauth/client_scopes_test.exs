@@ -8,8 +8,7 @@ defmodule RegentOAuth.ClientScopesTest do
 
   alias Boruta.Ecto.{Client, Scope}
   alias Boruta.Oauth.Authorization
-  alias RegentOAuth.Repo
-  alias RegentOAuth.Test.{Flow, Schema, Site}
+  alias RegentOAuth.Test.{Flow, Repo, Schema, Site}
 
   @schema "regent_oauth_scopes_test"
   @both "regent.identity.manage regent.rooms.read"
@@ -31,11 +30,11 @@ defmodule RegentOAuth.ClientScopesTest do
   end
 
   setup do
-    prefix = Application.fetch_env!(:regent_oauth, :prefix)
-    Application.put_env(:regent_oauth, :prefix, @schema)
+    prefix = Application.fetch_env!(:regent_oauth, :test_schema)
+    Application.put_env(:regent_oauth, :test_schema, @schema)
 
     on_exit(fn ->
-      Application.put_env(:regent_oauth, :prefix, prefix)
+      Application.put_env(:regent_oauth, :test_schema, prefix)
       Application.put_env(:regent_oauth, :site, Site)
     end)
 

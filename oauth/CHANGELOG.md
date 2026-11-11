@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reading a published identity again takes only its name and callbacks; the app
+  keeps the scopes it holds. Before, the read again gave it this machine's scope
+  list, which dropped a scope a site's migration had kept.
+
 - The consent page only reads the app; it no longer rewrites an app's scopes
   while a person looks at it. When a site starts offering a scope, its migration
   calls `RegentOAuth.Migration.ClientScopes.up/1`, which gives every public PKCE

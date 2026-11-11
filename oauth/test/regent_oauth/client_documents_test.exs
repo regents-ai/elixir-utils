@@ -113,6 +113,40 @@ defmodule RegentOAuth.ClientDocumentsTest do
     assert_received {:read, @claude}
   end
 
+  test "reading the identity again keeps the scopes the app holds" do
+    assert consent("did:privy:sol", authorize_query(@claude)).status == 200
+    {:ok, id} = RegentOAuth.ClientDocuments.stored(@claude)
+
+    # A scope the app holds that this site no longer offers stays on it, as
+    # `RegentOAuth.Migration.ClientScopes` promises.
+    kept = RegentOAuth.Repo.insert!(%Boruta.Ecto.Scope{name: "regent.kept", public: false})
+
+    client =
+      Boruta.Ecto.Client
+      |> RegentOAuth.Repo.get!(id)
+      |> RegentOAuth.Repo.preload(:authorized_scopes)
+
+    held = Enum.map([kept | client.authorized_scopes], &%{id: &1.id})
+    {:ok, _} = Boruta.Ecto.Admin.Clients.update_client(client, %{authorized_scopes: held})
+
+    RegentOAuth.Repo.update_all(RegentOAuth.ClientDocuments.Document,
+      set: [refresh_at: DateTime.add(DateTime.utc_now(), -1, :second)]
+    )
+
+    assert consent("did:privy:luna", authorize_query(@claude)).status == 200
+    assert_received {:read, @claude}
+
+    scopes =
+      Boruta.Ecto.Client
+      |> RegentOAuth.Repo.get!(id)
+      |> RegentOAuth.Repo.preload(:authorized_scopes)
+      |> Map.fetch!(:authorized_scopes)
+      |> Enum.map(& &1.name)
+      |> Enum.sort()
+
+    assert scopes == Enum.sort(["regent.kept" | RegentOAuth.scopes()])
+  end
+
   test "an identity that can no longer be read is refused, never served from the old record" do
     assert consent("did:privy:sol", authorize_query(@claude)).status == 200
 

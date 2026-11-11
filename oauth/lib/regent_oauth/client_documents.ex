@@ -195,8 +195,17 @@ defmodule RegentOAuth.ClientDocuments do
       Repo.transaction(fn ->
         case Repo.one(from(d in Document, where: d.url == ^url, lock: "FOR UPDATE")) do
           %Document{client_id: id} = document ->
-            client = Repo.get!(Client, id)
-            client_attrs = RegentOAuth.Protocol.public_client(attrs.name, attrs.redirect_uris)
+            client = Client |> Repo.get!(id) |> Repo.preload(:authorized_scopes)
+
+            # A read again takes the document's name and callbacks only. The app
+            # keeps the scopes it holds: Boruta replaces the scope list it is
+            # given, and only a site's migration adds scopes
+            # (`RegentOAuth.Migration.ClientScopes`).
+            client_attrs = %{
+              name: attrs.name,
+              redirect_uris: attrs.redirect_uris,
+              authorized_scopes: Enum.map(client.authorized_scopes, &%{id: &1.id})
+            }
 
             case Boruta.Ecto.Admin.Clients.update_client(client, client_attrs) do
               {:ok, _client} -> :ok

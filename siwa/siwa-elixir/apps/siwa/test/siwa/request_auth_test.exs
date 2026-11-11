@@ -291,9 +291,73 @@ defmodule Siwa.RequestAuthTest do
   test "a request older than the freshness window is refused", ctx do
     assert {:error, :request_too_old} =
              verify(
-               sign(ctx, expires_in_seconds: 600),
-               Keyword.put(@opts, :now, DateTime.add(@now, 360))
+               sign(ctx, expires_in_seconds: 300),
+               Keyword.put(@opts, :now, DateTime.add(@now, 301))
              )
+  end
+
+  test "a request that lasts longer than the signature tolerance is refused", ctx do
+    assert {:error, :request_lifetime_too_long} =
+             verify(sign(ctx, expires_in_seconds: 301), @opts)
+
+    assert {:error, :request_lifetime_too_long} =
+             verify(
+               sign(ctx, expires_in_seconds: 601),
+               Keyword.put(@opts, :signature_tolerance_seconds, 600)
+             )
+
+    assert {:ok, _} = verify(sign(ctx, expires_in_seconds: 300), @opts)
+  end
+
+  test "a used request stays used until it expires", ctx do
+    parent = self()
+
+    store = fn _key, kept_until ->
+      send(parent, {:kept_until, kept_until})
+      :ok
+    end
+
+    assert {:ok, _} =
+             verify(
+               sign(ctx, expires_in_seconds: 300),
+               Keyword.merge(@opts, now: DateTime.add(@now, 30), replay_store: store)
+             )
+
+    assert_receive {:kept_until, kept_until}
+    assert kept_until == DateTime.to_unix(@now) + 300
+  end
+
+  test "a long-lived request is used once across machines with different tolerances", ctx do
+    {:ok, entries} = Agent.start_link(fn -> %{} end)
+
+    store = fn key, kept_until ->
+      Agent.get_and_update(entries, fn kept ->
+        if Map.has_key?(kept, key),
+          do: {{:error, :replayed_request}, kept},
+          else: {:ok, Map.put(kept, key, kept_until)}
+      end)
+    end
+
+    at = fn seconds, tolerance ->
+      Keyword.merge(@opts,
+        now: DateTime.add(@now, seconds),
+        signature_tolerance_seconds: tolerance,
+        replay_store: store
+      )
+    end
+
+    signed = sign(ctx, expires_in_seconds: 600)
+
+    # A machine with the 300-second tolerance refuses it, so none keeps its entry
+    # only until created + 301 and leaves it for a 600-second machine to take again.
+    assert {:error, :request_lifetime_too_long} = verify(signed, at.(10, 300))
+    assert {:ok, _} = verify(signed, at.(10, 600))
+
+    # Entries that ended by created + 400 are cleared; this one lasts to created + 600.
+    sweep_at = DateTime.to_unix(@now) + 400
+    Agent.update(entries, &Map.reject(&1, fn {_key, kept_until} -> kept_until <= sweep_at end))
+
+    assert {:error, :replayed_request} = verify(signed, at.(400, 600))
   end
 
   test "a request created beyond the clock-skew tolerance is refused", ctx do

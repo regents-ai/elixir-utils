@@ -65,6 +65,8 @@ defmodule Siwa.Contract do
     {:signature_key_id_mismatch, 401, "http_signature_invalid", "invalid signed request"},
     {:invalid_signature_input, 401, "http_signature_input_invalid",
      "invalid x-siwa-signature-input header"},
+    {:request_lifetime_too_long, 401, "http_signature_invalid",
+     "signed request lasts longer than the signature tolerance"},
     {:request_not_yet_valid, 401, "http_signature_invalid", "signed request is not yet valid"},
     {:request_too_old, 401, "http_signature_invalid", "signed request is too old"},
     {:request_expired, 401, "http_signature_invalid", "signed request has expired"},

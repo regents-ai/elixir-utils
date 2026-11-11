@@ -3,7 +3,6 @@ defmodule RegentOAuth.Protocol do
   import Plug.Conn
   import Ecto.Query
   alias Boruta.Ecto.{Client, Token}
-  alias RegentOAuth.Repo
 
   @behaviour Boruta.Oauth.TokenApplication
   @authorize_keys ~w(client_id redirect_uri response_type scope state resource code_challenge code_challenge_method)
@@ -83,9 +82,9 @@ defmodule RegentOAuth.Protocol do
       # The row lock serializes code consumption and refresh rotation, even if
       # two requests both saw a valid Boruta cache entry. All work is local DB/crypto.
       result =
-        Repo.transaction(fn ->
+        RegentOAuth.repo().transaction(fn ->
           client_id = params["client_id"]
-          Repo.one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
+          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
 
           case lock_credential(params) do
             %Token{revoked_at: nil, refresh_token_revoked_at: revoked, client_id: ^client_id} =
@@ -101,7 +100,7 @@ defmodule RegentOAuth.Protocol do
                 {:ok, :ok} = RegentOAuth.revoke_client(row.sub, row.client_id)
                 {:denied, :invalid_grant}
               else
-                Repo.rollback(:invalid_grant)
+                RegentOAuth.repo().rollback(:invalid_grant)
               end
 
             %Token{revoked_at: nil} = row ->
@@ -113,14 +112,14 @@ defmodule RegentOAuth.Protocol do
 
                 case Boruta.Oauth.token(request, RegentOAuth.TokenResult) do
                   {:ok, response} -> response
-                  {:error, error} -> Repo.rollback(error)
+                  {:error, error} -> RegentOAuth.repo().rollback(error)
                 end
               else
-                Repo.rollback(:invalid_grant)
+                RegentOAuth.repo().rollback(:invalid_grant)
               end
 
             _ ->
-              Repo.rollback(:invalid_grant)
+              RegentOAuth.repo().rollback(:invalid_grant)
           end
         end)
 
@@ -142,14 +141,14 @@ defmodule RegentOAuth.Protocol do
          match?({:ok, _}, Ecto.UUID.cast(params["client_id"])) and
          is_binary(params["token"]) and byte_size(params["token"]) in 1..4096 do
       {:ok, :ok} =
-        Repo.transaction(fn ->
+        RegentOAuth.repo().transaction(fn ->
           client_id = params["client_id"]
-          Repo.one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
+          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"))
 
           hash = RegentOAuth.hash_token(params["token"])
 
           token =
-            Repo.one(
+            RegentOAuth.repo().one(
               from(t in Token,
                 where:
                   t.client_id == ^client_id and t.type == "access_token" and is_nil(t.revoked_at) and
@@ -176,7 +175,7 @@ defmodule RegentOAuth.Protocol do
   defp lock_credential(%{"grant_type" => "authorization_code", "code" => code})
        when is_binary(code),
        do:
-         Repo.one(
+         RegentOAuth.repo().one(
            from(t in Token, where: t.type == "code" and t.value == ^code, lock: "FOR UPDATE")
          )
 
@@ -184,7 +183,7 @@ defmodule RegentOAuth.Protocol do
        when is_binary(token) do
     hash = RegentOAuth.hash_token(token)
 
-    Repo.one(
+    RegentOAuth.repo().one(
       from(t in Token,
         where: t.type == "access_token" and t.refresh_token == ^hash,
         lock: "FOR UPDATE"
@@ -235,7 +234,7 @@ defmodule RegentOAuth.Protocol do
   @doc false
   def request_client(params) do
     with {:ok, id} <- Ecto.UUID.cast(params["client_id"]),
-         %Client{confidential: false, pkce: true} = client <- Repo.get(Client, id),
+         %Client{confidential: false, pkce: true} = client <- RegentOAuth.repo().get(Client, id),
          true <- params["redirect_uri"] in client.redirect_uris do
       {:ok, client}
     else

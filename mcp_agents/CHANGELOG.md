@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The tests start the test site's repository and keep the OAuth provider's rows
+  through it, since `RegentOAuth` no longer starts a repository of its own.
+
 - One identity per connected app: `identity_key(audience, subject, client)`
   derives each hosted identity from the site's audience, the account and the
   app's OAuth client (label `regent-connected-app-v2`). A second app the person

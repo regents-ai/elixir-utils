@@ -2,6 +2,16 @@
 
 ## 0.1.0 (unreleased)
 
+- **Warning: this change must not reach elixir-utils main until the founder's
+  own named go.** Every site that takes payments applies this library's
+  migrations to the one shared database when it moves to a new version.
+  Migration `20261112180100_drop_receipts_paid_with` drops the receipts'
+  `paid_with` column and its `paid_with_names_how` check. Apply it only once
+  every site runs a version with `20261112180000_receipts_paid_with_default`:
+  a site on an older version still reads and writes the column, and its
+  receipts fail once the column is gone. The receipts paid in Credits before
+  6 November 2026 stay; they are the ones that name no paying wallet.
+
 - A receipt no longer has `paid_with`: every payment is in USDC, so it said
   nothing. The column stays, with the receipts already written, until a later
   change drops it. Migration `20261112180000_receipts_paid_with_default` gives it

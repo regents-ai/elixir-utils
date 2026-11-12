@@ -68,6 +68,13 @@ defmodule RegentMCPAgents.Test.OAuthTables do
   end
 end
 
+defmodule RegentMCPAgents.Test.ClientDocuments do
+  @moduledoc "The provider's version 3 table, added by a later migration as a site adds it."
+  use Ecto.Migration
+
+  def up, do: RegentOAuth.Migration.V3.up()
+end
+
 defmodule RegentMCPAgents.Test.Limiter do
   @moduledoc "A request counter in the `RegentAgentAccess.RateLimit` admit shape; it records each key."
   use Agent

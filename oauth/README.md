@@ -21,12 +21,18 @@ whose `default_options/1` must put the site's schema on every query, as each
 Regent site's repository does; `configure/1` refuses one that does not. The
 provider's own reads and writes are never logged. Boruta's own (storing a code,
 registering an app) log as the site's queries do, so keep production at the info
-level. Never supervise another Oban instance or any delivery loop here.
+level. Every one of these queries, the provider's included, still reaches the
+site repository's query telemetry with its parameters and rows (codes, token
+hashes, a new app's secret), so a site's handlers on that event read its
+measurements only, as the template's queue-time metric does. Never supervise
+another Oban instance or any delivery loop here.
 The site's migration calls `RegentOAuth.Migration.up()`. This additive
 migration creates only `oauth_*` tables. A second site migration calls
 `RegentOAuth.Migration.V2.up()`, which replaces every stored access and refresh
 token with its SHA-256 hash; it cannot be undone, and an app connected before it
-keeps working with the tokens it holds. Neither needs the site's address: each
+keeps working with the tokens it holds. A third calls
+`RegentOAuth.Migration.V3.up()`, which only adds `oauth_client_documents` for
+published identities; token exchange needs it. None needs the site's address: each
 code and token gets the configured issuer and resource written on it as it is
 issued (`RegentOAuth.bind/1`), and a row whose values differ from the running
 site's is refused. Never run Boruta's
@@ -42,8 +48,9 @@ app registered before a new scope is refused that scope until the migration has
 run, and every token still needs the person's consent for each scope.
 
 API routes call `RegentOAuth.Protocol.call/2` for resource metadata, server
-metadata, registration, token exchange and revocation. Token and registration
-routes need the site's existing per-address rate limiter. Browser routes call
+metadata, registration, token exchange and revocation. Token, registration,
+revocation and both authorize routes need the site's existing per-address rate
+limiter: a signed-in person's consent may read a published identity's address. Browser routes call
 `RegentOAuth.Consent.authorize/1`, `approve/1`, `connections/1` and
 `revoke_connection/1`. They must run through the site's current-session and CSRF
 pipeline. All credential-bearing routes disable request logging. Add `code`,
@@ -65,10 +72,32 @@ scope, S256 challenge, nonce, CSRF and lifetime. A consumed or expired request
 returns a readable HTTP 401 page; restart from the connecting app rather than
 resubmitting the old form. Consent and redirects stay no-store/no-referrer.
 
-The initial flow supports public OAuth clients (`none`), DCR, S256 PKCE and the
-`authorization_code` and `refresh_token` grants. It does not accept password or
-client-credentials grants, remote request objects, wildcard redirects or client
-JWKS URLs. It makes no provider HTTP call during a database transaction. Token
+The flow supports public OAuth clients (`none`), S256 PKCE and the
+`authorization_code` and `refresh_token` grants. An app names itself in one of
+two ways. It may publish its identity at an HTTPS address and use that address
+as its `client_id` (OAuth Client ID Metadata Documents, draft -02; Claude's is
+`https://claude.ai/oauth/mcp-oauth-client-metadata`), which server metadata
+advertises with `client_id_metadata_document_supported: true`. Or it registers
+itself (DCR) and uses the id it is given.
+
+A published identity is read only for a signed-in person's consent, never for a
+signed-out visitor, with `RegentHttp.Public`: HTTPS on port 443 only, every DNS
+answer must be a public address and the connection goes to the checked one, no
+redirects, at most 5 KB, within five seconds. The document must name exactly
+its own address as `client_id`, be a public client (`none`, no secret) and allow
+the code grant; only its HTTPS callbacks on the address's own host are kept, and
+at least one must remain. It is recorded as an ordinary public client row, so
+codes, tokens, refresh and Connected apps work as for any app, and
+`oauth_client_documents` names the address it came from. Consent reads it again
+once its cache lifetime has passed (its own `max-age`, kept between five
+minutes and a day, an hour when it gives none); a document that cannot be read
+then refuses the request, and a failed read is never stored. The token and
+revocation endpoints resolve an address only from that record and never read
+it. An address never resolves to a registered client, and a recorded row's own
+id is refused, so neither is taken for the other. No address is read inside a
+database transaction. It does not accept password or
+client-credentials grants, remote request objects, wildcard redirects, client
+JWKS URLs or published identities that authenticate with a secret or a key. It makes no provider HTTP call during a database transaction. Token
 exchange locks the actual credential row and commits before sending a response,
 so duplicate code or refresh requests cannot race through cached authority.
 A spent refresh token revokes that subject's app connection and requires new

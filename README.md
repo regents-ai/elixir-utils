@@ -50,7 +50,7 @@ features.
 | [`openai`](openai/README.md) | `regent_openai` | OpenAI text and screenshot replies, push-to-talk transcription and speech, each with the tokens it used and its cost in US dollars. |
 | [`sprites`](sprites/README.md) | `regent_sprites` | Fly Sprites machines: create, look up and delete them, checkpoint and restore their disks, run commands, and move files in and out. |
 | [`points`](points/README.md) | `regent_points` | Shared Points ledger, allowances, NFT bonuses and corrections; hosts supply verified source facts. |
-| [`privy`](privy/README.md) | `regent_privy` | Privy identity-token verification: ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses. |
+| [`privy`](privy/README.md) | `regent_privy` | Privy sign-in: identity-token verification (ES256 signature, issuer, audience, and time claims, plus normalized linked wallet addresses), the request's token pair, owners-only pages, a cookie-only owner sign-in, and the browser sign-in file. |
 | [`siwa/siwa-elixir/apps/siwa`](siwa/siwa-elixir/apps/siwa/README.md) | `siwa` | Wallet sign-in receipts, signed request checks, wallet signature checks, wallet action envelopes, Ethereum helpers, and payment header parsing. |
 | [`siwa/siwa-elixir/apps/siwa_keyring`](siwa/siwa-elixir/apps/siwa_keyring/README.md) | `siwa_keyring` | An encrypted key store and the signing wallets kept in it, used inside the process that holds it. |
 

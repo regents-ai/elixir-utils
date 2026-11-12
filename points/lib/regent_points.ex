@@ -26,6 +26,7 @@ defmodule RegentPoints do
     resource RegentPoints.Account do
       define :open_account, action: :open
       define :read_accounts, action: :read
+      define :add_to_balance, action: :add_to_balance, args: [:points_micro]
     end
 
     resource RegentPoints.Event do

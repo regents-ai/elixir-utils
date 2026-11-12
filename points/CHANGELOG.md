@@ -2,6 +2,18 @@
 
 ## 0.1.0 (unreleased)
 
+- Each account stores its balance (`accounts.balance_micro`), and the board reads ten
+  rows from an index on it instead of summing every entry and bonus of every account
+  on each read. That read grew with the whole ledger and, once period bonuses exist,
+  scanned the bonus table once per account: 148 seconds at 100,000 accounts, and past
+  the 15-second query limit at about 20,000 accounts after one period (local scratch
+  data, 12 November 2026). Every entry, new period bonus and bonus that follows the
+  ledger moves the stored total by what it added, atomically and in its own
+  transaction (`RegentPoints.FollowBalance`). `RegentPoints.leaderboard/1` answers
+  `top` only; `totals` and `RegentPoints.Leaderboard.place/2` are gone, and a reader's
+  place is `place` in `RegentPoints.summary/1`, one count of the accounts above them.
+  Two shared migrations: the column, filled from the ledger, then the index, built
+  concurrently.
 - Points no longer has a Credits rule (Sean, 6 November 2026): `credits.purchase_settled`,
   its `credits` category and 50-a-day limit, and the per-USDC rate are gone, so a rule
   snapshot's `daily_caps_micro` holds only `activity:account` and repeat actions earn

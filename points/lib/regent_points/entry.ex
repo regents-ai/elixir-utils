@@ -100,6 +100,8 @@ defmodule RegentPoints.Entry do
         :reversal_of_entry_id,
         :reason_code
       ]
+
+      change RegentPoints.FollowBalance
     end
   end
 

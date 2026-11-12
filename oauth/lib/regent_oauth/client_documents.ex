@@ -15,8 +15,10 @@ defmodule RegentOAuth.ClientDocuments do
   An address is resolved only through this table and a registered client id
   only through registration (`RegentOAuth.Protocol`): neither is ever taken for
   the other. Where a person is about to approve, a document older than its
-  cache lifetime is read again first, and one that cannot be read refuses the
-  request. A failed read is never stored.
+  cache lifetime is read again first. An address that does not answer just now
+  (no connection, a timeout, a 429 or a 5xx) makes the request unavailable; any
+  other answer that is not a valid document refuses it. A failed read is never
+  stored.
   """
 
   import Ecto.Query
@@ -44,7 +46,9 @@ defmodule RegentOAuth.ClientDocuments do
 
   @doc """
   The client recorded for the published identity at `url`, read again from its
-  address first when it is due. For requests a person is about to approve.
+  address first when it is due. For requests a person is about to approve:
+  `{:ok, client_id}`, `:unavailable` when the address does not answer just now,
+  or `:error`.
   """
   def current(url) do
     with true <- client_id_url?(url) do
@@ -76,24 +80,37 @@ defmodule RegentOAuth.ClientDocuments do
       )
 
   defp refresh(url) do
+    headers = [
+      {"accept", "application/json"},
+      {"user-agent", "RegentOAuth (+#{RegentOAuth.issuer()})"}
+    ]
+
     result =
-      with {:ok, response} <-
-             RegentHttp.Public.get(url,
-               max_bytes: @max_bytes,
-               headers: [{"accept", "application/json"}]
-             ),
-           {:ok, attrs} <- validate(url, response) do
-        save(url, attrs, refresh_at(response.headers))
-      else
-        _ -> :error
+      case RegentHttp.Public.get(url, max_bytes: @max_bytes, headers: headers) do
+        {:error, reason} when reason in [:timeout, :connection_error, :dns_error] ->
+          :unavailable
+
+        {:ok, %{status: status}} when status == 429 or status >= 500 ->
+          :unavailable
+
+        {:ok, response} ->
+          with {:ok, attrs} <- validate(url, response),
+               do: save(url, attrs, refresh_at(response.headers))
+
+        {:error, _refused} ->
+          :error
       end
 
     :telemetry.execute([:regent_oauth, :client_document, :read], %{count: 1}, %{
-      result: if(result == :error, do: :refused, else: :ok)
+      result: outcome(result)
     })
 
     result
   end
+
+  defp outcome({:ok, _id}), do: :ok
+  defp outcome(:unavailable), do: :unavailable
+  defp outcome(:error), do: :refused
 
   defp validate(url, %{status: 200, headers: headers, body: body}) do
     host = URI.parse(url).host

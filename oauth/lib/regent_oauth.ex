@@ -277,12 +277,28 @@ defmodule RegentOAuth do
     )
   end
 
+  @doc """
+  Takes the lock of one person's connection to one app until the transaction
+  ends. Code exchange, refresh and disconnect take it first, so they run one at
+  a time for that connection and never wait on another person's: a published
+  identity's app is one client row for every person.
+  """
+  def lock_connection(subject, client_id) when is_binary(subject) and is_binary(client_id) do
+    repo().query!(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      ["regent_oauth:connection:" <> client_id <> ":" <> subject],
+      log: false
+    )
+
+    :ok
+  end
+
   @doc "Revoke this person's app connection, including all access and refresh tokens."
   def revoke_client(subject, client_id) do
     repo().transaction(fn ->
-      # Token issuance takes this same standard row lock. A concurrent refresh
-      # cannot commit an unseen successor after disconnect has scanned its tokens.
-      repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"), log: false)
+      # Token issuance takes this same lock. A concurrent refresh cannot commit
+      # an unseen successor after disconnect has scanned its tokens.
+      :ok = lock_connection(subject, client_id)
 
       mine = from(t in Token, where: t.sub == ^subject and t.client_id == ^client_id)
       tokens = repo().all(mine, log: false)

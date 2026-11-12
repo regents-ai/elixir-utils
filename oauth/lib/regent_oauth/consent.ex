@@ -27,6 +27,7 @@ defmodule RegentOAuth.Consent do
             )
           else
             false -> Protocol.json(conn, 401, %{error: "login_required"})
+            {:error, :unavailable} -> unavailable(conn)
             _ -> Protocol.json(conn, 400, %{error: "invalid_request"})
           end
 
@@ -126,6 +127,9 @@ defmodule RegentOAuth.Consent do
           Protocol.json(conn, 400, %{error: "invalid_request"})
       end
     else
+      {:error, :unavailable} ->
+        unavailable(conn)
+
       _ ->
         page(
           conn,
@@ -204,6 +208,20 @@ defmodule RegentOAuth.Consent do
     end
   rescue
     _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
+  end
+
+  # A published identity's address did not answer just now: nothing is wrong
+  # with the link, so the person is told to try again rather than that it expired.
+  defp unavailable(conn) do
+    page(
+      conn,
+      "Unavailable",
+      """
+      <p>This app's details could not be read just now. Wait a moment, then start connecting again from the app.</p>
+      <p class="rg-utility__note">No new access was granted.</p>
+      """,
+      503
+    )
   end
 
   defp page(conn, title, body, status \\ 200) do

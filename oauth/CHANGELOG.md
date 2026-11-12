@@ -13,7 +13,15 @@
   `public`. The provider's own reads and writes pass `log: false`, as its own
   repository's did, so codes and token hashes never reach a log; Boruta's own
   (storing a code, registering an app) log as the site's queries do, which
-  production keeps out of its logs at the info level.
+  production keeps out of its logs at the info level. All of them still reach
+  the site repository's query telemetry with their parameters and rows, so a
+  site's handlers on that event read measurements only (README).
+
+- Published identities (`RegentOAuth.ClientDocuments`) keep their rows through
+  the site's repository too, with `log: false`. New tests: a failed read changes
+  neither the record nor its app; a read again takes the new name and callbacks
+  and refuses the old callback; a recorded app's own id is refused for refresh and
+  revocation as well as consent and code exchange.
 
 - Reading a published identity again takes only its name and callbacks; the app
   keeps the scopes it holds. Before, the read again gave it this machine's scope

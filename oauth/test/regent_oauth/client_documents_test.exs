@@ -154,8 +154,45 @@ defmodule RegentOAuth.ClientDocumentsTest do
       set: [refresh_at: DateTime.add(DateTime.utc_now(), -1, :second)]
     )
 
+    {:ok, id} = RegentOAuth.ClientDocuments.stored(@claude)
+    due = RegentOAuth.Test.Repo.get!(RegentOAuth.ClientDocuments.Document, @claude).refresh_at
+
     Documents.serve(@claude, {:error, :timeout})
     assert consent("did:privy:sol", authorize_query(@claude)).status == 400
+
+    # A failed read is never stored: the record and its app are as they were.
+    assert %{client_id: ^id, refresh_at: ^due} =
+             RegentOAuth.Test.Repo.get!(RegentOAuth.ClientDocuments.Document, @claude)
+
+    assert %{name: "Claude"} = RegentOAuth.Test.Repo.get!(Boruta.Ecto.Client, id)
+  end
+
+  test "reading the identity again takes its new name and callbacks" do
+    assert consent("did:privy:sol", authorize_query(@claude)).status == 200
+    {:ok, id} = RegentOAuth.ClientDocuments.stored(@claude)
+
+    moved = "https://claude.ai/api/mcp/auth_callback_v2"
+
+    renamed =
+      Documents.claude().body
+      |> Jason.decode!()
+      |> Map.merge(%{"client_name" => "Claude Desktop", "redirect_uris" => [moved]})
+
+    Documents.serve(@claude, %{Documents.claude() | body: Jason.encode!(renamed)})
+
+    RegentOAuth.Test.Repo.update_all(RegentOAuth.ClientDocuments.Document,
+      set: [refresh_at: DateTime.add(DateTime.utc_now(), -1, :second)]
+    )
+
+    page = consent("did:privy:luna", authorize_query(@claude, moved))
+    assert page.status == 200
+    assert page.resp_body =~ "Connect Claude Desktop"
+    assert {:ok, ^id} = RegentOAuth.ClientDocuments.stored(@claude)
+
+    assert %{name: "Claude Desktop", redirect_uris: [^moved]} =
+             RegentOAuth.Test.Repo.get!(Boruta.Ecto.Client, id)
+
+    assert consent("did:privy:luna", authorize_query(@claude)).status == 400
   end
 
   test "a document is refused unless it is the address's own public client" do
@@ -232,6 +269,17 @@ defmodule RegentOAuth.ClientDocumentsTest do
     # The recorded row cannot be named by its own id.
     assert consent("did:privy:sol", authorize_query(client.id)).status == 400
     assert exchange(client.id, Flow.code!(client.id, "did:privy:sol")).status == 400
+
+    # Nor for a refresh or a revocation of tokens it was given by its address.
+    approved = approve("did:privy:sol", consent("did:privy:sol", authorize_query(@claude)))
+
+    %{"access_token" => access, "refresh_token" => refresh} =
+      Jason.decode!(exchange(@claude, code_from(approved)).resp_body)
+
+    assert Flow.refresh(client.id, refresh).status == 400
+    assert Flow.post(:revoke, %{"client_id" => client.id, "token" => access}).status == 400
+    assert {:ok, _} = RegentOAuth.verify(access, RegentOAuth.resource())
+    assert Flow.refresh(@claude, refresh).status == 200
 
     # An address never read at consent is unknown to the token endpoint.
     assert exchange("https://claude.ai/oauth/unknown", "code").status == 400

@@ -8,7 +8,6 @@ owns:
   - anthropic_calls
   - markdown_blog_catalogs
   - ash_lint_checks
-  - regent_credits_ledger
   - regent_points_ledger
   - chain_wallet_steps
   - mcp_events_helpers
@@ -42,8 +41,6 @@ code_map:
     owns: ash_lint_checks
   - path: chain
     owns: chain_wallet_steps
-  - path: credits
-    owns: regent_credits_ledger
   - path: ens
     owns: ens_library
   - path: format
@@ -81,8 +78,6 @@ acceptance_commands:
   - cwd: elixir-utils/credo_ash
     command: mix check
   - cwd: elixir-utils/chain
-    command: mix check
-  - cwd: elixir-utils/credits
     command: mix check
   - cwd: elixir-utils/ens
     command: mix check

@@ -51,12 +51,13 @@ moves, and under `points:board` when any account's does; cross-node notification
 delivery follows the host's PubSub topology.
 
 `RegentPoints.leaderboard/1` is system-only. The site reads it once for every reader,
-on `points:board` and on a schedule, and keeps the answer on the server: the ten
+on `points:board` and on a schedule, and keeps the answer on the server: `top`, the ten
 highest rows (`account_id`, `name`, `wallet`, `ens_name`, `squares`, `picture`, `rank`,
-`points_micro`) and
-`totals`, every positive total, highest first. A reader gets the rows without their
-account ids, a mark on their own row, and their own place from
-`RegentPoints.Leaderboard.place(totals, own_total)`, never the list of totals.
+`points_micro`). It reads ten stored totals from one index, never every account. A
+reader gets the rows without their account ids and a mark on their own row. Their
+own place, wherever they sit, is `place` in their summary: one more than the number
+of accounts with strictly more points, counted on the same index when the summary is
+read, or `nil` without points.
 
 ## Record committed actions
 
@@ -157,7 +158,9 @@ earned in that period after all limits and corrections, one-time awards included
 the tier held at period end, and Oban retries a Base outage. The tier is never read
 again for that period: an award checked after the tally, or a correction, moves the
 period's earned total and bonus at the saved tier in the same locked transaction as
-its ledger entry. An account's balance is its entries plus its period bonuses. Repeat actions earn at
+its ledger entry. An account's balance is its entries plus its period bonuses, and the
+account row stores it (`balance_micro`): each entry, new bonus and bonus that follows
+moves it by what it added, with an atomic update in the same transaction. Repeat actions earn at
 most 100 base Points a UTC day, excluding one-time awards. The milestone catalog
 totals 250 (`RegentPoints.Rules.milestone_total/0`); `template.first_agent_note` is
 not approved at launch, so 240 can be earned then (Sean, 6 November). Sean approved the trial
@@ -188,6 +191,11 @@ a dedicated connection, with its own history in `regent_points`. One designated
 owner runs production migrations only with Sean's grant. The period bonus migration
 removes the action-time NFT columns and the transfer cursor table; its rollback runs
 only while the Points tables hold no awards.
+The account balance migration adds `accounts.balance_micro` and fills it from the
+ledger in one transaction that locks the accounts table while it reads every entry and
+bonus once; a later migration builds the board's index on it concurrently. Apply it
+while no site on an older version records Points: an older version appends entries
+without moving the stored total.
 The period-end snapshot migration records the existing verified wallet sets and
 installs a capture trigger on the canonical account table, covering every site's
 wallet changes. Wallet history, capture coverage and period snapshots are immutable.

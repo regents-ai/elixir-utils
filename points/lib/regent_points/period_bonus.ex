@@ -69,10 +69,12 @@ defmodule RegentPoints.PeriodBonus do
       ]
 
       validate present(:snapshot_id)
+      change RegentPoints.FollowBalance
     end
 
     update :follow do
       accept [:earned_micro, :bonus_micro]
+      change RegentPoints.FollowBalance
     end
   end
 

@@ -9,8 +9,7 @@ defmodule RegentPoints.Summary do
   def run(input, _, %{actor: actor}) do
     id = actor.human_account_id
 
-    account_query =
-      Account |> Ash.Query.filter(id == ^id) |> Ash.Query.load(:balance_micro)
+    account_query = Ash.Query.filter(Account, id == ^id)
 
     entries_query = Entry |> Ash.Query.filter(account_id == ^id) |> filters(input.arguments)
     today = DateTime.utc_now() |> DateTime.to_date()
@@ -53,10 +52,13 @@ defmodule RegentPoints.Summary do
          {:ok, yesterday_points} <- Ash.sum(yesterday_query, :points_micro_delta),
          {:ok, pending} <- Ash.count(pending_query),
          {:ok, caps} <- Points.read_caps(query: cap_query, actor: actor),
-         {:ok, agent_names} <- agent_names(id, entries.results) do
+         {:ok, agent_names} <- agent_names(id, entries.results),
+         balance = balance(List.first(accounts)),
+         {:ok, place} <- place(balance) do
       {:ok,
        %{
-         balance_micro: balance(List.first(accounts)),
+         balance_micro: balance,
+         place: place,
          earned_today_micro: today_points || 0,
          earned_yesterday_micro: yesterday_points || 0,
          pending: pending,
@@ -103,6 +105,16 @@ defmodule RegentPoints.Summary do
 
   defp balance(nil), do: 0
   defp balance(account), do: account.balance_micro
+
+  # One more than the number of accounts with strictly more points, counted from
+  # the board's index; none for an account without points. Every account's total
+  # is counted, so this one count reads as the system.
+  defp place(balance) when balance > 0 do
+    above = Ash.Query.filter(Account, balance_micro > ^balance)
+    with {:ok, count} <- Ash.count(above, actor: Store.system()), do: {:ok, count + 1}
+  end
+
+  defp place(_balance), do: {:ok, nil}
 
   # Only the daily allowances a rule earning right now counts against.
   defp allowances(caps) do

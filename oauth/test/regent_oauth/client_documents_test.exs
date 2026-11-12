@@ -147,7 +147,7 @@ defmodule RegentOAuth.ClientDocumentsTest do
     assert scopes == Enum.sort(["regent.kept" | RegentOAuth.scopes()])
   end
 
-  test "an identity that can no longer be read is refused, never served from the old record" do
+  test "an identity that does not answer is unavailable, one that answers wrongly is refused, and neither is served from the old record" do
     assert consent("did:privy:sol", authorize_query(@claude)).status == 200
 
     RegentOAuth.Test.Repo.update_all(RegentOAuth.ClientDocuments.Document,
@@ -157,7 +157,16 @@ defmodule RegentOAuth.ClientDocumentsTest do
     {:ok, id} = RegentOAuth.ClientDocuments.stored(@claude)
     due = RegentOAuth.Test.Repo.get!(RegentOAuth.ClientDocuments.Document, @claude).refresh_at
 
-    Documents.serve(@claude, {:error, :timeout})
+    for answer <- [
+          {:error, :timeout},
+          {:error, :connection_error},
+          %{status: 503, headers: [], body: ""}
+        ] do
+      Documents.serve(@claude, answer)
+      assert consent("did:privy:sol", authorize_query(@claude)).status == 503
+    end
+
+    Documents.serve(@claude, %{status: 404, headers: [], body: ""})
     assert consent("did:privy:sol", authorize_query(@claude)).status == 400
 
     # A failed read is never stored: the record and its app are as they were.

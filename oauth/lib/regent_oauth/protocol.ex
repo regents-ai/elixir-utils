@@ -69,54 +69,25 @@ defmodule RegentOAuth.Protocol do
       # From here the request names the client's own row.
       params = Map.put(params, "client_id", client_id)
 
-      # The row lock serializes code consumption and refresh rotation, even if
-      # two requests both saw a valid Boruta cache entry. All work is local DB/crypto.
+      # The connection's lock serializes code consumption, refresh rotation and
+      # disconnect for one person and app, even if two requests both saw a valid
+      # Boruta cache entry. A credential that is not this app's takes no lock, so
+      # an unknown code holds up nobody: every person's Claude connection shares
+      # one client row. All work is local DB/crypto.
       result =
         RegentOAuth.repo().transaction(fn ->
-          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"),
-            log: false
-          )
-
-          case lock_credential(params) do
-            %Token{revoked_at: nil, refresh_token_revoked_at: revoked, client_id: ^client_id} =
-                row
-            when not is_nil(revoked) ->
-              if params["grant_type"] == "refresh_token" and RegentOAuth.bound?(row.id) and
-                   RegentOAuth.site().active_subject?(row.sub) and
-                   DateTime.diff(DateTime.utc_now(), revoked) >= @refresh_grace_seconds do
-                # Boruta rotates refresh tokens. Proven reuse revokes this
-                # subject's app connection, as required by RFC 9700 section 4.14.2.
-                # A second refresh within the grace period is the app's own
-                # retry or overlap, not a stolen token: it is only refused.
-                {:ok, :ok} = RegentOAuth.revoke_client(row.sub, row.client_id)
-                {:denied, :invalid_grant}
-              else
-                RegentOAuth.repo().rollback(:invalid_grant)
-              end
-
-            %Token{revoked_at: nil} = row ->
-              if RegentOAuth.bound?(row.id) and RegentOAuth.site().active_subject?(row.sub) and
-                   active_credential?(row, params) do
-                # Token requests use only the allowlisted form body. In particular,
-                # query request objects must never trigger HTTP under these locks.
-                request = %{
-                  conn
-                  | query_params: %{},
-                    query_string: "",
-                    body_params: params,
-                    params: params
-                }
-
-                case Boruta.Oauth.token(request, RegentOAuth.TokenResult) do
-                  {:ok, response} -> response
-                  {:error, error} -> RegentOAuth.repo().rollback(error)
-                end
-              else
-                RegentOAuth.repo().rollback(:invalid_grant)
-              end
-
-            _ ->
-              RegentOAuth.repo().rollback(:invalid_grant)
+          with %Ecto.Query{} = query <- credential_query(params),
+               %Token{client_id: ^client_id, sub: sub} when is_binary(sub) <-
+                 RegentOAuth.repo().one(query, log: false),
+               :ok <- RegentOAuth.lock_connection(sub, client_id) do
+            issue(
+              conn,
+              params,
+              client_id,
+              RegentOAuth.repo().one(lock(query, "FOR UPDATE"), log: false)
+            )
+          else
+            _ -> RegentOAuth.repo().rollback(:invalid_grant)
           end
         end)
 
@@ -137,32 +108,23 @@ defmodule RegentOAuth.Protocol do
     with true <- bounded_map?(params, ~w(client_id token token_type_hint)),
          true <- is_binary(params["token"]) and byte_size(params["token"]) in 1..4096,
          {:ok, client_id} <- resolve_client(params["client_id"], :stored) do
-      {:ok, :ok} =
-        RegentOAuth.repo().transaction(fn ->
-          RegentOAuth.repo().one(from(c in Client, where: c.id == ^client_id, lock: "FOR UPDATE"),
-            log: false
-          )
+      hash = RegentOAuth.hash_token(params["token"])
 
-          hash = RegentOAuth.hash_token(params["token"])
+      token =
+        RegentOAuth.repo().one(
+          from(t in Token,
+            where:
+              t.client_id == ^client_id and t.type == "access_token" and is_nil(t.revoked_at) and
+                (t.value == ^hash or t.refresh_token == ^hash)
+          ),
+          log: false
+        )
 
-          token =
-            RegentOAuth.repo().one(
-              from(t in Token,
-                where:
-                  t.client_id == ^client_id and t.type == "access_token" and is_nil(t.revoked_at) and
-                    (t.value == ^hash or t.refresh_token == ^hash)
-              ),
-              log: false
-            )
-
-          if token && RegentOAuth.bound?(token.id) do
-            # A refresh may already have rotated this credential. Revoke the
-            # connection under the issuance lock so no successor survives.
-            {:ok, :ok} = RegentOAuth.revoke_client(token.sub, client_id)
-          end
-
-          :ok
-        end)
+      if token && RegentOAuth.bound?(token.id) do
+        # A refresh may already have rotated this credential. revoke_client takes
+        # the connection's lock, so no successor survives.
+        {:ok, :ok} = RegentOAuth.revoke_client(token.sub, client_id)
+      end
 
       # Unknown tokens and tokens belonging to another client reveal nothing.
       json(conn, 200, %{})
@@ -171,28 +133,63 @@ defmodule RegentOAuth.Protocol do
     end
   end
 
-  defp lock_credential(%{"grant_type" => "authorization_code", "code" => code})
-       when is_binary(code),
-       do:
-         RegentOAuth.repo().one(
-           from(t in Token, where: t.type == "code" and t.value == ^code, lock: "FOR UPDATE"),
-           log: false
-         )
+  # Runs under the connection's lock, with the credential read again under its
+  # row lock after the wait.
+  defp issue(conn, params, client_id, credential) do
+    case credential do
+      %Token{revoked_at: nil, refresh_token_revoked_at: revoked, client_id: ^client_id} =
+          row
+      when not is_nil(revoked) ->
+        if params["grant_type"] == "refresh_token" and RegentOAuth.bound?(row.id) and
+             RegentOAuth.site().active_subject?(row.sub) and
+             DateTime.diff(DateTime.utc_now(), revoked) >= @refresh_grace_seconds do
+          # Boruta rotates refresh tokens. Proven reuse revokes this
+          # subject's app connection, as required by RFC 9700 section 4.14.2.
+          # A second refresh within the grace period is the app's own
+          # retry or overlap, not a stolen token: it is only refused.
+          {:ok, :ok} = RegentOAuth.revoke_client(row.sub, row.client_id)
+          {:denied, :invalid_grant}
+        else
+          RegentOAuth.repo().rollback(:invalid_grant)
+        end
 
-  defp lock_credential(%{"grant_type" => "refresh_token", "refresh_token" => token})
-       when is_binary(token) do
-    hash = RegentOAuth.hash_token(token)
+      %Token{revoked_at: nil} = row ->
+        if RegentOAuth.bound?(row.id) and RegentOAuth.site().active_subject?(row.sub) and
+             active_credential?(row, params) do
+          # Token requests use only the allowlisted form body. In particular,
+          # query request objects must never trigger HTTP under these locks.
+          request = %{
+            conn
+            | query_params: %{},
+              query_string: "",
+              body_params: params,
+              params: params
+          }
 
-    RegentOAuth.repo().one(
-      from(t in Token,
-        where: t.type == "access_token" and t.refresh_token == ^hash,
-        lock: "FOR UPDATE"
-      ),
-      log: false
-    )
+          case Boruta.Oauth.token(request, RegentOAuth.TokenResult) do
+            {:ok, response} -> response
+            {:error, error} -> RegentOAuth.repo().rollback(error)
+          end
+        else
+          RegentOAuth.repo().rollback(:invalid_grant)
+        end
+
+      _ ->
+        RegentOAuth.repo().rollback(:invalid_grant)
+    end
   end
 
-  defp lock_credential(_), do: nil
+  defp credential_query(%{"grant_type" => "authorization_code", "code" => code})
+       when is_binary(code),
+       do: from(t in Token, where: t.type == "code" and t.value == ^code)
+
+  defp credential_query(%{"grant_type" => "refresh_token", "refresh_token" => token})
+       when is_binary(token) do
+    hash = RegentOAuth.hash_token(token)
+    from(t in Token, where: t.type == "access_token" and t.refresh_token == ^hash)
+  end
+
+  defp credential_query(_), do: nil
 
   defp active_credential?(%Token{client_id: client, expires_at: expiry}, %{
          "grant_type" => "authorization_code",
@@ -235,6 +232,7 @@ defmodule RegentOAuth.Protocol do
   @doc """
   The client row an authorization request names, for a person about to
   approve it: a published identity is read again first when it is due.
+  `{:error, :unavailable}` when its address does not answer just now.
   """
   def request_client(params) do
     with {:ok, id} <- resolve_client(params["client_id"], :current),
@@ -243,6 +241,7 @@ defmodule RegentOAuth.Protocol do
          true <- params["redirect_uri"] in client.redirect_uris do
       {:ok, client}
     else
+      :unavailable -> {:error, :unavailable}
       _ -> {:error, :invalid_client}
     end
   end

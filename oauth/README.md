@@ -90,8 +90,12 @@ at least one must remain. It is recorded as an ordinary public client row, so
 codes, tokens, refresh and Connected apps work as for any app, and
 `oauth_client_documents` names the address it came from. Consent reads it again
 once its cache lifetime has passed (its own `max-age`, kept between five
-minutes and a day, an hour when it gives none); a document that cannot be read
-then refuses the request, and a failed read is never stored. The token and
+minutes and a day, an hour when it gives none), sending a `user-agent` that
+names the site's issuer. An address that does not answer just now (no
+connection, a timeout, a 429 or a 5xx) shows the person an "Unavailable" page
+with a 503; any other answer that is not a valid document refuses the request.
+A failed read is never stored, and `[:regent_oauth, :client_document, :read]`
+reports `result: :ok | :refused | :unavailable`. The token and
 revocation endpoints resolve an address only from that record and never read
 it. An address never resolves to a registered client, and a recorded row's own
 id is refused, so neither is taken for the other. No address is read inside a
@@ -101,8 +105,12 @@ JWKS URLs or published identities that authenticate with a secret or a key. It m
 exchange locks the actual credential row and commits before sending a response,
 so duplicate code or refresh requests cannot race through cached authority.
 A spent refresh token revokes that subject's app connection and requires new
-consent. Issuance and disconnect also lock the client row, so a concurrent refresh
-cannot escape revocation with an unseen successor. Protocol revocation verifies
+consent. Code exchange, refresh and disconnect first take the connection's lock
+(`RegentOAuth.lock_connection/2`, a transaction-scoped Postgres advisory lock on
+the app and the person), so a concurrent refresh cannot escape revocation with
+an unseen successor. A published identity's app is one client row for every
+person, so the lock is per connection, never the client row, and a credential
+that is not the app's takes no lock at all: an unknown code holds up no one. Protocol revocation verifies
 the credential's client and revokes that account's connection, including rotated
 successors; unknown or already-revoked credentials and a different client change
 nothing. An old disconnected app cannot revoke a later fresh consent. Consent

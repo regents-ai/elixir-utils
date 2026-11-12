@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Code exchange, refresh and disconnect lock one person's connection to one app
+  (`RegentOAuth.lock_connection/2`, a transaction-scoped advisory lock), no longer
+  the app's client row. Every person's Claude connection is one client row (its
+  published identity), so the row lock made all of a site's Claude sign-ins take
+  turns, and a request with Claude's address and an unknown code, from anyone,
+  joined that queue holding a database connection (12 Nov review). A credential
+  that is not the app's now takes no lock.
+- A published identity whose address does not answer just now (no connection,
+  a timeout, a 429 or a 5xx) shows the person an "Unavailable" page with a 503,
+  at opening consent and at Allow. Before, opening consent answered raw
+  `invalid_request` JSON, and Allow said the link had expired or been used. The
+  read sends a `user-agent` naming the site's issuer, and its telemetry reports
+  `:unavailable` beside `:ok` and `:refused`.
+
 - The provider keeps its rows through the site's own repository and pool
   (`RegentOAuth.repo/0`, the site's `repo/0`) and starts no repository of its
   own: `RegentOAuth.Repo`, its pool of two and the copy of the site's

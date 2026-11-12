@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- `RegentHttp.Public.request/3` (and `get/2`) call an address someone else
+  supplied, such as an app's published identity or an MCP Events callback:
+  HTTPS only, every DNS answer must be public and Mint connects to the checked
+  address (the host stays the TLS name), no redirects, a byte limit and a total
+  deadline; `answer: :headers` returns on a 2xx status's headers. `uri/1`,
+  `valid_url?/1` and `public_ip?/1` are its checks. It emits
+  `[:regent_http, :public_request]` without the host, which someone else chose.
+  `Regent.MCPEvents.Callback` now uses it instead of its own copy.
+  An informational (1xx) reply is skipped, never taken as the answer or as a
+  callback's acknowledgement.
+  A chunked reply's trailers never replace its headers. Needs Mint 1.11, whose
+  HTTP/1 limits on header, status and chunk lines it relies on.
+
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
 - `RegentHttp.UnexpectedFailure`, moved from the template's

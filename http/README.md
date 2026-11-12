@@ -61,6 +61,19 @@ A save that fails, such as one that finds every database connection in use, writ
 one warning line naming the exception (`Crash not saved: DBConnection.ConnectionError`)
 and the next crash is saved as usual. That one crash stays off the error list.
 
+## Addresses someone else supplied
+
+`RegentHttp.Public.request(method, url, max_bytes: n)` (and `get/2`) call an
+address a request or another site named, such as an app's published identity or
+an MCP Events callback; every Regent package that does so uses it. It accepts
+HTTPS only, checks that every DNS answer is a public address and connects to that
+checked address (the host stays the TLS and Host name), follows no redirects, and
+stops at `max_bytes` and a five-second deadline (`timeout:`). `body:` is sent with
+a POST, and `answer: :headers` returns as soon as a 2xx status's headers arrive. It
+emits `[:regent_http, :public_request]` with the method and result, never the host.
+Tests set `Application.put_env(:regent_http, :public_client, Stub)`, where
+`Stub.request/3` takes the same arguments.
+
 ## Tests
 
 The crash saving tests use a local Postgres database, `regent_http_test` plus

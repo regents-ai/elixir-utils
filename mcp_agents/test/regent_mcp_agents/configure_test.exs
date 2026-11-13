@@ -1,5 +1,5 @@
 defmodule RegentMCPAgents.ConfigureTest do
-  # A site switches hosted identity on only as one of the six sites, with at
+  # A site switches hosted identity on only with a site name as its audience, at
   # least one hosted runtime to offer and refusal words of a sensible length.
   use RegentMCPAgents.Case
 
@@ -14,17 +14,17 @@ defmodule RegentMCPAgents.ConfigureTest do
     assert RegentMCPAgents.hosted_names() == ["claude"]
   end
 
-  test "each of the six sites can switch hosted identity on; any other audience cannot", %{
+  test "a site name switches hosted identity on; an audience that is not one cannot", %{
     config: config
   } do
-    for audience <- ["patchbay", "keyfleet", "ash-template", "regents", "autolaunch", "techtree"] do
+    for audience <- ["patchbay", "ash-template", "chainagent"] do
       Application.put_env(:regent_mcp_agents, :config, Keyword.put(config, :audience, audience))
       assert RegentMCPAgents.configure!() == :ok
     end
 
-    for audience <- ["regents.sh", "Regents", "", nil] do
+    for audience <- ["regents.sh", "Regents", "https://regents.sh", "a", "", nil] do
       Application.put_env(:regent_mcp_agents, :config, Keyword.put(config, :audience, audience))
-      assert_raise ArgumentError, ~r/known audience/, &RegentMCPAgents.configure!/0
+      assert_raise ArgumentError, &RegentMCPAgents.configure!/0
     end
   end
 

@@ -2,6 +2,16 @@
 
 ## 0.1.0 (unreleased)
 
+- New tests show that a one-time award earns once for an account, whichever site
+  records it, whether at the start or later (`test/regent_points/once_only_test.exs`).
+  A linked X account earns once, whichever site records it: the same person's record
+  on a second site records nothing, and another person linking the same X account is
+  held to nothing. A person's first paired agent earns once, however often they unpair
+  and pair again, pair another agent, or pair on another site. None of the checks
+  behind this looks at which site recorded the action: the check, when an action is
+  recorded, that the account has not already had the rule; the account's lifetime
+  count for the rule; and, for a social account, the lifetime count for that provider
+  and subject. No code changed.
 - Points runs in three 30-day seasons and stops by itself after the last (Sean, 13
   November 2026). The count is the program's own, `RegentPoints.Rules.season_count/0`,
   beside the 30-day period; sites set nothing. After `RegentPoints.Rules.ends_at/0`

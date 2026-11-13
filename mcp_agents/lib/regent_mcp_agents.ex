@@ -74,19 +74,12 @@ defmodule RegentMCPAgents do
                is_binary(uri.host) and uri.path in [nil, ""] and
                is_nil(uri.query) and is_nil(uri.fragment) and is_nil(uri.userinfo) and
                is_binary(key) and Regex.match?(~r/\A[A-Za-z0-9_-]{32,}\z/, key) and
-               opts[:audience] in [
-                 "patchbay",
-                 "keyfleet",
-                 "ash-template",
-                 "regents",
-                 "autolaunch",
-                 "techtree"
-               ] and
+               site_name?(opts[:audience]) and
                Harness.hosted() != [] and refusal_text?(Keyword.get(opts, :refusal, @refusal)),
              do:
                raise(
                  ArgumentError,
-                 "Hosted identity requires a fixed HTTPS signer, this site's hosted signing key, a known audience, " <>
+                 "Hosted identity requires a fixed HTTPS signer, this site's hosted signing key, a site name as its audience, " <>
                    "at least one hosted runtime in `config :regent_agents, hosted_pairing:` and refusal words of 1 to 500 bytes"
                )
     end
@@ -103,6 +96,12 @@ defmodule RegentMCPAgents do
   def refusal_text, do: Keyword.get(config(), :refusal, @refusal)
 
   defp refusal_text?(text), do: is_binary(text) and byte_size(text) in 1..500
+
+  # A site's audience is its name: lower-case letters, digits and hyphens. Which
+  # names exist is the SIWA service's to say; it reads the audience from the
+  # site's hosted signing key.
+  defp site_name?(audience),
+    do: is_binary(audience) and Regex.match?(~r/\A[a-z][a-z0-9-]{1,31}\z/, audience)
 
   @doc "Create or return this app's persistent signer for the account, without pairing it."
   def register(principal) do

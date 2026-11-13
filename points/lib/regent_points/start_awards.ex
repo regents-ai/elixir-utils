@@ -5,10 +5,11 @@ defmodule RegentPoints.StartAwards do
   agent (`RegentPoints.Rules.start_rules/0`), at most 80 points, without the
   person doing anything. They earn at the start time.
 
-  Every site runs it from an hourly cron line. With no start time it stops; before
-  the start it waits for it. From the start it asks each approved start rule's
-  source, `existing(rule_id, starts_at)`, for what was there before the start, one
-  `{account_id, reference}` per account, and records
+  Every site runs it from an hourly cron line. With no start time it stops, and
+  after the last season's end too; before the start it waits for it. From the
+  start it asks each approved start rule's source, `existing(rule_id, starts_at)`,
+  for what was there before the start, one `{account_id, reference}` per account,
+  and records
   it through `RegentPoints.record_event/2` like any action, so the source still
   proves it and an account earns each rule once whichever site records it. The
   accounts that already have an event for the rule are read once per rule and
@@ -27,15 +28,18 @@ defmodule RegentPoints.StartAwards do
 
   @impl true
   def perform(_job) do
+    now = DateTime.utc_now()
+
     case Keyword.get(Rules.config(), :starts_at) do
       nil -> {:cancel, :not_started}
-      start -> at(start, DateTime.diff(start, DateTime.utc_now()))
+      start -> at(start, DateTime.diff(start, now), DateTime.before?(now, Rules.ends_at()))
     end
   end
 
-  defp at(_start, wait) when wait > 0, do: {:snooze, wait}
+  defp at(_start, wait, _running?) when wait > 0, do: {:snooze, wait}
+  defp at(_start, _wait, false), do: {:cancel, :ended}
 
-  defp at(start, _wait) do
+  defp at(start, _wait, true) do
     for id <- Rules.start_rules(), Rules.enabled?(id), do: record_existing(id, start)
     :ok
   end

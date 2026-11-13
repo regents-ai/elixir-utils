@@ -2,6 +2,17 @@
 
 ## 0.1.0 (unreleased)
 
+- Points runs in three 30-day seasons and stops by itself after the last (Sean, 13
+  November 2026). The count is the program's own, `RegentPoints.Rules.season_count/0`,
+  beside the 30-day period; sites set nothing. After `RegentPoints.Rules.ends_at/0`
+  an action earns nothing: its check is refused with `rule_not_active`, as before the
+  start, and `RegentPoints.StartAwards` cancels with `:ended`. `Rules.active/0` is
+  empty, so the summary lists no daily limits, and its `current_period` is `nil`.
+  An action done before the end still earns when checked after it; corrections,
+  reads and the board carry on, the last season's bonus is tallied after its end,
+  and `TallyPeriods` queues no fourth period. `RegentPoints.Seasons` is every site's
+  read of the seasons (`at/1`, `phase/1`), moved here from the template so no site
+  keeps a copy.
 - Each account stores its balance (`accounts.balance_micro`), and the board reads ten
   rows from an index on it instead of summing every entry and bonus of every account
   on each read. That read grew with the whole ledger and, once period bonuses exist,

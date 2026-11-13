@@ -3,7 +3,7 @@ defmodule RegentPoints.Summary do
   use Ash.Resource.Actions.Implementation
   require Ash.Query
   alias RegentPoints, as: Points
-  alias RegentPoints.{Account, CapUsage, Entry, Event, PeriodBonus, Rules, Store}
+  alias RegentPoints.{Account, CapUsage, Entry, Event, PeriodBonus, Rules, Seasons, Store}
 
   @impl true
   def run(input, _, %{actor: actor}) do
@@ -73,20 +73,15 @@ defmodule RegentPoints.Summary do
     end
   end
 
+  # The season running now; none before the first or after the last.
   defp current_period(id) do
-    now = DateTime.utc_now()
-
-    case Rules.config()[:starts_at] do
-      %DateTime{} = start ->
-        if DateTime.compare(now, start) != :lt do
-          period = Rules.period_of(now)
-
-          %{
-            number: period,
-            ends_at: elem(Rules.period(period), 1),
-            earned_micro: Store.period_earned(id, Rules.program(), period)
-          }
-        end
+    case Enum.find(Seasons.at(DateTime.utc_now()), &(&1.state == :running)) do
+      %{season: period, ends_at: ends_at} ->
+        %{
+          number: period,
+          ends_at: ends_at,
+          earned_micro: Store.period_earned(id, Rules.program(), period)
+        }
 
       nil ->
         nil

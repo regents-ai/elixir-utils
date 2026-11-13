@@ -23,7 +23,23 @@ config :regent_points,
 Earning is off while `starts_at` is `nil`. Setting it starts the program and its
 30-day periods, and it never changes or returns to `nil` afterwards: awards still
 being checked, corrections and bonuses all count periods from it. To stop earning
-later, empty `approved_rules`.
+early, empty `approved_rules`.
+
+Points runs in three seasons, one after the other from the start: program periods
+1 to 3, 30 days each (Sean, 13 November 2026). The count belongs to the program,
+like the 30 days, so it is `RegentPoints.Rules.season_count/0` and no site sets
+it. Points stops by itself at the last season's end (`RegentPoints.Rules.ends_at/0`),
+the same way it refuses before the start: an action done at or after the end
+earns nothing (its check is refused with `rule_not_active`), and the start awards
+job cancels with `:ended`. An action done before the end and checked after it
+still earns in its season. Reads, the board, corrections and the last season's
+bonus, tallied after its end, carry on; no fourth period is tallied.
+
+`RegentPoints.Seasons.at(now)` is every site's one read of the seasons: each
+season's number, `starts_at`, `ends_at`, `state` (`:upcoming`, `:running` or
+`:ended`) and, for the running one, `days_left`. Before a start is set every season
+is upcoming with no dates. `RegentPoints.Seasons.phase/1` says whether Points is
+`:before` the first season, `:running`, or `:ended` after the last.
 
 The accounts module implements `RegentPoints.Accounts`: `human/1` supplies the
 verified wallet set for a canonical integer account ID; `agent_names/2` returns names
@@ -150,7 +166,7 @@ twice/day. All rules remain operationally disabled in the template.
 
 Awards save points only. The NFT bonus is added once per program period, at the
 tally when the period ends (Sean, 9 October). Periods last 30 days, counted from
-`starts_at`. Animata I, Animata II and Regents Club count together across the
+`starts_at`, and there are three: the seasons above. Animata I, Animata II and Regents Club count together across the
 account's verified linked wallets at the period-end snapshot: 1–2 pieces add 20%, 3–6 add
 45%, 7 or more add 75%. One tier applies, without stacking, to the points the account
 earned in that period after all limits and corrections, one-time awards included.

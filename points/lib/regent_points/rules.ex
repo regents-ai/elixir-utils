@@ -2,6 +2,8 @@ defmodule RegentPoints.Rules do
   @moduledoc """
   Finite proposed catalog. Nothing earns until the founder approves a rule,
   its source adapter is installed, and the program has an explicit start time.
+  The program runs in three 30-day seasons from the start (Sean, 13 November
+  2026); nothing done after the last one's end earns.
   Rates are pinned on intake; retries never apply today's pricing to old work.
 
   A rule's id never changes. A changed rule keeps its id and gets the next
@@ -9,6 +11,7 @@ defmodule RegentPoints.Rules do
   against the new one; a new id is only for a new action.
   """
   @unit 1_000_000
+  @seasons 3
   @milestones [
     {"account.activated", 1, 25, "Account activated"},
     {"social.x", 1, 10, "X account linked"},
@@ -87,6 +90,7 @@ defmodule RegentPoints.Rules do
   def snapshot(id, at) do
     with %DateTime{} = start <- Keyword.get(config(), :starts_at),
          true <- DateTime.compare(at, start) != :lt,
+         true <- DateTime.before?(at, ends_at()),
          true <- DateTime.compare(at, DateTime.utc_now()) != :gt,
          true <- enabled?(id),
          %{} = rule <- Enum.find(catalog(), &(&1["id"] == id)) do
@@ -102,19 +106,29 @@ defmodule RegentPoints.Rules do
     {DateTime.add(start, (n - 1) * 30, :day), DateTime.add(start, n * 30, :day)}
   end
 
+  @doc """
+  How many seasons Points runs in: program periods 1 to this, one after the other
+  from the start. After the last one's end nothing earns.
+  """
+  def season_count, do: @seasons
+
+  @doc "When the last season ends, and with it all earning. Only once a start is set."
+  def ends_at, do: elem(period(@seasons), 1)
+
   @doc "The program period `at` falls in. Every award is earned at or after the start."
   def period_of(at) do
     start = Keyword.fetch!(config(), :starts_at)
     div(DateTime.diff(at, start, :second), 30 * 86_400) + 1
   end
 
-  @doc "The program periods that have ended by `now`, oldest first. Each gets one bonus tally."
+  @doc """
+  The seasons that have ended by `now`, oldest first. Each gets one bonus tally;
+  none comes after the last season.
+  """
   def ended_periods(now) do
     case Keyword.get(config(), :starts_at) do
       %DateTime{} ->
-        1
-        |> Stream.iterate(&(&1 + 1))
-        |> Enum.take_while(&(DateTime.compare(elem(period(&1), 1), now) != :gt))
+        Enum.filter(1..@seasons, &(DateTime.compare(elem(period(&1), 1), now) != :gt))
 
       nil ->
         []

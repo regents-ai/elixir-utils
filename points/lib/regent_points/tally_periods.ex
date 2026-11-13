@@ -1,8 +1,10 @@
 defmodule RegentPoints.TallyPeriods do
   @moduledoc """
   Daily cron on the one designated owner site (Regents): queues one tally for each
-  account that earned points in an ended 30-day program period and has no bonus for it yet.
-  A tally that ran out of attempts is queued again by the next day's run.
+  account that earned points in an ended season (a 30-day program period) and has no
+  bonus for it yet. The last season is tallied like the others, after its end;
+  nothing after it is. A tally that ran out of attempts is queued again by the next
+  day's run.
 
   Every run ends with `[:regent_points, :tally_periods, :finished]`, measuring the
   tallies it queued (`accounts`), with the ended `periods` as metadata. It is emitted

@@ -15,6 +15,7 @@ owns:
   - display_formatting
   - http_client_conventions
   - jev_decisions
+  - near_intents_funding
   - openai_calls
   - privy_token_verification
   - sprite_machines
@@ -49,6 +50,8 @@ code_map:
     owns: http_client_conventions
   - path: jev
     owns: jev_decisions
+  - path: near_intents
+    owns: near_intents_funding
   - path: mcp_events
     owns: mcp_events_helpers
   - path: openai
@@ -86,6 +89,8 @@ acceptance_commands:
   - cwd: elixir-utils/http
     command: mix check
   - cwd: elixir-utils/jev
+    command: mix check
+  - cwd: elixir-utils/near_intents
     command: mix check
   - cwd: elixir-utils/mcp_events
     command: mix check

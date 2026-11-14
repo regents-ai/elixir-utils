@@ -84,8 +84,14 @@ defmodule RegentIdentity.Profile do
   end
 
   policies do
-    policy always() do
+    # A current verified Privy sign-in makes or refreshes its own profile.
+    policy action([:register, :refresh]) do
       authorize_if RegentIdentity.VerifiedActor
+    end
+
+    # The owner the site resolved reads and changes their own profile.
+    policy action([:mine, :edit]) do
+      authorize_if RegentIdentity.OwnerActor
     end
 
     policy action([:mine, :refresh, :edit]) do

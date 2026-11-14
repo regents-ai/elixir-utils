@@ -1,20 +1,23 @@
 defmodule RegentIdentity.HTTP do
   @moduledoc """
-  Owner-only profile HTTP adapter, mounted by each product at `/api/v1/profile`.
-  Requires an explicit Privy proof pair on every request; never trusts cookies or
-  caller-supplied actor IDs. Products keep their own session and payment routes.
+  The profile API, mounted by each product at `/api/v1/profile`. It acts for the
+  owner the product put on the request with `put_owner/2`: the product decides
+  who is calling from its own sign-in, such as its session or an agent the
+  person paired, in a plug before this one. With no owner it answers
+  `authentication_required`. It reads no credential or person from the request
+  itself. Products keep their own session and payment routes.
   """
   @behaviour Plug
   import Plug.Conn
+
+  alias RegentIdentity.Owner
 
   # Every refusal answers {error: {code, message, hint}}: what went wrong, and
   # what the caller can do next.
   @errors %{
     "authentication_required" =>
       {"Sign in to read or change your profile.",
-       "Send the access token as a Bearer token and the identity token in privy-id-token, both from the same sign-in."},
-    "identity_evidence_conflict" =>
-      {"Your sign-in could not be matched to your profile.", "Sign in again, then retry."},
+       "Sign in on this site, or have an agent you paired send the request, signed with its own key."},
     "invalid_display_name" =>
       {"That name can't be used.",
        "Send a display_name of at most 80 characters with no hidden characters: no control, line-break, text-direction or zero-width characters, except a zero-width joiner between two visible characters, as in an emoji."},
@@ -26,42 +29,36 @@ defmodule RegentIdentity.HTTP do
       {"Profile changes must be sent as JSON.", "Set Content-Type to application/json."},
     "method_not_allowed" =>
       {"This route does not accept that method.", "Use a method listed in the Allow header."},
-    "not_found" =>
-      {"There is no profile route here.", "Use /api/v1/profile or /api/v1/profile/sync."},
+    "not_found" => {"There is no profile route here.", "Use /api/v1/profile."},
     "profile_forbidden" =>
       {"This profile belongs to another account.", "Sign in as the profile's owner."},
     "profile_not_created" =>
-      {"You have no profile yet.", "Create it with POST /api/v1/profile/sync."},
+      {"You have no profile yet.",
+       "It is made when you sign in on this site. Sign in, then try again."},
     "profile_request_too_large" =>
       {"The request body is too large.",
        "Send only display_name and wallet_address, in under 8 KB."},
     "profile_unavailable" =>
-      {"Your profile could not be reached right now.", "Try again in a moment."},
-    "profile_unconfigured" =>
-      {"Profiles are not available on this site right now.", "Try again later."}
+      {"Your profile could not be reached right now.", "Try again in a moment."}
   }
 
-  @impl true
-  def init(opts), do: Keyword.fetch!(opts, :otp_app)
+  @doc "Puts the profile's owner on the request, for this API to act for."
+  @spec put_owner(Plug.Conn.t(), Owner.t()) :: Plug.Conn.t()
+  def put_owner(conn, %Owner{} = owner), do: put_private(conn, :regent_identity_owner, owner)
 
   @impl true
-  def call(conn, otp_app) do
+  def init(opts), do: opts
+
+  @impl true
+  def call(conn, _opts) do
     conn =
       conn
       |> put_resp_header("cache-control", "no-store")
       |> put_resp_header("x-content-type-options", "nosniff")
 
-    with {:ok, pair} <- proof(conn),
-         {:ok, actor} <-
-           RegentPrivy.Session.verify(pair, Application.get_env(otp_app, :privy, [])),
-         :ok <- expected_subject(conn, actor) do
-      dispatch(conn, actor)
-    else
-      {:error, {:configuration, _}} ->
-        error(conn, 503, "profile_unconfigured")
-
-      {:error, _} ->
-        error(conn, 401, "authentication_required")
+    case conn.private do
+      %{regent_identity_owner: %Owner{} = owner} -> dispatch(conn, owner)
+      _no_owner -> error(conn, 401, "authentication_required")
     end
   rescue
     Plug.Parsers.ParseError ->
@@ -74,61 +71,31 @@ defmodule RegentIdentity.HTTP do
       error(conn, 415, "json_required")
   end
 
-  # This optional browser binding can only restrict valid proof. It never
-  # supplies an actor or grants access to the subject named in the header.
-  defp expected_subject(conn, actor) do
-    case get_req_header(conn, "x-privy-user-id") do
-      [] -> :ok
-      [subject] when subject == actor.privy_user_id -> :ok
-      _ -> {:error, :subject_changed}
-    end
-  end
-
-  defp proof(conn) do
-    case {get_req_header(conn, "authorization"), get_req_header(conn, "privy-id-token")} do
-      {["Bearer " <> access], [identity]}
-      when byte_size(access) in 1..32_768 and byte_size(identity) in 1..32_768 ->
-        {:ok, %{access: access, identity: identity}}
-
-      _ ->
-        {:error, :missing_proof}
-    end
-  end
-
-  defp dispatch(%{method: "GET", path_info: []} = conn, actor) do
-    case RegentIdentity.get_my_profile(actor: actor) do
+  defp dispatch(%{method: "GET", path_info: []} = conn, owner) do
+    case RegentIdentity.get_my_profile(actor: owner) do
       {:ok, nil} -> error(conn, 404, "profile_not_created")
       {:ok, profile} -> answer(conn, 200, %{profile: RegentIdentity.present(profile)})
       {:error, error} -> failure(conn, error, 403, "profile_forbidden")
     end
   end
 
-  defp dispatch(%{method: "POST", path_info: ["sync"]} = conn, actor) do
-    case RegentIdentity.sync(actor) do
-      {:ok, profile} -> answer(conn, 200, %{profile: RegentIdentity.present(profile)})
-      {:error, error} -> failure(conn, error, 409, "identity_evidence_conflict")
-    end
-  end
-
-  defp dispatch(%{method: "PATCH", path_info: []} = conn, actor) do
+  defp dispatch(%{method: "PATCH", path_info: []} = conn, owner) do
     if json_request?(conn) do
-      edit(conn, actor)
+      edit(conn, owner)
     else
       error(conn, 415, "json_required")
     end
   end
 
-  defp dispatch(%{path_info: path} = conn, _actor) when path in [[], ["sync"]] do
-    methods = if path == [], do: "GET, PATCH", else: "POST"
-
+  defp dispatch(%{path_info: []} = conn, _owner) do
     conn
-    |> put_resp_header("allow", methods)
+    |> put_resp_header("allow", "GET, PATCH")
     |> error(405, "method_not_allowed")
   end
 
-  defp dispatch(conn, _actor), do: error(conn, 404, "not_found")
+  defp dispatch(conn, _owner), do: error(conn, 404, "not_found")
 
-  defp edit(conn, actor) do
+  defp edit(conn, owner) do
     conn =
       Plug.Parsers.call(
         conn,
@@ -138,9 +105,9 @@ defmodule RegentIdentity.HTTP do
     with true <-
            is_map(conn.body_params) and map_size(conn.body_params) > 0 and
              Enum.all?(Map.keys(conn.body_params), &(&1 in ["display_name", "wallet_address"])),
-         {:ok, profile} when not is_nil(profile) <- RegentIdentity.get_my_profile(actor: actor),
+         {:ok, profile} when not is_nil(profile) <- RegentIdentity.get_my_profile(actor: owner),
          true <- expected_profile?(conn, profile),
-         {:ok, updated} <- RegentIdentity.edit_profile(profile, conn.body_params, actor: actor) do
+         {:ok, updated} <- RegentIdentity.edit_profile(profile, conn.body_params, actor: owner) do
       answer(conn, 200, %{profile: RegentIdentity.present(updated)})
     else
       {:error, error} -> failure(conn, error, 422, edit_refusal(error))

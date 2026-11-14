@@ -12,7 +12,6 @@ defmodule RegentIdentity.BodyReaderTest do
     for path <- [
           "/api/v1/profile",
           "/api/v1/profile/",
-          "/api/v1/profile/sync/",
           "/api//v1/profile"
         ] do
       conn =

@@ -1,9 +1,8 @@
-// All products expose this same private profile contract. Credential acquisition
-// stays inside the supplied action; tool inputs never contain tokens or actor IDs.
+// All products expose this same private profile contract. The site's own sign-in
+// says whose profile it is; tool inputs never name a person or carry a credential.
 export function profileTools(profile, lifetime) {
   const specs = [
-    ["profile_get", "get", "Read your profile", "Read your shared profile and last synchronized wallet/X verification.", {}],
-    ["profile_sync", "sync", "Refresh your profile", "Explicitly refresh your shared profile from signed Privy evidence. Does not change payment destinations.", {}],
+    ["profile_get", "get", "Read your profile", "Read your shared profile and the wallets and X account your last sign-in verified.", {}],
     ["profile_update", "update", "Edit your profile", "Edit your shared name or choose a linked wallet. Does not change payment destinations or send a transaction.", {
       display_name: {type: "string", maxLength: 80},
       wallet_address: {type: ["string", "null"], description: "A linked Ethereum address, or null to clear the profile selection."},

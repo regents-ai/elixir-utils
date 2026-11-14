@@ -2,6 +2,7 @@ defmodule RegentIdentity.ProfileTest do
   use ExUnit.Case, async: false
   use ExUnitProperties
   alias RegentIdentity, as: Identity
+  alias RegentIdentity.Owner
   @wallet "0x1111111111111111111111111111111111111111"
   @other_wallet "0x2222222222222222222222222222222222222222"
 
@@ -35,9 +36,12 @@ defmodule RegentIdentity.ProfileTest do
     assert {:ok, second} = Identity.sync(%{actor | session_id: "another-site-session"})
     assert first.id == second.id
     assert first.updated_at == second.updated_at
-    assert {:ok, found} = Identity.get_my_profile(actor: actor)
+    assert {:ok, found} = Identity.get_my_profile(actor: Owner.of(actor))
     assert found.id == first.id
-    assert {:ok, nil} = Identity.get_my_profile(actor: %{actor | privy_user_id: "other"})
+
+    assert {:ok, nil} =
+             Identity.get_my_profile(actor: %Owner{app_id: actor.app_id, privy_user_id: "other"})
+
     assert {:error, _} = Identity.get_my_profile()
   end
 
@@ -112,7 +116,9 @@ defmodule RegentIdentity.ProfileTest do
     assert refreshed.wallet_address == @wallet
 
     assert {:ok, selected} =
-             Identity.edit_profile(refreshed, %{wallet_address: @other_wallet}, actor: proof)
+             Identity.edit_profile(refreshed, %{wallet_address: @other_wallet},
+               actor: Owner.of(proof)
+             )
 
     assert selected.wallet_address == @other_wallet
 
@@ -120,7 +126,7 @@ defmodule RegentIdentity.ProfileTest do
              Identity.edit_profile(
                selected,
                %{wallet_address: "0x3333333333333333333333333333333333333333"},
-               actor: proof
+               actor: Owner.of(proof)
              )
 
     assert {:ok, unlinked} =
@@ -135,10 +141,12 @@ defmodule RegentIdentity.ProfileTest do
 
     assert {:error, _} =
              Identity.edit_profile(profile, %{display_name: "Taken"},
-               actor: %{actor | privy_user_id: "other"}
+               actor: %Owner{app_id: actor.app_id, privy_user_id: "other"}
              )
 
-    assert {:ok, own} = Identity.edit_profile(profile, %{display_name: "Mine"}, actor: actor)
+    assert {:ok, own} =
+             Identity.edit_profile(profile, %{display_name: "Mine"}, actor: Owner.of(actor))
+
     assert own.display_name == "Mine"
   end
 
@@ -155,7 +163,7 @@ defmodule RegentIdentity.ProfileTest do
              Identity.sync(%{actor | issued_at: actor.issued_at + 1, wallet_addresses: []})
 
     assert {:error, :unverified_identity} = Identity.sync(%{actor | expires_at: 0})
-    assert {:ok, retained} = Identity.get_my_profile(actor: newer)
+    assert {:ok, retained} = Identity.get_my_profile(actor: Owner.of(newer))
     assert retained.wallet_addresses == [@wallet]
     assert retained.proof_issued_at == newer.issued_at
   end
@@ -175,9 +183,13 @@ defmodule RegentIdentity.ProfileTest do
     assert {:error, _} =
              original |> Ash.Changeset.for_update(:refresh, %{}, actor: actor) |> Ash.update()
 
-    assert {:ok, cleared} = Identity.edit_profile(original, %{wallet_address: nil}, actor: actor)
-    assert {:error, _} = Identity.edit_profile(cleared, %{wallet_address: @wallet}, actor: actor)
-    assert {:ok, retained} = Identity.get_my_profile(actor: actor)
+    assert {:ok, cleared} =
+             Identity.edit_profile(original, %{wallet_address: nil}, actor: Owner.of(actor))
+
+    assert {:error, _} =
+             Identity.edit_profile(cleared, %{wallet_address: @wallet}, actor: Owner.of(actor))
+
+    assert {:ok, retained} = Identity.get_my_profile(actor: Owner.of(actor))
     assert retained.wallet_addresses == []
     assert retained.wallet_address == nil
   end
@@ -189,7 +201,7 @@ defmodule RegentIdentity.ProfileTest do
              Identity.edit_profile(
                profile,
                %{display_name: "a" <> String.duplicate(<<0xCC, 0x81>>, 200)},
-               actor: actor
+               actor: Owner.of(actor)
              )
   end
 
@@ -262,7 +274,8 @@ defmodule RegentIdentity.ProfileTest do
     assert {:ok, profile} = Identity.sync(actor)
 
     check all(name <- hidden_name()) do
-      assert {:error, _} = Identity.edit_profile(profile, %{display_name: name}, actor: actor)
+      assert {:error, _} =
+               Identity.edit_profile(profile, %{display_name: name}, actor: Owner.of(actor))
     end
   end
 
@@ -282,7 +295,10 @@ defmodule RegentIdentity.ProfileTest do
     # A part holds at most seven characters (a flag), so eleven stay within 80.
     check all(parts <- list_of(part, max_length: 11)) do
       name = Enum.join(parts)
-      assert {:ok, saved} = Identity.edit_profile(profile, %{display_name: name}, actor: actor)
+
+      assert {:ok, saved} =
+               Identity.edit_profile(profile, %{display_name: name}, actor: Owner.of(actor))
+
       assert saved.display_name == if(String.trim(name) == "", do: nil, else: String.trim(name))
     end
   end
@@ -304,7 +320,7 @@ defmodule RegentIdentity.ProfileTest do
     assert {:ok, _} =
              original |> Ash.Changeset.for_update(:refresh, %{}, actor: latest) |> Ash.update()
 
-    assert {:ok, stored} = Identity.get_my_profile(actor: latest)
+    assert {:ok, stored} = Identity.get_my_profile(actor: Owner.of(latest))
     assert stored.wallet_addresses == [@wallet]
     assert stored.x_subject == nil
     assert stored.proof_issued_at == latest.issued_at

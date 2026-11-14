@@ -4,8 +4,14 @@ defmodule RegentIdentity do
   migration ran once, from Regents. Each product supplies its own repository
   connection to the same database and keeps its own sessions, product account IDs
   and authorization.
+
+  A verified Privy sign-in makes and refreshes a profile (`sync/1`, `ensure/1`);
+  the profile's owner (`RegentIdentity.Owner`), as the site resolved them, reads
+  and edits it (`get_my_profile/1`, `edit_profile/3`).
   """
   use Ash.Domain
+
+  alias RegentIdentity.Owner
 
   resources do
     resource RegentIdentity.Profile do
@@ -32,7 +38,7 @@ defmodule RegentIdentity do
   profile they already have is left as it is: refreshing it stays with `sync/1`.
   """
   def ensure(%RegentPrivy.Session{} = actor) do
-    case get_my_profile(actor: actor) do
+    case get_my_profile(actor: Owner.of(actor)) do
       {:ok, nil} -> sync(actor)
       found -> found
     end
@@ -62,7 +68,7 @@ defmodule RegentIdentity do
     # never controls wallet operations, payment requests or transaction sends.
     lock(actor)
 
-    with {:ok, profile} <- get_my_profile(actor: actor),
+    with {:ok, profile} <- get_my_profile(actor: Owner.of(actor)),
          {:ok, profile} <- reconcile(profile, actor) do
       profile
     end

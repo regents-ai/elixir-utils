@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {createProfileClient, loadProfileAction} from "../../assets/profile_client.mjs";
+import {createProfileClient} from "../../assets/profile_client.mjs";
 import {profileTools, installProfileTools} from "../../assets/profile_tools.mjs";
 
 test("profile tools share client responses and reject actor/token parameters", async () => {
@@ -15,8 +15,9 @@ test("profile tools share client responses and reject actor/token parameters", a
     assert.equal(denied.ok, false);
   }
   assert.equal(calls.length, 1);
-  assert.equal((await tools[2].execute({}, {signal: lifetime.signal})).ok, false);
-  await tools[2].execute({wallet_address: null}, {signal: lifetime.signal});
+  assert.deepEqual(tools.map(tool => tool.name), ["profile_get", "profile_update"]);
+  assert.equal((await tools[1].execute({}, {signal: lifetime.signal})).ok, false);
+  await tools[1].execute({wallet_address: null}, {signal: lifetime.signal});
   assert.deepEqual(calls[1].slice(0, 2), ["update", {wallet_address: null}]);
 });
 
@@ -35,7 +36,7 @@ function registryWindow() {
 
 test("failure removes only owned registrations, reports failure and permits explicit retry", async () => {
   const {win, registered} = registryWindow();
-  const other = {name: "profile_sync"};
+  const other = {name: "profile_update"};
   registered.set(other.name, other);
   const stop = installProfileTools(async () => ({ok: true}), win);
   assert.equal(await stop.ready, "failed");
@@ -44,7 +45,7 @@ test("failure removes only owned registrations, reports failure and permits expl
   assert.deepEqual([...registered.values()], [other]);
   registered.delete(other.name);
   assert.equal(await stop.retry(), "ready");
-  assert.equal(registered.size, 3);
+  assert.equal(registered.size, 2);
   stop();
   assert.equal(registered.size, 0);
   assert.equal(await stop.retry(), "stopped");
@@ -73,7 +74,7 @@ test("pending batch cannot execute and late completion cannot revive a hidden pa
   win.dispatchEvent(new Event("pageshow"));
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(stop.status, "ready");
-  assert.equal(registered.size, 3);
+  assert.equal(registered.size, 2);
   stop();
 });
 
@@ -86,28 +87,14 @@ test("unsupported browser is reported without affecting the profile client", asy
   stop();
 });
 
-test("cancelling a stalled credential provider settles without sending proof", async () => {
+test("cancelling a stalled request settles at once", async () => {
   const cancellation = new AbortController();
-  let sent = false;
   const profile = createProfileClient({
-    acquireProof: () => new Promise(() => {}),
-    fetch: async () => { sent = true; },
+    csrfToken: () => "forms-token",
+    fetch: (_url, {signal}) => new Promise((_resolve, reject) =>
+      signal.addEventListener("abort", () => reject(signal.reason), {once: true})),
   });
-  const pending = profile("get", {}, {signal: cancellation.signal});
+  const pending = profile("update", {display_name: "Ada"}, {signal: cancellation.signal});
   cancellation.abort();
-  const result = await pending;
-  assert.equal(result.error.code, "cancelled");
-  assert.equal(sent, false);
-});
-
-test("cancelling lazy SDK startup settles without canceling the shared startup", async () => {
-  const cancellation = new AbortController();
-  let ready;
-  const startup = new Promise(resolve => { ready = resolve; });
-  const pending = loadProfileAction(() => startup, "get", {}, {signal: cancellation.signal});
-  cancellation.abort();
-  assert.equal((await pending).error.code, "cancelled");
-  const action = async () => ({ok: true, status: 200});
-  ready(action);
-  assert.equal(await startup, action);
+  assert.deepEqual(await pending, {ok: false, status: null, error: {code: "cancelled", outcome_unknown: true}});
 });

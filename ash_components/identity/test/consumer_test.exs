@@ -50,8 +50,7 @@ defmodule RegentIdentity.ConsumerTest do
     Application.put_env(:regent_identity, :repo, RegentIdentity.SecondRepo)
 
     Ecto.Adapters.SQL.Sandbox.unboxed_run(RegentIdentity.SecondRepo, fn ->
-      assert {:ok, profile} =
-               RegentIdentity.get_my_profile(actor: %{actor | session_id: "another-consumer"})
+      assert {:ok, profile} = RegentIdentity.get_my_profile(actor: RegentIdentity.Owner.of(actor))
 
       assert profile.id == hd(results)
       assert {:ok, synced} = RegentIdentity.sync(actor)

@@ -2,19 +2,14 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Regent private profile API",
-    "version": "1.0.0"
+    "version": "2.0.0",
+    "description": "The site that mounts this API decides who is calling from its own sign-in, such as its session or an agent the person paired, and the API acts for that person's profile. A request the site resolves to no one answers 401."
   },
   "paths": {
     "/api/v1/profile": {
       "get": {
         "operationId": "profile_get",
-        "summary": "Get the verified owner\u2019s shared profile",
-        "security": [
-          {
-            "PrivyAccess": [],
-            "PrivyIdentity": []
-          }
-        ],
+        "summary": "Get the caller’s shared profile",
         "responses": {
           "200": {
             "description": "Owner-only shared profile",
@@ -27,7 +22,7 @@
             }
           },
           "401": {
-            "description": "Paired proof required",
+            "description": "No signed-in caller",
             "content": {
               "application/json": {
                 "schema": {
@@ -47,27 +42,7 @@
             }
           },
           "404": {
-            "description": "Profile not created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflicting or stale verification",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid profile edit",
+            "description": "Profile not created; it is made at sign-in",
             "content": {
               "application/json": {
                 "schema": {
@@ -90,11 +65,17 @@
       },
       "patch": {
         "operationId": "profile_update",
-        "summary": "Update the verified owner\u2019s shared profile",
-        "security": [
+        "summary": "Update the caller’s shared profile",
+        "parameters": [
           {
-            "PrivyAccess": [],
-            "PrivyIdentity": []
+            "name": "x-regent-profile-id",
+            "in": "header",
+            "required": false,
+            "description": "If sent, the id of the profile the change was made against; any other profile refuses it",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
@@ -108,8 +89,18 @@
               }
             }
           },
+          "400": {
+            "description": "Body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "401": {
-            "description": "Paired proof required",
+            "description": "No signed-in caller",
             "content": {
               "application/json": {
                 "schema": {
@@ -128,8 +119,8 @@
               }
             }
           },
-          "404": {
-            "description": "Profile not created",
+          "413": {
+            "description": "Body over 8 KB",
             "content": {
               "application/json": {
                 "schema": {
@@ -138,8 +129,8 @@
               }
             }
           },
-          "409": {
-            "description": "Conflicting or stale verification",
+          "415": {
+            "description": "Body is not application/json",
             "content": {
               "application/json": {
                 "schema": {
@@ -149,7 +140,7 @@
             }
           },
           "422": {
-            "description": "Invalid profile edit",
+            "description": "Invalid profile edit, or no profile yet",
             "content": {
               "application/json": {
                 "schema": {
@@ -198,104 +189,9 @@
           }
         }
       }
-    },
-    "/api/v1/profile/sync": {
-      "post": {
-        "operationId": "profile_sync",
-        "summary": "Sync the verified owner\u2019s shared profile",
-        "security": [
-          {
-            "PrivyAccess": [],
-            "PrivyIdentity": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Owner-only shared profile",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Paired proof required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Owner access refused",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Profile not created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflicting or stale verification",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid profile edit",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Profile unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
-    "securitySchemes": {
-      "PrivyAccess": {
-        "type": "http",
-        "scheme": "bearer"
-      },
-      "PrivyIdentity": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "privy-id-token"
-      }
-    },
     "schemas": {
       "Error": {
         "type": "object",

@@ -43,7 +43,7 @@ defmodule RegentIdentity.ProofAttributes do
   defp against_current(locked, actor, attributes) do
     RegentIdentity.lock(actor)
 
-    case RegentIdentity.get_my_profile(actor: actor) do
+    case RegentIdentity.get_my_profile(actor: RegentIdentity.Owner.of(actor)) do
       {:ok, nil} ->
         locked
 

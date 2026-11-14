@@ -2,6 +2,27 @@
 
 ## 0.1.0 (unreleased)
 
+- Profile contract 2.0.0: `RegentIdentity.HTTP` acts for the owner the site puts on
+  the request with `RegentIdentity.HTTP.put_owner/2`, a `RegentIdentity.Owner`
+  (`%{app_id, privy_user_id}`). The site decides who is calling from its own sign-in,
+  in a plug before the forward: its session, or an agent the person paired. The API
+  reads no credential or person from the request; with no owner it answers 401
+  `authentication_required`, whose hint now names both ways in. It routes `GET /` and
+  `PATCH /` only: `POST /sync` is gone, with its `identity_evidence_conflict` refusal,
+  and so are the `x-privy-user-id` header and `profile_unconfigured` (the API reads no
+  Privy settings). `forward` takes no `otp_app`. A profile is made at sign-in by
+  `ensure/1`, and the 404 `profile_not_created` hint says so.
+- `get_my_profile/1` and `edit_profile/3` take a `RegentIdentity.Owner` as their
+  actor (policy check `RegentIdentity.OwnerActor`); `RegentIdentity.Owner.of/1` names
+  the owner of verified sign-in evidence. `sync/1`, `ensure/1` and the `:register`
+  and `:refresh` actions still take `RegentPrivy.Session` evidence. A chosen
+  `wallet_address` must be one of the verified wallets the profile holds from its last
+  sign-in.
+- The browser client `createProfileClient({csrfToken, fetch})` sends the page's
+  session cookie (`credentials: "same-origin"`) and, on `update`, the forms token in
+  `x-csrf-token`; its operations are `get` and `update`. `loadProfileAction` is gone,
+  and the profile tools are `profile_get` and `profile_update`.
+  `RegentIdentity.BodyReader` caps the body on `/api/v1/profile` alone.
 - `RegentIdentity.ensure/1` gives a verified person their profile at sign-in when
   they have none and leaves an existing one as it is. `RegentIdentity.profile_id/2`
   reads a person's profile ID by app and Privy user, for a server acting for them

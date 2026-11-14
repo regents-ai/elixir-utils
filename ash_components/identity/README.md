@@ -5,12 +5,16 @@ consume it using their own database role/connection to **one physical PostgreSQL
 database**. Set `config :regent_identity, repo: Product.Repo`. The library starts no
 repository, opens no alternate database and changes no product authorization.
 
-Call `sync/1` only with `RegentPrivy.Session.verify/2` evidence during explicit
-sign-in or account linking. Read using `get_my_profile(actor: evidence)`, edit
-using `edit_profile(profile, attrs, actor: evidence)`, and serialize with
-`present/1`. A site shows each person's chosen name on its own account
+Call `ensure/1` at sign-in, with the `RegentPrivy.Session.verify/2` evidence, so
+every signed-in person has a profile; `sync/1` refreshes it from that evidence
+during an explicit sign-in or account linking. Read using
+`get_my_profile(actor: owner)`, edit using `edit_profile(profile, attrs, actor: owner)`,
+where `owner` is a `RegentIdentity.Owner` (`%{app_id, privy_user_id}`), and
+serialize with `present/1`. A site shows each person's chosen name on its own account
 resource with the calculation `{RegentIdentity.ProfileName, otp_app: :product_app}`,
-which reads only the name, whoever asks. Never construct the actor from request JSON or an unverified cookie.
+which reads only the name, whoever asks. Build the owner only from the site's own
+sign-in (`RegentIdentity.Owner.of/1` on verified evidence, the person behind the
+site's session, or the person an agent is paired with), never from request JSON.
 Shared IDs are additive: existing product IDs and signed payment payloads remain
 unchanged. Personal Privy X proof does not replace Autolaunch company-role OAuth.
 
@@ -43,25 +47,42 @@ Privy canary are required before rollout.
 
 ## Shared HTTP contract
 
-A product may forward `/api/v1/profile` to `RegentIdentity.HTTP`, passing
-`otp_app: :product_app`. `GET /` reads without creating a row; `POST /sync`
-reconciles a verified, explicit sign-in/link event; `PATCH /` accepts only
-`display_name` and `wallet_address`. All return `{profile: ...}` on success,
-and every refusal returns `{error: {code, message, hint}}`. A `display_name`
-with a hidden character, or over 80 characters, is refused with
+Contract 2.0.0 (`contracts/profile.openapi.json`). A product forwards
+`/api/v1/profile` to `RegentIdentity.HTTP` behind a plug of its own that decides
+who is calling from the product's sign-in and puts that person on the request
+with `RegentIdentity.HTTP.put_owner(conn, %RegentIdentity.Owner{app_id: ..., privy_user_id: ...})`:
+
+```elixir
+pipeline :profile_owner do
+  plug MyAppWeb.Plugs.ProfileOwner
+end
+
+scope "/api/v1" do
+  pipe_through [:api, :profile_owner]
+  forward "/profile", RegentIdentity.HTTP
+end
+```
+
+The API acts for that owner and reads no credential or person from the request
+itself; with no owner on the request it answers 401 `authentication_required`.
+The product's plug carries the product's own rules: its session cookie, with its
+forms (CSRF) token on a change, or an agent the person paired, signing its
+request. `GET /` reads without creating a row: a profile is made at sign-in by
+`ensure/1`, so before that it answers 404 `profile_not_created`. `PATCH /`
+accepts only `display_name` and `wallet_address`. Both return `{profile: ...}`
+on success, and every refusal returns `{error: {code, message, hint}}`. A
+`display_name` with a hidden character, or over 80 characters, is refused with
 `invalid_display_name`: a control character, a line or paragraph separator, or a
 format character, such as a text-direction mark, a zero-width space or a soft
 hyphen. A zero-width joiner or non-joiner between two visible characters and the
-tag characters of a complete flag stay allowed.
-Each request requires `Authorization: Bearer <access token>` and
-`privy-id-token: <identity token>` headers; these proofs belong in a credential
-adapter, never ordinary WebMCP tool parameters or CLI command-line arguments.
+tag characters of a complete flag stay allowed. A `wallet_address` must be one of
+the verified linked wallets the profile holds from its last sign-in.
 
-The caller obtains proof through the product's existing Privy bridge. Do not
-replace product session revocation, CSRF or payment authorization with this
-adapter. Tool registration and product routes are separate adoption work. The
-adapter is not mounted automatically, and does not enable CORS or cross-site
-cookie sharing. A profile response is private and non-cacheable.
+The browser client (`assets/profile_client.mjs`, copied into a product by
+`mix regent_identity.assets`) sends the page's session cookie and, on a change,
+the forms token the product gives it in `x-csrf-token`. The adapter is not
+mounted automatically, and does not enable CORS or cross-site cookie sharing. A
+profile response is private and non-cacheable.
 
 Profile `verified` flags describe the last synchronized signed evidence, not a
 live provider lookup or payment authority. Responses include `verification_basis`

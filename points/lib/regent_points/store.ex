@@ -20,6 +20,19 @@ defmodule RegentPoints.Store do
     Points.read_accounts!(query: query, actor: @system) |> List.first()
   end
 
+  # The private audit of a refused source reference, at intake or at the award. It
+  # survives Oban pruning and never overwrites a previously accepted event.
+  def reject_source(reference, reason) do
+    Points.reject_source!(
+      %{
+        source: reference,
+        reason_code: to_string(reason),
+        rejection_key: digest({reference, reason})
+      },
+      actor: @system
+    )
+  end
+
   def event(id) do
     query = Ash.Query.filter(Event, id == ^id)
     Points.read_events!(query: query, actor: @system) |> List.first()

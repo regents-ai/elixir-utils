@@ -26,6 +26,7 @@ defmodule RegentOAuth.ClientDocuments do
   """
 
   import Ecto.Query
+  import RegentOAuth.Refusal, only: [check: 2]
   alias Boruta.Ecto.Client
 
   @max_bytes 5_120
@@ -51,11 +52,12 @@ defmodule RegentOAuth.ClientDocuments do
   @doc """
   The client recorded for the published identity at `url`, read again from its
   address first when it is due. For requests a person is about to approve:
-  `{:ok, client_id}`, `:unavailable` when the address does not answer just now,
-  or `:error`.
+  `{:ok, client_id}`, `{:error, :unavailable}` when the address does not
+  answer just now, or `{:error, reason}` naming the check that refused
+  (`RegentOAuth.Refusal`).
   """
   def current(url) do
-    with true <- client_id_url?(url) do
+    if client_id_url?(url) do
       case RegentOAuth.repo().get(Document, url, log: false) do
         %Document{client_id: id, refresh_at: refresh_at} ->
           if DateTime.after?(refresh_at, DateTime.utc_now()), do: {:ok, id}, else: refresh(url)
@@ -64,7 +66,7 @@ defmodule RegentOAuth.ClientDocuments do
           refresh(url)
       end
     else
-      _ -> :error
+      {:error, :client_id_address}
     end
   end
 
@@ -92,17 +94,17 @@ defmodule RegentOAuth.ClientDocuments do
     result =
       case RegentHttp.Public.get(url, max_bytes: @max_bytes, headers: headers) do
         {:error, reason} when reason in [:timeout, :connection_error, :dns_error] ->
-          :unavailable
+          {:error, :unavailable}
 
         {:ok, %{status: status}} when status == 429 or status >= 500 ->
-          :unavailable
+          {:error, :unavailable}
 
         {:ok, response} ->
           with {:ok, attrs} <- validate(url, response),
                do: save(url, attrs, refresh_at(response.headers))
 
         {:error, _refused} ->
-          :error
+          {:error, :document_unreadable}
       end
 
     :telemetry.execute([:regent_oauth, :client_document, :read], %{count: 1}, %{
@@ -113,30 +115,42 @@ defmodule RegentOAuth.ClientDocuments do
   end
 
   defp outcome({:ok, _id}), do: :ok
-  defp outcome(:unavailable), do: :unavailable
-  defp outcome(:error), do: :refused
+  defp outcome({:error, :unavailable}), do: :unavailable
+  defp outcome({:error, _reason}), do: :refused
 
   defp validate(url, %{status: 200, headers: headers, body: body}) do
     host = URI.parse(url).host
 
-    with true <- json_type?(headers),
-         {:ok, %{} = document} <- Jason.decode(body),
-         true <- document["client_id"] == url,
-         false <- Map.has_key?(document, "client_secret"),
-         false <- Map.has_key?(document, "client_secret_expires_at"),
+    with :ok <- check(json_type?(headers), :document_type),
+         {:ok, document} <- decode(body),
+         :ok <- check(document["client_id"] == url, :document_client_id),
+         :ok <-
+           check(
+             not Map.has_key?(document, "client_secret") and
+               not Map.has_key?(document, "client_secret_expires_at"),
+             :document_secret
+           ),
          {:ok, authentication} <- authentication(document, host),
-         true <- includes?(document, "grant_types", "authorization_code"),
-         true <- includes?(document, "response_types", "code"),
-         uris when is_list(uris) and length(uris) in 1..10 <- document["redirect_uris"],
-         [_ | _] = kept <- uris |> Enum.filter(&own_callback?(&1, host)) |> Enum.uniq(),
+         :ok <-
+           check(includes?(document, "grant_types", "authorization_code"), :document_grant_types),
+         :ok <- check(includes?(document, "response_types", "code"), :document_response_types),
+         uris = document["redirect_uris"],
+         :ok <- check(is_list(uris) and length(uris) in 1..10, :document_redirect_uris),
+         kept = uris |> Enum.filter(&own_callback?(&1, host)) |> Enum.uniq(),
+         :ok <- check(kept != [], :document_callbacks),
          {:ok, name} <- name(document["client_name"], host) do
       {:ok, Map.merge(authentication, %{name: name, redirect_uris: kept})}
-    else
-      _ -> :error
     end
   end
 
-  defp validate(_url, _response), do: :error
+  defp validate(_url, _response), do: {:error, :document_status}
+
+  defp decode(body) do
+    case Jason.decode(body) do
+      {:ok, %{} = document} -> {:ok, document}
+      _ -> {:error, :document_json}
+    end
+  end
 
   # How the app authenticates at the token address: nothing, or an assertion
   # signed with a key it publishes at `jwks_uri` on the address's own host, the
@@ -145,19 +159,22 @@ defmodule RegentOAuth.ClientDocuments do
   defp authentication(%{"token_endpoint_auth_method" => "none"}, _host),
     do: {:ok, %{token_endpoint_auth_methods: [], jwks_uri: nil}}
 
-  defp authentication(
-         %{"token_endpoint_auth_method" => "private_key_jwt", "jwks_uri" => keys} = document,
-         host
-       ) do
-    if not Map.has_key?(document, "jwks") and own_keys?(keys, host) and
-         document["token_endpoint_auth_signing_alg"] in [
-           nil | RegentOAuth.ClientAssertion.algorithms()
-         ],
-       do: {:ok, %{token_endpoint_auth_methods: ["private_key_jwt"], jwks_uri: keys}},
-       else: :error
+  defp authentication(%{"token_endpoint_auth_method" => "private_key_jwt"} = document, host) do
+    keys = document["jwks_uri"]
+
+    with :ok <- check(not Map.has_key?(document, "jwks"), :document_jwks),
+         :ok <- check(is_binary(keys) and own_keys?(keys, host), :document_jwks_uri),
+         :ok <-
+           check(
+             document["token_endpoint_auth_signing_alg"] in [
+               nil | RegentOAuth.ClientAssertion.algorithms()
+             ],
+             :document_signing_alg
+           ),
+         do: {:ok, %{token_endpoint_auth_methods: ["private_key_jwt"], jwks_uri: keys}}
   end
 
-  defp authentication(_document, _host), do: :error
+  defp authentication(_document, _host), do: {:error, :document_auth_method}
 
   defp own_keys?(keys, host) do
     RegentHttp.Public.valid_url?(keys) and
@@ -188,10 +205,10 @@ defmodule RegentOAuth.ClientDocuments do
 
     if String.length(name) in 1..100 and not Regex.match?(~r/[\x00-\x1f\x7f]/, name),
       do: {:ok, name},
-      else: :error
+      else: {:error, :document_client_name}
   end
 
-  defp name(_name, _host), do: :error
+  defp name(_name, _host), do: {:error, :document_client_name}
 
   defp json_type?(headers) do
     case List.keyfind(headers, "content-type", 0) do
@@ -311,10 +328,13 @@ defmodule RegentOAuth.ClientDocuments do
         {:ok, id}
 
       {:error, :raced} ->
-        stored(url)
+        case stored(url) do
+          {:ok, id} -> {:ok, id}
+          :error -> {:error, :document_not_saved}
+        end
 
       {:error, _} ->
-        :error
+        {:error, :document_not_saved}
     end
   end
 

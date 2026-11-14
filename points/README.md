@@ -96,13 +96,25 @@ failure raises and rolls back the action. Outside a transaction, the same API ca
 resubmit a reference to an already committed source. Never repeat a post or
 wallet action to recover Points; reconcile from authoritative source records.
 
-The background verifier calls the rule's configured adapter `verify(reference)`.
-It must load authoritative persisted records, not trust browser assertions. Return
-`{:ok, facts}`, `{:error, reason_atom}` for a permanent rejection, or
+The background verifier calls the rule's configured adapter `verify(reference)`,
+and the award asks it again with the same reference just before it writes the
+award, under the account's lock and inside the award's transaction. It must load
+authoritative persisted records, not trust browser assertions, and read only the
+site's own saved records, never another website or the chain, since the second ask
+holds the account's lock. It changes nothing, so it can be asked any number of
+times. Return `{:ok, facts}`, `{:error, reason_atom}` for a permanent rejection, or
 `{:retry, reason}` for an outage. Exceptions also retry through Oban. Invalid facts
 and conflicting evidence get a permanent private `source_rejections` audit, without
 changing an accepted event. Infrastructure failures retry; discarded Oban jobs need
 operator diagnosis.
+
+At the award only the answer counts: the facts and the rule saved at the first
+check decide the award. A source refused by then, such as a post hidden or marked
+as spam, earns nothing: its event ends `rejected` with `award_refused`, leaves the
+summary's `pending` count, and the refusal gets the same private audit as one at
+the first check. A source that cannot answer rolls the award back and Oban tries
+again; after the last attempt the event ends `award_failed`. Start awards are
+recorded like any action, so they are asked again too.
 
 Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_id`,
 `actor_kind` (`"human"` or `"agent"`), `actor_id`, `source_action_at`, `qualified_at`,

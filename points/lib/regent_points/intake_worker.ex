@@ -60,16 +60,7 @@ defmodule RegentPoints.IntakeWorker do
   defp eligible_source(_, _), do: :ok
 
   defp reject(input, reason) do
-    # Rejections survive Oban pruning and never overwrite a previously accepted event.
-    Points.reject_source!(
-      %{
-        source: input,
-        reason_code: to_string(reason),
-        rejection_key: Store.digest({input, reason})
-      },
-      actor: Store.system()
-    )
-
+    Store.reject_source(input, reason)
     :ok
   end
 

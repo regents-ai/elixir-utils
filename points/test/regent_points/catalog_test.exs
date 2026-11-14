@@ -30,6 +30,7 @@ defmodule RegentPoints.CatalogTest do
              {"agent.activated", 1, 25},
              {"autolaunch.first_launch", 1, 25},
              {"autolaunch.first_graduation", 2, 25},
+             {"autolaunch.first_covered_call", 1, 25},
              {"autolaunch.token_staked", 1, 40},
              {"keyfleet.first_membership", 2, 25},
              {"keyfleet.first_authorized_agent", 2, 25},
@@ -42,7 +43,7 @@ defmodule RegentPoints.CatalogTest do
              {@hidden, 1, 10}
            ]
 
-    assert Rules.milestone_total() == 365
+    assert Rules.milestone_total() == 390
   end
 
   test "every catalog rule is listed except the hidden one" do
@@ -50,7 +51,7 @@ defmodule RegentPoints.CatalogTest do
     assert Enum.map(Rules.listed(), & &1["id"]) == ids -- [@hidden]
 
     assert Enum.sum(for %{"category" => "milestone"} = rule <- Rules.listed(), do: rule["points"]) ==
-             355
+             380
   end
 
   test "the groups hold every listed rule once, each under its own site, in the page's order" do

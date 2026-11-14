@@ -178,7 +178,7 @@ its ledger entry. An account's balance is its entries plus its period bonuses, a
 account row stores it (`balance_micro`): each entry, new bonus and bonus that follows
 moves it by what it added, with an atomic update in the same transaction. Repeat actions earn at
 most 100 base Points a UTC day, excluding one-time awards. The milestone catalog
-totals 365 (`RegentPoints.Rules.milestone_total/0`), 355 without
+totals 390 (`RegentPoints.Rules.milestone_total/0`), 380 without
 `template.first_agent_note` (Sean, 14 November 2026). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.

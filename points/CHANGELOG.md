@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- New one-time rule `autolaunch.first_covered_call` 25, at version 1 (Sean, 14 Nov
+  2026). The milestone catalog totals 390.
 - The one-time rules change (Sean, 14 Nov 2026). New, at version 1:
   `autolaunch.first_launch` 25, `keyfleet.integration.git` 20,
   `keyfleet.integration.marimo` 20 and `cloak.first_download` 25. At version 2:

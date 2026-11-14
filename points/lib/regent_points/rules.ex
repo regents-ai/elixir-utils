@@ -23,6 +23,7 @@ defmodule RegentPoints.Rules do
     {"agent.activated", 1, 25, "First paired agent", :listed},
     {"autolaunch.first_launch", 1, 25, "First Autolaunch launch", :listed},
     {"autolaunch.first_graduation", 2, 25, "First Autolaunch graduation", :listed},
+    {"autolaunch.first_covered_call", 1, 25, "First Autolaunch covered call", :listed},
     {"autolaunch.token_staked", 1, 40, "Autolaunch token staked", :listed},
     {"keyfleet.first_membership", 2, 25, "First Keyfleet membership", :listed},
     {"keyfleet.first_authorized_agent", 2, 25, "First agent authorized on Keyfleet", :listed},

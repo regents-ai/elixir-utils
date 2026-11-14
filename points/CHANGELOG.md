@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- The summary's `done` covers every listed rule, wherever it was earned, not only
+  the rules this site earns (Sean, 14 Nov 2026). Each entry is now
+  `%{times: n, here: boolean}` instead of a bare count: `times` is the old count,
+  and `here` says whether this site earns the rule. `template.first_agent_note` has
+  no entry. Earning, intake, start awards and limits are unchanged.
 - New one-time rule `autolaunch.first_covered_call` 25, at version 1 (Sean, 14 Nov
   2026). The milestone catalog totals 390.
 - The one-time rules change (Sean, 14 Nov 2026). New, at version 1:

@@ -83,8 +83,46 @@ defmodule RegentPoints.PageReadsTest do
     account = person()
     earn("account.activated", account, DateTime.utc_now())
 
-    assert %{"account.activated" => 1, "social.x" => 0} =
-             RegentPoints.summary!(actor: reader(account)).done
+    assert %{
+             "account.activated" => %{times: 1, here: true},
+             "social.x" => %{times: 0, here: true}
+           } = RegentPoints.summary!(actor: reader(account)).done
+  end
+
+  # All sites share the Points tables, so a rule another site earns shows done here:
+  # earned under another site's settings, then read under this site's, which do not
+  # earn it.
+  test "a rule earned on another site is done here, with its own count for today" do
+    account = person()
+    hidden = "template.first_agent_note"
+    there = ["patchbay.reply_published", hidden | @rules]
+    Application.put_env(:regent_points, :approved_rules, there)
+    Application.put_env(:regent_points, :adapters, Map.new(there, &{&1, Source}))
+
+    for rule <- ~w(account.activated social.github patchbay.reply_published) ++ [hidden],
+        do: earn(rule, account, DateTime.utc_now())
+
+    # This site earns the hidden rule and all of @rules but social.github. It approves
+    # agent.activated without a source for it, so it does not earn that either.
+    here = [hidden | @rules -- ["social.github"]]
+    Application.put_env(:regent_points, :approved_rules, ["agent.activated" | here])
+    Application.put_env(:regent_points, :adapters, Map.new(here, &{&1, Source}))
+    %{balance_micro: balance, done: done} = RegentPoints.summary!(actor: reader(account))
+
+    # 25 + 10 + 5 + 10: all four were awarded, the hidden one too.
+    assert balance == 50_000_000
+    assert done["social.github"] == %{times: 1, here: false}
+    assert done["patchbay.reply_published"] == %{times: 1, here: false}
+    assert done["account.activated"] == %{times: 1, here: true}
+    assert done["social.x"] == %{times: 0, here: true}
+    assert done["agent.activated"] == %{times: 0, here: false}
+    assert done["keyfleet.key_bought"] == %{times: 0, here: false}
+
+    assert done |> Map.keys() |> Enum.sort() ==
+             RegentPoints.Rules.listed() |> Enum.map(& &1["id"]) |> Enum.sort()
+
+    refute Map.has_key?(done, hidden)
+    assert Enum.sort(for {id, %{here: true}} <- done, do: id) == Enum.sort(here -- [hidden])
   end
 
   test "the board orders by total, shares a place on a tie and leaves out zero" do
@@ -375,12 +413,13 @@ defmodule RegentPoints.PageReadsTest do
   defp evidence("social." <> _, key), do: %{"subject_key" => key}
   defp evidence(_rule_id, _key), do: %{}
 
-  # Saves the source's facts and records the action the way a site does.
+  # Saves the source's facts and records the action the way the rule's own app does.
   defp earn(rule_id, account, at) do
     key = "#{rule_id}:#{account}"
+    app = hd(String.split(rule_id, "."))
 
     facts = %{
-      source_app: "site-a",
+      source_app: app,
       source_kind: "test",
       source_event_key: key,
       account_id: account,
@@ -399,7 +438,7 @@ defmodule RegentPoints.PageReadsTest do
              RegentPoints.record_event(
                %{
                  rule_id: rule_id,
-                 source_app: "site-a",
+                 source_app: app,
                  source_kind: "test",
                  source_event_key: key
                },

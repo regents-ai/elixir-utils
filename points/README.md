@@ -140,7 +140,13 @@ being checked, a later qualifying action records no event and queues no award;
 the check runs under the account's lock, so actions arriving together still earn
 once. A repeat action over its limit still writes a 0-point entry that shows the
 reduction. `RegentPoints.summary/1` lists only the daily allowances that a rule
-earning now on this site counts against.
+earning now on this site counts against. Its `done` holds every listed rule
+(`Rules.listed/0`), whichever site earned it, since every site writes to the same
+tables: `%{"account.activated" => %{times: 1, here: true}, ...}`. `times` is how many
+times the account has had the award in the rule's own window, ever for a one-time
+rule and today (UTC) for a daily one; `here` is whether this site earns the rule
+(`Rules.enabled?/1`), so a page can say where to go for one it does not.
+`template.first_agent_note` has no entry.
 
 The repeat actions (Sean, 13 October) are: Autolaunch auction created 20 once a day,
 auction bid 20 once a day, token trade through the site 10 once a day; Keyfleet key

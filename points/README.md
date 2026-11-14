@@ -150,7 +150,7 @@ A Patchbay bid, starting or takeover, earns at the moment its Offer starts showi
 once for that bid; a bid that only leads and is then replaced earns nothing. Staking
 an Autolaunch token earns 40 once per account. Regents staking, Techtree, the first
 use of a site, and Patchbay's accepted solution and resolved report earn nothing.
-There is no active-day or recurring vote rule; Keyfleet retains its 10-point
+There is no active-day or recurring vote rule; Keyfleet retains its 25-point
 first-vote milestone. Every Patchbay report and reply must be accepted by Patchbay's
 own quality check before it is published and earns; that check is Patchbay's, not
 this package's.
@@ -178,14 +178,18 @@ its ledger entry. An account's balance is its entries plus its period bonuses, a
 account row stores it (`balance_micro`): each entry, new bonus and bonus that follows
 moves it by what it added, with an atomic update in the same transaction. Repeat actions earn at
 most 100 base Points a UTC day, excluding one-time awards. The milestone catalog
-totals 250 (`RegentPoints.Rules.milestone_total/0`); `template.first_agent_note` is
-not approved at launch, so 240 can be earned then (Sean, 6 November). Sean approved the trial
+totals 365 (`RegentPoints.Rules.milestone_total/0`), 355 without
+`template.first_agent_note` (Sean, 14 November 2026). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
-`tracked/0` lists the rules that are approved and have a source adapter on this site,
-and a site's Points page shows only those, so it never offers an action that earns
-nothing; `daily_apps/1`
-names the apps of the daily rules it shows. There is no uncapped revenue-points rule.
+`tracked/0` lists the rules that are approved and have a source adapter on this site:
+the ones it earns. A site's Points page shows every catalog rule except
+`template.first_agent_note`, which the catalog marks `:hidden`: it earns like any
+other rule, but no page lists it. `listed/0` lists the rules a page shows, and
+`groups/0` groups them by site in the page's order, Account, Autolaunch, Keyfleet,
+Patchbay and Cloak, from each id's first segment (`account`, `social` and `agent`
+are Account). `daily_apps/1` names the apps of the daily rules among the rules it is
+given. There is no uncapped revenue-points rule.
 
 Accepted events save the rule's points and daily limits with the rule. Delayed
 processing uses that snapshot. A rule version never changes after approval; a changed

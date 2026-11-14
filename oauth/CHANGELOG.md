@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Refusals name their reason. Every JSON refusal from registration, token
+  exchange, revocation, consent and approval keeps its status and `error` and
+  adds a fixed `error_description` for the check that refused; refusal pages
+  and redirects are unchanged. Each refusal logs one warning with the endpoint
+  and the reason only (`oauth refused endpoint=token reason=resource`), never a
+  value from the request. An `invalid_grant` answer has one description
+  whatever the reason; its warning names the reason, and a refusal Boruta made
+  is logged by Boruta's error name. A published identity's document read
+  (`RegentOAuth.ClientDocuments.current/1`) answers `{:error, reason}`, and
+  `{:error, :unavailable}` when its address does not answer just now; its
+  telemetry is unchanged. `RegentOAuth.Protocol.authorize_params?/1` is now
+  `authorize_params/1`, answering `:ok` or `{:error, reason}`.
 - Code exchange, refresh and disconnect lock one person's connection to one app
   (`RegentOAuth.lock_connection/2`, a transaction-scoped advisory lock), no longer
   the app's client row. Every person's Claude connection is one client row (its

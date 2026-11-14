@@ -58,14 +58,14 @@ defmodule RegentOAuth.HashedTokensTest do
     age_refresh(refresh, 25)
     retry = Flow.refresh(client_id, refresh)
     assert retry.status == 400
-    assert Jason.decode!(retry.resp_body) == %{"error" => "invalid_grant"}
+    assert %{"error" => "invalid_grant"} = Jason.decode!(retry.resp_body)
     assert {:ok, _} = RegentOAuth.verify(fresh, RegentOAuth.resource())
 
     age_refresh(refresh, 6)
 
     reused = Flow.refresh(client_id, refresh)
     assert reused.status == 400
-    assert Jason.decode!(reused.resp_body) == %{"error" => "invalid_grant"}
+    assert %{"error" => "invalid_grant"} = Jason.decode!(reused.resp_body)
     assert {:error, :unauthorized} = RegentOAuth.verify(fresh, RegentOAuth.resource())
   end
 

@@ -2,7 +2,8 @@ defmodule RegentOAuth.Consent do
   @moduledoc "Consent uses the site's current Privy session; parameters never supply a person."
   @behaviour Boruta.Oauth.AuthorizeApplication
   import Plug.Conn
-  alias RegentOAuth.Protocol
+  import RegentOAuth.Refusal, only: [check: 2]
+  alias RegentOAuth.{Protocol, Refusal}
   @session_key :regent_oauth_request
 
   def authorize(conn) do
@@ -13,12 +14,12 @@ defmodule RegentOAuth.Consent do
 
     # The app is looked up only for a signed-in person: a published identity is
     # read from its address, which no signed-out visitor may cause.
-    with true <- RegentOAuth.enabled?(),
-         true <- Protocol.authorize_params?(params),
-         true <- byte_size(Jason.encode!(conn.query_params)) <= 2048 do
+    with :ok <- check(RegentOAuth.enabled?(), :disabled),
+         :ok <- Protocol.authorize_params(params),
+         :ok <- check(byte_size(Jason.encode!(conn.query_params)) <= 2048, :too_large) do
       case RegentOAuth.site().current_subject(conn) do
         subject when is_binary(subject) ->
-          with true <- RegentOAuth.site().active_subject?(subject),
+          with :ok <- check(RegentOAuth.site().active_subject?(subject), :inactive_subject),
                {:ok, client} <- Protocol.request_client(params) do
             Boruta.Oauth.preauthorize(
               conn |> put_private(@session_key, params) |> authorization_conn(params, client),
@@ -26,9 +27,14 @@ defmodule RegentOAuth.Consent do
               __MODULE__
             )
           else
-            false -> Protocol.json(conn, 401, %{error: "login_required"})
-            {:error, :unavailable} -> unavailable(conn)
-            _ -> Protocol.json(conn, 400, %{error: "invalid_request"})
+            {:error, :inactive_subject} ->
+              Refusal.answer(conn, :authorize, 401, "login_required", :inactive_subject)
+
+            {:error, :unavailable} ->
+              unavailable(conn, :authorize)
+
+            {:error, reason} ->
+              Refusal.answer(conn, :authorize, 400, "invalid_request", reason)
           end
 
         _ ->
@@ -39,7 +45,7 @@ defmodule RegentOAuth.Consent do
           """)
       end
     else
-      _ -> Protocol.json(conn, 400, %{error: "invalid_request"})
+      {:error, reason} -> Refusal.answer(conn, :authorize, 400, "invalid_request", reason)
     end
   rescue
     _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
@@ -92,16 +98,28 @@ defmodule RegentOAuth.Consent do
     conn = delete_session(conn, @session_key)
     subject = RegentOAuth.site().current_subject(conn)
 
-    with true <- RegentOAuth.enabled?(),
-         true <- is_map(conn.body_params) and not is_struct(conn.body_params),
-         true <- Map.keys(conn.body_params) -- ~w(_csrf_token approval_key decision) == [],
-         %{"subject" => ^subject, "nonce" => nonce, "params" => params, "created_at" => created} <-
-           pending,
-         true <- Protocol.authorize_params?(params),
-         true <- is_binary(subject) and RegentOAuth.site().active_subject?(subject),
-         true <- (System.system_time(:second) - created) in 0..600,
-         key when is_binary(key) <- conn.body_params["approval_key"],
-         true <- byte_size(key) == byte_size(nonce) and Plug.Crypto.secure_compare(key, nonce),
+    with :ok <- check(RegentOAuth.enabled?(), :disabled),
+         :ok <- check(is_map(conn.body_params) and not is_struct(conn.body_params), :body),
+         :ok <-
+           check(
+             Map.keys(conn.body_params) -- ~w(_csrf_token approval_key decision) == [],
+             :unexpected_parameter
+           ),
+         {:ok, nonce, params, created} <- pending_request(pending, subject),
+         :ok <- Protocol.authorize_params(params),
+         :ok <-
+           check(
+             is_binary(subject) and RegentOAuth.site().active_subject?(subject),
+             :inactive_subject
+           ),
+         :ok <- check((System.system_time(:second) - created) in 0..600, :expired),
+         key = conn.body_params["approval_key"],
+         :ok <-
+           check(
+             is_binary(key) and byte_size(key) == byte_size(nonce) and
+               Plug.Crypto.secure_compare(key, nonce),
+             :approval_key
+           ),
          {:ok, client} <- Protocol.request_client(params) do
       case conn.body_params["decision"] do
         "allow" ->
@@ -124,13 +142,15 @@ defmodule RegentOAuth.Consent do
           redirect(conn, Boruta.Oauth.Error.redirect_to_url(error))
 
         _ ->
-          Protocol.json(conn, 400, %{error: "invalid_request"})
+          Refusal.answer(conn, :approve, 400, "invalid_request", :decision)
       end
     else
       {:error, :unavailable} ->
-        unavailable(conn)
+        unavailable(conn, :approve)
 
-      _ ->
+      {:error, reason} ->
+        Refusal.log(:approve, reason)
+
         page(
           conn,
           "This connection link no longer works",
@@ -145,6 +165,17 @@ defmodule RegentOAuth.Consent do
     _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
   end
 
+  # The consent this person saw, kept in their session.
+  defp pending_request(
+         %{"subject" => subject, "nonce" => nonce, "params" => params, "created_at" => created},
+         subject
+       ),
+       do: {:ok, nonce, params, created}
+
+  defp pending_request(nil, _subject), do: {:error, :no_pending}
+  defp pending_request(_pending, nil), do: {:error, :signed_out}
+  defp pending_request(_pending, _subject), do: {:error, :other_subject}
+
   @impl true
   def authorize_success(conn, %Boruta.Oauth.AuthorizeResponse{code: code} = response) do
     :ok = RegentOAuth.bind_code(code)
@@ -152,16 +183,20 @@ defmodule RegentOAuth.Consent do
   end
 
   @impl true
-  def preauthorize_error(conn, error), do: authorize_error(conn, error)
+  def preauthorize_error(conn, error), do: boruta_refusal(conn, :authorize, error)
   @impl true
-  def authorize_error(conn, error) do
-    # Boruta validates the client before supplying an error redirect. Sanitize
-    # descriptions so internal failures never reach URLs or responses.
+  def authorize_error(conn, error), do: boruta_refusal(conn, :approve, error)
+
+  # Logged by Boruta's error name. Boruta validates the client before supplying
+  # an error redirect. Sanitize descriptions so internal failures never reach
+  # URLs or responses.
+  defp boruta_refusal(conn, endpoint, error) do
     if error.format && error.redirect_uri do
+      Refusal.log(endpoint, error.error)
       clean = %{error | error_description: "This connection could not be authorized."}
       redirect(conn, Boruta.Oauth.Error.redirect_to_url(clean))
     else
-      Protocol.json(conn, 400, %{error: "invalid_request"})
+      Refusal.answer(conn, endpoint, 400, "invalid_request", error.error, :unexpected)
     end
   end
 
@@ -212,7 +247,9 @@ defmodule RegentOAuth.Consent do
 
   # A published identity's address did not answer just now: nothing is wrong
   # with the link, so the person is told to try again rather than that it expired.
-  defp unavailable(conn) do
+  defp unavailable(conn, endpoint) do
+    Refusal.log(endpoint, :unavailable)
+
     page(
       conn,
       "Unavailable",

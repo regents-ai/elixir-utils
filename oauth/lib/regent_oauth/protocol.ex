@@ -1,14 +1,26 @@
 defmodule RegentOAuth.Protocol do
-  @moduledoc "HTTP adaptation for Boruta; site routers supply fixed actions and rate limits."
+  @moduledoc """
+  HTTP adaptation for Boruta; site routers supply fixed actions and rate limits.
+  Every refusal names its reason (`RegentOAuth.Refusal`).
+  """
   import Plug.Conn
   import Ecto.Query
+  import RegentOAuth.Refusal, only: [check: 2]
   alias Boruta.Ecto.{Client, Token}
-  alias RegentOAuth.ClientDocuments
+  alias RegentOAuth.{ClientDocuments, Refusal}
 
   @behaviour Boruta.Oauth.TokenApplication
   @authorize_keys ~w(client_id redirect_uri response_type scope state resource code_challenge code_challenge_method)
   @token_keys ~w(client_id redirect_uri grant_type scope resource code code_verifier refresh_token)
   @register_keys ~w(client_name redirect_uris grant_types response_types token_endpoint_auth_method scope)
+  @oauth_errors [
+    :invalid_client,
+    :invalid_request,
+    :invalid_scope,
+    :invalid_grant,
+    :unsupported_grant_type,
+    :unauthorized_client
+  ]
   @refresh_grace_seconds 30
 
   def call(conn, action) do
@@ -28,22 +40,30 @@ defmodule RegentOAuth.Protocol do
   defp dispatch(conn, :register) do
     params = conn.body_params
 
-    with true <- bounded_map?(Map.take(params, @register_keys), @register_keys),
-         true <- byte_size(Jason.encode!(params)) <= 8192,
-         true <- Map.get(params, "token_endpoint_auth_method", "none") == "none",
-         true <- Map.get(params, "response_types", ["code"]) == ["code"],
-         grant_types when is_list(grant_types) <-
-           Map.get(params, "grant_types", ["authorization_code", "refresh_token"]),
-         true <- Enum.sort(grant_types) == ["authorization_code", "refresh_token"],
+    with :ok <- bounded(Map.take(params, @register_keys), @register_keys),
+         :ok <- check(byte_size(Jason.encode!(params)) <= 8192, :too_large),
+         :ok <-
+           check(
+             Map.get(params, "token_endpoint_auth_method", "none") == "none",
+             :token_endpoint_auth_method
+           ),
+         :ok <- check(Map.get(params, "response_types", ["code"]) == ["code"], :response_types),
+         grant_types = Map.get(params, "grant_types", ["authorization_code", "refresh_token"]),
+         :ok <-
+           check(
+             is_list(grant_types) and
+               Enum.sort(grant_types) == ["authorization_code", "refresh_token"],
+             :grant_types
+           ),
          # A requested `scope` is not checked: every client is registered for
          # the configured scopes (RFC 7591 section 3.2.1), and each sign-in
          # still asks the person for exactly what it grants.
-         name when is_binary(name) <- Map.get(params, "client_name", "Connected app"),
-         true <- String.length(name) in 1..100,
-         uris when is_list(uris) and length(uris) in 1..5 <- params["redirect_uris"],
-         true <- Enum.all?(uris, &redirect_uri?/1),
-         {:ok, client} <-
-           Boruta.Ecto.Admin.Clients.create_client(public_client(name, Enum.uniq(uris))) do
+         name = Map.get(params, "client_name", "Connected app"),
+         :ok <- check(is_binary(name) and String.length(name) in 1..100, :client_name),
+         uris = params["redirect_uris"],
+         :ok <- check(is_list(uris) and length(uris) in 1..5, :redirect_uris),
+         :ok <- check(Enum.all?(uris, &redirect_uri?/1), :redirect_uri_format),
+         {:ok, client} <- register_client(name, Enum.uniq(uris)) do
       json(conn, 201, %{
         client_id: client.id,
         client_name: client.name,
@@ -54,17 +74,19 @@ defmodule RegentOAuth.Protocol do
         scope: Enum.join(RegentOAuth.scopes(), " ")
       })
     else
-      _ -> json(conn, 400, %{error: "invalid_client_metadata"})
+      {:error, reason} -> Refusal.answer(conn, :register, 400, "invalid_client_metadata", reason)
     end
   end
 
   defp dispatch(conn, :token) do
     params = conn.body_params
 
-    with true <- bounded_map?(params, @token_keys),
-         true <- resource?(params),
-         true <- RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())),
-         true <- params["grant_type"] in ["authorization_code", "refresh_token"],
+    with :ok <- bounded(params, @token_keys),
+         :ok <- check(resource?(params), :resource),
+         :ok <-
+           check(RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())), :scope),
+         :ok <-
+           check(params["grant_type"] in ["authorization_code", "refresh_token"], :grant_type),
          {:ok, client_id} <- resolve_client(params["client_id"], :stored) do
       # From here the request names the client's own row.
       params = Map.put(params, "client_id", client_id)
@@ -76,9 +98,9 @@ defmodule RegentOAuth.Protocol do
       # one client row. All work is local DB/crypto.
       result =
         RegentOAuth.repo().transaction(fn ->
-          with %Ecto.Query{} = query <- credential_query(params),
-               %Token{client_id: ^client_id, sub: sub} when is_binary(sub) <-
-                 RegentOAuth.repo().one(query, log: false),
+          with {:ok, query} <- credential_query(params),
+               {:ok, sub} <-
+                 credential_subject(RegentOAuth.repo().one(query, log: false), client_id),
                :ok <- RegentOAuth.lock_connection(sub, client_id) do
             issue(
               conn,
@@ -87,7 +109,7 @@ defmodule RegentOAuth.Protocol do
               RegentOAuth.repo().one(lock(query, "FOR UPDATE"), log: false)
             )
           else
-            _ -> RegentOAuth.repo().rollback(:invalid_grant)
+            {:error, reason} -> RegentOAuth.repo().rollback({:invalid_grant, reason})
           end
         end)
 
@@ -98,15 +120,16 @@ defmodule RegentOAuth.Protocol do
         {:error, error} -> token_error(conn, error)
       end
     else
-      _ -> json(conn, 400, %{error: "invalid_request"})
+      {:error, reason} -> Refusal.answer(conn, :token, 400, "invalid_request", reason)
     end
   end
 
   defp dispatch(conn, :revoke) do
     params = conn.body_params
 
-    with true <- bounded_map?(params, ~w(client_id token token_type_hint)),
-         true <- is_binary(params["token"]) and byte_size(params["token"]) in 1..4096,
+    with :ok <- bounded(params, ~w(client_id token token_type_hint)),
+         :ok <-
+           check(is_binary(params["token"]) and byte_size(params["token"]) in 1..4096, :token),
          {:ok, client_id} <- resolve_client(params["client_id"], :stored) do
       hash = RegentOAuth.hash_token(params["token"])
 
@@ -129,7 +152,14 @@ defmodule RegentOAuth.Protocol do
       # Unknown tokens and tokens belonging to another client reveal nothing.
       json(conn, 200, %{})
     else
-      _ -> json(conn, 400, %{error: "invalid_request"})
+      {:error, reason} -> Refusal.answer(conn, :revoke, 400, "invalid_request", reason)
+    end
+  end
+
+  defp register_client(name, uris) do
+    case Boruta.Ecto.Admin.Clients.create_client(public_client(name, uris)) do
+      {:ok, client} -> {:ok, client}
+      {:error, _changeset} -> {:error, :client_not_saved}
     end
   end
 
@@ -140,22 +170,28 @@ defmodule RegentOAuth.Protocol do
       %Token{revoked_at: nil, refresh_token_revoked_at: revoked, client_id: ^client_id} =
           row
       when not is_nil(revoked) ->
-        if params["grant_type"] == "refresh_token" and RegentOAuth.bound?(row.id) and
-             RegentOAuth.site().active_subject?(row.sub) and
-             DateTime.diff(DateTime.utc_now(), revoked) >= @refresh_grace_seconds do
+        with :ok <- check(params["grant_type"] == "refresh_token", :revoked),
+             :ok <- check(RegentOAuth.bound?(row.id), :not_bound),
+             :ok <- check(RegentOAuth.site().active_subject?(row.sub), :inactive_subject),
+             :ok <-
+               check(
+                 DateTime.diff(DateTime.utc_now(), revoked) >= @refresh_grace_seconds,
+                 :refresh_used_within_grace
+               ) do
           # Boruta rotates refresh tokens. Proven reuse revokes this
           # subject's app connection, as required by RFC 9700 section 4.14.2.
           # A second refresh within the grace period is the app's own
           # retry or overlap, not a stolen token: it is only refused.
           {:ok, :ok} = RegentOAuth.revoke_client(row.sub, row.client_id)
-          {:denied, :invalid_grant}
+          {:denied, {:invalid_grant, :refresh_reuse_revoked}}
         else
-          RegentOAuth.repo().rollback(:invalid_grant)
+          {:error, reason} -> RegentOAuth.repo().rollback({:invalid_grant, reason})
         end
 
       %Token{revoked_at: nil} = row ->
-        if RegentOAuth.bound?(row.id) and RegentOAuth.site().active_subject?(row.sub) and
-             active_credential?(row, params) do
+        with :ok <- check(RegentOAuth.bound?(row.id), :not_bound),
+             :ok <- check(RegentOAuth.site().active_subject?(row.sub), :inactive_subject),
+             :ok <- active_credential(row, params) do
           # Token requests use only the allowlisted form body. In particular,
           # query request objects must never trigger HTTP under these locks.
           request = %{
@@ -171,39 +207,51 @@ defmodule RegentOAuth.Protocol do
             {:error, error} -> RegentOAuth.repo().rollback(error)
           end
         else
-          RegentOAuth.repo().rollback(:invalid_grant)
+          {:error, reason} -> RegentOAuth.repo().rollback({:invalid_grant, reason})
         end
 
-      _ ->
-        RegentOAuth.repo().rollback(:invalid_grant)
+      nil ->
+        RegentOAuth.repo().rollback({:invalid_grant, :unknown_credential})
+
+      %Token{} ->
+        RegentOAuth.repo().rollback({:invalid_grant, :revoked})
     end
   end
 
   defp credential_query(%{"grant_type" => "authorization_code", "code" => code})
        when is_binary(code),
-       do: from(t in Token, where: t.type == "code" and t.value == ^code)
+       do: {:ok, from(t in Token, where: t.type == "code" and t.value == ^code)}
 
   defp credential_query(%{"grant_type" => "refresh_token", "refresh_token" => token})
        when is_binary(token) do
     hash = RegentOAuth.hash_token(token)
-    from(t in Token, where: t.type == "access_token" and t.refresh_token == ^hash)
+    {:ok, from(t in Token, where: t.type == "access_token" and t.refresh_token == ^hash)}
   end
 
-  defp credential_query(_), do: nil
+  defp credential_query(_), do: {:error, :missing_credential}
 
-  defp active_credential?(%Token{client_id: client, expires_at: expiry}, %{
+  # The person a credential was issued to, when it is this app's.
+  defp credential_subject(nil, _client_id), do: {:error, :unknown_credential}
+
+  defp credential_subject(%Token{client_id: client_id, sub: sub}, client_id) when is_binary(sub),
+    do: {:ok, sub}
+
+  defp credential_subject(%Token{client_id: client_id}, client_id), do: {:error, :no_subject}
+  defp credential_subject(%Token{}, _client_id), do: {:error, :other_client}
+
+  defp active_credential(%Token{client_id: client, expires_at: expiry}, %{
          "grant_type" => "authorization_code",
          "client_id" => client
        }),
-       do: expiry > System.system_time(:second)
+       do: check(expiry > System.system_time(:second), :expired)
 
-  defp active_credential?(
+  defp active_credential(
          %Token{client_id: client, refresh_token_revoked_at: nil, inserted_at: inserted},
          %{"grant_type" => "refresh_token", "client_id" => client}
        ),
-       do: DateTime.diff(DateTime.utc_now(), inserted) < 2_592_000
+       do: check(DateTime.diff(DateTime.utc_now(), inserted) < 2_592_000, :expired)
 
-  defp active_credential?(_, _), do: false
+  defp active_credential(_, _), do: {:error, :other_client}
 
   @impl true
   def token_success(conn, response) do
@@ -216,35 +264,57 @@ defmodule RegentOAuth.Protocol do
     })
   end
 
+  # A code or refresh token that fails is answered with one description; the
+  # log line alone names why.
   @impl true
-  def token_error(conn, error), do: json(conn, 400, %{error: error_name(error)})
+  def token_error(conn, {:invalid_grant, reason}),
+    do: Refusal.answer(conn, :token, 400, "invalid_grant", reason, :invalid_grant)
+
+  def token_error(conn, %Boruta.Oauth.Error{error: error}) when error in @oauth_errors,
+    do: Refusal.answer(conn, :token, 400, Atom.to_string(error), error)
+
+  # Any other refusal is answered `invalid_request`, logged by Boruta's error
+  # name when it is one. Never the error itself: Boruta may describe a failure
+  # with the request's values.
+  def token_error(conn, %Boruta.Oauth.Error{error: error}) when is_atom(error),
+    do: Refusal.answer(conn, :token, 400, "invalid_request", error, :unexpected)
+
+  def token_error(conn, _error),
+    do: Refusal.answer(conn, :token, 400, "invalid_request", :unexpected)
 
   @doc false
-  def authorize_params?(params) do
-    bounded_map?(params, @authorize_keys) and
-      params["resource"] == RegentOAuth.resource() and RegentOAuth.valid_scopes?(params["scope"]) and
-      params["response_type"] == "code" and params["code_challenge_method"] == "S256" and
-      is_binary(params["state"]) and byte_size(params["state"]) > 0 and
-      is_binary(params["code_challenge"]) and
-      Regex.match?(~r/\A[A-Za-z0-9_-]{43}\z/, params["code_challenge"])
+  def authorize_params(params) do
+    with :ok <- bounded(params, @authorize_keys),
+         :ok <- check(params["resource"] == RegentOAuth.resource(), :resource),
+         :ok <- check(RegentOAuth.valid_scopes?(params["scope"]), :scope),
+         :ok <- check(params["response_type"] == "code", :response_type),
+         :ok <- check(params["code_challenge_method"] == "S256", :code_challenge_method),
+         :ok <- check(is_binary(params["state"]) and byte_size(params["state"]) > 0, :state) do
+      check(
+        is_binary(params["code_challenge"]) and
+          Regex.match?(~r/\A[A-Za-z0-9_-]{43}\z/, params["code_challenge"]),
+        :code_challenge
+      )
+    end
   end
 
   @doc """
   The client row an authorization request names, for a person about to
   approve it: a published identity is read again first when it is due.
-  `{:error, :unavailable}` when its address does not answer just now.
+  `{:error, :unavailable}` when its address does not answer just now, or
+  `{:error, reason}` naming the check that refused.
   """
   def request_client(params) do
     with {:ok, id} <- resolve_client(params["client_id"], :current),
-         %Client{confidential: false, pkce: true} = client <-
-           RegentOAuth.repo().get(Client, id, log: false),
-         true <- params["redirect_uri"] in client.redirect_uris do
+         {:ok, client} <- public_row(RegentOAuth.repo().get(Client, id, log: false)),
+         :ok <- check(params["redirect_uri"] in client.redirect_uris, :redirect_uri) do
       {:ok, client}
-    else
-      :unavailable -> {:error, :unavailable}
-      _ -> {:error, :invalid_client}
     end
   end
+
+  defp public_row(%Client{confidential: false, pkce: true} = client), do: {:ok, client}
+  defp public_row(nil), do: {:error, :client_id}
+  defp public_row(%Client{}), do: {:error, :client_not_public}
 
   # A published identity's address resolves only through the documents it was
   # recorded from, and a registered client's id only when no document recorded
@@ -255,14 +325,17 @@ defmodule RegentOAuth.Protocol do
         ClientDocuments.current(value)
 
       ClientDocuments.address?(value) ->
-        ClientDocuments.stored(value)
+        case ClientDocuments.stored(value) do
+          {:ok, id} -> {:ok, id}
+          :error -> {:error, :client_id}
+        end
 
       true ->
         with {:ok, id} <- Ecto.UUID.cast(value),
              false <- ClientDocuments.document_client?(id) do
           {:ok, id}
         else
-          _ -> :error
+          _ -> {:error, :client_id}
         end
     end
   end
@@ -309,26 +382,13 @@ defmodule RegentOAuth.Protocol do
 
   def redirect_uri?(_), do: false
 
-  defp bounded_map?(params, keys) when is_map(params) do
-    not is_struct(params) and Map.keys(params) -- keys == [] and
-      byte_size(Jason.encode!(params)) <= 8192
+  # A plain map of only the allowed keys, at most 8 KB as JSON.
+  defp bounded(params, keys) when is_map(params) and not is_struct(params) do
+    with :ok <- check(Map.keys(params) -- keys == [], :unexpected_parameter),
+         do: check(byte_size(Jason.encode!(params)) <= 8192, :too_large)
   end
 
-  defp bounded_map?(_, _), do: false
-
-  defp error_name(%{error: error})
-       when error in [
-              :invalid_client,
-              :invalid_request,
-              :invalid_scope,
-              :invalid_grant,
-              :unsupported_grant_type,
-              :unauthorized_client
-            ],
-       do: Atom.to_string(error)
-
-  defp error_name(:invalid_grant), do: "invalid_grant"
-  defp error_name(_), do: "invalid_request"
+  defp bounded(_params, _keys), do: {:error, :body}
 
   def json(conn, status, body) do
     conn

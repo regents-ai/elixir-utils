@@ -28,7 +28,8 @@ defmodule RegentAgents.Activity do
     "autolaunch" => "Autolaunch",
     "techtree" => "Techtree",
     "patchbay" => "Patchbay",
-    "keyfleet" => "Keyfleet"
+    "keyfleet" => "Keyfleet",
+    "chainagent" => "Chainagent"
   }
 
   @type day :: %{

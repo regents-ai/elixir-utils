@@ -2,6 +2,22 @@
 
 ## 0.1.0 (unreleased)
 
+- New one-time rule `autolaunch.first_covered_call` 25, at version 1 (Sean, 14 Nov
+  2026). The milestone catalog totals 390.
+- The one-time rules change (Sean, 14 Nov 2026). New, at version 1:
+  `autolaunch.first_launch` 25, `keyfleet.integration.git` 20,
+  `keyfleet.integration.marimo` 20 and `cloak.first_download` 25. At version 2:
+  `autolaunch.first_graduation` 25, `keyfleet.first_membership`,
+  `keyfleet.first_authorized_agent`, `keyfleet.first_message` and
+  `keyfleet.first_vote` 25 each, and `keyfleet.integration.activegraph` 20. Gone:
+  `autolaunch.first_settled_auction`, `keyfleet.first_reveal` and
+  `keyfleet.integration.twigpine`. The milestone catalog totals 365. Daily rules are
+  unchanged.
+- A Points page shows every catalog rule except `template.first_agent_note`, which
+  the catalog marks `:hidden` and which earns as before. `Rules.listed/0` lists the
+  rules a page shows; `Rules.groups/0` groups them by site, in the order Account,
+  Autolaunch, Keyfleet, Patchbay, Cloak, as `[%{site: "Account", rules: [...]}, ...]`.
+  `Rules.tracked/0` still lists the rules this site earns.
 - Points runs in three 30-day seasons and stops by itself after the last (Sean, 13
   November 2026). The count is the program's own, `RegentPoints.Rules.season_count/0`,
   beside the 30-day period; sites set nothing. After `RegentPoints.Rules.ends_at/0`

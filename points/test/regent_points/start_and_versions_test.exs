@@ -180,7 +180,7 @@ defmodule RegentPoints.StartAndVersionsTest do
     assert {:cancel, :not_started} = StartAwards.perform(%Oban.Job{})
   end
 
-  test "the approved list is the one switch for what a site lists and what earns" do
+  test "the approved list is the one switch for what a site earns" do
     assert Enum.map(Rules.tracked(), & &1["id"]) |> Enum.sort() ==
              Enum.sort(@rules -- ["template.first_agent_note"])
 

@@ -9,41 +9,59 @@ defmodule RegentPoints.Rules do
   A rule's id never changes. A changed rule keeps its id and gets the next
   version, so what an account earned under the old version still counts
   against the new one; a new id is only for a new action.
+
+  Each entry ends with `:listed`, shown on a Points page, or `:hidden`: it earns
+  like any other rule, but no page lists it.
   """
   @unit 1_000_000
   @seasons 3
   @milestones [
-    {"account.activated", 1, 25, "Account activated"},
-    {"social.x", 1, 10, "X account linked"},
-    {"social.github", 1, 10, "GitHub account linked"},
-    {"social.farcaster", 1, 10, "Farcaster account linked"},
-    {"agent.activated", 1, 25, "First paired agent"},
-    {"autolaunch.first_graduation", 1, 50, "First Autolaunch graduation"},
-    {"autolaunch.first_settled_auction", 1, 10, "First Autolaunch auction settled"},
-    {"autolaunch.token_staked", 1, 40, "Autolaunch token staked"},
-    {"keyfleet.first_membership", 1, 10, "First Keyfleet membership"},
-    {"keyfleet.first_reveal", 1, 5, "First Keyfleet key revealed"},
-    {"keyfleet.first_authorized_agent", 1, 10, "First agent authorized on Keyfleet"},
-    {"keyfleet.first_message", 1, 5, "First Keyfleet message"},
-    {"keyfleet.first_vote", 1, 10, "First Keyfleet vote"},
-    {"keyfleet.integration.twigpine", 1, 10, "Twigpine used with Keyfleet"},
-    {"keyfleet.integration.activegraph", 1, 10, "ActiveGraph used with Keyfleet"},
-    {"template.first_agent_note", 1, 10, "First note written by your agent"}
+    {"account.activated", 1, 25, "Account activated", :listed},
+    {"social.x", 1, 10, "X account linked", :listed},
+    {"social.github", 1, 10, "GitHub account linked", :listed},
+    {"social.farcaster", 1, 10, "Farcaster account linked", :listed},
+    {"agent.activated", 1, 25, "First paired agent", :listed},
+    {"autolaunch.first_launch", 1, 25, "First Autolaunch launch", :listed},
+    {"autolaunch.first_graduation", 2, 25, "First Autolaunch graduation", :listed},
+    {"autolaunch.first_covered_call", 1, 25, "First Autolaunch covered call", :listed},
+    {"autolaunch.token_staked", 1, 40, "Autolaunch token staked", :listed},
+    {"keyfleet.first_membership", 2, 25, "First Keyfleet membership", :listed},
+    {"keyfleet.first_authorized_agent", 2, 25, "First agent authorized on Keyfleet", :listed},
+    {"keyfleet.first_message", 2, 25, "First Keyfleet message", :listed},
+    {"keyfleet.first_vote", 2, 25, "First Keyfleet vote", :listed},
+    {"keyfleet.integration.git", 1, 20, "Git used with Keyfleet", :listed},
+    {"keyfleet.integration.marimo", 1, 20, "Marimo used with Keyfleet", :listed},
+    {"keyfleet.integration.activegraph", 2, 20, "ActiveGraph used with Keyfleet", :listed},
+    {"cloak.first_download", 1, 25, "First Cloak download", :listed},
+    {"template.first_agent_note", 1, 10, "First note written by your agent", :hidden}
   ]
   @activity [
-    {"autolaunch.auction_created", 1, 20, 1, "day", "Autolaunch auction created"},
-    {"autolaunch.auction_bid", 1, 20, 1, "day", "Autolaunch auction bid"},
-    {"autolaunch.token_traded", 1, 10, 1, "day", "Autolaunch token trade"},
-    {"keyfleet.key_bought", 1, 10, 5, "day", "Keyfleet key bought"},
-    {"patchbay.offer_bid_placed", 1, 5, 10, "day", "Patchbay Offer placed"},
-    {"patchbay.report_published", 1, 10, 1, "day", "Patchbay report published"},
-    {"patchbay.reply_published", 1, 5, 1, "day", "Patchbay reply published"}
+    {"autolaunch.auction_created", 1, 20, 1, "day", "Autolaunch auction created", :listed},
+    {"autolaunch.auction_bid", 1, 20, 1, "day", "Autolaunch auction bid", :listed},
+    {"autolaunch.token_traded", 1, 10, 1, "day", "Autolaunch token trade", :listed},
+    {"keyfleet.key_bought", 1, 10, 5, "day", "Keyfleet key bought", :listed},
+    {"patchbay.offer_bid_placed", 1, 5, 10, "day", "Patchbay Offer placed", :listed},
+    {"patchbay.report_published", 1, 10, 1, "day", "Patchbay report published", :listed},
+    {"patchbay.reply_published", 1, 5, 1, "day", "Patchbay reply published", :listed}
   ]
 
-  @labels Map.new(
-            for({id, _version, _points, label} <- @milestones, do: {id, label}) ++
-              for({id, _version, _points, _count, _period, label} <- @activity, do: {id, label})
-          )
+  @entries for({id, _version, _points, label, shown} <- @milestones, do: {id, label, shown}) ++
+             for(
+               {id, _version, _points, _count, _period, label, shown} <- @activity,
+               do: {id, label, shown}
+             )
+  @labels Map.new(@entries, fn {id, label, _shown} -> {id, label} end)
+  @hidden for {id, _label, :hidden} <- @entries, do: id
+
+  # A Points page's groups, in order, each with the apps (an id's first segment) it holds.
+  @groups [
+    {"Account", ~w(account social agent)},
+    {"Autolaunch", ~w(autolaunch)},
+    {"Keyfleet", ~w(keyfleet)},
+    {"Patchbay", ~w(patchbay)},
+    {"Cloak", ~w(cloak)}
+  ]
+  @site_of Map.new(for {site, apps} <- @groups, app <- apps, do: {app, site})
 
   # One-time rules an account could already meet before the start: they earn at the
   # start, through RegentPoints.StartAwards, without the person doing anything.
@@ -54,12 +72,12 @@ defmodule RegentPoints.Rules do
 
   def catalog do
     milestones =
-      Enum.map(@milestones, fn {id, version, points, _label} ->
+      Enum.map(@milestones, fn {id, version, points, _label, _shown} ->
         rule(id, version, "milestone", points, 1, "lifetime")
       end)
 
     activity =
-      Enum.map(@activity, fn {id, version, points, count, period, _label} ->
+      Enum.map(@activity, fn {id, version, points, count, period, _label, _shown} ->
         rule(id, version, "activity", points, count, period)
       end)
 
@@ -74,10 +92,23 @@ defmodule RegentPoints.Rules do
   def adapter(id), do: config() |> Keyword.get(:adapters, %{}) |> Map.get(id)
 
   @doc """
-  The rules a site's Points page lists: approved and given a source here. The
-  approved list is the one switch; a rule taken off it leaves the page too.
+  The rules this site earns: approved and given a source here. The approved
+  list is the one switch.
   """
   def tracked, do: Enum.filter(catalog(), &enabled?(&1["id"]))
+
+  @doc "The catalog rules a Points page shows: all but those the catalog marks `:hidden`."
+  def listed, do: Enum.reject(catalog(), &(&1["id"] in @hidden))
+
+  @doc """
+  `listed/0` by the site each rule belongs to, in the page's order, as
+  `[%{site: "Account", rules: [...]}, ...]`. The site comes from the id's first
+  segment; every listed rule has one and every site has a listed rule.
+  """
+  def groups do
+    rules = Enum.group_by(listed(), &Map.fetch!(@site_of, app(&1["id"])))
+    for {site, _apps} <- @groups, do: %{site: site, rules: Map.fetch!(rules, site)}
+  end
 
   @doc "The one-time rules whose state from before the start earns at the start."
   def start_rules, do: @start_rules
@@ -157,10 +188,10 @@ defmodule RegentPoints.Rules do
 
   @doc "The apps the daily rules among `rules` come from."
   def daily_apps(rules) do
-    for %{"category" => "activity", "id" => id} <- rules,
-        uniq: true,
-        do: hd(String.split(id, "."))
+    for %{"category" => "activity", "id" => id} <- rules, uniq: true, do: app(id)
   end
+
+  defp app(id), do: hd(String.split(id, "."))
 
   def activity_app?(app), do: app in daily_apps(catalog())
 

@@ -2,7 +2,7 @@ defmodule RegentPrivy.MixProject do
   use Mix.Project
 
   @version "0.2.1"
-  @description "Shared Privy sign-in for Regent Elixir apps: token verification, server calls, the request pair, owners-only pages and the browser sign-in."
+  @description "Shared Privy sign-in for Regent Elixir apps: token verification, the request pair, owners-only pages and the browser sign-in."
 
   def project do
     [
@@ -35,7 +35,6 @@ defmodule RegentPrivy.MixProject do
     [
       {:joken, "~> 2.6"},
       {:jason, "~> 1.4"},
-      {:req, "~> 0.7"},
       {:plug, "~> 1.16"},
       {:phoenix_live_view, "~> 1.1"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},

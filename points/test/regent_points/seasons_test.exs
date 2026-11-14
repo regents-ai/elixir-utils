@@ -249,6 +249,7 @@ defmodule RegentPoints.SeasonsTest do
   defp award(account, at) do
     rule = Enum.find(Rules.catalog(), &(&1["id"] == "patchbay.reply_published"))
     key = "late:#{account}"
+    put_facts(key, account, at)
     RegentPoints.open_account!(%{id: account}, actor: Store.system())
 
     event =

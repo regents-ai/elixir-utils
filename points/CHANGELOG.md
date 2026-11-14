@@ -2,6 +2,15 @@
 
 ## 0.1.0 (unreleased)
 
+- The rule's adapter is asked again, with the same reference, just before an award
+  is written, under the account's lock and inside the award's transaction (14 Nov
+  2026). `{:ok, _}` awards from the facts and rule saved at the first check, as
+  before. `{:error, reason_atom}` writes no entry: the event ends `rejected` with
+  `award_refused`, so the summary no longer counts it as pending, and the refusal
+  is audited in `source_rejections` with the adapter's reason. `{:retry, _}` or an
+  exception rolls the award back and Oban retries, ending `award_failed` after the
+  last attempt. `verify/1` reads only the site's saved records and can be asked
+  more than once. Start awards take the same path.
 - Points runs in three 30-day seasons and stops by itself after the last (Sean, 13
   November 2026). The count is the program's own, `RegentPoints.Rules.season_count/0`,
   beside the 30-day period; sites set nothing. After `RegentPoints.Rules.ends_at/0`

@@ -226,6 +226,7 @@ defmodule RegentPoints.StartAndVersionsTest do
   # Version 2 of a rule pinned on a new event, as intake pins it once the catalog moves on.
   defp award_under(rule, account, key, at, app) do
     facts = facts(account, key, at, %{}, app: app)
+    put_facts(key, facts)
     RegentPoints.open_account!(%{id: account}, actor: Store.system())
 
     event =

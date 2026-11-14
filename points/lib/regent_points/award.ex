@@ -4,6 +4,8 @@ defmodule RegentPoints.Award do
   alias RegentPoints, as: Points
   alias RegentPoints.{Account, Rules, Store}
 
+  @reference [:rule_id, :source_app, :source_kind, :source_event_key]
+
   @impl true
   def run(%{arguments: %{event_id: id}}, _, _) do
     case Store.event(id) do
@@ -18,11 +20,38 @@ defmodule RegentPoints.Award do
           Store.lock_account(event.account_id)
 
           case Store.event(event.id) do
-            %{processing_status: :pending} = event -> award(event)
+            %{processing_status: :pending} = event -> check(event)
             event -> %{id: event.id, status: event.processing_status}
           end
         end)
     end
+  end
+
+  # The source is asked again under the account's lock, in the transaction that
+  # writes the award, so a source refused since intake earns nothing. Its answer only
+  # accepts or refuses: the facts and rule saved at intake decide the award. An
+  # answer it cannot give rolls the transaction back, and Oban retries.
+  defp check(event) do
+    reference = Map.new(@reference, &{to_string(&1), Map.fetch!(event, &1)})
+
+    case Rules.adapter(event.rule_id).verify(reference) do
+      {:ok, _facts} -> award(event)
+      {:error, reason} when is_atom(reason) -> refuse(event, reference, reason)
+      {:retry, reason} -> {:error, reason}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp refuse(event, reference, reason) do
+    Store.reject_source(reference, reason)
+
+    Points.finish_event!(
+      event,
+      %{processing_status: :rejected, reason_code: "award_refused"},
+      actor: Store.system()
+    )
+
+    %{id: event.id, status: :rejected}
   end
 
   defp award(event) do

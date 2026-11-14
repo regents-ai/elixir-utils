@@ -27,6 +27,7 @@ defmodule RegentOAuth.ClientAssertion do
   inside the token transaction and verifies RSA only.
   """
 
+  import RegentOAuth.Refusal, only: [check: 2]
   alias Boruta.Ecto.{Client, Token}
 
   @type_urn "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
@@ -45,68 +46,108 @@ defmodule RegentOAuth.ClientAssertion do
   def subject(assertion) when is_binary(assertion) and byte_size(assertion) in 1..4096 do
     case Joken.peek_claims(assertion) do
       {:ok, %{"sub" => sub}} when is_binary(sub) -> {:ok, sub}
-      _ -> :error
+      _ -> {:error, :assertion_subject}
     end
   end
 
-  def subject(_assertion), do: :error
+  def subject(_assertion), do: {:error, :assertion_subject}
 
   @doc """
   Checks a request's client authentication for the client row `client_id`,
   which the request named as `name` (its `client_id` or its assertion's
   `sub`): `:ok`, `{:error, :unavailable}` when the app's keys cannot be read
-  just now, or `{:error, :invalid_client}`.
+  just now, or `{:error, {:invalid_client, reason}}` naming the check that
+  refused (`RegentOAuth.Refusal`).
   """
   def authenticate(client_id, name, params) do
+    case authentication(client_id, name, params) do
+      {:error, reason} when reason != :unavailable -> {:error, {:invalid_client, reason}}
+      result -> result
+    end
+  end
+
+  defp authentication(client_id, name, params) do
     case RegentOAuth.repo().get(Client, client_id, log: false) do
       %Client{token_endpoint_auth_methods: []} ->
-        if Map.has_key?(params, "client_assertion") or
-             Map.has_key?(params, "client_assertion_type"),
-           do: {:error, :invalid_client},
-           else: :ok
+        check(
+          not Map.has_key?(params, "client_assertion") and
+            not Map.has_key?(params, "client_assertion_type"),
+          :assertion_not_expected
+        )
 
       %Client{token_endpoint_auth_methods: ["private_key_jwt"], jwks_uri: "https://" <> _ = keys} ->
-        with @type_urn <- params["client_assertion_type"],
-             assertion when is_binary(assertion) and byte_size(assertion) in 1..4096 <-
-               params["client_assertion"] do
-          verify(assertion, client_id, name, keys)
-        else
-          _ -> {:error, :invalid_client}
-        end
+        assertion = params["client_assertion"]
 
-      _ ->
-        {:error, :invalid_client}
+        with :ok <- check(params["client_assertion_type"] == @type_urn, :assertion_type),
+             :ok <-
+               check(
+                 is_binary(assertion) and byte_size(assertion) in 1..4096,
+                 :assertion_missing
+               ),
+             do: verify(assertion, client_id, name, keys)
+
+      nil ->
+        {:error, :unknown_client}
+
+      %Client{} ->
+        {:error, :client_method}
     end
   end
 
   defp verify(assertion, client_id, name, keys) do
-    with {:ok, %{"alg" => alg} = header} when alg in @algorithms <- Joken.peek_header(assertion),
-         false <- Map.has_key?(header, "crit"),
-         kid when is_nil(kid) or is_binary(kid) <- header["kid"],
-         {:ok, %{}} <- Joken.peek_claims(assertion),
-         {:ok, key} <- RegentOAuth.ClientKeys.key(keys, kid, alg),
-         {:ok, claims} <- Joken.verify(assertion, Joken.Signer.create(alg, key)),
+    with {:ok, alg, header} <- header(assertion),
+         :ok <- check(not Map.has_key?(header, "crit"), :assertion_crit),
+         kid = header["kid"],
+         :ok <- check(is_nil(kid) or is_binary(kid), :assertion_kid),
+         :ok <- check(match?({:ok, %{}}, Joken.peek_claims(assertion)), :assertion_claims),
+         {:ok, key} <- key(keys, kid, alg),
+         {:ok, claims} <- signed(assertion, alg, key),
          {:ok, jti, exp} <- claims(claims, name),
-         :ok <- spend(client_id, jti, exp) do
-      :ok
-    else
+         do: spend(client_id, jti, exp)
+  end
+
+  defp header(assertion) do
+    case Joken.peek_header(assertion) do
+      {:ok, %{"alg" => alg} = header} when alg in @algorithms -> {:ok, alg, header}
+      {:ok, %{}} -> {:error, :assertion_alg}
+      _ -> {:error, :assertion_header}
+    end
+  end
+
+  defp key(keys, kid, alg) do
+    case RegentOAuth.ClientKeys.key(keys, kid, alg) do
+      {:ok, key} -> {:ok, key}
       :unavailable -> {:error, :unavailable}
-      _ -> {:error, :invalid_client}
+      :error -> {:error, :assertion_key}
+    end
+  end
+
+  defp signed(assertion, alg, key) do
+    case Joken.verify(assertion, Joken.Signer.create(alg, key)) do
+      {:ok, claims} -> {:ok, claims}
+      _ -> {:error, :assertion_signature}
     end
   end
 
   defp claims(claims, name) do
     now = System.system_time(:second)
+    exp = claims["exp"]
+    jti = claims["jti"]
 
-    with true <- claims["iss"] == name and claims["sub"] == name,
-         true <- audience?(claims["aud"]),
-         exp when is_number(exp) and exp > now and exp <= now + @max_lifetime <- claims["exp"],
-         true <- not_ahead?(claims["nbf"], now) and not_ahead?(claims["iat"], now),
-         jti when is_binary(jti) and byte_size(jti) in 1..256 <- claims["jti"] do
-      {:ok, jti, trunc(exp)}
-    else
-      _ -> :error
-    end
+    with :ok <- check(claims["iss"] == name and claims["sub"] == name, :assertion_client),
+         :ok <- check(audience?(claims["aud"]), :assertion_audience),
+         :ok <-
+           check(
+             is_number(exp) and exp > now and exp <= now + @max_lifetime,
+             :assertion_expiry
+           ),
+         :ok <-
+           check(
+             not_ahead?(claims["nbf"], now) and not_ahead?(claims["iat"], now),
+             :assertion_not_yet_valid
+           ),
+         :ok <- check(is_binary(jti) and byte_size(jti) in 1..256, :assertion_jti),
+         do: {:ok, jti, trunc(exp)}
   end
 
   # One value, compared as the exact string (RFC 3986 section 6.2.1).
@@ -137,7 +178,7 @@ defmodule RegentOAuth.ClientAssertion do
 
     case RegentOAuth.repo().insert_all(Token, [row], on_conflict: :nothing, log: false) do
       {1, _} -> :ok
-      {0, _} -> :error
+      {0, _} -> {:error, :assertion_replayed}
     end
   end
 end

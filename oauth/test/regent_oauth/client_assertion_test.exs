@@ -4,6 +4,7 @@ defmodule RegentOAuth.ClientAssertionTest do
   # own host.
   use RegentOAuth.Case
 
+  import ExUnit.CaptureLog
   import Plug.Conn
   import Plug.Test
 
@@ -167,8 +168,19 @@ defmodule RegentOAuth.ClientAssertionTest do
     )
   end
 
-  defp invalid_client?(conn),
-    do: conn.status == 401 and Jason.decode!(conn.resp_body) == %{"error" => "invalid_client"}
+  # A 401 `invalid_client` with one description whatever the reason: the
+  # reason is only in the request's one warning.
+  defp invalid_client(request) do
+    {conn, log} = with_log(request)
+    assert conn.status == 401
+
+    assert %{"error" => "invalid_client", "error_description" => description} =
+             Jason.decode!(conn.resp_body)
+
+    assert is_binary(description)
+    assert [[_line, reason]] = Regex.scan(~r/oauth refused endpoint=\w+ reason=(\w+)/, log)
+    {description, reason}
+  end
 
   test "a document that signs with a key at its own host is kept with its method and keys" do
     assert consent("did:privy:sol", @app).status == 200
@@ -221,7 +233,11 @@ defmodule RegentOAuth.ClientAssertionTest do
     refute_received {:read, @keys}
 
     # Revocation authenticates the same way.
-    assert invalid_client?(Flow.post(:revoke, %{"client_id" => @app, "token" => access}))
+    assert {_, "assertion_type"} =
+             invalid_client(fn ->
+               Flow.post(:revoke, %{"client_id" => @app, "token" => access})
+             end)
+
     assert {:ok, _} = RegentOAuth.verify(access, RegentOAuth.resource())
 
     revoked =
@@ -254,40 +270,47 @@ defmodule RegentOAuth.ClientAssertionTest do
     raw = &Base.url_encode64(Jason.encode!(&1), padding: false)
 
     refused = [
-      no_assertion: %{},
-      pkce_alone_with_type: %{"client_assertion_type" => @urn},
-      wrong_type: %{
+      assertion_type: %{},
+      assertion_missing: %{"client_assertion_type" => @urn},
+      assertion_type: %{
         "client_assertion_type" => "urn:ietf:params:oauth:client-assertion-type:saml2-bearer",
         "client_assertion" => sign(rsa, claims())
       },
-      wrong_iss:
+      assertion_client:
         auth(sign(rsa, claims(%{"iss" => "https://chatgpt.com/oauth/other/client.json"}))),
-      wrong_sub:
+      assertion_client:
         auth(sign(rsa, claims(%{"sub" => "https://chatgpt.com/oauth/other/client.json"}))),
-      other_server: auth(sign(rsa, claims(%{"aud" => "https://elsewhere.example"}))),
-      issuer_prefix: auth(sign(rsa, claims(%{"aud" => RegentOAuth.issuer() <> ".evil.example"}))),
-      two_audiences:
+      assertion_audience: auth(sign(rsa, claims(%{"aud" => "https://elsewhere.example"}))),
+      assertion_audience:
+        auth(sign(rsa, claims(%{"aud" => RegentOAuth.issuer() <> ".evil.example"}))),
+      assertion_audience:
         auth(sign(rsa, claims(%{"aud" => [RegentOAuth.issuer(), "https://x.example"]}))),
-      expired: auth(sign(rsa, claims(%{"exp" => now - 1}))),
-      too_far: auth(sign(rsa, claims(%{"exp" => now + 7_200}))),
-      no_exp: auth(sign(rsa, claims(%{"exp" => nil}))),
-      not_yet: auth(sign(rsa, claims(%{"nbf" => now + 600}))),
-      no_jti: auth(sign(rsa, claims(%{"jti" => nil}))),
-      wrong_key: auth(sign(other, claims())),
-      hs256_with_public_key:
+      assertion_expiry: auth(sign(rsa, claims(%{"exp" => now - 1}))),
+      assertion_expiry: auth(sign(rsa, claims(%{"exp" => now + 7_200}))),
+      assertion_expiry: auth(sign(rsa, claims(%{"exp" => nil}))),
+      assertion_not_yet_valid: auth(sign(rsa, claims(%{"nbf" => now + 600}))),
+      assertion_jti: auth(sign(rsa, claims(%{"jti" => nil}))),
+      assertion_signature: auth(sign(other, claims())),
+      assertion_alg:
         auth(
           sign(
             %{private: JOSE.JWK.from_oct(public_pem), alg: "HS256", kid: "rsa-1"},
             claims()
           )
         ),
-      alg_none: auth(raw.(%{"alg" => "none", "kid" => "rsa-1"}) <> "." <> raw.(claims()) <> "."),
-      not_a_jwt: auth("not.a.jwt")
+      assertion_alg:
+        auth(raw.(%{"alg" => "none", "kid" => "rsa-1"}) <> "." <> raw.(claims()) <> "."),
+      assertion_header: auth("not.a.jwt")
     ]
 
-    for {name, extra} <- refused do
-      assert invalid_client?(exchange(code, extra)), "#{name}"
-    end
+    descriptions =
+      for {reason, extra} <- refused do
+        {description, logged} = invalid_client(fn -> exchange(code, extra) end)
+        assert logged == Atom.to_string(reason)
+        description
+      end
+
+    assert [_one] = Enum.uniq(descriptions)
 
     # Nothing was spent: the same code still works with a good assertion.
     assert exchange(code, auth(sign(rsa, claims()))).status == 200
@@ -302,8 +325,11 @@ defmodule RegentOAuth.ClientAssertionTest do
     assert token.status == 200
     %{"refresh_token" => refresh_token} = Jason.decode!(token.resp_body)
 
-    assert invalid_client?(refresh(refresh_token, auth(assertion)))
-    assert invalid_client?(exchange(code!("did:privy:luna"), auth(assertion)))
+    assert {_, "assertion_replayed"} =
+             invalid_client(fn -> refresh(refresh_token, auth(assertion)) end)
+
+    code = code!("did:privy:luna")
+    assert {_, "assertion_replayed"} = invalid_client(fn -> exchange(code, auth(assertion)) end)
     assert refresh(refresh_token, auth(sign(rsa, claims()))).status == 200
   end
 
@@ -335,9 +361,12 @@ defmodule RegentOAuth.ClientAssertionTest do
     assert_received {:read, @keys}
 
     # With two keys published, an assertion must say which.
-    assert invalid_client?(
-             exchange(code!("did:privy:sol"), auth(sign(rsa, claims(), %{"kid" => nil})))
-           )
+    code = code!("did:privy:sol")
+
+    assert {_, "assertion_key"} =
+             invalid_client(fn ->
+               exchange(code, auth(sign(rsa, claims(), %{"kid" => nil})))
+             end)
   end
 
   test "an unknown key id reads the keys again at most once a minute", %{rsa: rsa} do
@@ -345,11 +374,17 @@ defmodule RegentOAuth.ClientAssertionTest do
     assert_received {:read, @keys}
 
     code = code!("did:privy:luna")
-    assert invalid_client?(exchange(code, auth(sign(%{rsa | kid: "nobody"}, claims()))))
+
+    assert {_, "assertion_key"} =
+             invalid_client(fn ->
+               exchange(code, auth(sign(%{rsa | kid: "nobody"}, claims())))
+             end)
+
     assert_received {:read, @keys}
 
     for kid <- ["nobody-2", "nobody-3"] do
-      assert invalid_client?(exchange(code, auth(sign(%{rsa | kid: kid}, claims()))))
+      assert {_, "assertion_key"} =
+               invalid_client(fn -> exchange(code, auth(sign(%{rsa | kid: kid}, claims()))) end)
     end
 
     refute_received {:read, @keys}
@@ -362,9 +397,10 @@ defmodule RegentOAuth.ClientAssertionTest do
     Documents.serve(@keys, {:error, :timeout})
     code = code!("did:privy:sol")
 
-    unavailable = exchange(code, auth(sign(rsa, claims())))
+    {unavailable, log} = with_log(fn -> exchange(code, auth(sign(rsa, claims()))) end)
     assert unavailable.status == 503
-    assert Jason.decode!(unavailable.resp_body) == %{"error" => "temporarily_unavailable"}
+    assert log =~ "oauth refused endpoint=token reason=unavailable"
+    assert %{"error" => "temporarily_unavailable"} = Jason.decode!(unavailable.resp_body)
   end
 
   test "an app that authenticates with nothing may not send an assertion", %{rsa: rsa} do
@@ -389,25 +425,31 @@ defmodule RegentOAuth.ClientAssertionTest do
     }
 
     assertion = sign(rsa, claims(%{}, claude))
-    assert invalid_client?(Flow.post(:token, Map.merge(params, auth(assertion))))
-    assert invalid_client?(Flow.post(:token, Map.put(params, "client_assertion_type", @urn)))
+
+    for extra <- [auth(assertion), %{"client_assertion_type" => @urn}] do
+      assert {_, "assertion_not_expected"} =
+               invalid_client(fn -> Flow.post(:token, Map.merge(params, extra)) end)
+    end
+
     assert Flow.post(:token, params).status == 200
   end
 
   test "documents that sign are refused unless their keys are at their own host and allowed" do
-    for {change, changes} <- [
-          keys_elsewhere: %{"jwks_uri" => "https://keys.example/jwks.json"},
-          keys_on_another_port: %{"jwks_uri" => "https://chatgpt.com:8443/oauth/jwks.json"},
-          keys_over_http: %{"jwks_uri" => "http://chatgpt.com/oauth/jwks.json"},
-          no_keys: %{"jwks_uri" => nil},
-          keys_written_in: %{"jwks" => %{"keys" => []}},
-          disallowed_alg: %{"token_endpoint_auth_signing_alg" => "PS256"},
-          shared_secret: %{"token_endpoint_auth_method" => "client_secret_jwt"}
+    for {reason, changes} <- [
+          document_jwks_uri: %{"jwks_uri" => "https://keys.example/jwks.json"},
+          document_jwks_uri: %{"jwks_uri" => "https://chatgpt.com:8443/oauth/jwks.json"},
+          document_jwks_uri: %{"jwks_uri" => "http://chatgpt.com/oauth/jwks.json"},
+          document_jwks_uri: %{"jwks_uri" => nil},
+          document_jwks: %{"jwks" => %{"keys" => []}},
+          document_signing_alg: %{"token_endpoint_auth_signing_alg" => "PS256"},
+          document_auth_method: %{"token_endpoint_auth_method" => "client_secret_jwt"}
         ] do
       body = @app |> document(@keys) |> Map.fetch!(:body) |> Jason.decode!() |> Map.merge(changes)
       body = Map.reject(body, fn {_, value} -> is_nil(value) end)
       Documents.serve(@app, %{document(@app, @keys) | body: Jason.encode!(body)})
-      assert consent("did:privy:sol", @app).status == 400, "#{change}"
+      {refused, log} = with_log(fn -> consent("did:privy:sol", @app) end)
+      assert refused.status == 400, "#{reason}"
+      assert log =~ "oauth refused endpoint=authorize reason=#{reason}\n"
     end
 
     refute_received {:read, @keys}

@@ -58,6 +58,20 @@ pipeline. All credential-bearing routes disable request logging. Add `code`,
 `client_assertion` and `id_token` to Phoenix's filtered parameter names. Consent expires in ten minutes and is bound
 to the account that saw it. App names are escaped and redirect URIs match exactly.
 
+Every refusal names its reason (`RegentOAuth.Refusal`). A JSON refusal keeps its
+status and `error` and adds a fixed `error_description` for the check that
+refused; a refusal page or redirect is unchanged. Each refusal logs one warning
+with the endpoint and the reason only, such as `oauth refused endpoint=token
+reason=resource`, never a value from the request. A code or refresh token that
+fails is answered `invalid_grant` with one description whatever the reason, and
+only the warning names it: `missing_credential`, `unknown_credential`,
+`other_client`, `revoked`, `expired`, `not_bound`, `inactive_subject`,
+`refresh_used_within_grace`, `refresh_reuse_revoked` (the connection is
+disconnected) or Boruta's own error name. A client that fails authentication is
+answered `invalid_client` the same way, and only the warning names the check,
+such as `assertion_audience` or `assertion_replayed`. Any refusal Boruta makes
+is logged by its error name, which no reason of the provider's shares.
+
 Consent pages load the site's existing `/assets/js/app.css`, shared controls and
 fonts. Set `brand: "patchbay"` for Patchbay; the template uses `brand: "platform"`.
 The site's assigned light/dark theme is retained. No new script is loaded. The

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Refusals name their reason. Every JSON refusal from registration, token
+  exchange, revocation, consent and approval keeps its status and `error` and
+  adds a fixed `error_description` for the check that refused; refusal pages
+  and redirects are unchanged. Each refusal logs one warning with the endpoint
+  and the reason only (`oauth refused endpoint=token reason=resource`), never a
+  value from the request. An `invalid_grant` answer has one description
+  whatever the reason, and so has an `invalid_client` answer to a client
+  assertion; their warning names the reason, and a refusal Boruta made is
+  logged by Boruta's error name. A published identity's document read
+  (`RegentOAuth.ClientDocuments.current/1`) answers `{:error, reason}`, and
+  `{:error, :unavailable}` when its address does not answer just now; its
+  telemetry is unchanged. `RegentOAuth.Protocol.authorize_params?/1` is now
+  `authorize_params/1`, answering `:ok` or `{:error, reason}`.
 - A published identity may sign its requests with its own key: a document
   whose `token_endpoint_auth_method` is `private_key_jwt`, with a `jwks_uri` on
   the document's own host (ChatGPT's shape:

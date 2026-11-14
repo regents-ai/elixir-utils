@@ -47,7 +47,6 @@ features.
 | [`format`](format/README.md) | `regent_format` | Null-safe display values, `0x` address and hash truncation, decimal and currency rendering, timestamps, identity monograms. |
 | [`http`](http/README.md) | `regent_http` | Shared Req client conventions: default timeouts, request telemetry, and secret redaction in formatted errors. |
 | [`jev`](jev/README.md) | `regent_jev` | Typed choice questions to Jev, the decision model on OpenRouter, each answer with the tokens it used and its cost in US dollars. |
-| [`near_intents`](near_intents/README.md) | `regent_near_intents` | NEAR Intents 1Click for one route, NEAR to USDC on Base: the supported assets, a quote with its deposit address, and the swap's status. |
 | [`openai`](openai/README.md) | `regent_openai` | OpenAI text and screenshot replies, push-to-talk transcription and speech, each with the tokens it used and its cost in US dollars. |
 | [`sprites`](sprites/README.md) | `regent_sprites` | Fly Sprites machines: create, look up and delete them, checkpoint and restore their disks, run commands, and move files in and out. |
 | [`points`](points/README.md) | `regent_points` | Shared Points ledger, allowances, NFT bonuses and corrections; hosts supply verified source facts. |
@@ -68,7 +67,6 @@ features.
 | `regent_format` | not used yet; planned for the product apps |
 | `regent_http` | not used yet; planned for the product apps |
 | `regent_jev` | ash-template (planned for patchbay) |
-| `regent_near_intents` | not used yet; planned for keyfleet, patchbay and autolaunch |
 | `regent_openai` | not used yet; planned for patchbay |
 | `regent_sprites` | not used yet; planned for regents and techtree |
 | `regent_points` | ash-template and regents (both in progress); earning disabled |
@@ -96,9 +94,6 @@ needs to check what a sent transaction did.
 
 Use `regent_jev` when a product needs a model to pick one of a fixed set of answers about some
 content (a label, a kind, a next step) and needs to know what each call cost.
-
-Use `regent_near_intents` when a product lets someone fund a Base USDC wallet it already knows
-by sending NEAR, and needs the quote, the deposit address and the swap's status.
 
 Use `regent_openai` when a product asks an OpenAI model for a reply, a transcript or speech and
 needs to know what each call cost.
@@ -156,7 +151,6 @@ These must pass before a change is proposed. Run the one for the package you tou
 | `format` | `mix check` |
 | `http` | `mix check` |
 | `jev` | `mix check` |
-| `near_intents` | `mix check` |
 | `openai` | `mix check` |
 | `privy` | `mix check` |
 | `sprites` | `mix check` |
@@ -180,7 +174,6 @@ for d in \
   format \
   http \
   jev \
-  near_intents \
   openai \
   privy \
   sprites \

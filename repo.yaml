@@ -8,7 +8,6 @@ owns:
   - anthropic_calls
   - markdown_blog_catalogs
   - ash_lint_checks
-  - regent_credits_ledger
   - regent_points_ledger
   - chain_wallet_steps
   - mcp_events_helpers
@@ -16,6 +15,7 @@ owns:
   - display_formatting
   - http_client_conventions
   - jev_decisions
+  - near_intents_funding
   - openai_calls
   - privy_token_verification
   - sprite_machines
@@ -42,8 +42,6 @@ code_map:
     owns: ash_lint_checks
   - path: chain
     owns: chain_wallet_steps
-  - path: credits
-    owns: regent_credits_ledger
   - path: ens
     owns: ens_library
   - path: format
@@ -52,6 +50,8 @@ code_map:
     owns: http_client_conventions
   - path: jev
     owns: jev_decisions
+  - path: near_intents
+    owns: near_intents_funding
   - path: mcp_events
     owns: mcp_events_helpers
   - path: openai
@@ -82,8 +82,6 @@ acceptance_commands:
     command: mix check
   - cwd: elixir-utils/chain
     command: mix check
-  - cwd: elixir-utils/credits
-    command: mix check
   - cwd: elixir-utils/ens
     command: mix check
   - cwd: elixir-utils/format
@@ -91,6 +89,8 @@ acceptance_commands:
   - cwd: elixir-utils/http
     command: mix check
   - cwd: elixir-utils/jev
+    command: mix check
+  - cwd: elixir-utils/near_intents
     command: mix check
   - cwd: elixir-utils/mcp_events
     command: mix check

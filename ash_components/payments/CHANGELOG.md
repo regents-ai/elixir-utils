@@ -2,6 +2,14 @@
 
 ## 0.1.0 (unreleased)
 
+- A receipt no longer has `paid_with`: every payment is in USDC, so it said
+  nothing. The column stays, with the receipts already written, until a later
+  change drops it. Migration `20261112180000_receipts_paid_with_default` gives it
+  a database default of `"usdc"`, so every new receipt still meets the
+  `paid_with_names_how` check: each names the wallet that paid, the chain, the
+  asset and the facilitator. Apply that migration before any site runs this
+  version; until it is applied a new receipt cannot be saved.
+
 - Payments are in USDC on Base only; Regent Credits no longer pay for anything.
   `Purchase.pay_with_credits/4`, the `{:credits_refused, intent, words}` answer,
   `RegentPayments.credits_pay_to?/1` and `config :regent_payments, credits_pay_to:`

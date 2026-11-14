@@ -27,48 +27,45 @@ sign requests, publish, deploy, run migrations or contact third parties as a che
    client, and deployed service. Runtime support is a separate fact. Never mark a
    source-only fix live, or a listed WebMCP tool successfully executed.
 
-Use [the surface map](references/surface-map.md) to locate the owners and generators.
-Shared behavior lands in the library and ash-template first; products adopt the
-template. Regents is one consumer, not the baseline.
+[The surface map](references/surface-map.md) locates owners and generators. Shared
+behavior lands in the library and ash-template first; products adopt the template.
+Regents is one consumer, not the baseline.
 
 ## Find all affected surfaces
 
-Use the selected revision's complete file tree and exact base/target change metadata
-through the host's repository tools. Initially request path/status metadata only,
-without patch content; request patches only for safe paths selected after exclusions. A saved inventory is dated evidence, not a substitute for
-that tree. Enumerate paths using tree metadata without rename/copy similarity
-detection; those algorithms can read blobs before exclusions. List paths before selecting files to read; do not run a repository program,
-hook or generator to discover guidance. This package deliberately has no inventory
-executable and requires no Python runtime for hosted review.
+Discovery reads the repository; it never runs it. The review host supplies the
+revision-aware inspection, and this skill ships no scanner, no inventory executable and
+no local Git recipe on purpose; hosted review needs no Python runtime.
 
-Use trusted, revision-aware repository inspection supplied by the review host.
-It must enumerate all paths and entry types, including changed dependency pins and
-submodule entries, without executing repository programs, loading excluded content,
-fetching missing objects, or changing an active checkout/index. This Skill supplies
-no local Git execution recipe; tool safety belongs to the host. If those guarantees
-are unavailable, record the affected coverage as blocked instead of improvising a
-scanner or running repository-configured commands. Keep staged/unstaged local work
-separate from committed evidence; inspect it only through equally safe host tools.
-Missing objects and unavailable repositories remain explicit coverage gaps.
-
-Use the surface map to select affected public source paths from both BASE and TARGET.
-Read deleted content and old names at BASE, and current/new content at TARGET, using
-the host’s revision-aware tools. Apply the same exclusions to both revisions before
-content searches or reads. Never search the whole tree before excluding sensitive
-paths. Use `rg` only for a separately labelled working-tree review, or after verifying
-the selected files match the requested revision with no local edits; it cannot search
-another revision. Search changed identifiers and old/new words. Never read `.env*`
-files except `.env.example`. Exclude private settings, credential/key stores, runtime
-logs and session data. Reject filesystem links before working-tree reads, including linked parent
-directories; record them as uninspected boundaries. Inspect unusual or ambiguous paths deliberately; a filename search is not a
-secret detector or proof of complete coverage.
-
-Follow callers, shared pins, route renderers, generators, copy buttons and packaged
-consumers. Apply [the impact checklist](references/impact-checklist.md), updating the
-review's coverage table when the layout changes. Include newly added and removed
-surfaces. Semantic changes often have no matching old string: inspect the owning UI
-and tool descriptions even if text search finds nothing. Record the full repository
-identity and revision so same-named checkouts cannot be confused.
+1. **Paths first.** Take the complete file tree of the selected revision and the exact
+   base and target change metadata: paths, entry types and statuses only, including
+   changed dependency pins and submodule entries, with no patch content and no rename
+   or copy detection (similarity detection reads file contents before any exclusion). A
+   saved inventory is dated evidence, not a substitute for that tree.
+2. **Exclude, then read.** Apply the same exclusions to BASE and TARGET before any
+   content search or read: `.env*` except `.env.example`, private settings, credential
+   and key stores, runtime logs and session data. Never search the whole tree first. In
+   a working tree, reject filesystem links, linked parent directories included, and
+   record them as uninspected. A filename search is not a secret detector: inspect
+   unusual or ambiguous paths deliberately.
+3. **Select with [the surface map](references/surface-map.md)**, from both revisions:
+   deleted content and old names at BASE, current and new content at TARGET. Ask for
+   patches only on the safe paths selected. Search changed identifiers and both the
+   old and the new words.
+4. **Never run a repository program, hook or generator to discover guidance**, fetch
+   missing objects, or change an active checkout or index. Where the host cannot give
+   these guarantees, record that coverage as blocked; do not improvise a scanner.
+   Missing objects and unavailable repositories are explicit coverage gaps.
+5. **Keep local work apart.** Staged and unstaged edits are separate from committed
+   evidence and are read only through equally safe tools. `rg` searches a working tree,
+   not a revision: use it for a review labelled as working-tree, or after confirming
+   the selected files match the requested revision with no local edits.
+6. **Follow the chain** through callers, shared pins, route renderers, generators, copy
+   buttons and packaged consumers. Apply [the impact checklist](references/impact-checklist.md)
+   and update the coverage table when the layout changes. Include added and removed
+   surfaces. A change in meaning often has no matching old string: inspect the owning
+   UI and tool descriptions even when a text search finds nothing. Record the full
+   repository identity and revision so same-named checkouts cannot be confused.
 
 Cover these classes, recording a reason when unaffected:
 

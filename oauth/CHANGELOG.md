@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- A published identity may sign its requests with its own key: a document
+  whose `token_endpoint_auth_method` is `private_key_jwt`, with a `jwks_uri` on
+  the document's own host (ChatGPT's shape:
+  `https://chatgpt.com/oauth/<id>/client.json` with
+  `https://chatgpt.com/oauth/jwks.json`), is kept and recorded with that method
+  and address on its client row. Such an app sends a `client_assertion` with
+  every token and revocation request (`RegentOAuth.ClientAssertion`): RS256 or
+  ES256 by the key its `kid` names, `iss` and `sub` its `client_id`, `aud` this
+  server's issuer or token address as the only value, `exp` at most an hour
+  away, and a `jti` spent once as an `oauth_tokens` row of type
+  `client_assertion`. A missing or failing assertion is `invalid_client` (401);
+  a public client that sends one is refused too; PKCE stays required. Keys are
+  read with `RegentHttp.Public` (`RegentOAuth.ClientKeys`), kept five minutes in
+  Boruta's cache and read again once for an unknown `kid`, at most once a
+  minute per address. Discovery lists `none` and `private_key_jwt` for the token
+  and revocation addresses with the algorithms RS256 and ES256, and a token or
+  revocation request may name its app by the assertion alone. A document with
+  inline `jwks`, keys on another host or another method is refused. No
+  migration; the rows use columns version 1 already made.
 - Code exchange, refresh and disconnect lock one person's connection to one app
   (`RegentOAuth.lock_connection/2`, a transaction-scoped advisory lock), no longer
   the app's client row. Every person's Claude connection is one client row (its

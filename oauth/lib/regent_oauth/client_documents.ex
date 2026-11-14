@@ -6,11 +6,15 @@ defmodule RegentOAuth.ClientDocuments do
   `https://claude.ai/oauth/mcp-oauth-client-metadata`.
 
   The document is read from its address, never from the request, and checked:
-  its `client_id` is exactly the address, it is a public client (`none`), it can
-  use the authorization code grant, and only its HTTPS callbacks on the
-  address's own host are kept. It is then recorded as an ordinary public client
-  row, with this table naming the address it came from, so codes, tokens and
-  Connected apps work as for any other app.
+  its `client_id` is exactly the address, it can use the authorization code
+  grant, and only its HTTPS callbacks on the address's own host are kept. Its
+  `token_endpoint_auth_method` is `none` (a public client, such as Claude's) or
+  `private_key_jwt` with a `jwks_uri` on the address's own host (ChatGPT's
+  shape), whose signed assertions `RegentOAuth.ClientAssertion` checks on every
+  token request; every other method, a secret and inline `jwks` are refused
+  (draft-02 sections 4.1 and 8.2). It is then recorded as an ordinary client
+  row carrying that method and `jwks_uri`, with this table naming the address
+  it came from, so codes, tokens and Connected apps work as for any other app.
 
   An address is resolved only through this table and a registered client id
   only through registration (`RegentOAuth.Protocol`): neither is ever taken for
@@ -120,19 +124,45 @@ defmodule RegentOAuth.ClientDocuments do
          true <- document["client_id"] == url,
          false <- Map.has_key?(document, "client_secret"),
          false <- Map.has_key?(document, "client_secret_expires_at"),
-         "none" <- document["token_endpoint_auth_method"],
+         {:ok, authentication} <- authentication(document, host),
          true <- includes?(document, "grant_types", "authorization_code"),
          true <- includes?(document, "response_types", "code"),
          uris when is_list(uris) and length(uris) in 1..10 <- document["redirect_uris"],
          [_ | _] = kept <- uris |> Enum.filter(&own_callback?(&1, host)) |> Enum.uniq(),
          {:ok, name} <- name(document["client_name"], host) do
-      {:ok, %{name: name, redirect_uris: kept}}
+      {:ok, Map.merge(authentication, %{name: name, redirect_uris: kept})}
     else
       _ -> :error
     end
   end
 
   defp validate(_url, _response), do: :error
+
+  # How the app authenticates at the token address: nothing, or an assertion
+  # signed with a key it publishes at `jwks_uri` on the address's own host, the
+  # same rule as its callbacks. Keys written into the document (`jwks`) are not
+  # taken; a document naming a signing algorithm names one this server allows.
+  defp authentication(%{"token_endpoint_auth_method" => "none"}, _host),
+    do: {:ok, %{token_endpoint_auth_methods: [], jwks_uri: nil}}
+
+  defp authentication(
+         %{"token_endpoint_auth_method" => "private_key_jwt", "jwks_uri" => keys} = document,
+         host
+       ) do
+    if not Map.has_key?(document, "jwks") and own_keys?(keys, host) and
+         document["token_endpoint_auth_signing_alg"] in [
+           nil | RegentOAuth.ClientAssertion.algorithms()
+         ],
+       do: {:ok, %{token_endpoint_auth_methods: ["private_key_jwt"], jwks_uri: keys}},
+       else: :error
+  end
+
+  defp authentication(_document, _host), do: :error
+
+  defp own_keys?(keys, host) do
+    RegentHttp.Public.valid_url?(keys) and
+      match?(%URI{scheme: "https", host: ^host, port: 443}, URI.parse(keys))
+  end
 
   # A document leaving these out means RFC 7591's defaults: the code grant and
   # the code response type.
@@ -221,15 +251,16 @@ defmodule RegentOAuth.ClientDocuments do
               |> RegentOAuth.repo().get!(id, log: false)
               |> RegentOAuth.repo().preload(:authorized_scopes, log: false)
 
-            # A read again takes the document's name and callbacks only. The app
-            # keeps the scopes it holds: Boruta replaces the scope list it is
-            # given, and only a site's migration adds scopes
-            # (`RegentOAuth.Migration.ClientScopes`).
-            client_attrs = %{
-              name: attrs.name,
-              redirect_uris: attrs.redirect_uris,
-              authorized_scopes: Enum.map(client.authorized_scopes, &%{id: &1.id})
-            }
+            # A read again takes the document's name, callbacks and how it
+            # authenticates. The app keeps the scopes it holds: Boruta replaces
+            # the scope list it is given, and only a site's migration adds
+            # scopes (`RegentOAuth.Migration.ClientScopes`).
+            client_attrs =
+              Map.put(
+                attrs,
+                :authorized_scopes,
+                Enum.map(client.authorized_scopes, &%{id: &1.id})
+              )
 
             case Boruta.Ecto.Admin.Clients.update_client(client, client_attrs) do
               {:ok, _client} -> :ok
@@ -243,10 +274,14 @@ defmodule RegentOAuth.ClientDocuments do
             id
 
           nil ->
+            # Boruta checks no secret for the row, as for any public client: an
+            # app that signs its requests is checked by
+            # `RegentOAuth.ClientAssertion` before Boruta sees them.
             client =
-              case Boruta.Ecto.Admin.Clients.create_client(
-                     RegentOAuth.Protocol.public_client(attrs.name, attrs.redirect_uris)
-                   ) do
+              case attrs.name
+                   |> RegentOAuth.Protocol.public_client(attrs.redirect_uris)
+                   |> Map.merge(attrs)
+                   |> Boruta.Ecto.Admin.Clients.create_client() do
                 {:ok, client} -> client
                 {:error, _changeset} -> RegentOAuth.repo().rollback(:refused)
               end

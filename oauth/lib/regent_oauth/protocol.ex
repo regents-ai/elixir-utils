@@ -3,11 +3,14 @@ defmodule RegentOAuth.Protocol do
   import Plug.Conn
   import Ecto.Query
   alias Boruta.Ecto.{Client, Token}
-  alias RegentOAuth.ClientDocuments
+  alias RegentOAuth.{ClientAssertion, ClientDocuments}
 
   @behaviour Boruta.Oauth.TokenApplication
   @authorize_keys ~w(client_id redirect_uri response_type scope state resource code_challenge code_challenge_method)
-  @token_keys ~w(client_id redirect_uri grant_type scope resource code code_verifier refresh_token)
+  @assertion_keys ~w(client_assertion_type client_assertion)
+  @token_keys ~w(client_id redirect_uri grant_type scope resource code code_verifier refresh_token) ++
+                @assertion_keys
+  @revoke_keys ~w(client_id token token_type_hint) ++ @assertion_keys
   @register_keys ~w(client_name redirect_uris grant_types response_types token_endpoint_auth_method scope)
   @refresh_grace_seconds 30
 
@@ -65,9 +68,14 @@ defmodule RegentOAuth.Protocol do
          true <- resource?(params),
          true <- RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())),
          true <- params["grant_type"] in ["authorization_code", "refresh_token"],
-         {:ok, client_id} <- resolve_client(params["client_id"], :stored) do
-      # From here the request names the client's own row.
-      params = Map.put(params, "client_id", client_id)
+         {:ok, name} <- client_name(params),
+         {:ok, client_id} <- resolve_client(name, :stored),
+         # Before anything is read under a lock: reading the app's keys may
+         # call its address, never inside the transaction.
+         :ok <- ClientAssertion.authenticate(client_id, name, params) do
+      # From here the request names the client's own row, and Boruta never
+      # sees the assertion: it would take the client from its `sub`.
+      params = params |> Map.drop(@assertion_keys) |> Map.put("client_id", client_id)
 
       # The connection's lock serializes code consumption, refresh rotation and
       # disconnect for one person and app, even if two requests both saw a valid
@@ -98,16 +106,18 @@ defmodule RegentOAuth.Protocol do
         {:error, error} -> token_error(conn, error)
       end
     else
-      _ -> json(conn, 400, %{error: "invalid_request"})
+      refused -> refuse(conn, refused)
     end
   end
 
   defp dispatch(conn, :revoke) do
     params = conn.body_params
 
-    with true <- bounded_map?(params, ~w(client_id token token_type_hint)),
+    with true <- bounded_map?(params, @revoke_keys),
          true <- is_binary(params["token"]) and byte_size(params["token"]) in 1..4096,
-         {:ok, client_id} <- resolve_client(params["client_id"], :stored) do
+         {:ok, name} <- client_name(params),
+         {:ok, client_id} <- resolve_client(name, :stored),
+         :ok <- ClientAssertion.authenticate(client_id, name, params) do
       hash = RegentOAuth.hash_token(params["token"])
 
       token =
@@ -129,9 +139,24 @@ defmodule RegentOAuth.Protocol do
       # Unknown tokens and tokens belonging to another client reveal nothing.
       json(conn, 200, %{})
     else
-      _ -> json(conn, 400, %{error: "invalid_request"})
+      refused -> refuse(conn, refused)
     end
   end
+
+  # A request names its client by `client_id`, or by its assertion alone
+  # (RFC 7521 section 4.2), which must then name that same client.
+  defp client_name(%{"client_id" => name}), do: {:ok, name}
+  defp client_name(%{"client_assertion" => assertion}), do: ClientAssertion.subject(assertion)
+  defp client_name(_params), do: :error
+
+  # RFC 6749 section 5.2: a client that fails authentication is answered
+  # `invalid_client` with a 401.
+  defp refuse(conn, {:error, :invalid_client}), do: json(conn, 401, %{error: "invalid_client"})
+
+  defp refuse(conn, {:error, :unavailable}),
+    do: json(conn, 503, %{error: "temporarily_unavailable"})
+
+  defp refuse(conn, _refused), do: json(conn, 400, %{error: "invalid_request"})
 
   # Runs under the connection's lock, with the credential read again under its
   # row lock after the wait.

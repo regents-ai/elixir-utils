@@ -99,8 +99,15 @@ defmodule RegentOAuth.Test.Documents do
     }
   end
 
+  @doc "What `url` answers from now on in this test, beside the other addresses it set."
   def serve(url, answer) do
-    Application.put_env(:regent_oauth, __MODULE__, {self(), %{url => answer}})
+    answers =
+      case Application.get_env(:regent_oauth, __MODULE__) do
+        {test, answers} when test == self() -> answers
+        _ -> %{}
+      end
+
+    Application.put_env(:regent_oauth, __MODULE__, {self(), Map.put(answers, url, answer)})
   end
 
   def request(:get, url, _opts) do

@@ -132,21 +132,33 @@ defmodule RegentOAuth do
     }
   end
 
+  @doc "The token address, which a client assertion may name as its audience."
+  def token_endpoint, do: issuer() <> "/oauth/token"
+
   @doc """
   Discovery for the supported authorization-code + S256 PKCE flow. An app
   either publishes its identity at an HTTPS address and uses that address as
   its client id (`RegentOAuth.ClientDocuments`), or registers itself (DCR).
+  A published identity may authenticate with nothing (`none`) or with an
+  assertion signed by its own key (`private_key_jwt`,
+  `RegentOAuth.ClientAssertion`); a registered app uses `none`.
   """
   def server_metadata do
+    methods = ["none", "private_key_jwt"]
+    algorithms = RegentOAuth.ClientAssertion.algorithms()
+
     %{
       issuer: issuer(),
       authorization_endpoint: issuer() <> "/oauth/authorize",
-      token_endpoint: issuer() <> "/oauth/token",
+      token_endpoint: token_endpoint(),
       registration_endpoint: issuer() <> "/oauth/register",
       revocation_endpoint: issuer() <> "/oauth/revoke",
       response_types_supported: ["code"],
       grant_types_supported: ["authorization_code", "refresh_token"],
-      token_endpoint_auth_methods_supported: ["none"],
+      token_endpoint_auth_methods_supported: methods,
+      token_endpoint_auth_signing_alg_values_supported: algorithms,
+      revocation_endpoint_auth_methods_supported: methods,
+      revocation_endpoint_auth_signing_alg_values_supported: algorithms,
       client_id_metadata_document_supported: true,
       code_challenge_methods_supported: ["S256"],
       scopes_supported: scopes()

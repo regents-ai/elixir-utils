@@ -72,23 +72,32 @@ scope, S256 challenge, nonce, CSRF and lifetime. A consumed or expired request
 returns a readable HTTP 401 page; restart from the connecting app rather than
 resubmitting the old form. Consent and redirects stay no-store/no-referrer.
 
-The flow supports public OAuth clients (`none`), S256 PKCE and the
-`authorization_code` and `refresh_token` grants. An app names itself in one of
-two ways. It may publish its identity at an HTTPS address and use that address
-as its `client_id` (OAuth Client ID Metadata Documents, draft -02; Claude's is
+The flow supports S256 PKCE for every app and the `authorization_code` and
+`refresh_token` grants. An app names itself in one of two ways. It may publish
+its identity at an HTTPS address and use that address as its `client_id` (OAuth
+Client ID Metadata Documents, draft -02; Claude's is
 `https://claude.ai/oauth/mcp-oauth-client-metadata`), which server metadata
 advertises with `client_id_metadata_document_supported: true`. Or it registers
-itself (DCR) and uses the id it is given.
+itself (DCR) and uses the id it is given. A registered app is a public client
+(`none`). A published identity is either a public client or signs its token and
+revocation requests with its own key (`private_key_jwt`, below); server
+metadata lists both methods for the token and revocation addresses, with the
+signing algorithms RS256 and ES256.
 
 A published identity is read only for a signed-in person's consent, never for a
 signed-out visitor, with `RegentHttp.Public`: HTTPS on port 443 only, every DNS
 answer must be a public address and the connection goes to the checked one, no
 redirects, at most 5 KB, within five seconds. The document must name exactly
-its own address as `client_id`, be a public client (`none`, no secret) and allow
-the code grant; only its HTTPS callbacks on the address's own host are kept, and
-at least one must remain. It is recorded as an ordinary public client row, so
-codes, tokens, refresh and Connected apps work as for any app, and
-`oauth_client_documents` names the address it came from. Consent reads it again
+its own address as `client_id`, carry no secret and allow the code grant; only
+its HTTPS callbacks on the address's own host are kept, and at least one must
+remain. Its `token_endpoint_auth_method` is `none`, or `private_key_jwt` with a
+`jwks_uri` on the address's own host, HTTPS on port 443 (as ChatGPT's
+`https://chatgpt.com/oauth/<id>/client.json` names
+`https://chatgpt.com/oauth/jwks.json`), and no `jwks` written into the document;
+a `token_endpoint_auth_signing_alg` it names must be RS256 or ES256. Any other
+method is refused. It is recorded as an ordinary client row carrying that
+method and `jwks_uri`, so codes, tokens, refresh and Connected apps work as for
+any app, and `oauth_client_documents` names the address it came from. Consent reads it again
 once its cache lifetime has passed (its own `max-age`, kept between five
 minutes and a day, an hour when it gives none), sending a `user-agent` that
 names the site's issuer. An address that does not answer just now (no
@@ -100,8 +109,36 @@ revocation endpoints resolve an address only from that record and never read
 it. An address never resolves to a registered client, and a recorded row's own
 id is refused, so neither is taken for the other. No address is read inside a
 database transaction. It does not accept password or
-client-credentials grants, remote request objects, wildcard redirects, client
-JWKS URLs or published identities that authenticate with a secret or a key. It makes no provider HTTP call during a database transaction. Token
+client-credentials grants, remote request objects, wildcard redirects, registered
+apps that authenticate, or published identities that authenticate with a secret.
+
+An app recorded with `private_key_jwt` sends
+`client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`
+and a `client_assertion` JWT with every token and revocation request; it may
+leave out `client_id`, which the assertion's `sub` then gives
+(`RegentOAuth.ClientAssertion`). A request without one, or with one that fails a
+check, is answered `invalid_client` with a 401, and PKCE is still required. The
+assertion is signed with RS256 or ES256 (never `none` or a shared-secret
+algorithm) by the key its header's `kid` names in the app's `jwks_uri`; a set of
+one key may be used without a `kid`. `iss` and `sub` are both the app's
+`client_id`; `aud` is this server's issuer or its token address, as its only
+value; `exp` is in the future and at most an hour away; `nbf` and `iat`, when
+sent, are at most a minute ahead; and its `jti` is spent once, as an
+`oauth_tokens` row of type `client_assertion` whose unique `value` (a hash of
+the app and the `jti`) refuses a second use on every machine. A public client
+that sends an assertion is refused too. The assertion is checked before the
+token transaction and never reaches Boruta, whose own `private_key_jwt` path
+(confidential clients only, a prefix match on `aud`, no `jti`, RSA only, its own
+HTTP client) is not used. Keys are read by `RegentOAuth.ClientKeys` with
+`RegentHttp.Public` (the same limits, at most 16 KB) only at the token and
+revocation addresses, kept five minutes in Boruta's cache, and read again once
+for an unknown `kid` (a rotated key), at most once a minute per address on each
+machine. An address that does not answer just now makes the request a 503
+`temporarily_unavailable`, and a failed read is remembered for a minute.
+`[:regent_oauth, :client_keys, :read]` reports
+`result: :ok | :refused | :unavailable`.
+
+It makes no provider HTTP call during a database transaction. Token
 exchange locks the actual credential row and commits before sending a response,
 so duplicate code or refresh requests cannot race through cached authority.
 A spent refresh token revokes that subject's app connection and requires new

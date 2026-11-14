@@ -68,7 +68,10 @@ defmodule RegentOAuth.ClientDocumentsTest do
   test "discovery tells apps they may sign in with a published identity" do
     assert %{
              client_id_metadata_document_supported: true,
-             token_endpoint_auth_methods_supported: ["none"]
+             token_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+             token_endpoint_auth_signing_alg_values_supported: ["RS256", "ES256"],
+             revocation_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+             revocation_endpoint_auth_signing_alg_values_supported: ["RS256", "ES256"]
            } =
              RegentOAuth.server_metadata()
   end

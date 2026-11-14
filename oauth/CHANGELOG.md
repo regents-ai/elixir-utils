@@ -20,7 +20,8 @@
   and revocation addresses with the algorithms RS256 and ES256, and a token or
   revocation request may name its app by the assertion alone. A document with
   inline `jwks`, keys on another host or another method is refused. No
-  migration; the rows use columns version 1 already made.
+  migration; the rows use columns version 1 already made. Sites add
+  `client_assertion` to Phoenix's filtered parameter names.
 - Code exchange, refresh and disconnect lock one person's connection to one app
   (`RegentOAuth.lock_connection/2`, a transaction-scoped advisory lock), no longer
   the app's client row. Every person's Claude connection is one client row (its

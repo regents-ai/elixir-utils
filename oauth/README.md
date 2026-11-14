@@ -54,8 +54,8 @@ limiter: a signed-in person's consent may read a published identity's address. B
 `RegentOAuth.Consent.authorize/1`, `approve/1`, `connections/1` and
 `revoke_connection/1`. They must run through the site's current-session and CSRF
 pipeline. All credential-bearing routes disable request logging. Add `code`,
-`code_verifier`, `access_token`, `refresh_token`, `client_secret` and `id_token` to
-Phoenix's filtered parameter names. Consent expires in ten minutes and is bound
+`code_verifier`, `access_token`, `refresh_token`, `client_secret`,
+`client_assertion` and `id_token` to Phoenix's filtered parameter names. Consent expires in ten minutes and is bound
 to the account that saw it. App names are escaped and redirect URIs match exactly.
 
 Consent pages load the site's existing `/assets/js/app.css`, shared controls and

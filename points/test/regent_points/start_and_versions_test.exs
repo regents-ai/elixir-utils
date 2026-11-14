@@ -180,7 +180,7 @@ defmodule RegentPoints.StartAndVersionsTest do
     assert {:cancel, :not_started} = StartAwards.perform(%Oban.Job{})
   end
 
-  test "the approved list is the one switch for what a site lists and what earns" do
+  test "the approved list is the one switch for what a site earns" do
     assert Enum.map(Rules.tracked(), & &1["id"]) |> Enum.sort() ==
              Enum.sort(@rules -- ["template.first_agent_note"])
 
@@ -226,6 +226,7 @@ defmodule RegentPoints.StartAndVersionsTest do
   # Version 2 of a rule pinned on a new event, as intake pins it once the catalog moves on.
   defp award_under(rule, account, key, at, app) do
     facts = facts(account, key, at, %{}, app: app)
+    put_facts(key, facts)
     RegentPoints.open_account!(%{id: account}, actor: Store.system())
 
     event =

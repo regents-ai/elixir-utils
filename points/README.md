@@ -96,13 +96,25 @@ failure raises and rolls back the action. Outside a transaction, the same API ca
 resubmit a reference to an already committed source. Never repeat a post or
 wallet action to recover Points; reconcile from authoritative source records.
 
-The background verifier calls the rule's configured adapter `verify(reference)`.
-It must load authoritative persisted records, not trust browser assertions. Return
-`{:ok, facts}`, `{:error, reason_atom}` for a permanent rejection, or
+The background verifier calls the rule's configured adapter `verify(reference)`,
+and the award asks it again with the same reference just before it writes the
+award, under the account's lock and inside the award's transaction. It must load
+authoritative persisted records, not trust browser assertions, and read only the
+site's own saved records, never another website or the chain, since the second ask
+holds the account's lock. It changes nothing, so it can be asked any number of
+times. Return `{:ok, facts}`, `{:error, reason_atom}` for a permanent rejection, or
 `{:retry, reason}` for an outage. Exceptions also retry through Oban. Invalid facts
 and conflicting evidence get a permanent private `source_rejections` audit, without
 changing an accepted event. Infrastructure failures retry; discarded Oban jobs need
 operator diagnosis.
+
+At the award only the answer counts: the facts and the rule saved at the first
+check decide the award. A source refused by then, such as a post hidden or marked
+as spam, earns nothing: its event ends `rejected` with `award_refused`, leaves the
+summary's `pending` count, and the refusal gets the same private audit as one at
+the first check. A source that cannot answer rolls the award back and Oban tries
+again; after the last attempt the event ends `award_failed`. Start awards are
+recorded like any action, so they are asked again too.
 
 Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_id`,
 `actor_kind` (`"human"` or `"agent"`), `actor_id`, `source_action_at`, `qualified_at`,
@@ -140,7 +152,13 @@ being checked, a later qualifying action records no event and queues no award;
 the check runs under the account's lock, so actions arriving together still earn
 once. A repeat action over its limit still writes a 0-point entry that shows the
 reduction. `RegentPoints.summary/1` lists only the daily allowances that a rule
-earning now on this site counts against.
+earning now on this site counts against. Its `done` holds every listed rule
+(`Rules.listed/0`), whichever site earned it, since every site writes to the same
+tables: `%{"account.activated" => %{times: 1, here: true}, ...}`. `times` is how many
+times the account has had the award in the rule's own window, ever for a one-time
+rule and today (UTC) for a daily one; `here` is whether this site earns the rule
+(`Rules.enabled?/1`), so a page can say where to go for one it does not.
+`template.first_agent_note` has no entry.
 
 The repeat actions (Sean, 13 October) are: Autolaunch auction created 20 once a day,
 auction bid 20 once a day, token trade through the site 10 once a day; Keyfleet key
@@ -150,7 +168,7 @@ A Patchbay bid, starting or takeover, earns at the moment its Offer starts showi
 once for that bid; a bid that only leads and is then replaced earns nothing. Staking
 an Autolaunch token earns 40 once per account. Regents staking, Techtree, the first
 use of a site, and Patchbay's accepted solution and resolved report earn nothing.
-There is no active-day or recurring vote rule; Keyfleet retains its 10-point
+There is no active-day or recurring vote rule; Keyfleet retains its 25-point
 first-vote milestone. Every Patchbay report and reply must be accepted by Patchbay's
 own quality check before it is published and earns; that check is Patchbay's, not
 this package's.
@@ -178,14 +196,18 @@ its ledger entry. An account's balance is its entries plus its period bonuses, a
 account row stores it (`balance_micro`): each entry, new bonus and bonus that follows
 moves it by what it added, with an atomic update in the same transaction. Repeat actions earn at
 most 100 base Points a UTC day, excluding one-time awards. The milestone catalog
-totals 250 (`RegentPoints.Rules.milestone_total/0`); `template.first_agent_note` is
-not approved at launch, so 240 can be earned then (Sean, 6 November). Sean approved the trial
+totals 390 (`RegentPoints.Rules.milestone_total/0`), 380 without
+`template.first_agent_note` (Sean, 14 November 2026). Sean approved the trial
 values on 7 October; enabling any rule still needs his go. `RegentPoints.Rules.catalog/0` lists them,
 `label/1` names each one for people, and `active/0` lists those earning now.
-`tracked/0` lists the rules that are approved and have a source adapter on this site,
-and a site's Points page shows only those, so it never offers an action that earns
-nothing; `daily_apps/1`
-names the apps of the daily rules it shows. There is no uncapped revenue-points rule.
+`tracked/0` lists the rules that are approved and have a source adapter on this site:
+the ones it earns. A site's Points page shows every catalog rule except
+`template.first_agent_note`, which the catalog marks `:hidden`: it earns like any
+other rule, but no page lists it. `listed/0` lists the rules a page shows, and
+`groups/0` groups them by site in the page's order, Account, Autolaunch, Keyfleet,
+Patchbay and Cloak, from each id's first segment (`account`, `social` and `agent`
+are Account). `daily_apps/1` names the apps of the daily rules among the rules it is
+given. There is no uncapped revenue-points rule.
 
 Accepted events save the rule's points and daily limits with the rule. Delayed
 processing uses that snapshot. A rule version never changes after approval; a changed

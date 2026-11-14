@@ -132,14 +132,15 @@ defmodule RegentPoints.Summary do
     )
   end
 
-  # How many times the account has had each listed rule's award inside the rule's
-  # own window: ever for a one-time rule, today for a daily one. The award reads
-  # the same rows to decide what is left.
+  # For each listed rule, how many times the account has had its award inside the
+  # rule's own window, on whichever site earned it: ever for a one-time rule, today
+  # for a daily one; and whether this site earns it. The award reads the same rows
+  # to decide what is left.
   defp done(caps) do
     counts = Map.new(caps, &{&1.cap_scope, &1.award_count})
 
-    for %{"count" => count} = rule when is_integer(count) <- Rules.tracked(), into: %{} do
-      {rule["id"], Map.get(counts, Rules.count_scope(rule), 0)}
+    for %{"id" => id} = rule <- Rules.listed(), into: %{} do
+      {id, %{times: Map.get(counts, Rules.count_scope(rule), 0), here: Rules.enabled?(id)}}
     end
   end
 

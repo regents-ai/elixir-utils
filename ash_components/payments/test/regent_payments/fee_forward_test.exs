@@ -8,6 +8,7 @@ defmodule RegentPayments.FeeForwardTest do
   use ExUnit.Case, async: false
 
   alias Ethers.Contracts.ERC20
+  alias RegentChain.BuilderCode
   alias RegentPayments.FeeForward
   alias RegentPayments.FeeForward.Staking
   alias RegentPayments.Steps
@@ -25,7 +26,7 @@ defmodule RegentPayments.FeeForwardTest do
     :ok
   end
 
-  test "the fee is approved to the staking contract and deposited, tagged and referenced" do
+  test "the approval is sent first, then the deposit, each on the operator's next nonce" do
     {chain, signer} = FakeBase.start(receipts: fn _hash -> "0x1" end)
     intent = paid_intent(signer)
 
@@ -33,18 +34,28 @@ defmodule RegentPayments.FeeForwardTest do
     assert approval_hash == FakeBase.hash(1)
     assert deposit_hash == FakeBase.hash(2)
     assert [approve, deposit] = FakeBase.sent(chain)
+    assert {approve.nonce, deposit.nonce} == {0, 1}
+  end
 
-    assert approve.nonce == 0
-    assert approve.to == String.downcase(USDC.asset())
-    assert approve.input == ERC20.approve(@staking, 100_000).data
+  test "the approval and the tagged, referenced deposit each end with Regent's Builder Code" do
+    {chain, signer} = FakeBase.start(receipts: fn _hash -> "0x1" end)
+    intent = paid_intent(signer)
+    "0x" <> builder_code = BuilderCode.suffix()
+    payer_ref = <<0::size(96), :binary.copy(<<0xAA>>, 20)::binary>>
 
-    assert deposit.nonce == 1
-    assert deposit.to == @staking
+    assert {:ok, _sent} = forward(intent, signer)
+    assert [approve, deposit] = FakeBase.sent(chain)
 
-    payer_bytes = :binary.copy(<<0xAA>>, 20)
+    for {sent, to, call} <- [
+          {approve, String.downcase(USDC.asset()), ERC20.approve(@staking, 100_000)},
+          {deposit, @staking, Staking.deposit_usdc(100_000, @source_tag, payer_ref)}
+        ] do
+      calldata = Ethers.Utils.hex_encode(sent.input)
 
-    assert deposit.input ==
-             Staking.deposit_usdc(100_000, @source_tag, <<0::size(96), payer_bytes::binary>>).data
+      assert String.ends_with?(calldata, builder_code)
+      assert BuilderCode.call(calldata) == Ethers.Utils.hex_encode(call.data)
+      assert sent.to == to
+    end
   end
 
   test "an approval the chain refuses deposits nothing" do

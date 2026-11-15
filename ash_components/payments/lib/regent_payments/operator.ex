@@ -8,6 +8,9 @@ defmodule RegentPayments.Operator do
   carry it.
   """
 
+  alias Ethers.TxData
+  alias RegentChain.BuilderCode
+
   # The receipt is read every two seconds. Tests read receipts faster through
   # `config :regent_payments, RegentPayments.Operator, receipt_every_ms: ...`.
   @receipt_every_ms Application.compile_env(
@@ -22,14 +25,16 @@ defmodule RegentPayments.Operator do
 
   @doc """
   Hands `tx_data` for `to` to the chain, signed by `signer`, and returns its
-  hash. It takes the wallet's next nonce after every transaction the chain
-  already holds, mined or still waiting, so a send never replaces an earlier
-  one that has not landed yet.
+  hash. The calldata ends with Regent's Base Builder Code
+  (`RegentChain.BuilderCode`), so Base credits Regent with the transaction. It
+  takes the wallet's next nonce after every transaction the chain already
+  holds, mined or still waiting, so a send never replaces an earlier one that
+  has not landed yet.
   """
-  @spec send(map() | Ethers.TxData.t(), String.t(), signer()) ::
-          {:ok, String.t()} | {:error, term()}
-  def send(tx_data, to, signer) do
+  @spec send(TxData.t(), String.t(), signer()) :: {:ok, String.t()} | {:error, term()}
+  def send(%TxData{data: data} = tx_data, to, signer) do
     rpc_opts = [url: signer.rpc_url]
+    tx_data = %{tx_data | data: data <> Ethers.Utils.hex_decode!(BuilderCode.suffix())}
 
     with {:ok, nonce} <-
            Ethers.get_transaction_count(signer.address, block: "pending", rpc_opts: rpc_opts) do

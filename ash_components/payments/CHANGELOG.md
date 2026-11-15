@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- Every transaction `RegentPayments.Operator.send/3` hands to the chain ends its
+  calldata with Regent's Base Builder Code, `RegentChain.BuilderCode.suffix/0`,
+  as wallet-button steps already do, so Base credits Regent with the fee
+  forward's approval and deposit too (15 Nov 2026). The calldata carries it
+  before the gas is estimated. `send/3` takes only an `Ethers.TxData`.
+
 - Payments are in USDC on Base only; Regent Credits no longer pay for anything.
   `Purchase.pay_with_credits/4`, the `{:credits_refused, intent, words}` answer,
   `RegentPayments.credits_pay_to?/1` and `config :regent_payments, credits_pay_to:`

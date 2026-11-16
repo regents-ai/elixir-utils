@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `RegentChain.Presses.failed/1` accepts a new reason, `switch_declined`: the person
+  declined their wallet's prompt to change network, so nothing was sent.
+  `network_mismatch` now means the wallet could not change network or is still on
+  another one.
 - Every transaction step ends with Regent's Base Builder Code. `Review.step/4`
   appends `RegentChain.BuilderCode.suffix/0`, the ERC-8021 schema 0 suffix for
   `bc_u09360jo` (`0x62635f7530393336306a6f0b0080218021802180218021802180218021`),

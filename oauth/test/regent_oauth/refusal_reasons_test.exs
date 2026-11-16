@@ -112,9 +112,10 @@ defmodule RegentOAuth.RefusalReasonsTest do
     for {reason, params} <- [
           {"unexpected_parameter", Map.put(request, @marker, @marker)},
           {"too_large", Map.put(request, "code", String.duplicate(@marker, 700))},
-          {"resource", Map.put(request, "resource", "https://#{@marker}.example/mcp")},
-          {"scope", Map.put(request, "scope", @marker)},
           {"grant_type", Map.put(request, "grant_type", @marker)},
+          {"code_resource_missing", Map.delete(request, "resource")},
+          {"code_resource_other", Map.put(request, "resource", "https://#{@marker}.example/mcp")},
+          {"scope", Map.put(request, "scope", @marker)},
           {"no_client", Map.delete(request, "client_id")},
           {"assertion_subject",
            request |> Map.delete("client_id") |> Map.put("client_assertion", @marker)},
@@ -129,6 +130,94 @@ defmodule RegentOAuth.RefusalReasonsTest do
              json_refusal(fn ->
                conn(:post, "/oauth/token") |> unread() |> RegentOAuth.Protocol.call(:token)
              end)
+  end
+
+  test "the token endpoint reads the grant type first, then the resource with its grant" do
+    client_id = Flow.client!()
+    {luna_client, %{"refresh_token" => refresh}} = Flow.sign_in!("did:privy:luna")
+
+    refresh_request = %{
+      "grant_type" => "refresh_token",
+      "client_id" => luna_client,
+      "refresh_token" => refresh
+    }
+
+    elsewhere = "https://#{@marker}.example/mcp"
+
+    # Nothing to read: no grant type and no resource is the grant type's refusal.
+    assert %{status: 400, error: "invalid_request", reason: "grant_type"} =
+             json_refusal(fn -> Flow.post(:token, %{}) end)
+
+    assert %{status: 400, error: "invalid_request", reason: "grant_type"} =
+             json_refusal(fn ->
+               Flow.post(
+                 :token,
+                 client_id |> code_request("code") |> Map.drop(~w(grant_type resource))
+               )
+             end)
+
+    # Failing every request check, it is still the grant type that is named.
+    assert %{status: 400, error: "invalid_request", reason: "grant_type"} =
+             json_refusal(fn ->
+               Flow.post(:token, %{
+                 "grant_type" => @marker,
+                 "resource" => elsewhere,
+                 "scope" => @marker
+               })
+             end)
+
+    # A wrong resource is named before a wrong scope.
+    assert %{status: 400, error: "invalid_request", reason: "code_resource_other"} =
+             json_refusal(fn ->
+               Flow.post(
+                 :token,
+                 Map.merge(code_request(client_id, "code"), %{
+                   "resource" => elsewhere,
+                   "scope" => @marker
+                 })
+               )
+             end)
+
+    assert %{status: 400, error: "invalid_request", reason: "code_resource_missing"} =
+             json_refusal(fn ->
+               Flow.post(:token, Map.put(code_request(client_id, "code"), "resource", nil))
+             end)
+
+    # Logged apart, a refused resource is answered as before, alike at the
+    # token address and at consent.
+    described =
+      for {reason, params} <- [
+            {"code_resource_missing", Map.delete(code_request(client_id, "code"), "resource")},
+            {"code_resource_other",
+             Map.put(code_request(client_id, "code"), "resource", elsewhere)},
+            {"refresh_resource_other", Map.put(refresh_request, "resource", elsewhere)}
+          ] do
+        assert %{status: 400, error: "invalid_request", reason: ^reason, described: described} =
+                 json_refusal(fn -> Flow.post(:token, params) end)
+
+        described
+      end
+
+    assert %{reason: "resource", described: at_consent} =
+             json_refusal(fn ->
+               consent(
+                 "did:privy:sol",
+                 Map.put(authorize_params(client_id), "resource", elsewhere)
+               )
+             end)
+
+    assert Enum.uniq(described) == [at_consent]
+
+    # A refresh that leaves the resource out passes this check: an unknown
+    # token reaches the credential's own check, and a real one is answered.
+    assert %{status: 400, error: "invalid_grant", reason: "unknown_credential"} =
+             json_refusal(fn ->
+               Flow.post(:token, %{refresh_request | "refresh_token" => @marker})
+             end)
+
+    conn = Flow.post(:token, refresh_request)
+    assert conn.status == 200
+    assert %{"access_token" => _, "refresh_token" => _} = Jason.decode!(conn.resp_body)
   end
 
   test "a code or refresh token that fails is answered with one description, and only the log names why" do

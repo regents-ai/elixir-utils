@@ -4,12 +4,12 @@ defmodule RegentOAuth.Refusal do
 
   Each check that refuses names a reason atom. A JSON answer carries a fixed
   `error_description` for it, and one warning names the endpoint and the
-  reason, as `oauth refused endpoint=token reason=resource`; a refusal page or
-  redirect keeps only the warning. A code or refresh token that fails, and a
-  client that fails authentication, is answered with one description whatever
-  the reason, so the answer never says why a credential failed: only the
-  warning does. A refusal Boruta made is
-  logged by Boruta's own error name, which no reason here shares.
+  reason, as `oauth refused endpoint=token reason=code_resource_missing`; a
+  refusal page or redirect keeps only the warning. A code or refresh token
+  that fails, and a client that fails authentication, is answered with one
+  description whatever the reason, so the answer never says why a credential
+  failed: only the warning does. A refusal Boruta made is logged by Boruta's
+  own error name, which no reason here shares.
   """
   require Logger
 
@@ -19,6 +19,10 @@ defmodule RegentOAuth.Refusal do
     too_large: "The request is too large.",
     disabled: "OAuth is not enabled on this server.",
     resource: "The resource parameter must be this server's resource.",
+    # The token address's resource refusals, logged apart, answer alike.
+    code_resource_missing: "The resource parameter must be this server's resource.",
+    code_resource_other: "The resource parameter must be this server's resource.",
+    refresh_resource_other: "The resource parameter must be this server's resource.",
     scope: "The scope is not one this server offers.",
     response_type: "Unsupported response_type.",
     code_challenge_method: "PKCE with S256 is required.",

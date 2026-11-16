@@ -2,12 +2,21 @@
 
 ## Unreleased
 
+- The token address names a refused resource more clearly. It reads the grant
+  type before the resource, so an empty or unreadable request is logged as
+  `grant_type`, and a refused resource is logged with its grant and whether it
+  was left out or not this server's: `code_resource_missing`,
+  `code_resource_other` or `refresh_resource_other`. The token address no
+  longer logs `resource`; consent still does. Which requests are accepted, and
+  every refusal's status, `error` and `error_description`, are unchanged, except
+  that a request failing both the grant type and another check is now described
+  by its grant type.
 - Refusals name their reason. Every JSON refusal from registration, token
   exchange, revocation, consent and approval keeps its status and `error` and
   adds a fixed `error_description` for the check that refused; refusal pages
   and redirects are unchanged. Each refusal logs one warning with the endpoint
-  and the reason only (`oauth refused endpoint=token reason=resource`), never a
-  value from the request. An `invalid_grant` answer has one description
+  and the reason only (`oauth refused endpoint=authorize reason=resource`),
+  never a value from the request. An `invalid_grant` answer has one description
   whatever the reason, and so has an `invalid_client` answer to a client
   assertion; their warning names the reason, and a refusal Boruta made is
   logged by Boruta's error name. A published identity's document read

@@ -62,7 +62,11 @@ Every refusal names its reason (`RegentOAuth.Refusal`). A JSON refusal keeps its
 status and `error` and adds a fixed `error_description` for the check that
 refused; a refusal page or redirect is unchanged. Each refusal logs one warning
 with the endpoint and the reason only, such as `oauth refused endpoint=token
-reason=resource`, never a value from the request. A code or refresh token that
+reason=code_resource_missing`, never a value from the request. The token
+address reads the grant type first (`grant_type`), then the resource, named
+with its grant: `code_resource_missing` or `code_resource_other` for a code
+exchange, `refresh_resource_other` for a refresh, which may leave the resource
+out; consent keeps `resource`. A code or refresh token that
 fails is answered `invalid_grant` with one description whatever the reason, and
 only the warning names it: `missing_credential`, `unknown_credential`,
 `other_client`, `revoked`, `expired`, `not_bound`, `inactive_subject`,

@@ -85,11 +85,15 @@ defmodule RegentOAuth.Protocol do
     params = conn.body_params
 
     with :ok <- bounded(params, @token_keys),
-         :ok <- check(resource?(params), :resource),
-         :ok <-
-           check(RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())), :scope),
          :ok <-
            check(params["grant_type"] in ["authorization_code", "refresh_token"], :grant_type),
+         :ok <-
+           check(
+             resource?(params),
+             resource_refusal(params["grant_type"], params["resource"])
+           ),
+         :ok <-
+           check(RegentOAuth.valid_scopes?(Map.get(params, "scope", RegentOAuth.scope())), :scope),
          {:ok, name} <- client_name(params),
          {:ok, client_id} <- resolve_client(name, :stored),
          # Before anything is read under a lock: reading the app's keys may
@@ -392,6 +396,12 @@ defmodule RegentOAuth.Protocol do
     do: params["resource"] in [nil, RegentOAuth.resource()]
 
   defp resource?(params), do: params["resource"] == RegentOAuth.resource()
+
+  # A token request's refused resource: left out, or not this server's, named
+  # with its grant. A refresh is refused only for another resource.
+  defp resource_refusal("authorization_code", nil), do: :code_resource_missing
+  defp resource_refusal("authorization_code", _resource), do: :code_resource_other
+  defp resource_refusal("refresh_token", _resource), do: :refresh_resource_other
 
   @doc false
   def redirect_uri?(value) when is_binary(value) and byte_size(value) <= 2048 do

@@ -25,7 +25,7 @@ defmodule RegentChain.Presses do
   @review_limit 32
   @shown_limit 8
   @read_limit 90
-  @failures ~w(step_unknown wallet_unavailable network_mismatch wallet_declined insufficient_funds send_unconfirmed sign_unconfirmed)
+  @failures ~w(step_unknown wallet_unavailable network_mismatch switch_declined wallet_declined insufficient_funds send_unconfirmed sign_unconfirmed)
   @hash ~r/\A0x[0-9a-fA-F]{64}\z/
   @signature ~r/\A0x[0-9a-fA-F]{130}\z/
 

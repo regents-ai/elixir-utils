@@ -118,6 +118,13 @@ the scheme's default), so a request signed for one host is refused at every othe
 whose authority is not one of `authorities`, the hosts the audience is served at,
 is refused as `{:error, :authority_mismatch}`.
 
+No body and an empty body are the same request. The body a request declares is
+its `content-digest`, or the empty body when it has none; the body the site read
+is the `body_digest` it passes, or the empty body when it passes `nil`; the two
+must be equal. So a request without a body verifies with or without the empty body's
+`content-digest`, whether the site passes `nil` or the empty body's digest, and
+either way it is used once. A signer always signs an empty body as no body.
+
 Verify the signature before consuming replay state, and keep product permission
 checks outside this package. `verified.verification_method` says how the wallet
 was proven: `:eoa_recovery` (its key, which holds on every chain), or `:erc1271`
@@ -153,7 +160,7 @@ wallet may do.
 
 A request carries the receipt in `x-siwa-receipt` and the wallet in `x-key-id`,
 `x-agent-wallet-address` and `x-agent-chain-id`, with `x-timestamp` and, when it
-has a body, `content-digest`. `Siwa.required_authenticated_request_headers/1` and
+has a body that is not empty, `content-digest`. `Siwa.required_authenticated_request_headers/1` and
 `Siwa.required_authenticated_request_components/2` take the body digest (or
 `nil`) and describe this shape. Replay
 keys separate wallets by chain and audience.

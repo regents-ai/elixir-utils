@@ -117,13 +117,40 @@ defmodule Siwa.AgentAuthPlug.DeclaredBodyTest do
     refute_received {:accept, _digest}
   end
 
-  test "a request without one sha-256 content-digest is refused before any hook",
+  # No content-digest declares the empty body (RFC 9112 6.3, RFC 9530 6.3).
+  test "a request without a content-digest declares the empty body, so only zero bytes match it",
+       %{signer: signer, receipt: receipt} do
+    signed = sign("POST", "/repo.git/git-receive-pack", "", receipt, signer)
+    refute Map.has_key?(signed.headers, "content-digest")
+
+    conn = send_request(signed, "")
+
+    assert conn.assigns.accepted
+    assert_received {:sign_in_server, payload}
+    refute Map.has_key?(payload, "body_digest")
+
+    assert AgentAuthPlug.declared_body_matches?(
+             :crypto.hash(:sha256, ""),
+             conn.assigns.siwa_body_digest
+           )
+
+    # Bytes sent anyway are not the body it declared, and the site refuses them.
+    conn = send_request(sign("POST", "/repo.git/git-receive-pack", nil, receipt, signer), "pack")
+
+    assert conn.assigns.accepted
+    refute_received :body_read
+    assert {:ok, "pack", _conn} = Plug.Conn.read_body(conn)
+
+    refute AgentAuthPlug.declared_body_matches?(
+             :crypto.hash(:sha256, "pack"),
+             conn.assigns.siwa_body_digest
+           )
+  end
+
+  test "a content-digest that is not one sha-256 is refused before any hook",
        %{signer: signer, receipt: receipt} do
     signed = sign("POST", "/repo.git/git-receive-pack", "pack", receipt, signer)
     sha256 = Base.encode64(:crypto.hash(:sha256, "pack"))
-
-    assert send_request(%{signed | headers: Map.delete(signed.headers, "content-digest")}, "pack").halted
-    assert_received {:deny, %{reason: :missing_content_digest, source: :siwa_plug}}
 
     for value <- [
           "sha-512=:#{Base.encode64(:crypto.hash(:sha512, "pack"))}:",

@@ -71,7 +71,8 @@ All notable changes to `siwa` should be recorded here.
   site reports no digest or the empty body's, and both spellings share one
   single-use key. A signer signs an empty body as none. A request that declares
   a body but arrives with none is refused as `:content_digest_mismatch`; the
-  `:request_body_required` refusal is gone from the contract.
+  `:request_body_required` and `:missing_content_digest` refusals, and the
+  `http_body_binding_missing` code, are gone from the contract.
 - `Siwa.RequestAuth.ReplayStore` keeps its record in a table callers write to
   directly, cleared of expired entries once a minute, in place of one process
   holding a map.

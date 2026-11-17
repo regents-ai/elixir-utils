@@ -17,7 +17,8 @@ defmodule RegentAgents.Agent do
   its key's lowercase address, with the page of its listing in the agent
   registry when it has one, and the World ID person behind it with how many
   agents that person stands behind (`RegentAgents.HumanBacking`), which its
-  pairing saves. Only `RegentAgents.HTTP` builds it.
+  pairing saves. Only `RegentAgents.HTTP` builds it, and, from the wallet alone,
+  for the SIWA service's pairing read, whose token vouches for the agent.
   """
   @enforce_keys [:wallet]
   @derive {Inspect, except: [:human_id]}

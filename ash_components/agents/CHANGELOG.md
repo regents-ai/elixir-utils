@@ -2,6 +2,17 @@
 
 ## 0.1.0 (unreleased)
 
+- Hello cards (`RegentAgents.HelloCard`). `POST /api/agents/v1/pairing` answers
+  the SIWA service's question before it signs a card naming this site:
+  `{"name", "person", "pairedAt"}` for a paired agent, `not_paired_here` (404),
+  or `service_token_invalid` (401) without its EdDSA service token for this
+  site's origin and that subject. A site adds `origin` to its `siwa` settings
+  and a `person` function naming the person publicly. Every agent request the
+  package verifies carries a card that passes in its `x-siwa-hello-card` header
+  as `conn.assigns.hello_card`, and a site's own hooks do the same with
+  `RegentAgents.HelloCard.put_card/2`. The SIWA service's keys are kept for an
+  hour.
+
 - `RegentAgents.pairings_held_from_before/1` lists each person's earliest
   pairing made before a moment that is still paired, one per person, for the
   agents people already had when Points started (`RegentPoints.StartAwards`).

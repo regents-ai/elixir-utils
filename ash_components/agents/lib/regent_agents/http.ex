@@ -28,13 +28,30 @@ defmodule RegentAgents.HTTP do
   person first signs in on this site. Until then the agent's status is
   `person_not_here` and a check-in is refused with that code; an agent paired to
   nobody is refused with `agent_not_paired`.
+
+  `POST /pairing` is the SIWA service's question, before it gives an agent a
+  hello card naming this site (`RegentAgents.HelloCard`): is the agent
+  `{"subject": "eip155:<chain id>:<address>"}` paired here? No agent signs it;
+  the service's token in `authorization: Bearer <token>` proves the caller, for
+  this site's origin and that subject (`RegentAgents.HelloCard.verify_service_token/2`),
+  or the answer is `service_token_invalid` (401). The answer is exactly
+  `{"name", "person", "pairedAt"}` (200): the agent's name, how this site names
+  its person publicly, from the site's
+  `config :regent_agents, person: {Module, :function}`, called with the
+  person's Privy user ID, and when it paired, in ISO 8601 UTC. An agent with no
+  pairing, or whose person the site cannot name (nil), is `not_paired_here`
+  (404).
+
+  Every agent request this module verifies also carries the hello card in its
+  `x-siwa-hello-card` header, when one passes, as `conn.assigns.hello_card`
+  (`RegentAgents.HelloCard.put_card/2`).
   """
 
   @behaviour Plug
 
   import Plug.Conn
 
-  alias RegentAgents.{Agent, Broker, Harness, HumanBacking, Refusal}
+  alias RegentAgents.{Agent, Broker, Harness, HelloCard, HumanBacking, Refusal}
   alias RegentAgents.PairedAgent.AgentLimit
 
   @sign_in_hint "Sign the request with your agent key as https://siwa.regents.sh/skill.md describes, then send it again."
@@ -58,6 +75,12 @@ defmodule RegentAgents.HTTP do
     "person_not_here" =>
       {403, "The person this agent is paired with hasn't signed in on this site yet.",
        "Ask your person to sign in on this site once, then check in again. Help: https://patchbay.help/errors/person_not_here"},
+    "service_token_invalid" =>
+      {401, "The SIWA service token could not be verified.",
+       "Only the SIWA service asks this, with a token it signed for this site in the last minute."},
+    "not_paired_here" =>
+      {404, "This agent is not paired with a person on this site.",
+       "Ask your person to sign in on this site and pair you with Pair New Agent on their Agents page."},
     "not_found" =>
       {404, "There is no such agent request.",
        "Agents see their status with GET /api/agents/v1/whoami, pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}
@@ -83,6 +106,7 @@ defmodule RegentAgents.HTTP do
   def call(%Plug.Conn{method: "POST", path_info: ["pair"]} = conn, _opts), do: pair(conn)
   def call(%Plug.Conn{method: "GET", path_info: ["me"]} = conn, _opts), do: me(conn)
   def call(%Plug.Conn{method: "GET", path_info: ["whoami"]} = conn, _opts), do: whoami(conn)
+  def call(%Plug.Conn{method: "POST", path_info: ["pairing"]} = conn, _opts), do: pairing(conn)
   def call(conn, _opts), do: error(conn, "not_found")
 
   defp pair(
@@ -149,6 +173,42 @@ defmodule RegentAgents.HTTP do
       {:refused, conn} -> conn
       {:error, _error} -> refuse(conn, %{reason: :siwa_request_failed})
     end
+  end
+
+  # The SIWA service's token names the subject, and the body names exactly the
+  # same one. The service vouches for the agent it names, which reads its own
+  # pairing as itself.
+  defp pairing(conn) do
+    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+         {:ok, subject} <- HelloCard.verify_service_token(token, DateTime.utc_now()),
+         %{"subject" => ^subject} = body when map_size(body) == 1 <- conn.body_params do
+      paired_here(conn, subject)
+    else
+      _refused -> error(conn, "service_token_invalid")
+    end
+  end
+
+  defp paired_here(conn, "eip155:8453:" <> wallet) do
+    with {:ok, %{privy_user_id: privy_user_id} = pairing} <-
+           RegentAgents.current_pairing(actor: %Agent{wallet: wallet}),
+         person when is_binary(person) <- person(privy_user_id) do
+      answer(conn, %{
+        "name" => pairing.name,
+        "person" => person,
+        "pairedAt" => pairing.paired_at |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      })
+    else
+      {:ok, nil} -> error(conn, "not_paired_here")
+      nil -> error(conn, "not_paired_here")
+    end
+  end
+
+  # Agents sign in on Base only, so an agent on another chain is paired nowhere here.
+  defp paired_here(conn, _other_chain), do: error(conn, "not_paired_here")
+
+  defp person(privy_user_id) do
+    {module, function} = Application.fetch_env!(:regent_agents, :person)
+    apply(module, function, [privy_user_id])
   end
 
   defp status(nil), do: "not_paired"
@@ -267,7 +327,10 @@ defmodule RegentAgents.HTTP do
            {:ok, backing} <- HumanBacking.read(book) do
         agent = struct!(Agent, Map.merge(backing, %{wallet: wallet, registry_listing: listing}))
 
-        {:ok, Plug.Conn.assign(conn, :regent_agent, agent)}
+        {:ok,
+         conn
+         |> Plug.Conn.assign(:regent_agent, agent)
+         |> RegentAgents.HelloCard.put_card(wallet)}
       else
         _other -> {:error, %{reason: :invalid_principal, source: :regent_agents}}
       end

@@ -18,6 +18,9 @@ https://siwa.regents.sh/skill.md.
   the same next step for a site's own agent guides.
 - `POST /api/agents/v1/pair` with `{code, name, harness}` answers `201 {data: agent}`.
 - `GET /api/agents/v1/me` answers `200 {data: agent + account}`.
+- `POST /api/agents/v1/pairing` is the SIWA service's question before it gives an
+  agent a hello card naming this site (see [Hello cards](#hello-cards)). No agent
+  signs it.
 - Both answers carry `registry_listing`: the agent's page in the agent registry,
   as the SIWA service names it, or null when the agent has no listing;
   `human_backed`: whether a person verified with World ID stands behind it; and
@@ -67,25 +70,30 @@ Depend on it the way the site depends on `regent_identity`:
 {:regent_agents, git: @regents, ref: @regents_ref, sparse: "agents"}
 ```
 
-Configure it with the site's repository, PubSub, SIWA audience, how a
-check-in names the person's account (a function taking the Privy user ID and
-returning a JSON-ready map, or nil until the person first signs in on the site,
-which answers the check-in with `person_not_here`), and what an agent may do on
-the site in each status, as `whoami` tells it. There is no default list: every
-site writes its own, true to its routes and policies.
+Configure it with the site's repository, PubSub, SIWA audience and first
+origin, how a check-in names the person's account (a function taking the Privy
+user ID and returning a JSON-ready map, or nil until the person first signs in
+on the site, which answers the check-in with `person_not_here`), how a hello
+card names the person (below), and what an agent may do on the site in each
+status, as `whoami` tells it. There is no default list: every site writes its
+own, true to its routes and policies.
 
 ```elixir
 config :regent_agents,
   repo: MySite.Repo,
   pubsub: MySite.PubSub,
   account: {MySite.Agents, :account},
+  person: {MySite.Agents, :person},
   allowed: %{
     "not_paired" => ["Read public pages and public tools.", "Pair with a code from your person."],
     "person_not_here" => ["Read public pages and public tools."],
     "paired" => ["Read public pages and public tools.", "Read and write your person's notes."]
   },
-  siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
+  siwa: [url: "https://siwa.regents.sh", audience: "mysite", origin: "https://mysite.example"]
 ```
+
+`origin` is the site's first origin as the SIWA service lists it for the
+audience, with no trailing slash.
 
 A pairing box lists `RegentAgents.Harness.offered/0`. ChatGPT and Claude, the
 hosted runtimes, pair through the site's hosted connection (`regent_mcp_agents`)
@@ -192,6 +200,64 @@ to that pairing's person.
 `RegentAgents.pairings_held_from_before(at)` gives each person's earliest pairing
 made before `at` that is still paired, one per person: Points uses it to give the
 first-pairing points to agents people already had at the start.
+
+## Hello cards
+
+A hello card is the SIWA service's signed note that a Regent site said an agent
+is paired with a person there, good for a day. The agent gets it from the SIWA
+service, naming the site it is paired on, and shows it to other sites in the
+`x-siwa-hello-card` header beside a signed request (`RegentAgents.HelloCard`).
+
+**The pairing read.** Before it signs a card, the SIWA service asks the site:
+
+```http
+POST /api/agents/v1/pairing
+authorization: Bearer <service token>
+content-type: application/json
+
+{"subject":"eip155:8453:0xabc..."}
+```
+
+The token is a compact JWS the SIWA service signs with EdDSA, typed
+`siwa-service+jwt`, issued by the `siwa` `url` for the site's `origin` and that
+subject, good for 60 seconds. The site answers:
+
+- `200 {"name", "person", "pairedAt"}`, exactly those three: the agent's name,
+  the person as the site's `person` function names them, and when the agent
+  paired, in ISO 8601 UTC. The function takes the person's Privy user ID and
+  returns 1 to 200 characters, never the Privy user ID, an email or a wallet,
+  or nil when the site cannot name them;
+- `404 not_paired_here` when the agent has no pairing, or the site's `person`
+  function gives nil;
+- `401 service_token_invalid` for a missing token, one of any other type, a
+  signature no published key makes, another issuer or origin, an expired one,
+  or a body that is not exactly `{"subject"}` naming the token's subject.
+
+**Checking a card.** Every agent request `RegentAgents.HTTP` verifies carries
+the card that passes as `conn.assigns.hello_card`, or nil. A site's own
+`Siwa.AgentAuthPlug` hooks do the same from `accept/3`, once the wallet is
+verified, with `RegentAgents.HelloCard.put_card(conn, wallet)`. A card passes
+when its signature is from a published key, its type is `siwa-hello-card+jws`,
+its payload is exactly `cardId`, `subject`, `name`, `person`, `pairedAt`,
+`pairedOn`, `issuedAt` and `expiresAt`, `expiresAt` is still ahead, and
+`subject` is `eip155:8453:<wallet>` of the signed request. Otherwise it is
+ignored and the request goes on as if none was sent.
+`RegentAgents.HelloCard.verify(card, subject, now)` is the same check on its
+own.
+
+The keys come from `<siwa url>/.well-known/jwks.json` and are kept for an hour.
+A token or card naming a key not among them reads the list again, at most once
+a minute.
+
+A card that passes says only that, until it expires, the site `pairedOn` had
+this agent, which it calls `name`, paired with a person it calls `person`. A
+site must not conclude from it that the agent is paired here; that the person
+approved this request or anything the agent does here; that `name` is unique or
+verified; that `person` is signed in here or is anyone in particular here; that
+the agent or its person can pay; that the agent is honest or capable; or
+anything once the card has expired or when the request beside it is not signed
+by the card's `subject`. Pages say "paired with <person> on <site>", never
+"trusted" or "verified".
 
 ## Migrations
 

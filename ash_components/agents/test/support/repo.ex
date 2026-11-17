@@ -16,7 +16,13 @@ defmodule RegentAgents.TestRepo.AshFunctions do
 end
 
 defmodule RegentAgents.Test.Site do
-  @moduledoc "How the test site names a person's account in a check-in; one person has never signed in here."
+  @moduledoc """
+  How the test site names a person's account in a check-in, and the person on a
+  hello card; one person has never signed in here.
+  """
   def account("did:privy:away"), do: nil
   def account(privy_user_id), do: %{display_name: "Person " <> privy_user_id}
+
+  def person("did:privy:away"), do: nil
+  def person("did:privy:" <> name), do: String.capitalize(name)
 end

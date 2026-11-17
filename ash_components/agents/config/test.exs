@@ -5,12 +5,13 @@ config :regent_agents,
   pubsub: RegentAgents.TestPubSub,
   notifications: RegentAgents.TestNotifications,
   account: {RegentAgents.Test.Site, :account},
+  person: {RegentAgents.Test.Site, :person},
   allowed: %{
     "not_paired" => ["Read public pages."],
     "person_not_here" => ["Read public pages."],
     "paired" => ["Read public pages.", "Act for your person."]
   },
-  siwa: [url: "https://siwa.test", audience: "test"],
+  siwa: [url: "https://siwa.test", audience: "test", origin: "https://site.test"],
   req_options: [plug: {Req.Test, RegentAgents.Broker}]
 
 config :regent_agents, RegentAgents.TestRepo,

@@ -13,15 +13,16 @@ defmodule RegentAgents do
   own words.
 
   Each site supplies its repository, its PubSub, how it names a person's account
-  in a check-in, what an agent may do there in each status, and its SIWA
-  audience:
+  in a check-in and the person on a hello card (`RegentAgents.HelloCard`), what
+  an agent may do there in each status, and its SIWA audience and first origin:
 
       config :regent_agents,
         repo: MySite.Repo,
         pubsub: MySite.PubSub,
         account: {MySite.Agents, :account},
+        person: {MySite.Agents, :person},
         allowed: %{"not_paired" => [...], "person_not_here" => [...], "paired" => [...]},
-        siwa: [url: "https://siwa.regents.sh", audience: "mysite"]
+        siwa: [url: "https://siwa.regents.sh", audience: "mysite", origin: "https://mysite.example"]
 
   mounts the agent requests, behind its own rate limit:
 

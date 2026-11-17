@@ -13,7 +13,10 @@ defmodule Siwa.Contract.Fixtures do
   given the site's own hosts in `verify.authorities`. `authorities` lists URLs
   with the `@authority` a signer writes for each, the same on both sides. Request headers are
   `[name, value]` pairs sorted by name, so a repeated header
-  can be written down. `body` is `null` when the request has none. `query` is the
+  can be written down. `body` is `null` when the request has none. No body and an
+  empty body are one request: a signer signs an empty body as none, and a
+  verifier accepts the empty body's `content-digest` as none
+  (`empty_digest_without_body`). `query` is the
   site's query setting: `"refuse"`, or `"signed"` when the query string is signed.
   `checked_by` names the first layer that refuses a case: `verifier` (the
   signature check, `Siwa.RequestAuth`), `site_plug` (`Siwa.AgentAuthPlug`, before
@@ -55,6 +58,7 @@ defmodule Siwa.Contract.Fixtures do
     receipt = receipt(signer)
     no_body = sign(signer, receipt, "GET", "/fixture", nil)
     json_body = sign(signer, receipt, "POST", "/fixture", @json_body)
+    empty_digest = sign_digest(signer, json_body, RequestAuth.content_digest_for_body(""))
     signed_query = sign(signer, receipt, "GET", "/fixture?cursor=2", nil)
 
     Jason.OrderedObject.new(
@@ -90,6 +94,18 @@ defmodule Siwa.Contract.Fixtures do
         refused_case(
           "tampered_body",
           %{json_body | body: ~s({"a":2})},
+          "verifier",
+          :content_digest_mismatch
+        ),
+        refused_case(
+          "empty_digest_with_body",
+          %{empty_digest | body: @json_body},
+          "verifier",
+          :content_digest_mismatch
+        ),
+        refused_case(
+          "digest_without_body",
+          %{json_body | body: nil},
           "verifier",
           :content_digest_mismatch
         ),
@@ -183,6 +199,7 @@ defmodule Siwa.Contract.Fixtures do
         )
       ],
       accepted: [
+        accepted_case("empty_digest_without_body", %{empty_digest | body: nil}),
         accepted_case("extra_unsigned_header", add_headers(no_body, [{"x-agent-role", "admin"}])),
         accepted_case(
           "mixed_case_header_names",
@@ -252,6 +269,18 @@ defmodule Siwa.Contract.Fixtures do
       )
 
     %{signed | headers: Enum.sort(signed.headers)}
+  end
+
+  # The library signs an empty body as none, so a request covering the empty
+  # body's digest, which a verifier accepts as the same request, is signed here:
+  # `request`'s signature-input already covers the content-digest.
+  defp sign_digest(signer, request, content_digest) do
+    request = put_header(request, Contract.body_component(), content_digest)
+    {:ok, message} = RequestAuth.signing_message(%{request | headers: Map.new(request.headers)})
+    {:ok, "0x" <> signature} = LocalSigner.sign_message(signer, message)
+    signature = signature |> Base.decode16!(case: :mixed) |> Base.encode64()
+
+    put_header(request, Contract.signature_header(), "#{Contract.label()}=:#{signature}:")
   end
 
   defp principal(signer),

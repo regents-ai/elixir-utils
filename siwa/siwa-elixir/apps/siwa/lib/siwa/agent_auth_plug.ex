@@ -12,17 +12,18 @@ defmodule Siwa.AgentAuthPlug do
       capture whole, so the signature would not cover what the site reads;
     * with `body: :declared`, in its place: `:declared_body_read` when the
       body was already read or parsed before the plug, and
-      `:missing_content_digest` or `:invalid_content_digest` for a request
-      without one `content-digest` header holding a single sha-256 value in
-      its one spelling (`Siwa.content_digest_for_body/1`'s).
+      `:invalid_content_digest` for a `content-digest` header that is not a
+      single sha-256 value in its one spelling
+      (`Siwa.content_digest_for_body/1`'s).
 
   It then builds the canonical `POST /api/shared/siwa/http-verify` payload
   carrying the request's method, path and authority (the host it reached,
   `Siwa.Contract.authority/1`), only the signed headers and, for a request with
-  a body, that body's
+  a body that is not empty, that body's
   digest (`Siwa.content_digest_for_body/1`) from the bytes this site read, or
-  with `body: :declared` the digest the request declares. The body itself never
-  leaves the site. It sends the payload through the app-provided client,
+  with `body: :declared` the digest the request declares. An empty body is
+  reported as none, the same request as no body (`Siwa.RequestAuth`). The body
+  itself never leaves the site. It sends the payload through the app-provided client,
   and hands every app-specific decision to the app's hooks module:
 
     * `c:Siwa.AgentAuthPlug.Hooks.before_verify/2` runs before the broker
@@ -45,9 +46,10 @@ defmodule Siwa.AgentAuthPlug do
     * `:audience` — SIWA audience string passed to the client (required)
     * `:query` — `:refuse` (default) or `:signed` (the query string is part of
       the signed path)
-    * `:body` — `:if_present` (default: omit the payload `"body_digest"` when
-      no raw body was captured), `:always` (send the digest of the captured
-      raw body, or of `""`) or `:declared`, described below
+    * `:body` — `:declared` on a route whose body is too large to read first,
+      described below. Without it the plug reports the digest of the raw body
+      the site's reader captured, and none when that body is empty or was
+      never sent
     * `:read_only` — `true` only on a route or tool that changes nothing and
       spends nothing (default `false`). Such a request may be checked on a lease,
       described below; every other request goes to the sign-in server.
@@ -84,7 +86,9 @@ defmodule Siwa.AgentAuthPlug do
   `content-digest` header is the body's digest: the plug sends it as the
   payload's `"body_digest"`, so the sign-in server checks the signature covers
   it, and on a verified request assigns it as `conn.assigns.siwa_body_digest`
-  before `accept/3` runs. The site then streams the body itself and must refuse
+  before `accept/3` runs. A request without a `content-digest` declares the empty
+  body: the plug reports no digest and assigns the empty body's, so only zero
+  bytes match it. The site then streams the body itself and must refuse
   it unless `declared_body_matches?/2` holds for the sha-256 of the bytes it
   received, before it acts on any of them.
 
@@ -138,14 +142,14 @@ defmodule Siwa.AgentAuthPlug do
   def call(conn, opts) do
     hooks = Keyword.fetch!(opts, :hooks)
     headers = downcase_headers(conn.req_headers)
-    body_mode = Keyword.get(opts, :body, :if_present)
+    body_mode = Keyword.get(opts, :body)
 
     with :ok <- refuse_repeats(conn),
          :ok <- refuse_query(conn, Keyword.get(opts, :query, Contract.query_default())),
          {:ok, body_digest} <- body_digest(conn, headers, body_mode),
          {:ok, context} <- hooks.before_verify(conn, headers),
          {:ok, data} <- verify(conn, headers, body_digest, opts),
-         {:ok, conn} <- hooks.accept(assign_declared(conn, body_mode, body_digest), data, context) do
+         {:ok, conn} <- hooks.accept(assign_declared(conn, headers, body_mode), data, context) do
       conn
     else
       {:error, deny_meta} when is_map(deny_meta) -> hooks.deny(conn, deny_meta)
@@ -218,32 +222,28 @@ defmodule Siwa.AgentAuthPlug do
       when is_binary(content_digest),
       do: declared_sha256(content_digest) == {:ok, sha256}
 
-  # The digest the signature covers: what the request declares, or what this
-  # site worked out from the bytes it read.
+  # The digest reported to the sign-in server: what the request declares, or what
+  # this site worked out from the bytes it read. No digest is reported for the
+  # empty body.
   defp body_digest(conn, headers, :declared) do
+    content_digest = Map.get(headers, Contract.body_component())
+
     with :ok <- refuse_read_body(conn),
-         {:ok, content_digest} <- fetch_content_digest(headers),
-         {:ok, _sha256} <- declared_sha256(content_digest) do
+         :ok <- ensure_declared_digest(content_digest) do
       {:ok, content_digest}
-    else
-      :error -> {:error, %{reason: :invalid_content_digest, source: :siwa_plug}}
-      {:error, deny_meta} -> {:error, deny_meta}
     end
   end
 
-  defp body_digest(conn, _headers, body_mode) do
+  defp body_digest(conn, _headers, nil) do
     cond do
       body_sent?(conn) and not body_captured?(conn) ->
         {:error, %{reason: :missing_signed_body, source: :siwa_plug}}
 
-      is_binary(conn.assigns[:raw_body]) ->
-        {:ok, Siwa.RequestAuth.content_digest_for_body(conn.assigns.raw_body)}
-
-      body_mode == :always ->
-        {:ok, Siwa.RequestAuth.content_digest_for_body("")}
-
-      body_mode == :if_present ->
+      conn.assigns[:raw_body] in [nil, ""] ->
         {:ok, nil}
+
+      true ->
+        {:ok, Siwa.RequestAuth.content_digest_for_body(conn.assigns.raw_body)}
     end
   end
 
@@ -256,10 +256,13 @@ defmodule Siwa.AgentAuthPlug do
        else: :ok
   end
 
-  defp fetch_content_digest(headers) do
-    case Map.fetch(headers, Contract.body_component()) do
-      {:ok, content_digest} -> {:ok, content_digest}
-      :error -> {:error, %{reason: :missing_content_digest, source: :siwa_plug}}
+  # Without a content-digest the request declares the empty body.
+  defp ensure_declared_digest(nil), do: :ok
+
+  defp ensure_declared_digest(content_digest) do
+    case declared_sha256(content_digest) do
+      {:ok, _sha256} -> :ok
+      :error -> {:error, %{reason: :invalid_content_digest, source: :siwa_plug}}
     end
   end
 
@@ -275,10 +278,16 @@ defmodule Siwa.AgentAuthPlug do
     end
   end
 
-  defp assign_declared(conn, :declared, body_digest),
-    do: Plug.Conn.assign(conn, :siwa_body_digest, body_digest)
+  defp assign_declared(conn, headers, :declared) do
+    declared =
+      Map.get_lazy(headers, Contract.body_component(), fn ->
+        Siwa.RequestAuth.content_digest_for_body("")
+      end)
 
-  defp assign_declared(conn, _body_mode, _body_digest), do: conn
+    Plug.Conn.assign(conn, :siwa_body_digest, declared)
+  end
+
+  defp assign_declared(conn, _headers, nil), do: conn
 
   defp body_captured?(%Plug.Conn{
          assigns: %{raw_body: body},

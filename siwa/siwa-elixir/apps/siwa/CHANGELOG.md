@@ -31,12 +31,16 @@ All notable changes to `siwa` should be recorded here.
   whose body is too large to read before the signature is checked: the plug
   never reads the body, sends the request's signed `content-digest` as the
   payload's `"body_digest"`, refuses (`source: :siwa_plug`) a body something
-  read or parsed before it (`:declared_body_read`) and a request without one
-  `content-digest` holding a single sha-256 value in its one spelling
-  (`:missing_content_digest`, `:invalid_content_digest`, or `:duplicate_proof`
-  when it is sent twice), and assigns the verified value as
-  `conn.assigns.siwa_body_digest`. The site streams the body itself and checks
-  it with `Siwa.AgentAuthPlug.declared_body_matches?/2` before acting on it.
+  read or parsed before it (`:declared_body_read`) and a `content-digest` that
+  is not a single sha-256 value in its one spelling (`:invalid_content_digest`,
+  or `:duplicate_proof` when it is sent twice), and assigns the verified value
+  as `conn.assigns.siwa_body_digest`. A request without a `content-digest`
+  declares the empty body: the plug reports no digest and assigns the empty
+  body's, so only zero bytes match it. The site streams the body itself and
+  checks it with `Siwa.AgentAuthPlug.declared_body_matches?/2` before acting on
+  it. `:declared` is the plug's one `:body` value; without it the plug reports
+  the digest of the raw body the site's reader captured, and none when that
+  body is empty or was never sent.
 - Leases for requests that read. `Siwa.AgentAuthPlug` takes `read_only: true`
   on a route or tool that changes nothing and spends nothing; such a request
   asks the sign-in server for a lease (`"lease": true`), and while the lease
@@ -59,6 +63,16 @@ All notable changes to `siwa` should be recorded here.
 
 ### Changed
 
+- No body and an empty body are one signed request (RFC 9112 6.3, RFC 9530
+  6.3). The body a request declares is its `content-digest`, or the empty body
+  when it has none; the body a site read is the digest it reports, or the empty
+  body when it reports none; the two must be equal. A request without a body
+  now verifies with or without the empty body's `content-digest`, whether the
+  site reports no digest or the empty body's, and both spellings share one
+  single-use key. A signer signs an empty body as none. A request that declares
+  a body but arrives with none is refused as `:content_digest_mismatch`; the
+  `:request_body_required` and `:missing_content_digest` refusals, and the
+  `http_body_binding_missing` code, are gone from the contract.
 - `Siwa.RequestAuth.ReplayStore` keeps its record in a table callers write to
   directly, cleared of expired entries once a minute, in place of one process
   holding a map.

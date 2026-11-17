@@ -581,15 +581,10 @@ defmodule Siwa.RequestAuth do
   end
 
   defp ensure_body_binding(headers, body_digest) do
-    case Map.fetch(headers, @body_component) do
-      :error ->
-        {:error, :missing_content_digest}
-
-      {:ok, ^body_digest} ->
-        if content_digest?(body_digest), do: :ok, else: {:error, :invalid_content_digest}
-
-      {:ok, _content_digest} ->
-        {:error, :content_digest_mismatch}
+    cond do
+      Map.get(headers, @body_component) != body_digest -> {:error, :content_digest_mismatch}
+      not content_digest?(body_digest) -> {:error, :invalid_content_digest}
+      true -> :ok
     end
   end
 

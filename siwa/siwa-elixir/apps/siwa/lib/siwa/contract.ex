@@ -76,7 +76,6 @@ defmodule Siwa.Contract do
     {:invalid_covered_components, 401, "http_signature_input_invalid",
      "invalid covered components"},
     {:authority_mismatch, 401, "http_signature_invalid", "signed request is for another site"},
-    {:missing_content_digest, 401, "http_body_binding_missing", "missing content-digest header"},
     {:content_digest_mismatch, 401, "http_body_binding_invalid",
      "content-digest does not match the request body"},
     {:invalid_content_digest, 401, "http_body_binding_invalid", "content-digest is invalid"},

@@ -73,10 +73,10 @@ Depend on it the way the site depends on `regent_identity`:
 Configure it with the site's repository, PubSub, SIWA audience and first
 origin, how a check-in names the person's account (a function taking the Privy
 user ID and returning a JSON-ready map, or nil until the person first signs in
-on the site, which answers the check-in with `person_not_here`), how a hello
-card names the person (below), and what an agent may do on the site in each
-status, as `whoami` tells it. There is no default list: every site writes its
-own, true to its routes and policies.
+on the site, which answers the check-in with `person_not_here`), the person's
+profile code for a hello card (below), and what an agent may do on the site in
+each status, as `whoami` tells it. There is no default list: every site writes
+its own, true to its routes and policies.
 
 ```elixir
 config :regent_agents,
@@ -223,11 +223,13 @@ The token is a compact JWS the SIWA service signs with EdDSA, typed
 subject, good for 60 seconds. The site answers:
 
 - `200 {"name", "person", "pairedAt"}`, exactly those three: the agent's name,
-  the person as the site's `person` function names them, and when the agent
-  paired, in ISO 8601 UTC. The function takes the person's Privy user ID and
-  returns 1 to 200 characters, never the Privy user ID, an email or a wallet,
-  or nil when the site cannot name them;
-- `404 not_paired_here` when the agent has no pairing, or the site's `person`
+  its person's profile code from the site's `person` function, and when the
+  agent paired, in ISO 8601 UTC. The function takes the person's Privy user ID
+  and returns their profile code, the id of their shared Regent profile, 1 to
+  200 characters, never the Privy user ID, an email, a wallet or a name, or nil
+  while the person has no profile code yet;
+- `404 not_paired_here` when the agent has no pairing;
+- `409 person_has_no_profile` when the agent is paired but the site's `person`
   function gives nil;
 - `401 service_token_invalid` for a missing token, one of any other type, a
   signature no published key makes, another issuer or origin, an expired one,
@@ -250,14 +252,14 @@ A token or card naming a key not among them reads the list again, at most once
 a minute.
 
 A card that passes says only that, until it expires, the site `pairedOn` had
-this agent, which it calls `name`, paired with a person it calls `person`. A
-site must not conclude from it that the agent is paired here; that the person
-approved this request or anything the agent does here; that `name` is unique or
-verified; that `person` is signed in here or is anyone in particular here; that
-the agent or its person can pay; that the agent is honest or capable; or
-anything once the card has expired or when the request beside it is not signed
-by the card's `subject`. Pages say "paired with <person> on <site>", never
-"trusted" or "verified".
+this agent, which it calls `name`, paired with a person whose profile code is
+`person`. A site must not conclude from it that the agent is paired here; that
+the person approved this request or anything the agent does here; that `name`
+is unique or verified; that `person` is signed in here or is anyone in
+particular here; that the agent or its person can pay; that the agent is honest
+or capable; or anything once the card has expired or when the request beside
+it is not signed by the card's `subject`. Pages say "paired with a person on <site>", never
+"trusted" or "verified", and never show or greet anyone with the `person` code.
 
 ## Migrations
 

@@ -27,8 +27,9 @@ defmodule RegentAgents.HelloCard do
   ## What a card says
 
   A card that passes says only that, until it expires, the site `pairedOn` had
-  this agent, which it calls `name`, paired with a person it calls `person`. A
-  site must not conclude from it:
+  this agent, which it calls `name`, paired with a person whose profile code is
+  `person`: the id of their shared Regent profile, never the Privy user ID, an
+  email, a wallet or a name. A site must not conclude from it:
 
     * that the agent is paired on this site;
     * that the person approved this request, or anything the agent does here;
@@ -40,7 +41,8 @@ defmodule RegentAgents.HelloCard do
     * anything at all once the card has expired, or when the request beside it
       is not signed by the card's `subject`.
 
-  Pages say "paired with <person> on <site>", never "trusted" or "verified".
+  Pages say "paired with a person on <site>", never "trusted" or "verified", and
+  never show or greet anyone with the `person` code.
 
   ## Keys
 

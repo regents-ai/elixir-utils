@@ -35,12 +35,13 @@ defmodule RegentAgents.HTTP do
   the service's token in `authorization: Bearer <token>` proves the caller, for
   this site's origin and that subject (`RegentAgents.HelloCard.verify_service_token/2`),
   or the answer is `service_token_invalid` (401). The answer is exactly
-  `{"name", "person", "pairedAt"}` (200): the agent's name, how this site names
-  its person publicly, from the site's
+  `{"name", "person", "pairedAt"}` (200): the agent's name, its person's profile
+  code (the id of their shared Regent profile, never the Privy user ID, an
+  email, a wallet or a name), from the site's
   `config :regent_agents, person: {Module, :function}`, called with the
   person's Privy user ID, and when it paired, in ISO 8601 UTC. An agent with no
-  pairing, or whose person the site cannot name (nil), is `not_paired_here`
-  (404).
+  pairing is `not_paired_here` (404); a paired agent whose person has no profile
+  code yet (the function gives nil) is `person_has_no_profile` (409).
 
   Every agent request this module verifies also carries the hello card in its
   `x-siwa-hello-card` header, when one passes, as `conn.assigns.hello_card`
@@ -81,6 +82,9 @@ defmodule RegentAgents.HTTP do
     "not_paired_here" =>
       {404, "This agent is not paired with a person on this site.",
        "Ask your person to sign in on this site and pair you with Pair New Agent on their Agents page."},
+    "person_has_no_profile" =>
+      {409, "The person this agent is paired with has no Regent profile yet.",
+       "Ask your person to sign in on this site once, then ask for a hello card again."},
     "not_found" =>
       {404, "There is no such agent request.",
        "Agents see their status with GET /api/agents/v1/whoami, pair with POST /api/agents/v1/pair and check in with GET /api/agents/v1/me."}
@@ -199,7 +203,7 @@ defmodule RegentAgents.HTTP do
       })
     else
       {:ok, nil} -> error(conn, "not_paired_here")
-      nil -> error(conn, "not_paired_here")
+      nil -> error(conn, "person_has_no_profile")
     end
   end
 

@@ -4,14 +4,18 @@
 
 - Hello cards (`RegentAgents.HelloCard`). `POST /api/agents/v1/pairing` answers
   the SIWA service's question before it signs a card naming this site:
-  `{"name", "person", "pairedAt"}` for a paired agent, `not_paired_here` (404),
-  or `service_token_invalid` (401) without its EdDSA service token for this
-  site's origin and that subject. A site adds `origin` to its `siwa` settings
-  and a `person` function naming the person publicly. Every agent request the
-  package verifies carries a card that passes in its `x-siwa-hello-card` header
-  as `conn.assigns.hello_card`, and a site's own hooks do the same with
-  `RegentAgents.HelloCard.put_card/2`. The SIWA service's keys are kept for an
-  hour.
+  `{"name", "person", "pairedAt"}` for a paired agent, `not_paired_here` (404)
+  for an agent with no pairing, `person_has_no_profile` (409) for a paired agent
+  whose person has no profile code yet, or `service_token_invalid` (401)
+  without its EdDSA service token for this site's origin and that subject. A
+  site adds `origin` to its `siwa` settings and a `person` function giving the
+  person's profile code (the id of their shared Regent profile, never the Privy
+  user ID, an email, a wallet or a name), or nil while they have none. Pages
+  say "paired with a person on <site>" and never show or greet anyone with the
+  `person` code. Every agent request the package verifies carries a card that
+  passes in its `x-siwa-hello-card` header as `conn.assigns.hello_card`, and a
+  site's own hooks do the same with `RegentAgents.HelloCard.put_card/2`. The
+  SIWA service's keys are kept for an hour.
 
 - `RegentAgents.pairings_held_from_before/1` lists each person's earliest
   pairing made before a moment that is still paired, one per person, for the

@@ -13,8 +13,9 @@ defmodule RegentAgents do
   own words.
 
   Each site supplies its repository, its PubSub, how it names a person's account
-  in a check-in and the person on a hello card (`RegentAgents.HelloCard`), what
-  an agent may do there in each status, and its SIWA audience and first origin:
+  in a check-in, the person's profile code on a hello card
+  (`RegentAgents.HelloCard`), what an agent may do there in each status, and its
+  SIWA audience and first origin:
 
       config :regent_agents,
         repo: MySite.Repo,
@@ -31,6 +32,12 @@ defmodule RegentAgents do
   and starts `RegentAgents.Listener` after its PubSub and its own
   `Postgrex.Notifications` connection (the `:notifications` setting), so its
   pages hear agent changes made on every site.
+
+  The `person` function takes the person's Privy user ID and gives their
+  profile code, the id of their shared Regent profile, never the Privy user ID,
+  an email, a wallet or a name. Nil means the person is paired but has no
+  profile code yet, and the SIWA service's pairing read is answered
+  `person_has_no_profile` (409).
 
   The schema is migrated once, from Regents, with `RegentAgents.Migrator`.
   """

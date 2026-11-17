@@ -104,7 +104,7 @@ defmodule RegentAgents.HelloCardTest do
         "cardId" => encode(:crypto.strong_rand_bytes(16)),
         "subject" => @subject,
         "name" => "Sol",
-        "person" => "Ada",
+        "person" => "profile-ada",
         "pairedAt" => iso(DateTime.add(now, -7, :day)),
         "pairedOn" => "keyfleet",
         "issuedAt" => iso(now),
@@ -143,22 +143,31 @@ defmodule RegentAgents.HelloCardTest do
   end
 
   describe "the pairing read" do
-    test "answers a paired agent's name, its person as this site names them, and when it paired, and nothing else",
+    test "answers a paired agent's name, its person's profile code, and when it paired, and nothing else",
          %{key: key} do
       paired = pair!("Sol", "ada")
 
       assert {200, answer} = ask(sign(key, @service, token_claims()), %{"subject" => @subject})
-      assert answer == %{"name" => "Sol", "person" => "Ada", "pairedAt" => iso(paired.paired_at)}
+
+      assert answer == %{
+               "name" => "Sol",
+               "person" => "profile-ada",
+               "pairedAt" => iso(paired.paired_at)
+             }
+
       refute Jason.encode!(answer) =~ "did:privy"
     end
 
-    test "says an agent is not paired here when it has no pairing, its person cannot be named here, or it is on another chain",
+    test "says a paired agent's person has no profile code yet when the site gives none",
          %{key: key} do
-      assert {404, %{"error" => %{"code" => "not_paired_here"}}} =
-               ask(sign(key, @service, token_claims()), %{"subject" => @subject})
-
       pair!("Away", "away")
 
+      assert {409, %{"error" => %{"code" => "person_has_no_profile"}}} =
+               ask(sign(key, @service, token_claims()), %{"subject" => @subject})
+    end
+
+    test "says an agent is not paired here when it has no pairing or it is on another chain",
+         %{key: key} do
       assert {404, %{"error" => %{"code" => "not_paired_here"}}} =
                ask(sign(key, @service, token_claims()), %{"subject" => @subject})
 
@@ -238,7 +247,7 @@ defmodule RegentAgents.HelloCardTest do
       card = sign(key, @card, card_claims())
       conn = whoami(card)
       assert conn.status == 200
-      assert %{"subject" => @subject, "person" => "Ada"} = conn.assigns.hello_card
+      assert %{"subject" => @subject, "person" => "profile-ada"} = conn.assigns.hello_card
       assert_received :keys_read
 
       expired = DateTime.add(DateTime.utc_now(), -1, :second)

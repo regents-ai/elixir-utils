@@ -56,10 +56,16 @@ defmodule Siwa.RequestAuthTest do
 
     assert Siwa.required_authenticated_request_headers(nil) == headers
 
+    assert Siwa.required_authenticated_request_headers(Siwa.content_digest_for_body("")) ==
+             headers
+
     assert Siwa.required_authenticated_request_headers(Siwa.content_digest_for_body("{}")) ==
              headers ++ ["content-digest"]
 
     assert Siwa.required_authenticated_request_components(%{}, nil) == components
+
+    assert Siwa.required_authenticated_request_components(%{}, Siwa.content_digest_for_body("")) ==
+             components
 
     assert Siwa.required_authenticated_request_components(
              %{"Content-Digest" => "sha-256=:YWJj:"},
@@ -487,6 +493,93 @@ defmodule Siwa.RequestAuthTest do
     refute Map.has_key?(signed.headers, "content-digest")
   end
 
+  # No body and an empty body are one request (RFC 9112 6.3, RFC 9530 6.3): the
+  # body a request declares, its content-digest or the empty body without one,
+  # must be the body the site read, the digest it reports or the empty body
+  # without one. The lease check is the sign-in server's own.
+  test "a request is accepted only when the body it declares is the body the site read", ctx do
+    empty = Siwa.content_digest_for_body("")
+    x = Siwa.content_digest_for_body("x")
+    y = Siwa.content_digest_for_body("y")
+    # What the site reports: none, the empty body, X and Y.
+    reports = [nil, empty, x, y]
+
+    requests = %{
+      absent: sign_body(ctx, nil),
+      empty: sign_digest(ctx, empty),
+      x: sign_body(ctx, "x")
+    }
+
+    expected = [
+      absent: [:ok, :ok, :missing_signed_headers, :missing_signed_headers],
+      empty: [:ok, :ok, :content_digest_mismatch, :content_digest_mismatch],
+      x: [:content_digest_mismatch, :content_digest_mismatch, :ok, :content_digest_mismatch]
+    ]
+
+    used = fn _key, _expires -> :ok end
+
+    checks = [
+      full:
+        &RequestAuth.verify_authenticated_request(&1, Keyword.put(@opts, :replay_store, used)),
+      lease:
+        &RequestAuth.verify_leased_request(&1, lease(ctx),
+          audience: "patchbay",
+          now: @now,
+          replay_store: used
+        )
+    ]
+
+    for {check, verify} <- checks do
+      outcomes =
+        for {header, _outcomes} <- expected do
+          {header,
+           Enum.map(reports, fn report ->
+             case verify.(Map.put(requests[header], :body_digest, report)) do
+               {:ok, _verified} -> :ok
+               {:error, reason} -> reason
+             end
+           end)}
+        end
+
+      assert {check, outcomes} == {check, expected}
+    end
+  end
+
+  test "no body and the empty body's digest are one request with one single-use key", ctx do
+    parent = self()
+
+    store = fn key, _expires ->
+      send(parent, {:replay_key, key})
+      :ok
+    end
+
+    empty = Siwa.content_digest_for_body("")
+
+    for signed <- [sign_body(ctx, nil, nonce: "one"), sign_digest(ctx, empty, nonce: "one")],
+        report <- [nil, empty] do
+      assert {:ok, _verified} =
+               RequestAuth.verify_authenticated_request(
+                 Map.put(signed, :body_digest, report),
+                 Keyword.put(@opts, :replay_store, store)
+               )
+    end
+
+    keys =
+      for _spelling <- 1..4 do
+        assert_received {:replay_key, key}
+        key
+      end
+
+    assert [_one_key] = Enum.uniq(keys)
+  end
+
+  test "an empty body signs as no body, and verifies when the site reads zero bytes", ctx do
+    signed = sign_body(ctx, "", nonce: "empty")
+
+    assert signed.headers == sign_body(ctx, nil, nonce: "empty").headers
+    assert {:ok, _verified} = verify(signed, @opts)
+  end
+
   test "the plug accepts a request body preserved in conn.private", ctx do
     signed = sign(ctx)
 
@@ -520,13 +613,46 @@ defmodule Siwa.RequestAuthTest do
       headers: %{}
     }
 
-  defp sign(ctx, extra \\ []) do
+  defp sign(ctx, extra \\ []), do: sign_body(ctx, request().body, extra)
+
+  defp sign_body(ctx, body, extra \\ []) do
     opts = @opts |> Keyword.put(:created_at, @now) |> Keyword.merge(extra)
 
     {:ok, signed} =
-      RequestAuth.sign_authenticated_request(request(), ctx.receipt.token, ctx.signer, opts)
+      RequestAuth.sign_authenticated_request(
+        %{request() | body: body},
+        ctx.receipt.token,
+        ctx.signer,
+        opts
+      )
 
     signed
+  end
+
+  # The library signs an empty body as none, so a request covering the empty
+  # body's digest is signed here, over a body's signature-input.
+  defp sign_digest(ctx, content_digest, extra \\ []) do
+    signed = sign_body(ctx, "x", extra)
+    headers = Map.put(signed.headers, "content-digest", content_digest)
+    {:ok, message} = RequestAuth.signing_message(%{signed | headers: headers})
+    {:ok, "0x" <> signature} = LocalSigner.sign_message(ctx.signer, message)
+    signature = signature |> Base.decode16!(case: :mixed) |> Base.encode64()
+
+    %{signed | body: nil, headers: Map.put(headers, "x-siwa-signature", "sig1=:#{signature}:")}
+  end
+
+  defp lease(ctx) do
+    %{
+      receipt: ctx.receipt.token,
+      claims: %{
+        "sub" => ctx.signer.address,
+        "key_id" => ctx.signer.address,
+        "chain_id" => 8453,
+        "aud" => "patchbay"
+      },
+      authority: @authority,
+      until_ms: DateTime.to_unix(@now, :millisecond) + 60_000
+    }
   end
 
   defp wallet_receipt(signer, changes \\ %{}) do

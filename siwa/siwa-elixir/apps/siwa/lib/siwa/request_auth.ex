@@ -7,6 +7,12 @@ defmodule Siwa.RequestAuth do
   digest (`content_digest_for_body/1`), worked out by whoever read the body,
   and `nil` when the request had none.
 
+  The body a request declares is its `content-digest`, or the empty body when
+  it has none; the body a site read is the digest it reports, or the empty body
+  when it reports none; the two must be equal. No body and an empty body are one
+  request (RFC 9112 6.3, RFC 9530 6.3): an empty body signs as none, and either
+  spelling verifies and is used once.
+
   Every request names its `authority`, the host it is sent to
   (`Siwa.Contract.authority/1`). The signer signs it; a verifier accepts it only
   when it is one of the site's own (`:authorities`), so a request signed for one
@@ -107,7 +113,7 @@ defmodule Siwa.RequestAuth do
   `:authority_mismatch`.
   """
   def verify_authenticated_request(request, opts \\ []) do
-    body_digest = request[:body_digest] || request["body_digest"]
+    body_digest = one_spelling(request[:body_digest] || request["body_digest"])
     request = normalize_request(request)
 
     with :ok <- ensure_body_digest(body_digest),
@@ -146,7 +152,7 @@ defmodule Siwa.RequestAuth do
         %{receipt: receipt, claims: claims, authority: authority, until_ms: until_ms},
         opts
       ) do
-    body_digest = request[:body_digest] || request["body_digest"]
+    body_digest = one_spelling(request[:body_digest] || request["body_digest"])
     request = normalize_request(request)
 
     now_ms =
@@ -240,12 +246,19 @@ defmodule Siwa.RequestAuth do
 
   def content_digest_for_body(_body), do: nil
 
-  def required_headers(body_digest), do: required_headers_for_digest(body_digest)
+  def required_headers(body_digest),
+    do: body_digest |> one_spelling() |> required_headers_for_digest()
 
   def required_covered_components(headers, body_digest) when is_map(headers) do
     headers
     |> lowercase_headers()
-    |> required_components_for_headers(body_digest)
+    |> required_components_for_headers(one_spelling(body_digest))
+  end
+
+  # The empty body's digest names the same body as no digest, so it is spelled
+  # `nil` from here on: every check and the single-use key see one spelling.
+  defp one_spelling(body_digest) do
+    if body_digest == content_digest_for_body(""), do: nil, else: body_digest
   end
 
   defp unsigned_headers(request, receipt, claims, created) do
@@ -551,28 +564,42 @@ defmodule Siwa.RequestAuth do
     end
   end
 
+  # The site read the empty body: a request may declare it with no content-digest
+  # or with the empty body's.
   defp ensure_body_binding(headers, nil) do
-    if Map.has_key?(headers, @body_component) do
-      {:error, :request_body_required}
-    else
-      :ok
+    case Map.fetch(headers, @body_component) do
+      :error ->
+        :ok
+
+      {:ok, content_digest} ->
+        cond do
+          not content_digest?(content_digest) -> {:error, :invalid_content_digest}
+          content_digest != content_digest_for_body("") -> {:error, :content_digest_mismatch}
+          true -> :ok
+        end
     end
   end
 
   defp ensure_body_binding(headers, body_digest) do
-    with content_digest when is_binary(content_digest) <- Map.get(headers, @body_component),
-         true <- content_digest == body_digest,
-         %{"payload" => payload} <-
-           Regex.named_captures(
-             ~r/^#{Contract.body_algorithm()}=:(?<payload>[A-Za-z0-9+\/=]+):$/,
-             content_digest
-           ),
-         {:ok, _decoded} <- Base.decode64(payload) do
-      :ok
-    else
-      nil -> {:error, :missing_content_digest}
-      false -> {:error, :content_digest_mismatch}
-      _ -> {:error, :invalid_content_digest}
+    case Map.fetch(headers, @body_component) do
+      :error ->
+        {:error, :missing_content_digest}
+
+      {:ok, ^body_digest} ->
+        if content_digest?(body_digest), do: :ok, else: {:error, :invalid_content_digest}
+
+      {:ok, _content_digest} ->
+        {:error, :content_digest_mismatch}
+    end
+  end
+
+  defp content_digest?(value) do
+    case Regex.named_captures(
+           ~r/^#{Contract.body_algorithm()}=:(?<payload>[A-Za-z0-9+\/=]+):$/,
+           value
+         ) do
+      %{"payload" => payload} -> match?({:ok, _decoded}, Base.decode64(payload))
+      nil -> false
     end
   end
 
@@ -685,7 +712,8 @@ defmodule Siwa.RequestAuth do
     end
   end
 
-  defp request_body_digest(nil), do: nil
+  # An empty body signs as none: no content-digest, and nothing more covered.
+  defp request_body_digest(body) when body in [nil, ""], do: nil
   defp request_body_digest(body) when is_binary(body), do: content_digest_for_body(body)
 
   defp parse_positive_integer(value) when is_integer(value) and value > 0, do: {:ok, value}

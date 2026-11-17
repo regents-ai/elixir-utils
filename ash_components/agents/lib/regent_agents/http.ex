@@ -166,14 +166,7 @@ defmodule RegentAgents.HTTP do
     end
   end
 
-  # A request without a body, like a check-in, is signed without one.
   defp verify(conn) do
-    conn =
-      case conn.assigns do
-        %{raw_body: ""} -> %{conn | assigns: Map.delete(conn.assigns, :raw_body)}
-        _assigns -> conn
-      end
-
     conn =
       Siwa.AgentAuthPlug.call(conn,
         client: Broker,

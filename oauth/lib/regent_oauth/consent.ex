@@ -68,28 +68,35 @@ defmodule RegentOAuth.Consent do
 
     host = URI.parse(authorization.redirect_uri).host
 
-    requested = conn.private[@session_key]["scope"]
-
-    permissions =
-      requested |> RegentOAuth.permission_descriptions() |> Enum.map_join("; ", &escape/1)
-
-    note =
-      case Keyword.get(RegentOAuth.config(), :consent_note) do
-        nil -> ""
-        note -> "<p>#{escape(note)}</p>"
-      end
+    # One row for each permission asked for, in the site's words, then what no
+    # connection here does.
+    rows =
+      conn.private[@session_key]["scope"]
+      |> RegentOAuth.permission_rows()
+      |> Enum.concat(
+        case Keyword.get(RegentOAuth.config(), :never) do
+          nil -> []
+          never -> [{"Never", never}]
+        end
+      )
+      |> Enum.map_join(fn {lead, detail} ->
+        "<li><span><strong>#{escape(lead)}</strong> #{escape(detail)}</span></li>"
+      end)
 
     page(conn, "Connect #{authorization.client.name}", """
-      <p>This app is asking to #{permissions}.</p>
-      #{note}
-      <p>You will return to #{escape(host)}.</p>
+      <ul class="rg-account__history">#{rows}</ul>
       <form method="post" action="/oauth/authorize" class="rg-feature__actions">
         <input type="hidden" name="_csrf_token" value="#{escape(Plug.CSRFProtection.get_csrf_token())}">
         <input type="hidden" name="approval_key" value="#{nonce}">
-        <button class="rg-button rg-button--primary" name="decision" value="allow">Allow connection</button>
+        <button class="rg-button" name="decision" value="allow">Allow</button>
         <button class="rg-button rg-button--secondary" name="decision" value="deny">Cancel</button>
       </form>
-      <p><a href="/oauth/connections">Manage connected apps</a></p>
+      <div class="rg-utility__note">
+        <ul class="rg-utility__links">
+          <li>Returns to #{escape(host)}</li>
+          <li><a href="/oauth/connections">Connected apps</a></li>
+        </ul>
+      </div>
     """)
   end
 
@@ -209,7 +216,13 @@ defmodule RegentOAuth.Consent do
         rows =
           Enum.map_join(items, "", fn app ->
             """
-            <li>#{escape(app.name)}
+            <li>
+              <div>
+                <strong>#{escape(app.name)}</strong>
+                <div class="rg-account__meta">
+                  <time datetime="#{Date.to_iso8601(app.connected_at)}">Connected #{Calendar.strftime(app.connected_at, "%-d %b %Y")}</time>
+                </div>
+              </div>
               <form method="post" action="/oauth/connections/revoke">
                 <input type="hidden" name="_csrf_token" value="#{csrf}">
                 <input type="hidden" name="client_id" value="#{app.id}">
@@ -219,7 +232,11 @@ defmodule RegentOAuth.Consent do
             """
           end)
 
-        body = if items == [], do: "<p>No apps are connected.</p>", else: "<ul>#{rows}</ul>"
+        body =
+          if items == [],
+            do: "<p>No apps are connected.</p>",
+            else: ~s(<ul class="rg-account__history">#{rows}</ul>)
+
         page(conn, "Connected apps", body)
 
       _ ->
@@ -274,7 +291,7 @@ defmodule RegentOAuth.Consent do
     <link rel="stylesheet" href="/assets/js/app.css">
     <title>#{escape(title)}</title></head><body>
     <main class="rg-utility rg-utility--message">
-    <p class="rg-utility__context"><a href="/">#{escape(host)}</a> / Connected apps</p>
+    <p class="rg-utility__context"><a href="/">#{escape(host)}</a></p>
     <h1>#{escape(title)}</h1>
     <div class="rg-utility__body">#{body}</div>
     </main></body></html>

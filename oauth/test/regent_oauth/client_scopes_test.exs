@@ -19,7 +19,10 @@ defmodule RegentOAuth.ClientScopesTest do
 
     @impl true
     def config,
-      do: Keyword.put(Site.config(), :additional_scopes, %{"regent.rooms.read" => "Read rooms."})
+      do:
+        Keyword.put(Site.config(), :additional_scopes, %{
+          "regent.rooms.read" => {"Reads", "rooms"}
+        })
 
     @impl true
     defdelegate repo, to: Site

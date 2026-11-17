@@ -8,12 +8,17 @@ created. The site owns the schema, migration, routes, rate limits and supervisio
 Implement `RegentOAuth`'s site callbacks: `config/0`, `repo/0`,
 `current_subject/1` and `active_subject?/1`. The subject must come from the site's
 verified Privy browser session, never a request field or caller-supplied header.
-Configuration names one issuer origin, one exact resource URL, one scope and a
-plain-language permission description. `additional_scopes` maps any further scope
-to its description, and an optional `consent_note` is one sentence in the site's
-own words that the consent page shows under the requested permissions, such as
-what no connection can do there. The issuer and resource must be HTTPS in
-production. A loopback HTTP issuer is only for local checks.
+Configuration names one issuer origin, one exact resource URL, one scope and its
+`permission`: a `{lead, detail}` row in plain words (lead at most 60 bytes,
+detail at most 200), such as `{"Pairs", "an agent identity with your account"}`.
+`additional_scopes` maps any further scope to its own row. The optional `never`
+(at most 200 bytes) is what no connection there does, such as `"signs with your
+wallets or moves money"`; set it only when it is true of every tool the site's
+scopes reach. The Connect page shows one row for each scope the app asks for, in
+its order, then a row led by "Never" when `never` is set, then Allow and Cancel,
+and the host of the callback it returns to, never the full address. The issuer
+and resource must be HTTPS in production. A loopback HTTP issuer is only for
+local checks.
 
 Call `RegentOAuth.configure(Site.OAuth)` before starting the site. The provider
 starts nothing: its rows go through the site's repository and pool (`repo/0`),
@@ -192,7 +197,9 @@ issuer, audience, expiry, revocation, client policy and current account authorit
 A refreshed subscription can bind a fresh access token while preserving its
 cursor; an expired token cannot authorize delivery until it is refreshed.
 
-`/oauth/connections` lists only the signed-in account's apps. Disconnect revokes
+`/oauth/connections` lists only the signed-in account's apps, the most recently
+connected first, each with the day it connected (its oldest access token not yet
+revoked, as `17 Nov 2026`) and its Disconnect button. Disconnect revokes
 all of that account's access and refresh tokens for that client. It never grants
 access by another account's client ID. Native SIWA tools keep their own boundary.
 

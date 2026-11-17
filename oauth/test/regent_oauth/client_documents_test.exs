@@ -80,7 +80,8 @@ defmodule RegentOAuth.ClientDocumentsTest do
     page = consent("did:privy:sol", authorize_query(@claude))
     assert page.status == 200
     assert page.resp_body =~ "Connect Claude"
-    assert page.resp_body =~ "You will return to claude.ai"
+    assert page.resp_body =~ URI.parse(@callback_url).host
+    refute page.resp_body =~ @callback_url
     assert_received {:read, @claude}
 
     approved = approve("did:privy:sol", page)

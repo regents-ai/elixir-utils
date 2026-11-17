@@ -41,15 +41,19 @@ defmodule RegentOAuth do
 
   def valid_scopes?(_), do: false
 
-  def permission_descriptions(value) do
-    descriptions =
+  @doc """
+  The consent page's row, `{lead, detail}` in the site's words, for each scope
+  in the space-separated `value`, in its order.
+  """
+  def permission_rows(value) do
+    rows =
       Map.put(
         Keyword.get(config(), :additional_scopes, %{}),
         scope(),
-        Keyword.fetch!(config(), :permission_description)
+        Keyword.fetch!(config(), :permission)
       )
 
-    value |> String.split() |> Enum.map(&Map.fetch!(descriptions, &1))
+    value |> String.split() |> Enum.map(&Map.fetch!(rows, &1))
   end
 
   @doc "Configure before the site's supervision tree starts; never starts a server or migrates."
@@ -75,23 +79,35 @@ defmodule RegentOAuth do
       end
     end
 
+    row? = fn
+      {lead, detail} ->
+        is_binary(lead) and byte_size(lead) in 1..60 and is_binary(detail) and
+          byte_size(detail) in 1..200
+
+      _ ->
+        false
+    end
+
+    unless row?.(Keyword.get(config, :permission)),
+      do: raise(ArgumentError, "OAuth permission must be a {lead, detail} row of bounded text")
+
     additional = Keyword.get(config, :additional_scopes, %{})
 
     unless is_map(additional) and
-             Enum.all?(additional, fn {name, description} ->
+             Enum.all?(additional, fn {name, row} ->
                is_binary(name) and Regex.match?(~r/\A[a-z][a-z0-9_.:-]{0,127}\z/, name) and
-                 is_binary(description) and byte_size(description) in 1..500
+                 row?.(row)
              end),
            do:
              raise(
                ArgumentError,
-               "OAuth additional scopes require bounded names and permission descriptions"
+               "OAuth additional scopes require bounded names and {lead, detail} rows"
              )
 
-    note = Keyword.get(config, :consent_note)
+    never = Keyword.get(config, :never)
 
-    unless is_nil(note) or (is_binary(note) and byte_size(note) in 1..500),
-      do: raise(ArgumentError, "OAuth consent_note must be bounded text")
+    unless is_nil(never) or (is_binary(never) and byte_size(never) in 1..200),
+      do: raise(ArgumentError, "OAuth never must be bounded text")
 
     prefix = site.repo().default_options(:all)[:prefix]
 
@@ -275,15 +291,21 @@ defmodule RegentOAuth do
     }
   end
 
-  @doc "Only public client metadata for the authenticated subject's connected apps."
+  @doc """
+  Only public client metadata for the authenticated subject's connected apps,
+  each with when it connected: the issue of its oldest access token not yet
+  revoked. A disconnect revokes them all, so connecting again starts anew. The
+  most recently connected app comes first.
+  """
   def connected_clients(subject) do
     repo().all(
       from(c in Client,
         join: t in Token,
         on: t.client_id == c.id,
         where: t.sub == ^subject and t.type == "access_token" and is_nil(t.revoked_at),
-        distinct: c.id,
-        select: %{id: c.id, name: c.name}
+        group_by: [c.id, c.name],
+        order_by: [desc: min(t.inserted_at), asc: c.id],
+        select: %{id: c.id, name: c.name, connected_at: min(t.inserted_at)}
       ),
       log: false
     )

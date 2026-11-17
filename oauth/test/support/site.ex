@@ -21,7 +21,8 @@ defmodule RegentOAuth.Test.Site do
       issuer: "http://localhost:4000",
       resource: "http://localhost:4000/mcp",
       scope: "regent.identity.manage",
-      permission_description: "Keep a Regents identity for this app."
+      permission: {"Keeps", "a Regents identity for this app"},
+      never: "signs with your wallets or moves money"
     ]
   end
 

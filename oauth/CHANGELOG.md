@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Breaking, sites change their OAuth configuration at the bump: the Connect page
+  and Connected apps are shorter. `permission_description` is now `permission`,
+  a `{lead, detail}` row (lead 1 to 60 bytes, detail 1 to 200), such as
+  `{"Pairs", "an agent identity with your account"}`, and each
+  `additional_scopes` value is such a row too. `consent_note` is gone; the
+  optional `never` (1 to 200 bytes) adds a last row led by "Never", which a site
+  sets only when it is true of every tool its scopes reach. The Connect page
+  shows a row for each scope requested, Allow and Cancel (the same form as
+  before), the host of the callback it returns to and a link to Connected apps;
+  the line above every page's title is the site's host alone.
+  `RegentOAuth.permission_descriptions/1` is now `permission_rows/1`.
+  `RegentOAuth.connected_clients/1` adds each app's `connected_at`, the issue of
+  its oldest access token not yet revoked, and lists the most recently connected
+  first; Connected apps shows that day beside each Disconnect. Who may connect,
+  every check, the approval and Disconnect forms and their handling are
+  unchanged.
 - The token address names a refused resource more clearly. It reads the grant
   type before the resource, so an empty or unreadable request is logged as
   `grant_type`, and a refused resource is logged with its grant and whether it

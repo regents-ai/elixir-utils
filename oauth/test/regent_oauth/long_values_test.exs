@@ -8,7 +8,7 @@ defmodule RegentOAuth.LongValuesTest do
   import Plug.Conn
   import Plug.Test
 
-  alias RegentOAuth.Test.Flow
+  alias RegentOAuth.Test.{Flow, Return}
 
   @verifier String.duplicate("v", 43)
 
@@ -59,10 +59,10 @@ defmodule RegentOAuth.LongValuesTest do
       |> Map.put(:body_params, %{"approval_key" => pending["nonce"], "decision" => "allow"})
       |> RegentOAuth.Consent.approve()
 
-    assert allowed.status == 303
-    assert [location] = get_resp_header(allowed, "location")
-    assert String.starts_with?(location, redirect_uri <> "?")
-    assert %{"code" => code, "state" => ^state} = URI.decode_query(URI.parse(location).query)
+    assert allowed.status == 200
+    address = Return.address(allowed)
+    assert String.starts_with?(address, redirect_uri <> "?")
+    assert %{"code" => code, "state" => ^state} = URI.decode_query(URI.parse(address).query)
 
     exchanged =
       Flow.post(:token, %{

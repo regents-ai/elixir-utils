@@ -74,7 +74,12 @@ only the warning names it: `missing_credential`, `unknown_credential`,
 disconnected) or Boruta's own error name. A client that fails authentication is
 answered `invalid_client` the same way, and only the warning names the check,
 such as `assertion_audience` or `assertion_replayed`. Any refusal Boruta makes
-is logged by its error name, which no reason of the provider's shares.
+is logged by its error name, which no reason of the provider's shares. A
+failure no check expected answers 503 `temporarily_unavailable` and logs one
+error with the endpoint, the exception's module and the top four code
+locations, such as `oauth failed endpoint=approve exception=Elixir.MatchError
+at=RegentOAuth.bind/1 (regent_oauth.ex:229), ...`, never its message or any
+value.
 
 Consent pages load the site's existing `/assets/js/app.css`, shared controls and
 fonts. Set `brand: "patchbay"` for Patchbay; the template uses `brand: "platform"`.

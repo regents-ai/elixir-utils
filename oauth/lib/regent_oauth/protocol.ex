@@ -31,8 +31,9 @@ defmodule RegentOAuth.Protocol do
       do: dispatch(conn, action),
       else: json(conn, 404, %{error: "not_found"})
   rescue
-    _ ->
+    exception ->
       # Never expose Boruta structs, SQL parameters or exception text carrying credentials.
+      Refusal.crashed(action, exception, __STACKTRACE__)
       :telemetry.execute([:regent_oauth, :request, :failure], %{count: 1}, %{})
       json(conn, 503, %{error: "temporarily_unavailable"})
   end

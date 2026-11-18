@@ -48,7 +48,9 @@ defmodule RegentOAuth.Consent do
       {:error, reason} -> Refusal.answer(conn, :authorize, 400, "invalid_request", reason)
     end
   rescue
-    _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
+    exception ->
+      Refusal.crashed(:authorize, exception, __STACKTRACE__)
+      Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
   end
 
   @impl true
@@ -162,7 +164,9 @@ defmodule RegentOAuth.Consent do
         )
     end
   rescue
-    _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
+    exception ->
+      Refusal.crashed(:approve, exception, __STACKTRACE__)
+      Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
   end
 
   # The consent this person saw, kept in their session.
@@ -226,7 +230,9 @@ defmodule RegentOAuth.Consent do
         Protocol.json(conn, 401, %{error: "login_required"})
     end
   rescue
-    _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
+    exception ->
+      Refusal.crashed(:connections, exception, __STACKTRACE__)
+      Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
   end
 
   def revoke_connection(conn) do
@@ -242,7 +248,9 @@ defmodule RegentOAuth.Consent do
       _ -> Protocol.json(conn, 401, %{error: "not_authorized"})
     end
   rescue
-    _ -> Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
+    exception ->
+      Refusal.crashed(:revoke_connection, exception, __STACKTRACE__)
+      Protocol.json(conn, 503, %{error: "temporarily_unavailable"})
   end
 
   # A published identity's address did not answer just now: nothing is wrong

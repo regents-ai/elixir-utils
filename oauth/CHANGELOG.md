@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- A failure inside the consent and protocol endpoints is now logged as one
+  error line naming the endpoint, the exception's module and the top four code
+  locations (`RegentOAuth.Refusal.crashed/3`), as `oauth failed
+  endpoint=approve exception=Elixir.MatchError at=RegentOAuth.bind/1
+  (regent_oauth.ex:229), ...`; never the exception's message or any value, and
+  a frame's arguments only by their count. Before, such a failure answered 503
+  `temporarily_unavailable` and left no trace. The answer, and the protocol's
+  `[:regent_oauth, :request, :failure]` telemetry, are unchanged.
 - The token address names a refused resource more clearly. It reads the grant
   type before the resource, so an empty or unreadable request is logged as
   `grant_type`, and a refused resource is logged with its grant and whether it

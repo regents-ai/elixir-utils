@@ -25,7 +25,7 @@ defmodule RegentChain.Presses do
   @review_limit 32
   @shown_limit 8
   @read_limit 90
-  @failures ~w(step_unknown wallet_unavailable network_mismatch switch_declined wallet_declined insufficient_funds send_unconfirmed sign_unconfirmed)
+  @failures ~w(step_unknown wallet_unavailable network_mismatch switch_declined wallet_declined wallet_refused insufficient_funds send_unconfirmed sign_unconfirmed)
   @hash ~r/\A0x[0-9a-fA-F]{64}\z/
   @signature ~r/\A0x[0-9a-fA-F]{130}\z/
 
@@ -120,7 +120,8 @@ defmodule RegentChain.Presses do
 
   @doc """
   Nothing was sent, or the wallet may have sent or signed it: `%{"step", "reason"}`
-  from the page. The reason picks the words the page shows: `send_unconfirmed`
+  from the page. The reason picks the words the page shows: `wallet_refused` when
+  the wallet refused the request outright, so nothing was sent; `send_unconfirmed`
   when a transaction may have gone, `sign_unconfirmed` when a signature may have
   been made.
   """

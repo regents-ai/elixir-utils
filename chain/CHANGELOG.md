@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `RegentChain.Presses.failed/1` accepts a new reason, `wallet_refused`: the wallet
+  refused the request outright (it was not signed in to the site, did not support the
+  request, or was disconnected), so nothing was sent.
 - `RegentChain.Presses.failed/1` accepts a new reason, `switch_declined`: the person
   declined their wallet's prompt to change network, so nothing was sent.
   `network_mismatch` now means the wallet could not change network or is still on

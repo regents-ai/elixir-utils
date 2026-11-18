@@ -12,7 +12,7 @@ defmodule RegentOAuth.ClaudeReplayTest do
 
   alias Boruta.Ecto.Token
   alias RegentOAuth.ClientDocuments.Document
-  alias RegentOAuth.Test.{Documents, Flow, Repo}
+  alias RegentOAuth.Test.{Documents, Flow, Repo, Return}
 
   @claude "https://claude.ai/oauth/mcp-oauth-client-metadata"
   @document ~s({"client_id":"https://claude.ai/oauth/mcp-oauth-client-metadata","client_name":"Claude","client_uri":"https://claude.ai","redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"grant_types":["authorization_code","refresh_token","urn:ietf:params:oauth:grant-type:jwt-bearer"],"response_types":["code"],"token_endpoint_auth_method":"none"})
@@ -60,9 +60,8 @@ defmodule RegentOAuth.ClaudeReplayTest do
       |> Map.put(:body_params, %{"approval_key" => pending["nonce"], "decision" => "allow"})
       |> RegentOAuth.Consent.approve()
 
-    assert approved.status == 303, refused(approved)
-    [location] = get_resp_header(approved, "location")
-    code = URI.decode_query(URI.parse(location).query)["code"]
+    assert approved.status == 200, refused(approved)
+    code = URI.decode_query(URI.parse(Return.address(approved)).query)["code"]
 
     token =
       Flow.post(:token, %{

@@ -105,14 +105,18 @@ fonts. Set `brand: "patchbay"` for Patchbay; the template uses `brand: "platform
 The site's assigned light/dark theme is retained. No new script is loaded. The
 browser pipeline must keep the normal shared style attribute policy for layout.
 
-Only the consent document adds the preauthorized registered callback origin to
-its `form-action` policy: Chromium also checks the redirect after the approval
-POST. Other directives and independent policies are preserved. Client URI data
-is encoded before entering CSP; never remove the site's browser policy globally
-to make OAuth redirects work. Approval still checks the exact callback, account,
+The provider never changes the site's browser policy: the consent page keeps the
+site's own `form-action 'self'`. Allow and Cancel answer 200 with a short page
+("Returning to the app.") whose `meta` refresh and Continue link take the
+browser to the app's callback, never a 303: Chromium checks every host in a
+redirect chain that follows a form POST against `form-action`, and an app's
+callback may send the browser on to a host nobody knows in advance. A site's
+test reads the address from that page. Never loosen the site's browser policy
+to make OAuth returns work. Approval still checks the exact callback, account,
 scope, S256 challenge, nonce, CSRF and lifetime. A consumed or expired request
 returns a readable HTTP 401 page; restart from the connecting app rather than
-resubmitting the old form. Consent and redirects stay no-store/no-referrer.
+resubmitting the old form. Consent, the return page and redirects stay
+no-store/no-referrer.
 
 The flow supports S256 PKCE for every app and the `authorization_code` and
 `refresh_token` grants. An app names itself in one of two ways. It may publish

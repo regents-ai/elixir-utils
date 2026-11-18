@@ -8,7 +8,7 @@ defmodule RegentOAuth.ClientAssertionTest do
   import Plug.Conn
   import Plug.Test
 
-  alias RegentOAuth.Test.{Documents, Flow}
+  alias RegentOAuth.Test.{Documents, Flow, Return}
 
   @app "https://chatgpt.com/oauth/a1b2c3/client.json"
   @keys "https://chatgpt.com/oauth/jwks.json"
@@ -132,8 +132,8 @@ defmodule RegentOAuth.ClientAssertionTest do
       |> Map.put(:body_params, %{"approval_key" => pending["nonce"], "decision" => "allow"})
       |> RegentOAuth.Consent.approve()
 
-    [location] = get_resp_header(approved, "location")
-    URI.decode_query(URI.parse(location).query)["code"]
+    200 = approved.status
+    URI.decode_query(URI.parse(Return.address(approved)).query)["code"]
   end
 
   defp exchange(code, extra, client_id \\ @app) do

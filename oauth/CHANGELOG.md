@@ -19,6 +19,17 @@
   every check, the approval and Disconnect forms and their handling are
   unchanged.
 
+
+- **Sites must know:** Allow and Cancel now answer 200 with a page that returns
+  the person to the app, not a 303; a site's test that read `location` reads
+  the page's address instead (its `meta` refresh and its Continue link name
+  the same address, HTML-escaped). Reason: Chromium refuses a redirect chain
+  after a form POST unless every host in it is in `form-action`, and an app's
+  callback may send the browser on to another host (seen live, 18 Nov 2026:
+  Allow did nothing). The consent page no longer adds the callback's origin to
+  the site's `content-security-policy`; the site's own `form-action 'self'`
+  stands. Opening consent still redirects a refusal with a 303, and
+  Disconnect still returns to `/oauth/connections` with a 303.
 - Allow works for an app whose `state` is longer than 255 characters, as
   OpenAI's apps send. The code's `state` column held 255, so storing the code
   failed and Allow answered 503 (found live, 18 Nov 2026). Sites add a

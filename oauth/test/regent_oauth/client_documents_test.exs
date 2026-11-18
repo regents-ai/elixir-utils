@@ -7,7 +7,7 @@ defmodule RegentOAuth.ClientDocumentsTest do
   import Plug.Conn
   import Plug.Test
 
-  alias RegentOAuth.Test.{Documents, Flow}
+  alias RegentOAuth.Test.{Documents, Flow, Return}
 
   @claude Documents.claude_url()
   @callback_url "https://claude.ai/api/mcp/auth_callback"
@@ -60,9 +60,9 @@ defmodule RegentOAuth.ClientDocumentsTest do
   end
 
   defp code_from(conn) do
-    [location] = get_resp_header(conn, "location")
-    assert String.starts_with?(location, @callback_url <> "?")
-    URI.decode_query(URI.parse(location).query)["code"]
+    address = Return.address(conn)
+    assert String.starts_with?(address, @callback_url <> "?")
+    URI.decode_query(URI.parse(address).query)["code"]
   end
 
   test "discovery tells apps they may sign in with a published identity" do
@@ -85,7 +85,7 @@ defmodule RegentOAuth.ClientDocumentsTest do
     assert_received {:read, @claude}
 
     approved = approve("did:privy:sol", page)
-    assert approved.status == 303
+    assert approved.status == 200
     token = exchange(@claude, code_from(approved))
     assert token.status == 200
     %{"access_token" => access, "refresh_token" => refresh} = Jason.decode!(token.resp_body)

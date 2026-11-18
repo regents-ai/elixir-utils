@@ -65,8 +65,7 @@ defmodule RegentOAuth.Consent do
       "created_at" => System.system_time(:second)
     }
 
-    conn =
-      conn |> put_session(@session_key, pending) |> allow_callback(authorization.redirect_uri)
+    conn = put_session(conn, @session_key, pending)
 
     host = URI.parse(authorization.redirect_uri).host
 
@@ -148,7 +147,7 @@ defmodule RegentOAuth.Consent do
             state: params["state"]
           }
 
-          redirect(conn, Boruta.Oauth.Error.redirect_to_url(error))
+          return_to_app(conn, Boruta.Oauth.Error.redirect_to_url(error))
 
         _ ->
           Refusal.answer(conn, :approve, 400, "invalid_request", :decision)
@@ -190,22 +189,24 @@ defmodule RegentOAuth.Consent do
   @impl true
   def authorize_success(conn, %Boruta.Oauth.AuthorizeResponse{code: code} = response) do
     :ok = RegentOAuth.bind_code(code)
-    redirect(conn, Boruta.Oauth.AuthorizeResponse.redirect_to_url(response))
+    return_to_app(conn, Boruta.Oauth.AuthorizeResponse.redirect_to_url(response))
   end
 
+  # Opening consent is a plain navigation, so its refusal redirects; Allow's
+  # follows the form and returns through a page.
   @impl true
-  def preauthorize_error(conn, error), do: boruta_refusal(conn, :authorize, error)
+  def preauthorize_error(conn, error), do: boruta_refusal(conn, :authorize, error, &redirect/2)
   @impl true
-  def authorize_error(conn, error), do: boruta_refusal(conn, :approve, error)
+  def authorize_error(conn, error), do: boruta_refusal(conn, :approve, error, &return_to_app/2)
 
   # Logged by Boruta's error name. Boruta validates the client before supplying
   # an error redirect. Sanitize descriptions so internal failures never reach
   # URLs or responses.
-  defp boruta_refusal(conn, endpoint, error) do
+  defp boruta_refusal(conn, endpoint, error, return) do
     if error.format && error.redirect_uri do
       Refusal.log(endpoint, error.error)
       clean = %{error | error_description: "This connection could not be authorized."}
-      redirect(conn, Boruta.Oauth.Error.redirect_to_url(clean))
+      return.(conn, Boruta.Oauth.Error.redirect_to_url(clean))
     else
       Refusal.answer(conn, endpoint, 400, "invalid_request", error.error, :unexpected)
     end
@@ -286,7 +287,7 @@ defmodule RegentOAuth.Consent do
     )
   end
 
-  defp page(conn, title, body, status \\ 200) do
+  defp page(conn, title, body, status \\ 200, head \\ "") do
     brand = Keyword.get(RegentOAuth.config(), :brand, "platform")
     theme = conn.assigns[:theme]
     theme_attr = if theme in ["light", "dark"], do: ~s( data-theme="#{theme}"), else: ""
@@ -297,7 +298,7 @@ defmodule RegentOAuth.Consent do
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <link rel="stylesheet" href="/assets/js/app.css">
-    <title>#{escape(title)}</title></head><body>
+    <title>#{escape(title)}</title>#{head}</head><body>
     <main class="rg-utility rg-utility--message">
     <p class="rg-utility__context"><a href="/">#{escape(host)}</a></p>
     <h1>#{escape(title)}</h1>
@@ -312,38 +313,20 @@ defmodule RegentOAuth.Consent do
     |> send_resp(status, html)
   end
 
-  # Chromium checks the return redirect against the submitting document's policy.
-  # Only this validated client's origin is added, only to this consent document.
-  # Encode untrusted URI characters so client metadata cannot add CSP directives.
-  defp allow_callback(conn, redirect_uri) do
-    uri = URI.parse(redirect_uri)
+  # Chromium checks every host a form's redirects pass through against the
+  # site's `form-action`, and an app's callback may send the browser on to a
+  # host nobody knows in advance. So the answer to the consent form is a page,
+  # and the browser goes on to the app by itself, outside the form.
+  defp return_to_app(conn, url) do
+    address = escape(url)
 
-    source =
-      %URI{scheme: uri.scheme, host: uri.host, port: uri.port}
-      |> URI.to_string()
-      |> URI.encode(&(URI.char_unreserved?(&1) or &1 in ~c":/[]"))
-
-    policies =
-      case get_resp_header(conn, "content-security-policy") do
-        [] -> ["default-src 'none'; base-uri 'none'; frame-ancestors 'none'"]
-        existing -> existing
-      end
-
-    policies =
-      policies
-      |> Enum.flat_map(&String.split(&1, ",", trim: true))
-      |> Enum.map_join(", ", fn policy ->
-        directives =
-          policy
-          |> String.split(";", trim: true)
-          |> Enum.map(&String.trim/1)
-          |> Enum.reject(&(&1 == ""))
-          |> Enum.reject(&String.match?(&1, ~r/\Aform-action(?:\s|\z)/i))
-
-        Enum.join(directives ++ ["form-action 'self' #{source}"], "; ")
-      end)
-
-    put_resp_header(conn, "content-security-policy", policies)
+    page(
+      conn,
+      "Returning",
+      ~s(<p>Returning to the app.</p>\n<p><a href="#{address}">Continue</a></p>),
+      200,
+      ~s(<meta http-equiv="refresh" content="0;url=#{address}">)
+    )
   end
 
   defp redirect(conn, url),

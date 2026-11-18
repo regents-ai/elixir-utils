@@ -32,10 +32,24 @@ migration creates only `oauth_*` tables. A second site migration calls
 token with its SHA-256 hash; it cannot be undone, and an app connected before it
 keeps working with the tokens it holds. A third calls
 `RegentOAuth.Migration.V3.up()`, which only adds `oauth_client_documents` for
-published identities; token exchange needs it. None needs the site's address: each
-code and token gets the configured issuer and resource written on it as it is
-issued (`RegentOAuth.bind/1`), and a row whose values differ from the running
-site's is refused. Never run Boruta's
+published identities; token exchange needs it. A fourth runs version 4:
+
+```elixir
+use Ecto.Migration
+def up, do: RegentOAuth.Migration.V4.up()
+```
+
+It lifts the 255-character limit from the columns an accepted request can fill
+past it: a code's `state` and callback, and an app's name, callbacks and keys
+address. Allow needs it for a `state` longer than 255 characters, as OpenAI's
+apps send. It changes no row and rewrites no table; each table is locked only
+while its definition changes, and a machine already serving fails each query it
+prepared before once per database connection, then prepares it again.
+
+None of these migrations needs the site's address: each code and token gets the
+configured issuer and resource written on it as it is issued
+(`RegentOAuth.bind/1`), and a row whose values differ from the running site's
+is refused. Never run Boruta's
 historical rename/drop migrations over an existing site.
 
 When a site starts offering a scope, a site migration calls

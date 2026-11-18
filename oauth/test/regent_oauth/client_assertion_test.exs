@@ -262,6 +262,16 @@ defmodule RegentOAuth.ClientAssertionTest do
     assert %{"access_token" => _} = Jason.decode!(token.resp_body)
   end
 
+  test "keys published at an address longer than 255 characters sign as well", %{rsa: rsa} do
+    keys = "https://chatgpt.com/oauth/" <> String.duplicate("k", 300) <> "/jwks.json"
+    Documents.serve(@app, document(@app, keys))
+    Documents.serve(keys, key_set([rsa]))
+
+    token = exchange(code!("did:privy:sol"), auth(sign(rsa, claims())))
+    assert token.status == 200
+    assert %{"access_token" => _} = Jason.decode!(token.resp_body)
+  end
+
   test "each refused assertion is invalid_client and leaves the code unspent", %{rsa: rsa} do
     code = code!("did:privy:sol")
     now = System.system_time(:second)

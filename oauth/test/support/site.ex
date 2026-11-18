@@ -68,6 +68,13 @@ defmodule RegentOAuth.Test.ClientDocuments do
   def up, do: RegentOAuth.Migration.V3.up()
 end
 
+defmodule RegentOAuth.Test.LongValues do
+  @moduledoc false
+  use Ecto.Migration
+
+  def up, do: RegentOAuth.Migration.V4.up()
+end
+
 defmodule RegentOAuth.Test.Documents do
   @moduledoc """
   Published identities served without a network: `serve/2` sets what an
@@ -133,7 +140,8 @@ defmodule RegentOAuth.Test.Schema do
     {1, RegentOAuth.Test.CreateTables},
     {2, RegentOAuth.Test.HashTokens},
     {3, RegentOAuth.Test.ClientDocuments},
-    {4, RegentOAuth.Test.AddRoomsScope}
+    {4, RegentOAuth.Test.LongValues},
+    {5, RegentOAuth.Test.AddRoomsScope}
   ]
 
   # As a site runs them: its schema is the repo's `migration_default_prefix`.

@@ -18,6 +18,37 @@
   first; Connected apps shows that day beside each Disconnect. Who may connect,
   every check, the approval and Disconnect forms and their handling are
   unchanged.
+
+- Allow works for an app whose `state` is longer than 255 characters, as
+  OpenAI's apps send. The code's `state` column held 255, so storing the code
+  failed and Allow answered 503 (found live, 18 Nov 2026). Sites add a
+  migration calling `RegentOAuth.Migration.V4.up()`:
+
+  ```elixir
+  use Ecto.Migration
+  def up, do: RegentOAuth.Migration.V4.up()
+  ```
+
+  It lifts the limit from every column an accepted request can fill past 255
+  characters: `oauth_tokens.state` and `redirect_uri` become `text`, and
+  `oauth_clients.name` and `jwks_uri` become `text` and `redirect_uris`
+  `varchar[]`, since registration and published identities accept callbacks
+  and key addresses up to 2048 bytes and a name of 100 characters as a person
+  reads them, which may hold more as the database counts them. No row changes
+  and no table is rewritten; each table is locked only while its definition
+  changes, and a machine already serving fails each query it prepared before
+  once per database connection. New tests sign in with a 1,500-character
+  `state`, with the longest callback consent takes, with a long name and with
+  keys at a long address, and check that the migration leaves every row and
+  table file as it was.
+- A failure inside the consent and protocol endpoints is now logged as one
+  error line naming the endpoint, the exception's module and the top four code
+  locations (`RegentOAuth.Refusal.crashed/3`), as `oauth failed
+  endpoint=approve exception=Elixir.MatchError at=RegentOAuth.bind/1
+  (regent_oauth.ex:229), ...`; never the exception's message or any value, and
+  a frame's arguments only by their count. Before, such a failure answered 503
+  `temporarily_unavailable` and left no trace. The answer, and the protocol's
+  `[:regent_oauth, :request, :failure]` telemetry, are unchanged.
 - The token address names a refused resource more clearly. It reads the grant
   type before the resource, so an empty or unreadable request is logged as
   `grant_type`, and a refused resource is logged with its grant and whether it

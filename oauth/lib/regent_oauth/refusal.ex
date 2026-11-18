@@ -10,6 +10,10 @@ defmodule RegentOAuth.Refusal do
   description whatever the reason, so the answer never says why a credential
   failed: only the warning does. A refusal Boruta made is logged by Boruta's
   own error name, which no reason here shares.
+
+  A failure no check expected is answered `temporarily_unavailable` and logged
+  as one error naming the endpoint, the exception's module and where in the
+  code it happened, never its message or any value.
   """
   require Logger
 
@@ -81,6 +85,39 @@ defmodule RegentOAuth.Refusal do
   @doc "Logs one refusal: the endpoint and the reason, never a value."
   def log(endpoint, reason) when is_atom(endpoint) and is_atom(reason),
     do: Logger.warning("oauth refused endpoint=#{endpoint} reason=#{reason}")
+
+  @doc """
+  Logs one failure: the endpoint, the exception's module and the top four
+  stack frames by function, arity, file and line. Never the exception's
+  message, its fields or a frame's arguments, which may carry credentials.
+  """
+  def crashed(endpoint, exception, stacktrace)
+      when is_atom(endpoint) and is_exception(exception) and is_list(stacktrace) do
+    at = stacktrace |> Enum.take(4) |> Enum.map_join(", ", &frame/1)
+    Logger.error("oauth failed endpoint=#{endpoint} exception=#{exception.__struct__} at=#{at}")
+  end
+
+  # A frame's third element is the call's arguments when the call itself
+  # failed (FunctionClauseError, UndefinedFunctionError, a built-in function's
+  # refusal): only their count is kept.
+  defp frame({module, function, arity_or_args, location}),
+    do: Exception.format_mfa(module, function, arity(arity_or_args)) <> location(location)
+
+  defp frame({fun, arity_or_args, location}) do
+    {:module, module} = Function.info(fun, :module)
+    {:name, name} = Function.info(fun, :name)
+    frame({module, name, arity_or_args, location})
+  end
+
+  defp arity(args) when is_list(args), do: length(args)
+  defp arity(arity), do: arity
+
+  defp location(location) do
+    case {location[:file], location[:line]} do
+      {file, line} when is_list(file) and is_integer(line) -> " (#{Path.basename(file)}:#{line})"
+      _ -> ""
+    end
+  end
 
   @doc "Logs the refusal and answers `error` as JSON, described by its reason."
   def answer(conn, endpoint, status, error, reason),

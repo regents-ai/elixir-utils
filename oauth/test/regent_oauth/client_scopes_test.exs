@@ -41,7 +41,7 @@ defmodule RegentOAuth.ClientScopesTest do
       Application.put_env(:regent_oauth, :site, Site)
     end)
 
-    Schema.migrate!(@schema, [1, 2, 3])
+    Schema.migrate!(@schema, [1, 2, 3, 4])
     :ok
   end
 
@@ -91,7 +91,7 @@ defmodule RegentOAuth.ClientScopesTest do
     before = %{links: links(), scopes: scope_rows(), clients: clients()}
     assert {:error, %{error: :invalid_scope}} = check_scopes(earlier, @both)
 
-    Schema.migrate!(@schema, [1, 2, 3, 4])
+    Schema.migrate!(@schema, [1, 2, 3, 4, 5])
 
     assert [{_id, ^earlier, "regent.rooms.read"}] = links() -- before.links
     assert before.links -- links() == []
@@ -106,7 +106,7 @@ defmodule RegentOAuth.ClientScopesTest do
     earlier = Flow.client!()
     before = scope_rows()
 
-    Schema.migrate!(@schema, [1, 2, 3, 4])
+    Schema.migrate!(@schema, [1, 2, 3, 4, 5])
 
     assert [{_id, "regent.rooms.read"}] = scope_rows() -- before
     assert {:ok, _} = check_scopes(earlier, @both)

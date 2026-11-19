@@ -4,6 +4,11 @@ All notable changes to `siwa` should be recorded here.
 
 ## Unreleased
 
+- The tests and the frozen cases in `siwa-elixir/fixtures` are gone (19 Nov 2026).
+  `siwa/contract` stays: `mix check` in `siwa/siwa-elixir` compiles with warnings as
+  errors, checks formatting and the usage rules, and that `siwa/contract` matches the
+  library.
+
 - Contract version 2: every signed request covers `@authority`, the host it is
   sent to (`Siwa.Contract.authority/1`: lowercase, with `:port` only when it is not
   the scheme's default), after `@path`. Signing needs the request's `authority`

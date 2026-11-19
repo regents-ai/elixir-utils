@@ -62,7 +62,7 @@ defmodule Siwa.RequestAuth do
 
   @doc """
   Signs a request where the receipt's secret is known (the sign-in server's own
-  hosted signing, and tests): the receipt is checked against `opts` first.
+  hosted signing): the receipt is checked against `opts` first.
   """
   def sign_authenticated_request(request, receipt, signer, opts \\ []) do
     request = normalize_request(request)

@@ -59,8 +59,10 @@ missing historical evidence retries rather than falling back to current holdings
 
 Add `points: 5` and `points_chain: 2` queues to the site's existing Oban instance.
 Only Regents, the one tally owner, adds a daily cron for `RegentPoints.TallyPeriods`;
-every other site leaves it out. Every site adds `{"@hourly", RegentPoints.StartAwards}`
-for the start awards below. All hosts use the same shared database and schema.
+every other site leaves it out. A site that lists at least one start rule it has a
+source for adds `{"@hourly", RegentPoints.StartAwards}` for the start awards below; a
+site with no start-rule source leaves it out. All hosts use the same shared database
+and schema.
 Use the same Repo for source actions and Oban. The package's notifier broadcasts
 on the configured host PubSub under `points:<account_id>` when that account's total
 moves, and under `points:board` when any account's does; cross-node notification
@@ -138,13 +140,18 @@ What an account already has at the start earns its one-time points at the start,
 without the person doing anything: the account (`account.activated`), its linked X,
 GitHub and Farcaster accounts (`social.*`) and its first paired agent
 (`agent.activated`), at most 80 points (`RegentPoints.Rules.start_rules/0`). Sean,
-6 November. `RegentPoints.StartAwards` asks each approved start rule's adapter for
-`existing(rule_id, starts_at)`: one `{account_id, reference}` per account for state
-that existed before the start and still holds (a pairing still paired, a link still
-linked). It records each reference through `record_event/2`, so the adapter's
-`verify/1` proves it as usual and reports the real time; Points earns it at the start
-time. The milestone ids are the same as for new actions, so an account earns each once
-whichever site records it. No other rule earns for anything before the start. A site
+6 November. The same run gives what came after the start that Points has not
+recorded yet, such as an account that joined after the start but before its site
+turned Points on (Sean, 19 November). `RegentPoints.StartAwards` runs at most once a
+day and asks each approved start rule's adapter for `existing(rule_id, at)`, with the
+run's own time as `at`: one `{account_id, reference}` per account for state that
+existed before `at` and still holds (a pairing still paired, a link still linked). It
+leaves out accounts that already have an event for the rule and records each other
+reference through `record_event/2`, so the adapter's `verify/1` proves it as usual and
+reports the real time; what was there before the start earns at the start time, and
+anything later at its real time. The milestone ids are the same as for new actions,
+so an account earns each once whichever site records it. No other rule earns for
+anything before the start. A site
 lists only the start rules it has a source for: Patchbay has no linked accounts, so it
 lists the account and the first pairing.
 

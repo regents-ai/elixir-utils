@@ -222,6 +222,5 @@ authorization signing. Use it before handing a prepared action to a signer.
 
 ```bash
 mix deps.get
-mix test
 mix docs
 ```

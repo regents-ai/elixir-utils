@@ -13,6 +13,7 @@ defmodule RegentPoints.IntakeTest do
   @rule "social.x"
   @limit String.duplicate("7", 510)
   @over String.duplicate("7", 511)
+  @long String.duplicate("7", 598)
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(RegentPoints.Repo)
@@ -36,7 +37,7 @@ defmodule RegentPoints.IntakeTest do
     Application.put_env(:regent_points, :approved_rules, [])
 
     Oban.Testing.with_testing_mode(:manual, fn ->
-      for key <- ["x:" <> @limit, "x:" <> @over, ""] do
+      for key <- ["x:" <> @limit, "x:" <> @over, "x:" <> @long, ""] do
         assert {:ok, %{status: :disabled}} = record(key)
       end
 
@@ -44,17 +45,44 @@ defmodule RegentPoints.IntakeTest do
     end)
   end
 
-  test "a rule that is on queues a source key of 512 bytes and refuses one of 513" do
+  @tag :capture_log
+  test "a rule that is on queues a source key of 512 bytes and sets aside one of 513" do
     Application.put_env(:regent_points, :approved_rules, [@rule])
     assert byte_size("x:" <> @limit) == 512
 
     Oban.Testing.with_testing_mode(:manual, fn ->
       assert {:ok, %{status: :queued}} = record("x:" <> @limit)
-      assert {:error, _} = record("x:" <> @over)
+      assert {:ok, %{status: :invalid}} = record("x:" <> @over)
 
       assert [%{args: %{"source_event_key" => "x:" <> @limit}}] =
                all_enqueued(worker: IntakeWorker)
     end)
+  end
+
+  @tag :capture_log
+  test "a rule that is on answers ok for an over-long offer, sets it aside and queues nothing" do
+    Application.put_env(:regent_points, :approved_rules, [@rule])
+    assert byte_size("x:" <> @long) == 600
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert {:ok, %{status: :invalid}} = record("x:" <> @long)
+      assert {:ok, %{status: :invalid}} = record("")
+      refute_enqueued(worker: IntakeWorker)
+    end)
+  end
+
+  test "the warning for a set-aside offer carries the sizes, never the source key" do
+    Application.put_env(:regent_points, :approved_rules, [@rule])
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        Oban.Testing.with_testing_mode(:manual, fn ->
+          assert {:ok, %{status: :invalid}} = record("x:" <> @long)
+        end)
+      end)
+
+    assert log =~ "600"
+    refute log =~ @long
   end
 
   defp record(key),

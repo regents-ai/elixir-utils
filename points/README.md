@@ -109,8 +109,11 @@ changing an accepted event. Infrastructure failures retry; discarded Oban jobs n
 operator diagnosis.
 
 At the award only the answer counts: the facts and the rule saved at the first
-check decide the award. A source refused by then, such as a post hidden or marked
-as spam, earns nothing: its event ends `rejected` with `award_refused`, leaves the
+check decide the award, and a yes counts only when its facts name the account saved
+at the first check. A source refused by then, such as a post hidden or marked as
+spam, or one that now names another account, such as a social account linked to
+someone else since, earns nothing for either account: its event ends `rejected`
+with `award_refused` (audited as `account_changed` when the account moved), leaves the
 summary's `pending` count, and the refusal gets the same private audit as one at
 the first check. A source that cannot answer rolls the award back and Oban tries
 again; after the last attempt the event ends `award_failed`. Start awards are

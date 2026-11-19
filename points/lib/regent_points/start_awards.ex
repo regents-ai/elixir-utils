@@ -13,8 +13,10 @@ defmodule RegentPoints.StartAwards do
   `existing(rule_id, now)` with the run's own time, for what is there now, one
   `{account_id, reference}` per account, and records it through
   `RegentPoints.record_event/2` like any action, so the source still proves it and
-  an account earns each rule once whichever site records it. The accounts that
-  already have an event for the rule are read once per rule and left out.
+  an account earns each rule once whichever site records it. Its offers carry
+  `start_run: true`, so their checks and awards wait behind live ones, and an offer
+  whose check is still waiting from an earlier run is that same job. The accounts
+  that already have an event for the rule are read once per rule and left out.
 
   Unique for a day while queued or done, so it runs at most once a day, and each
   run records what no listener has.
@@ -51,7 +53,9 @@ defmodule RegentPoints.StartAwards do
     for {account_id, reference} <- Rules.adapter(id).existing(id, now),
         not MapSet.member?(recorded, account_id) do
       {:ok, _} =
-        RegentPoints.record_event(Map.put(reference, :rule_id, id), actor: Store.system())
+        RegentPoints.record_event(Map.put(reference, :rule_id, id), %{start_run: true},
+          actor: Store.system()
+        )
     end
   end
 

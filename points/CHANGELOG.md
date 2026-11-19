@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- The start run's work waits behind live awards (19 Nov 2026). `record_event/2`
+  takes `start_run: true`, which only `StartAwards` passes: its checks run at a lower
+  Oban priority than live ones, and each award job keeps its check's priority. A
+  check job is unique on its four reference fields while it waits, so the same
+  reference offered again before it runs, by a site or a repeated start run, is the
+  same job.
 - `record_event/2` always answers `{:ok, _}` (19 Nov 2026). With the rule on, an
   offer whose reference fields are not each a string of 1 to 512 bytes answers
   `{:ok, %{status: :invalid}}`, queues nothing and logs one warning with the rule,

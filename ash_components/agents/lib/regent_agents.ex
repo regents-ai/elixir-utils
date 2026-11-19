@@ -127,19 +127,46 @@ defmodule RegentAgents do
     end
   end
 
+  # How many people one read of `pairings_held_from_before/1` takes.
+  @held_page 500
+
   @doc """
   Each person's earliest pairing made before `at` that is still paired, one per
-  person: the agents people already had when something started, such as Points.
+  person, in order of their Privy user ID: the agents people already had when
+  something started, such as Points.
+
+  A lazy stream. It reads #{@held_page} people at a time as it is walked, each read
+  starting after the last person of the one before, in no transaction, so the caller
+  can write between reads. Pairings are shared by every Regent site, so every site
+  gets the same list.
   """
-  @spec pairings_held_from_before(DateTime.t()) :: {:ok, [pairing()]}
+  @spec pairings_held_from_before(DateTime.t()) :: Enumerable.t(pairing())
   def pairings_held_from_before(%DateTime{} = at) do
+    nil
+    |> Stream.unfold(fn
+      :done -> nil
+      after_person -> held_page(at, after_person)
+    end)
+    |> Stream.concat()
+  end
+
+  defp held_page(at, after_person) do
     pairings()
     |> where([h], h.paired_at < type(^at, :utc_datetime_usec) and is_nil(h.revoked_at))
+    |> after_person(after_person)
     |> distinct([h], asc: h.privy_user_id)
     |> order_by([h], asc: h.paired_at, asc: h.id)
+    |> limit(@held_page)
     |> repo(nil, :read).all()
-    |> then(&{:ok, &1})
+    |> case do
+      [] -> nil
+      page when length(page) < @held_page -> {page, :done}
+      page -> {page, List.last(page).privy_user_id}
+    end
   end
+
+  defp after_person(query, nil), do: query
+  defp after_person(query, person), do: where(query, [h], h.privy_user_id > ^person)
 
   defp pairings do
     from h in "pairing_history",

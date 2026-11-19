@@ -8,14 +8,15 @@ defmodule RegentPoints.StartAndVersionsTest do
   defmodule Source do
     @moduledoc false
     # Stands in for a site's checkers: it answers from the facts a test saved, and
-    # lists, as `existing/1`, the start-rule state a test says was there before the start.
+    # lists, as `existing/2`, the start-rule state a test says was there before the
+    # start, as a lazy stream like a site's read in pages.
     def verify(%{"source_event_key" => key}),
       do: Map.fetch(Application.get_env(:regent_points, :test_facts, %{}), key)
 
     def existing(rule_id, _start) do
-      for {account, %{rule_id: ^rule_id} = reference} <-
-            Application.get_env(:regent_points, :test_existing, []),
-          do: {account, Map.delete(reference, :rule_id)}
+      Application.get_env(:regent_points, :test_existing, [])
+      |> Stream.filter(&match?({_account, %{rule_id: ^rule_id}}, &1))
+      |> Stream.map(fn {account, reference} -> {account, Map.delete(reference, :rule_id)} end)
     end
   end
 

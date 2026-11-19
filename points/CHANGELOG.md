@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- The start awards' pairing list is read in pages (19 Nov 2026):
+  `RegentAgents.pairings_held_from_before/1` answers a lazy stream of 500 people
+  a read, and `StartAwards` walks a start rule's `existing/2` once, so an adapter
+  that answers a stream holds one page at a time. A record every site shares, such
+  as a pairing, is named by one `source_app` on every site.
 - A rule that is off touches nothing (19 Nov 2026): `record_event/2` checks
   whether the rule is on before anything else and answers `{:ok, %{status:
   :disabled}}` whatever the reference. With the rule on, each reference field

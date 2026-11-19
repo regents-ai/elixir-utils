@@ -345,8 +345,55 @@ defmodule RegentAgents.PairingTest do
     _later = history.(did, ~U[2026-01-05 00:00:00.000000Z], nil)
     _after = history.(other, ~U[2026-01-11 00:00:00.000000Z], nil)
 
-    assert {:ok, pairings} = RegentAgents.pairings_held_from_before(at)
-    assert [%{id: ^held}] = Enum.filter(pairings, &(&1.privy_user_id in [did, other]))
+    assert [%{id: ^held}] =
+             at
+             |> RegentAgents.pairings_held_from_before()
+             |> Enum.filter(&(&1.privy_user_id in [did, other]))
+  end
+
+  # The list is read a page of people at a time; across the pages each person still
+  # comes once, with their earliest pairing still paired, in order.
+  test "the pairings held from before a moment, read in pages, one per person" do
+    at = ~U[2026-01-10 00:00:00.000000Z]
+    prefix = "did:privy:pages-" <> Ecto.UUID.generate() <> "-"
+    held_at = ~U[2026-01-03 00:00:00.000000Z]
+
+    for {paired_at, revoked_at} <- [
+          {~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-02 00:00:00.000000Z]},
+          {held_at, nil},
+          {~U[2026-01-05 00:00:00.000000Z], nil},
+          {~U[2026-01-11 00:00:00.000000Z], nil}
+        ] do
+      RegentAgents.TestRepo.query!(
+        """
+        INSERT INTO regent_agents.pairing_history
+          (id, privy_user_id, wallet, name, harness, paired_at, last_contact_at, revoked_at)
+        SELECT gen_random_uuid(), $1 || lpad(n::text, 4, '0'),
+               '0x' || substr(md5(random()::text) || md5(random()::text), 1, 40),
+               'Held', 'codex', $2, $2, $3
+        FROM generate_series(1, 1001) AS n
+        """,
+        [prefix, paired_at, revoked_at]
+      )
+    end
+
+    %{rows: rows} =
+      RegentAgents.TestRepo.query!(
+        """
+        SELECT id FROM regent_agents.pairing_history
+        WHERE starts_with(privy_user_id, $1) AND paired_at = $2
+        ORDER BY privy_user_id
+        """,
+        [prefix, held_at]
+      )
+
+    held = Enum.map(rows, fn [id] -> Ecto.UUID.load!(id) end)
+    assert length(held) == 1001
+
+    assert at
+           |> RegentAgents.pairings_held_from_before()
+           |> Stream.filter(&String.starts_with?(&1.privy_user_id, prefix))
+           |> Enum.map(& &1.id) == held
   end
 
   test "a person's agents need a signed-in person" do

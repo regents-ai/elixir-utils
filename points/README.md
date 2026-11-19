@@ -144,7 +144,12 @@ that existed before the start and still holds (a pairing still paired, a link st
 linked). It records each reference through `record_event/2`, so the adapter's
 `verify/1` proves it as usual and reports the real time; Points earns it at the start
 time. The milestone ids are the same as for new actions, so an account earns each once
-whichever site records it. No other rule earns for anything before the start. A site
+whichever site records it. `existing/2` may answer any enumerable, which the run walks
+once, so a lazy stream read in pages, such as `RegentAgents.pairings_held_from_before/1`
+looked up and turned into references a page at a time, keeps the run's memory to one
+page. A record every site shares, such as the Regents account or a pairing, is named by
+one `source_app` on every site (the account's is `"regents"`), never the site that
+happens to read it. No other rule earns for anything before the start. A site
 lists only the start rules it has a source for: Patchbay has no linked accounts, so it
 lists the account and the first pairing.
 

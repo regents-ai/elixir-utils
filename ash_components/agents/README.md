@@ -199,7 +199,11 @@ to that pairing's person.
 
 `RegentAgents.pairings_held_from_before(at)` gives each person's earliest pairing
 made before `at` that is still paired, one per person: Points uses it to give the
-first-pairing points to agents people already had at the start.
+first-pairing points to agents people already had at the start. It is a lazy
+stream that reads 500 people at a time as it is walked, in order of Privy user ID
+and in no transaction, so a caller can look up and record each page before the
+next is read. Pairings are shared by every Regent site, so every site gets the
+same list.
 
 ## Hello cards
 

@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- `RegentAgents.pairings_held_from_before/1` answers a lazy stream instead of
+  `{:ok, list}` (19 Nov 2026). It reads 500 people at a time as it is walked, each
+  read after the last person of the one before, in order of Privy user ID, in no
+  transaction. Each person still comes once, with their earliest pairing before the
+  moment that is still paired. Callers walk the stream instead of matching
+  `{:ok, pairings}`.
+
 - Hello cards (`RegentAgents.HelloCard`). `POST /api/agents/v1/pairing` answers
   the SIWA service's question before it signs a card naming this site:
   `{"name", "person", "pairedAt"}` for a paired agent, `not_paired_here` (404)

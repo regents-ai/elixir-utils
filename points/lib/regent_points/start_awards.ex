@@ -8,8 +8,8 @@ defmodule RegentPoints.StartAwards do
   after the start but before its site turned Points on.
 
   Every site with a start-rule source runs it from an hourly cron line. With no
-  start time it stops, and after the last season's end too; before the start it
-  waits for it. From the start it asks each approved start rule's source,
+  start time, before the start, and after the last season's end, it stops; the
+  first hourly run after the start does the work. From the start it asks each approved start rule's source,
   `existing(rule_id, now)` with the run's own time, for what is there now, one
   `{account_id, reference}` per account, and records it through
   `RegentPoints.record_event/2` like any action, so the source still proves it and
@@ -21,8 +21,9 @@ defmodule RegentPoints.StartAwards do
   event still waits: its check finds the waiting event and queues its award, which
   is one job while it waits.
 
-  Unique for a day while queued or done, so it runs at most once a day, and each
-  run records what no listener has.
+  Unique for a day while it waits, runs or has succeeded, so once a run succeeds
+  no other runs that day; a run that ends cancelled or discarded lets the next
+  hourly line start another. Each run records what no listener has.
   """
   use Oban.Worker,
     queue: :points,
@@ -36,16 +37,16 @@ defmodule RegentPoints.StartAwards do
   def perform(_job) do
     now = DateTime.utc_now()
 
-    case Keyword.get(Rules.config(), :starts_at) do
-      nil -> {:cancel, :not_started}
-      start -> at(now, DateTime.diff(start, now), DateTime.before?(now, Rules.ends_at()))
+    start = Keyword.get(Rules.config(), :starts_at)
+
+    cond do
+      start == nil or DateTime.before?(now, start) -> {:cancel, :not_started}
+      not DateTime.before?(now, Rules.ends_at()) -> {:cancel, :ended}
+      true -> record_all(now)
     end
   end
 
-  defp at(_now, wait, _running?) when wait > 0, do: {:snooze, wait}
-  defp at(_now, _wait, false), do: {:cancel, :ended}
-
-  defp at(now, _wait, true) do
+  defp record_all(now) do
     for id <- Rules.start_rules(), Rules.enabled?(id), do: record_existing(id, now)
     :ok
   end

@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- `record_event/2` always answers `{:ok, _}` (19 Nov 2026). With the rule on, an
+  offer whose reference fields are not each a string of 1 to 512 bytes answers
+  `{:ok, %{status: :invalid}}`, queues nothing and logs one warning with the rule,
+  the source app and kind and each field's size in bytes; the action it rides in
+  goes ahead.
 - An award still waiting, or refused, blocks no later offer (Sean, 19 Nov 2026). A
   one-time rule records nothing more only once the account has earned it; the award's
   limits per account and per subject still let only one earn. A source whose event

@@ -91,10 +91,13 @@ In the source action's transaction, call the system-only domain action:
   }, actor: %{role: :system})
 ```
 
-While the rule is off it answers `{:ok, %{status: :disabled}}` before it looks at
-anything else, whatever the reference, so a rule that is off never refuses the action
-it rides in. With the rule on, each of the four fields must be a string of 1 to 512
-bytes, or it answers an error.
+It always answers `{:ok, _}`, so Points never refuses the action it rides in. While
+the rule is off it answers `{:ok, %{status: :disabled}}` before it looks at anything
+else, whatever the reference. With the rule on, an offer whose four fields are not
+each a string of 1 to 512 bytes is set aside on its own: it answers `{:ok, %{status:
+:invalid}}`, queues nothing and logs one warning with the rule, the source app and
+kind and each field's size in bytes, never the source event key. Any other offer
+answers `{:ok, %{status: :queued, id: job_id}}`.
 
 Only those four reference fields enter the Oban job. No adapter, Points table or
 chain read runs in the product transaction. The job is inserted in the source's own

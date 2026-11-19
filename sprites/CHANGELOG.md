@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The tests are gone (19 Nov 2026). `mix check` compiles with warnings as errors and
+  checks unused locks, formatting and the usage rules.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. `RegentSprites.Output.from_frames/1` pins
   the size it reads from outside a binary match, as Elixir 1.20 asks.

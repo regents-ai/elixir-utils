@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The tests are gone (19 Nov 2026). `mix check` compiles with warnings as errors and
+  checks unused locks, formatting and the usage rules. Requests always go through
+  Req: the `regent_http` client setting the tests used is gone.
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions.
 

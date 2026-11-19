@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- The tests and their database are gone (19 Nov 2026). `mix check` runs in dev
+  against `RegentPayments.Repo` in `dev/`, which no `:prod` build compiles, and
+  compiles with warnings as errors and checks unused locks, formatting, Credo and the
+  usage rules. `RegentPayments.Operator` reads a receipt every two seconds; its
+  `receipt_every_ms` setting, which only tests used, is gone.
+
 - A receipt no longer has `paid_with`: every payment is in USDC, so it said
   nothing. The column stays, with the receipts already written, until a later
   change drops it. Migration `20261112180000_receipts_paid_with_default` gives it

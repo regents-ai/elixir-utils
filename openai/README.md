@@ -75,14 +75,6 @@ per person:
 
 A call that starts just under the cap can finish slightly over it.
 
-## Test injection
-
-Stub the HTTP client as for `regent_http`:
-
-```elixir
-Application.put_env(:regent_http, :client, MyApp.OpenAIStub)
-```
-
 ## Check
 
 ```bash

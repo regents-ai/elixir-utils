@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The tests and their database are gone (19 Nov 2026). `mix check` compiles with
+  warnings as errors and checks formatting.
+
 - Breaking, sites change their OAuth configuration at the bump: the Connect page
   and Connected apps are shorter. `permission_description` is now `permission`,
   a `{lead, detail}` row (lead 1 to 60 bytes, detail 1 to 200), such as

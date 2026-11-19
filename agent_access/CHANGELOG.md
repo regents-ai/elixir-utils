@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The signed tools' Node test file is gone (19 Nov 2026). `mix check` compiles with
+  warnings as errors and checks formatting and the usage rules.
+
 - Signed browser tools take only their input. `signedTools(config).execute(name,
   input)` builds the exact request, asks the agent's browser host to sign it through
   `window.regentsSign`, and sends those same bytes with the returned proof headers.

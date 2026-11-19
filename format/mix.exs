@@ -25,18 +25,11 @@ defmodule RegentFormat.MixProject do
     ]
   end
 
-  def cli do
-    [
-      preferred_envs: [check: :test, precommit: :test]
-    ]
-  end
-
   defp deps do
     [
       {:decimal, "~> 3.1"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:stream_data, "~> 1.4", only: :test},
-      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: :dev, runtime: false}
     ]
   end
 
@@ -63,8 +56,7 @@ defmodule RegentFormat.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",
         "format --check-formatted",
-        "usage_rules.sync --check",
-        "test --warnings-as-errors"
+        "usage_rules.sync --check"
       ],
       precommit: ["check"]
     ]

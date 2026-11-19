@@ -232,6 +232,5 @@ For a longer guide with more examples, read [USAGE.md](USAGE.md).
 
 ```bash
 mix deps.get
-mix test
 mix docs
 ```

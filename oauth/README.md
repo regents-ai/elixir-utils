@@ -110,9 +110,8 @@ site's own `form-action 'self'`. Allow and Cancel answer 200 with a short page
 ("Returning to the app.") whose `meta` refresh and Continue link take the
 browser to the app's callback, never a 303: Chromium checks every host in a
 redirect chain that follows a form POST against `form-action`, and an app's
-callback may send the browser on to a host nobody knows in advance. A site's
-test reads the address from that page. Never loosen the site's browser policy
-to make OAuth returns work. Approval still checks the exact callback, account,
+callback may send the browser on to a host nobody knows in advance. Never
+loosen the site's browser policy to make OAuth returns work. Approval still checks the exact callback, account,
 scope, S256 challenge, nonce, CSRF and lifetime. A consumed or expired request
 returns a readable HTTP 401 page; restart from the connecting app rather than
 resubmitting the old form. Consent, the return page and redirects stay
@@ -228,7 +227,4 @@ access by another account's client ID. Native SIWA tools keep their own boundary
 
 Feature flags default off. Building and local verification do not authorize
 publishing, production migrations, live sign-in changes, money tests or Points.
-Run `mix check` (compile, format and the tests, which need a local PostgreSQL 17
-on 127.0.0.1:5432 and make `regent_oauth_test` if it is missing). Representative protocol exercises use disposable local accounts
-and databases; they are separate from real ChatGPT acceptance after an authorized
-release. OAuth credentials and signing keys must never be printed or logged.
+Run `mix check` (compile and format). OAuth credentials and signing keys must never be printed or logged.

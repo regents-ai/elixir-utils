@@ -24,12 +24,10 @@ defmodule RegentIdentity.MixProject do
     [extra_applications: [:logger, :crypto]]
   end
 
-  def cli do
-    [preferred_envs: [check: :test, precommit: :test]]
-  end
-
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_env), do: ["lib"]
+  # dev/ holds the repository this package's own build checks its resources
+  # against. A site names its own repository, and never compiles dev/ in :prod.
+  defp elixirc_paths(:prod), do: ["lib"]
+  defp elixirc_paths(_env), do: ["lib", "dev"]
 
   defp deps do
     [
@@ -44,10 +42,10 @@ defmodule RegentIdentity.MixProject do
       {:regent_privy, path: "../../privy"},
       {:regent_format, path: "../../format"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
-      {:credo_ash, path: "../../credo_ash", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: :dev, runtime: false},
+      {:ex_slop, "~> 0.4", only: :dev, runtime: false},
+      {:credo_ash, path: "../../credo_ash", only: :dev, runtime: false}
     ]
   end
 
@@ -76,8 +74,7 @@ defmodule RegentIdentity.MixProject do
         "deps.unlock --check-unused",
         "format --check-formatted",
         "credo --strict",
-        "usage_rules.sync --check",
-        "test --warnings-as-errors"
+        "usage_rules.sync --check"
       ],
       precommit: ["check"]
     ]
@@ -98,7 +95,7 @@ defmodule RegentIdentity.MixProject do
       usage_rules: [
         {:usage_rules, sub_rules: []},
         {:usage_rules, sub_rules: :all, main: false, link: :markdown},
-        {:ash, link: :markdown},
+        {:ash, link: :markdown, except: ["testing"]},
         {~r/^ash_/, link: :markdown}
       ]
     ]

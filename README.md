@@ -62,7 +62,7 @@ features.
 | `regent_anthropic` | techtree (AgentWalletBench judge) |
 | `regent_blog` | regents, autolaunch, patchbay, techtree |
 | `regent_chain` | not used yet; planned for autolaunch, regents and keyfleet |
-| `credo_ash` | regents, autolaunch, patchbay, ash-template, keyfleet (dev and test only) |
+| `credo_ash` | regents, autolaunch, patchbay, ash-template, keyfleet (never in a release) |
 | `ens_elixir` | regents |
 | `regent_format` | not used yet; planned for the product apps |
 | `regent_http` | not used yet; planned for the product apps |

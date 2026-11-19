@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- The tests and their database are gone (19 Nov 2026). `mix check` runs in dev
+  against `RegentIdentity.Repo` in `dev/`, which no `:prod` build compiles, and
+  compiles with warnings as errors and checks unused locks, formatting, Credo and the
+  usage rules.
+
 - Profile contract 2.0.0: `RegentIdentity.HTTP` acts for the owner the site puts on
   the request with `RegentIdentity.HTTP.put_owner/2`, a `RegentIdentity.Owner`
   (`%{app_id, privy_user_id}`). The site decides who is calling from its own sign-in,

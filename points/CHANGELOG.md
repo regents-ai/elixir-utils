@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+- The tests and their database are gone (19 Nov 2026). `mix check` compiles with
+  warnings as errors and checks formatting and unused locks.
 - The README says what the code does (19 Nov 2026). Only the Regents account is
   named by one `source_app` on every site (`"regents"`); a pairing keeps the site's
   own name, and the once-per-account limit lets one earn. A site that can run

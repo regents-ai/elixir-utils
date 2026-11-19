@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The tests are gone (19 Nov 2026). `mix check` compiles with warnings as errors and
+  checks unused locks, formatting and the usage rules.
 - `RegentChain.Presses.failed/1` accepts a new reason, `wallet_refused`: the wallet
   refused the request outright (it was not signed in to the site, did not support the
   request, or was disconnected), so nothing was sent.

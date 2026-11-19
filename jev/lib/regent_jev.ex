@@ -16,8 +16,8 @@ defmodule RegentJev do
       config :regent_jev, api_key: System.fetch_env!("OPENROUTER_API_KEY")
       config :regent_jev, endpoint: "http://127.0.0.1:4198/api/alpha/decisions"
 
-  Requests go through `RegentHttp`, so tests stub the client there. Each call
-  emits a `[:regent_jev, :decide]` telemetry event (see `decide/3`).
+  Requests go through `RegentHttp`. Each call emits a `[:regent_jev, :decide]`
+  telemetry event (see `decide/3`).
   """
 
   alias RegentJev.{Decision, Error}

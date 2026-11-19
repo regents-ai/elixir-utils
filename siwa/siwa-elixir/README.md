@@ -33,7 +33,6 @@ Use this workspace when working on:
 - replay behavior
 - wallet action signing
 - receipt creation and verification
-- shared Regent service authentication tests
 
 Do not add product route behavior here. Product routes and UI belong in the
 product repos that use these packages.
@@ -52,6 +51,5 @@ product repos that use these packages.
 
 ```bash
 mix deps.get
-mix test
 mix docs
 ```

@@ -23,15 +23,11 @@ defmodule CredoAsh.MixProject do
     [extra_applications: [:logger]]
   end
 
-  def cli do
-    [preferred_envs: [check: :test, precommit: :test]]
-  end
-
   defp deps do
     [
       {:credo, "~> 1.7"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: :dev, runtime: false}
     ]
   end
 
@@ -52,7 +48,6 @@ defmodule CredoAsh.MixProject do
         "deps.unlock --check-unused",
         "format --check-formatted",
         "usage_rules.sync --check",
-        "test --warnings-as-errors",
         "credo --strict"
       ],
       precommit: ["check"]

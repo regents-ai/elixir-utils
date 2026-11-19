@@ -11,13 +11,7 @@ defmodule RegentPayments.Operator do
   alias Ethers.TxData
   alias RegentChain.BuilderCode
 
-  # The receipt is read every two seconds. Tests read receipts faster through
-  # `config :regent_payments, RegentPayments.Operator, receipt_every_ms: ...`.
-  @receipt_every_ms Application.compile_env(
-                      :regent_payments,
-                      [__MODULE__, :receipt_every_ms],
-                      2_000
-                    )
+  @receipt_every_ms 2_000
   @receipt_tries 30
 
   @typedoc "The wallet that signs, and the Base endpoint it sends through."

@@ -8,10 +8,8 @@ defmodule RegentSprites do
       config :regent_sprites, token: System.get_env("SPRITES_TOKEN")
 
   Every call goes to the Sprites API with Req and is tried once; the app decides
-  when to try again (an Oban job, for example). Tests add Req options, such as a
-  `Req.Test` plug:
-
-      Application.put_env(:regent_sprites, :req_options, plug: {Req.Test, MyTest})
+  when to try again (an Oban job, for example).
+  `config :regent_sprites, :req_options` adds Req options to every call.
 
   Files move through commands, never through Sprites' file endpoints: after a
   restore those endpoints still show the disk as it was before, while a command

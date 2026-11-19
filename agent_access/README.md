@@ -98,8 +98,7 @@ method or publication metadata headers, and browser cookies never confer authori
 
 Run `mix regent_agent_access.assets` in the host before building assets to copy
 the helper into `assets/vendor/regent_agent_access/signed_tools.ts`. Keep that
-generated file ignored. The reference integration is ash-template. Run the
-bounded transport checks with `node --test assets/signed_tools.test.mts` (Node 26).
+generated file ignored. The reference integration is ash-template.
 
 ## Usage
 

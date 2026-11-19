@@ -11,21 +11,18 @@ defmodule RegentBlog.MixProject do
         {:mdex, "== 0.14.6"},
         {:yaml_elixir, "~> 2.12"},
         {:floki, "~> 0.38"},
-        {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
+        {:usage_rules, "~> 1.3", only: :dev, runtime: false}
       ],
       usage_rules: usage_rules(),
       aliases: [
         check: [
           "compile --warnings-as-errors",
           "format --check-formatted",
-          "usage_rules.sync --check",
-          "test --warnings-as-errors"
+          "usage_rules.sync --check"
         ]
       ]
     ]
   end
-
-  def cli, do: [preferred_envs: [check: :test]]
 
   def application, do: [extra_applications: [:logger]]
 

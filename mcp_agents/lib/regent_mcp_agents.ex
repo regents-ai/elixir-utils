@@ -451,8 +451,7 @@ defmodule RegentMCPAgents do
   end
 
   # Every request to the signer, and every post, neither retries nor follows a
-  # redirect. `config :regent_mcp_agents, :req_options` adds options to them,
-  # such as a test's stub.
+  # redirect. `config :regent_mcp_agents, :req_options` adds options to them.
   defp http_request(options) do
     options
     |> Keyword.merge(Application.get_env(:regent_mcp_agents, :req_options, []))

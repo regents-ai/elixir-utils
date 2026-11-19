@@ -28,7 +28,7 @@ in a calculation — stay with a reviewer.
 ## Installation
 
 ```elixir
-{:credo_ash, path: "../elixir-utils/credo_ash", only: [:dev, :test], runtime: false}
+{:credo_ash, path: "../elixir-utils/credo_ash", only: :dev, runtime: false}
 ```
 
 Register it in `.credo.exs`:

@@ -29,13 +29,6 @@ must not run it from their migration streams. New product destinations must avoi
 **Do not simply repoint existing databases**: historical public foreign keys,
 sequences, sessions, ledgers and product IDs need a rehearsed data reconciliation.
 
-## Disposable verification
-
-Create the local database `regent_identity_test_local`, then run `mix check`
-(with `MIX_TEST_PARTITION=_<suffix>`, the database is `regent_identity_test_local_<suffix>`). `regent_privy` is the sibling `../../privy`.
-The test harness checks its database name before migrating its own schema. It
-never resets any existing product database. No production/provider access occurs.
-
 ## Cutover status
 
 Local adoption candidates exist for all four products, including a private account page, the

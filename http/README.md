@@ -71,22 +71,8 @@ checked address (the host stays the TLS and Host name), follows no redirects, an
 stops at `max_bytes` and a five-second deadline (`timeout:`). `body:` is sent with
 a POST, and `answer: :headers` returns as soon as a 2xx status's headers arrive. It
 emits `[:regent_http, :public_request]` with the method and result, never the host.
-Tests set `Application.put_env(:regent_http, :public_client, Stub)`, where
+`config :regent_http, :public_client, Stub` replaces the network, where
 `Stub.request/3` takes the same arguments.
-
-## Tests
-
-The crash saving tests use a local Postgres database, `regent_http_test` plus
-`MIX_TEST_PARTITION`, which `mix test` creates when it is missing.
-
-## Test injection
-
-```elixir
-Application.put_env(:regent_http, :client, MyApp.HttpStub)
-```
-
-The stub implements the `RegentHttp` behaviour (`request/1` returning
-`{:ok, %Req.Response{}}` or `{:error, term()}`).
 
 ## Adoption status
 

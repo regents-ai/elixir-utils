@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The tests are gone (19 Nov 2026), with their database and Oban, Postgrex and
+  StreamData. `RegentHttp.request/1` always sends through Req: the `:client` setting
+  and the `RegentHttp` behaviour, which only tests used, are gone. `:public_client`
+  stays. `mix check` compiles with warnings as errors and checks unused locks,
+  formatting and the usage rules.
+
 - `RegentHttp.Public.request/3` (and `get/2`) call an address someone else
   supplied, such as an app's published identity or an MCP Events callback:
   HTTPS only, every DNS answer must be public and Mint connects to the checked

@@ -11,8 +11,8 @@ defmodule RegentHttp.Public do
   the connection. HTTPS only, one connection per call, no proxies, redirects,
   pools or retries, a total deadline and a byte limit on the answer.
 
-  Tests replace the network with `Application.put_env(:regent_http,
-  :public_client, Stub)`, where `Stub.request/3` takes the same arguments.
+  `config :regent_http, :public_client, Stub` replaces the network, where
+  `Stub.request/3` takes the same arguments.
   """
 
   @timeout_ms 5_000

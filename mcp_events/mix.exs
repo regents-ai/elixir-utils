@@ -11,7 +11,7 @@ defmodule RegentMCPEvents.MixProject do
         {:jason, "~> 1.4"},
         # Callbacks go through its checked public-address requests.
         {:regent_http, path: "../http"},
-        {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
+        {:usage_rules, "~> 1.3", only: :dev, runtime: false}
       ],
       usage_rules: usage_rules(),
       aliases: [

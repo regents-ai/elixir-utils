@@ -2,4 +2,3 @@ local-only-*
 
 /_build/
 /deps/
-/cover/

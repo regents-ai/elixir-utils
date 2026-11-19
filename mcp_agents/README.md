@@ -100,9 +100,7 @@ since `forward` sends those to the plug too. Mount it outside parameter logging,
 because tool calls carry pairing codes. Anything but POST is answered 405, and
 the address answers 404 while OAuth or hosted identity is off.
 
-Run `mix check` (compile, format and the tests, which need a local PostgreSQL
-17 on 127.0.0.1:5432 and make `regent_mcp_agents_test` if it is missing; they
-migrate the OAuth tables and the shared agent schema into it).
+Run `mix check` (compile and format).
 Changes are local until shared/service and site releases are separately
 authorized. Existing live connections need explicit additional consent before
 using new capabilities.

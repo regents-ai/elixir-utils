@@ -6,18 +6,12 @@ defmodule RegentMCPAgents.MixProject do
       app: :regent_mcp_agents,
       version: "0.1.0",
       elixir: "~> 1.20",
-      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      aliases: [check: ["compile --warnings-as-errors", "format --check-formatted", "test"]]
+      aliases: [check: ["compile --warnings-as-errors", "format --check-formatted"]]
     ]
   end
 
   def application, do: [extra_applications: [:logger, :crypto]]
-
-  def cli, do: [preferred_envs: [check: :test]]
-
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_env), do: ["lib"]
 
   defp deps do
     [

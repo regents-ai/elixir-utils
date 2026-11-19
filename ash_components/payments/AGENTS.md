@@ -126,10 +126,6 @@ _A declarative, extensible framework for building Elixir applications._
 ## ash:temporal usage
 [ash:temporal usage rules](deps/ash/usage-rules/temporal.md)
 <!-- ash:temporal-end -->
-<!-- ash:testing-start -->
-## ash:testing usage
-[ash:testing usage rules](deps/ash/usage-rules/testing.md)
-<!-- ash:testing-end -->
 <!-- ash_postgres-start -->
 ## ash_postgres usage
 _The PostgreSQL data layer for Ash Framework_

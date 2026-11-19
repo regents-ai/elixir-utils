@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- The tests and their database are gone (19 Nov 2026). `mix check` runs in dev
+  against `RegentAgents.Repo` in `dev/`, which no `:prod` build compiles, and
+  compiles with warnings as errors and checks unused locks, formatting, Credo and the
+  usage rules.
+
 - `RegentAgents.pairings_held_from_before/1` answers a lazy stream instead of
   `{:ok, list}` (19 Nov 2026). It reads 500 people at a time as it is walked, each
   read after the last person of the one before, in order of Privy user ID, in no

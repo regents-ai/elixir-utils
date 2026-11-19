@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The tests are gone (19 Nov 2026), with StreamData. `mix check` compiles with
+  warnings as errors and checks unused locks, formatting and the usage rules.
 - `monogram/2` gives a wallet name, a `0x` address in full or short form, the
   first two characters after `0x` in capitals (`"0x8f3c..41d2"` -> `"8F"`). It
   gave `"0"`, so every wallet author's picture read 0.

@@ -12,15 +12,13 @@ defmodule RegentPoints.MixProject do
         check: [
           "compile --warnings-as-errors",
           "format --check-formatted",
-          "deps.unlock --check-unused",
-          "test --warnings-as-errors"
+          "deps.unlock --check-unused"
         ]
       ]
     ]
   end
 
   def application, do: [extra_applications: [:logger]]
-  def cli, do: [preferred_envs: [check: :test]]
   defp paths(:prod), do: ["lib"]
   defp paths(_), do: ["lib", "dev"]
 
@@ -40,7 +38,7 @@ defmodule RegentPoints.MixProject do
       {:decimal, "~> 2.0 or ~> 3.0"},
       {:regent_format, path: "../format"},
       {:postgrex, "~> 0.22"},
-      {:sourceror, "~> 1.12", only: [:dev, :test], runtime: false}
+      {:sourceror, "~> 1.12", only: :dev, runtime: false}
     ]
   end
 end

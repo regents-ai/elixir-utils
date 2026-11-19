@@ -77,6 +77,5 @@ The key is encrypted with AES-256-GCM, signs only messages, and is never exporte
 
 ```bash
 mix deps.get
-mix test
 mix docs
 ```

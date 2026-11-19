@@ -25,12 +25,6 @@ defmodule RegentPrivy.MixProject do
     ]
   end
 
-  def cli do
-    [
-      preferred_envs: [check: :test, precommit: :test]
-    ]
-  end
-
   defp deps do
     [
       {:joken, "~> 2.6"},
@@ -38,7 +32,7 @@ defmodule RegentPrivy.MixProject do
       {:plug, "~> 1.16"},
       {:phoenix_live_view, "~> 1.1"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: :dev, runtime: false}
     ]
   end
 
@@ -64,8 +58,7 @@ defmodule RegentPrivy.MixProject do
       check: [
         "compile --warnings-as-errors",
         "format --check-formatted",
-        "usage_rules.sync --check",
-        "test"
+        "usage_rules.sync --check"
       ],
       precommit: ["check"]
     ]

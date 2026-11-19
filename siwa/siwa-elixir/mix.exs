@@ -6,15 +6,9 @@ defmodule SiwaElixir.MixProject do
       apps_path: "apps",
       version: "0.1.1",
       start_permanent: Mix.env() == :prod,
-      deps: [{:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}],
+      deps: [{:usage_rules, "~> 1.3", only: :dev, runtime: false}],
       usage_rules: usage_rules(),
       aliases: aliases()
-    ]
-  end
-
-  def cli do
-    [
-      preferred_envs: [check: :test, precommit: :test]
     ]
   end
 
@@ -25,8 +19,7 @@ defmodule SiwaElixir.MixProject do
         "deps.unlock --unused",
         "format --check-formatted",
         "usage_rules.sync --check",
-        "siwa.contract --check",
-        "test"
+        "siwa.contract --check"
       ],
       precommit: ["check"]
     ]

@@ -12,7 +12,7 @@ defmodule RegentAnthropic do
 
       config :regent_anthropic, api_key: System.fetch_env!("ANTHROPIC_API_KEY")
 
-  Requests go through `RegentHttp`, so tests stub the client there.
+  Requests go through `RegentHttp`.
   """
 
   alias RegentAnthropic.{Error, Prices, Reply}

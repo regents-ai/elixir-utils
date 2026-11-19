@@ -4,6 +4,10 @@ All notable changes to `siwa_keyring` should be recorded here.
 
 ## Unreleased
 
+### Removed
+
+- The tests are gone (19 Nov 2026).
+
 ## 0.3.0 - 2026-11-05
 
 ### Changed

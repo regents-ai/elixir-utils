@@ -87,7 +87,6 @@
           {Credo.Check.Warning.UnusedRegexOperation, []},
           {Credo.Check.Warning.UnusedStringOperation, []},
           {Credo.Check.Warning.UnusedTupleOperation, []},
-          {Credo.Check.Warning.WrongTestFilename, []},
           # ExSlop catches patterns LLMs produce that experienced Elixir
           # developers do not. Registered as checks rather than as a plugin
           # because this config pins an explicit enabled list, which Credo
@@ -146,8 +145,6 @@
           {Credo.Check.Consistency.UnusedVariableNames, []},
           # DuplicatedCode is experimental and intentionally left opt-in.
           {Credo.Check.Design.DuplicatedCode, []},
-          # SkipTestWithoutComment is controversial and intentionally left opt-in.
-          {Credo.Check.Design.SkipTestWithoutComment, []},
           # AliasAs is controversial and intentionally left opt-in.
           {Credo.Check.Readability.AliasAs, []},
           # BlockPipe is controversial and intentionally left opt-in.
@@ -192,8 +189,6 @@
           {Credo.Check.Refactor.ModuleDependencies, []},
           # NegatedIsNil is controversial and intentionally left opt-in.
           {Credo.Check.Refactor.NegatedIsNil, []},
-          # PassAsyncInTestCases is controversial and intentionally left opt-in.
-          {Credo.Check.Refactor.PassAsyncInTestCases, []},
           # PipeChainStart is controversial and intentionally left opt-in.
           {Credo.Check.Refactor.PipeChainStart, []},
           # RejectFilter is controversial and intentionally left opt-in.

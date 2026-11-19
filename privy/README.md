@@ -105,4 +105,4 @@ address; preserve explicit verified wallet selection in the owning profile.
     Privy token is posted again (`onRenewed`), and a page opened after the
     sign-in ended renews it as a sign-in (`onSignedIn`, a reload by default).
 
-`mix check` compiles, checks formatting and runs tests without changing lockfiles.
+`mix check` compiles, checks formatting and checks the usage rules without changing lockfiles.

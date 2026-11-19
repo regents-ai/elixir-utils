@@ -6,14 +6,7 @@ defmodule RegentHttp do
   `[:regent_http, :request]` telemetry event, and error formatting redacts
   bearer tokens, Stripe-style secret keys, Anthropic API keys, and authorization
   header values.
-
-  The underlying client is resolved from application config so tests can
-  inject a stub:
-
-      Application.put_env(:regent_http, :client, MyApp.HttpStub)
   """
-
-  @callback request(keyword()) :: {:ok, Req.Response.t()} | {:error, term()}
 
   @default_receive_timeout 15_000
   @default_connect_options [timeout: 5_000]
@@ -29,7 +22,10 @@ defmodule RegentHttp do
     started_at = System.monotonic_time()
     normalized_opts = normalize_opts(opts)
 
-    result = client().request(normalized_opts)
+    result =
+      with {:ok, _started} <- Application.ensure_all_started(:req) do
+        Req.request(normalized_opts)
+      end
 
     :telemetry.execute(
       [:regent_http, :request],
@@ -76,10 +72,6 @@ defmodule RegentHttp do
 
   def redact(value), do: value
 
-  defp client do
-    Application.get_env(:regent_http, :client, __MODULE__.ReqClient)
-  end
-
   defp normalize_opts(opts) do
     opts
     |> Keyword.put_new(:receive_timeout, @default_receive_timeout)
@@ -99,17 +91,4 @@ defmodule RegentHttp do
 
   defp result_status({:ok, %{status: status}}), do: status
   defp result_status({:error, _reason}), do: :error
-  defp result_status(_result), do: :unknown
-
-  defmodule ReqClient do
-    @moduledoc false
-    @behaviour RegentHttp
-
-    @impl true
-    def request(opts) when is_list(opts) do
-      with {:ok, _started} <- Application.ensure_all_started(:req) do
-        Req.request(opts)
-      end
-    end
-  end
 end

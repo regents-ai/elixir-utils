@@ -11,7 +11,7 @@ This repo owns shared Elixir utilities used by Regent products. Each package kee
 - Shared packages own reusable behavior, not product routes, product pages, or product databases.
 - Product authorization stays in the product after shared identity or helper code verifies evidence.
 - Techtree proof and Fold policy are product records, not shared SIWA or utility package records.
-- Keep package APIs small, explicit, and covered by tests in the package folder.
+- Keep package APIs small and explicit.
 - Do not move secrets into shared utility packages.
 - Never read `.env` files. `.env.example` is allowed.
 

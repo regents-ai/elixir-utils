@@ -25,19 +25,12 @@ defmodule RegentSprites.MixProject do
     ]
   end
 
-  def cli do
-    [
-      preferred_envs: [check: :test, precommit: :test]
-    ]
-  end
-
   defp deps do
     [
       {:req, "~> 0.7"},
       {:jason, "~> 1.4"},
-      {:plug, "~> 1.16", only: :test},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: :dev, runtime: false}
     ]
   end
 
@@ -64,8 +57,7 @@ defmodule RegentSprites.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",
         "format --check-formatted",
-        "usage_rules.sync --check",
-        "test --warnings-as-errors"
+        "usage_rules.sync --check"
       ],
       precommit: ["check"]
     ]

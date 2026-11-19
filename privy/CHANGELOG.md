@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The tests are gone (19 Nov 2026). `mix check` compiles with warnings as errors and
+  checks formatting and the usage rules.
 - `RegentPrivy.Proof.pair/1` reads a request's Privy pair: the access token only as
   the bearer and the identity token only as `privy-id-token`, exactly one of each.
   It is the pair `RegentPrivy.Session.verify/2` takes.

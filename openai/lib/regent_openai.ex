@@ -12,7 +12,7 @@ defmodule RegentOpenAI do
 
       config :regent_openai, api_key: System.fetch_env!("OPENAI_API_KEY")
 
-  Requests go through `RegentHttp`, so tests stub the client there.
+  Requests go through `RegentHttp`.
   """
 
   alias RegentOpenAI.{Error, Prices, Reply, Speech, Transcript}

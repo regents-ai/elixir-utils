@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The tests and their database are gone (19 Nov 2026). `mix check` compiles with
+  warnings as errors and checks formatting.
+
 - A refusal from the hosted signer logs one warning with the signer's status
   and its refusal code (`hosted signer refused status=422
   code=hosted_request_refused`), or `no_answer` when it did not answer; never

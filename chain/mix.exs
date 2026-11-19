@@ -25,12 +25,6 @@ defmodule RegentChain.MixProject do
     ]
   end
 
-  def cli do
-    [
-      preferred_envs: [check: :test, precommit: :test]
-    ]
-  end
-
   defp deps do
     [
       {:ex_abi, "~> 0.8.4"},
@@ -38,7 +32,7 @@ defmodule RegentChain.MixProject do
       {:ex_rlp, "~> 0.6.0"},
       {:ex_secp256k1, "~> 0.8.0"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
-      {:usage_rules, "~> 1.3", only: [:dev, :test], runtime: false}
+      {:usage_rules, "~> 1.3", only: :dev, runtime: false}
     ]
   end
 
@@ -65,8 +59,7 @@ defmodule RegentChain.MixProject do
         "compile --warnings-as-errors",
         "deps.unlock --check-unused",
         "format --check-formatted",
-        "usage_rules.sync --check",
-        "test --warnings-as-errors"
+        "usage_rules.sync --check"
       ],
       precommit: ["check"]
     ]

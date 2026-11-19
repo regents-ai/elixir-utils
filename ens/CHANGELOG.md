@@ -4,6 +4,9 @@ All notable changes to `ens_elixir` should be recorded here.
 
 ## Unreleased
 
+- The tests are gone (19 Nov 2026). `mix check` compiles with warnings as errors and
+  checks unused locks, formatting and the usage rules.
+
 - idna 8.0.0 (`{:idna, "~> 8.0"}`), which fixes EEF-CVE-2026-117678: an overlong
   `xn--` label is refused at once instead of being decoded first.
   `AgentEns.Normalize.normalize/1` asks for UTS #46 with its STD3 rule, so ASCII

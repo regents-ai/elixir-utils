@@ -4,6 +4,14 @@ All notable changes to `ens_elixir` should be recorded here.
 
 ## Unreleased
 
+- idna 8.0.0 (`{:idna, "~> 8.0"}`), which fixes EEF-CVE-2026-117678: an overlong
+  `xn--` label is refused at once instead of being decoded first.
+  `AgentEns.Normalize.normalize/1` asks for UTS #46 with its STD3 rule, so ASCII
+  stays letters, digits and hyphens as before. What changes with idna 8: emoji
+  names and symbols such as `≠` are kept instead of refused; an empty label
+  (`a..b.eth`, `.eth`), an invalid `xn--` label and a digit-led label beside a
+  right-to-left label are refused instead of passed.
+
 - Needs Elixir 1.20 on OTP 29 (`elixir: "~> 1.20"`), and its locked dependencies are
   updated to their newest allowed versions. `AgentEns.ERC7930.decode/1` pins the
   lengths it reads from outside a binary match, as Elixir 1.20 asks.

@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- The start awards cover a site that turned Points on after the start (Sean, 19
+  Nov 2026): `StartAwards` asks each start rule's source for `existing(rule_id,
+  now)` with the run's own time instead of the start, so what an account has that
+  Points has not recorded yet is recorded: from before the start it earns at the
+  start, from after it at its real time. The run is unique for a day instead of
+  until Oban prunes it, so it runs at most once a day. A site adds its hourly line
+  only when it lists a start rule it has a source for.
 - A rule that is off touches nothing (19 Nov 2026): `record_event/2` checks
   whether the rule is on before anything else and answers `{:ok, %{status:
   :disabled}}` whatever the reference. With the rule on, each reference field

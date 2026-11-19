@@ -15,12 +15,14 @@ defmodule RegentPoints.Award do
       %{processing_status: status} = event when status != :pending ->
         {:ok, %{id: event.id, status: status}}
 
-      event ->
+      %{account_id: account} = event ->
         Ash.transact(Account, fn ->
-          Store.lock_account(event.account_id)
+          Store.lock_account(account)
 
+          # An event offered again for another account meanwhile is that offer's
+          # own run's to award, under that account's lock.
           case Store.event(event.id) do
-            %{processing_status: :pending} = event -> check(event)
+            %{processing_status: :pending, account_id: ^account} = event -> check(event)
             event -> %{id: event.id, status: event.processing_status}
           end
         end)

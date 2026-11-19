@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+- An award still waiting, or refused, blocks no later offer (Sean, 19 Nov 2026). A
+  one-time rule records nothing more only once the account has earned it; the award's
+  limits per account and per subject still let only one earn. A source whose event
+  ended `rejected` can be offered again: the new facts replace the refused ones on the
+  same event, which waits for its own award, and the award job is unique only while it
+  waits.
 - The start awards cover a site that turned Points on after the start (Sean, 19
   Nov 2026): `StartAwards` asks each start rule's source for `existing(rule_id,
   now)` with the run's own time instead of the start, so what an account has that

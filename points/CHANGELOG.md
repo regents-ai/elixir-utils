@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+- The README says what the code does (19 Nov 2026). Only the Regents account is
+  named by one `source_app` on every site (`"regents"`); a pairing keeps the site's
+  own name, and the once-per-account limit lets one earn. A site that can run
+  without its job runner approves no rule offered from a person's action, since the
+  offer's job is inserted in that action's transaction.
 - `StartAwards` stops before the start (19 Nov 2026): it answers `{:cancel,
   :not_started}`, as it does with no start time, and the first hourly run after the
   start does the work. Once a run succeeds no other runs that day.

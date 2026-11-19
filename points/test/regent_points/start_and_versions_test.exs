@@ -8,13 +8,17 @@ defmodule RegentPoints.StartAndVersionsTest do
   defmodule Source do
     @moduledoc false
     # Stands in for a site's checkers: it answers from the facts a test saved, and
-    # lists, as `existing/1`, the start-rule state a test says was there before the start.
+    # lists, as `existing/2`, the start-rule state a test says is there, dated before
+    # the moment it is asked about.
     def verify(%{"source_event_key" => key}),
       do: Map.fetch(Application.get_env(:regent_points, :test_facts, %{}), key)
 
-    def existing(rule_id, _start) do
+    def existing(rule_id, at) do
+      facts = Application.get_env(:regent_points, :test_facts, %{})
+
       for {account, %{rule_id: ^rule_id} = reference} <-
             Application.get_env(:regent_points, :test_existing, []),
+          DateTime.before?(facts[reference.source_event_key].source_action_at, at),
           do: {account, Map.delete(reference, :rule_id)}
     end
   end
@@ -106,6 +110,55 @@ defmodule RegentPoints.StartAndVersionsTest do
              entries(account)
 
     assert DateTime.compare(earned, linked) == :eq
+  end
+
+  test "what came after the start, before a site turned Points on, earns at its real time" do
+    account = person()
+    joined = DateTime.add(@start, -86_400)
+    linked = after_start(600)
+    existing(account, "account.activated", "account:#{account}", joined)
+    existing(account, "social.x", "x:#{account}", linked, %{"subject_key" => "x:#{account}"})
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+
+    assert [
+             %{rule_id: "account.activated", earned_at: at_start},
+             %{rule_id: "social.x", earned_at: at_link}
+           ] = entries(account) |> Enum.sort_by(& &1.rule_id)
+
+    assert DateTime.compare(at_start, @start) == :eq
+    assert DateTime.compare(at_link, linked) == :eq
+  end
+
+  test "an account a listener already recorded for the rule is not offered again" do
+    account = person()
+    linked = after_start(60)
+    subject = %{"subject_key" => "x:#{account}"}
+    earn("social.x", account, "x-listener:#{account}", linked, subject)
+    # The run's source names the same link under its own key.
+    existing(account, "social.x", "x-run:#{account}", linked, subject)
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+
+    assert [_one] = events(account)
+    assert [%{rule_id: "social.x", points_micro_delta: 10_000_000}] = entries(account)
+  end
+
+  test "the same state offered by the run and by a listener earns once" do
+    account = person()
+    paired = after_start(120)
+    existing(account, "agent.activated", "pairing:#{account}", paired, agent: true)
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+
+    assert {:ok, _} =
+             RegentPoints.record_event(reference("agent.activated", "pairing:#{account}"),
+               actor: Store.system()
+             )
+
+    assert [_one] = events(account)
+    assert [%{rule_id: "agent.activated", earned_at: earned}] = entries(account)
+    assert DateTime.compare(earned, paired) == :eq
   end
 
   test "two sites running the job for one account give one award per rule" do

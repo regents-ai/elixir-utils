@@ -126,6 +126,11 @@ the first check. A source that cannot answer rolls the award back and Oban tries
 again; after the last attempt the event ends `award_failed`. Start awards are
 recorded like any action, so they are asked again too.
 
+A source whose event ended `rejected` earned nothing, so it can be offered again,
+such as a social account let go while its award waited and linked again later: the
+new offer's facts replace the refused ones on the same event, which waits for its
+own award and is asked again as usual. An event that earned, or was capped, stands.
+
 Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_id`,
 `actor_kind` (`"human"` or `"agent"`), `actor_id`, `source_action_at`, `qualified_at`,
 `evidence_ref` and `evidence`. Both times are UTC DateTimes. Freeze the beneficiary
@@ -166,11 +171,12 @@ paired agents, across every interface, with one count per action for the account
 whoever acted. The actions add up
 to more than 100 on purpose: the limit decides. One-time actions use no daily limit
 and remain once per canonical account: one ledger entry, however many qualifying
-actions arrive. Once the account has earned one, or while that award is still
-being checked, a later qualifying action records no event and queues no award;
-the check runs under the account's lock, so actions arriving together still earn
-once. A repeat action over its limit still writes a 0-point entry that shows the
-reduction. `RegentPoints.summary/1` lists only the daily allowances that a rule
+actions arrive. Once the account has earned one, a later qualifying action records
+no event and queues no award. An award still being checked, or one refused, blocks
+nothing: a later action is recorded and checked too, and the award's own limits,
+read under the account's lock, let only one of them earn, so actions arriving
+together still earn once. A repeat action over its limit still writes a 0-point
+entry that shows the reduction. `RegentPoints.summary/1` lists only the daily allowances that a rule
 earning now on this site counts against. Its `done` holds every listed rule
 (`Rules.listed/0`), whichever site earned it, since every site writes to the same
 tables: `%{"account.activated" => %{times: 1, here: true}, ...}`. `times` is how many

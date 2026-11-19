@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- A rule that is off touches nothing (19 Nov 2026): `record_event/2` checks
+  whether the rule is on before anything else and answers `{:ok, %{status:
+  :disabled}}` whatever the reference. With the rule on, each reference field
+  must still be a string of 1 to 512 bytes.
 - At the award, the adapter's yes counts only for the account saved at the first
   check (19 Nov 2026). When its fresh facts name another account, no entry is
   written for either: the event ends `rejected` with `award_refused`, and the

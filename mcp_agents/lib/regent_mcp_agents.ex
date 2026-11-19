@@ -20,6 +20,8 @@ defmodule RegentMCPAgents do
   or `{:error, reason}` when no answer came, which a tool call gives in the
   site's `refusal:` words.
   """
+  require Logger
+
   alias RegentAgents.{Harness, PairingCode, Person}
 
   @identity_scope "regent.identity.manage"
@@ -270,9 +272,26 @@ defmodule RegentMCPAgents do
          ) do
       {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
       {:ok, %{status: 429} = response} -> response |> retry_after() |> wait()
-      _ -> {:error, :identity_request_refused}
+      answer -> refused_by_signer(answer)
     end
   end
+
+  # One warning with the signer's status and its refusal code, so a site can
+  # tell why; never the body, the identity key or the request.
+  defp refused_by_signer(answer) do
+    Logger.warning("hosted signer refused #{signer_reason(answer)}")
+    {:error, :identity_request_refused}
+  end
+
+  defp signer_reason({:ok, %{status: status, body: %{"error" => %{"code" => code}}}})
+       when is_binary(code) do
+    if Regex.match?(~r/\A[a-z0-9_]{1,64}\z/, code),
+      do: "status=#{status} code=#{code}",
+      else: "status=#{status}"
+  end
+
+  defp signer_reason({:ok, %{status: status}}), do: "status=#{status}"
+  defp signer_reason({:error, _no_answer}), do: "no_answer"
 
   # The only requests the hosted signer is ever asked to sign, each for this
   # app's identity for the account on this site: the identity probe, the

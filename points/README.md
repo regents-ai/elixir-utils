@@ -99,7 +99,8 @@ each a string of 1 to 512 bytes is set aside on its own: it answers `{:ok, %{sta
 kind and each field's size in bytes, never the source event key. Any other offer
 answers `{:ok, %{status: :queued, id: job_id}}`.
 
-Only those four reference fields enter the Oban job. No adapter, Points table or
+Only those four reference fields enter the Oban job. The job is unique on them while
+it waits, so the same reference offered again before its check runs is the same job. No adapter, Points table or
 chain read runs in the product transaction. The job is inserted in the source's own
 transaction, so the action and its Points job commit or roll back together; an insert
 failure raises and rolls back the action. Outside a transaction, the same API can
@@ -157,7 +158,9 @@ existed before `at` and still holds (a pairing still paired, a link still linked
 leaves out accounts that already have an event for the rule and records each other
 reference through `record_event/2`, so the adapter's `verify/1` proves it as usual and
 reports the real time; what was there before the start earns at the start time, and
-anything later at its real time. The milestone ids are the same as for new actions,
+anything later at its real time. The run offers with `start_run: true`, so its checks
+and their awards run at a lower Oban priority than live ones and a large run waits
+behind live awards; a run repeated before its checks run queues nothing more. The milestone ids are the same as for new actions,
 so an account earns each once whichever site records it. No other rule earns for
 anything before the start. A site
 lists only the start rules it has a source for: Patchbay has no linked accounts, so it

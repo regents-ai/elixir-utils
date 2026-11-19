@@ -10,13 +10,20 @@ defmodule RegentPoints.Intake do
   never the source event key. Any other offer queues only its four reference fields
   in the action's own transaction (`RegentPoints.Enqueue`) and answers `queued`; the
   source's check and the award run later, in that job.
+
+  An offer from the start run (`start_run: true`, `RegentPoints.StartAwards`) is
+  queued at a lower Oban priority than a live one, and its award job keeps that
+  priority, so a large start run waits behind live awards. An offer of a reference
+  already waiting in the queue is that same job (`RegentPoints.IntakeWorker`).
   """
   use Ash.Resource.Actions.Implementation
   require Logger
   alias RegentPoints.{Enqueue, IntakeWorker, Rules}
   @keys ~w(rule_id source_app source_kind source_event_key)
+  # Oban runs a lower priority only when no higher one is waiting; 0 is Oban's default.
+  @start_priority 1
   @impl true
-  def run(%{arguments: %{event: input}}, _, _) do
+  def run(%{arguments: %{event: input, start_run: start_run}}, _, _) do
     reference = Map.new(input, fn {key, value} -> {to_string(key), value} end) |> Map.take(@keys)
 
     cond do
@@ -27,7 +34,8 @@ defmodule RegentPoints.Intake do
         set_aside(reference)
 
       true ->
-        Enqueue.call(IntakeWorker, reference)
+        priority = if start_run, do: @start_priority, else: 0
+        Enqueue.call(IntakeWorker.new(reference, priority: priority))
     end
   end
 

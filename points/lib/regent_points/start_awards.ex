@@ -16,7 +16,10 @@ defmodule RegentPoints.StartAwards do
   an account earns each rule once whichever site records it. Its offers carry
   `start_run: true`, so their checks and awards wait behind live ones, and an offer
   whose check is still waiting from an earlier run is that same job. The accounts
-  that already have an event for the rule are read once per rule and left out.
+  whose event for the rule earned or was capped are read once per rule and left
+  out. An account whose event was refused is offered again, and so is one whose
+  event still waits: its check finds the waiting event and queues its award, which
+  is one job while it waits.
 
   Unique for a day while queued or done, so it runs at most once a day, and each
   run records what no listener has.
@@ -61,7 +64,10 @@ defmodule RegentPoints.StartAwards do
 
   defp recorded(rule_id) do
     Event
-    |> Ash.Query.filter(program_id == ^Rules.program() and rule_id == ^rule_id)
+    |> Ash.Query.filter(
+      program_id == ^Rules.program() and rule_id == ^rule_id and
+        processing_status in [:confirmed, :capped]
+    )
     |> Ash.Query.select([:account_id])
     |> Ash.Query.distinct([:account_id])
     |> Ash.read!(actor: Store.system())

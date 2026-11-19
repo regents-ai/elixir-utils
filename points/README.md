@@ -89,6 +89,11 @@ In the source action's transaction, call the system-only domain action:
   }, actor: %{role: :system})
 ```
 
+While the rule is off it answers `{:ok, %{status: :disabled}}` before it looks at
+anything else, whatever the reference, so a rule that is off never refuses the action
+it rides in. With the rule on, each of the four fields must be a string of 1 to 512
+bytes, or it answers an error.
+
 Only those four reference fields enter the Oban job. No adapter, Points table or
 chain read runs in the product transaction. The job is inserted in the source's own
 transaction, so the action and its Points job commit or roll back together; an insert

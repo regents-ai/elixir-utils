@@ -85,6 +85,17 @@ defmodule RegentPoints.IntakeTest do
     refute log =~ @long
   end
 
+  test "the same reference offered twice while its check waits is one job" do
+    Application.put_env(:regent_points, :approved_rules, [@rule])
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert {:ok, %{status: :queued, id: id}} = record("x:1")
+      assert {:ok, %{status: :queued, id: ^id}} = record("x:1")
+      assert {:ok, %{status: :queued}} = record("x:2")
+      assert [_, _] = all_enqueued(worker: IntakeWorker)
+    end)
+  end
+
   defp record(key),
     do:
       RegentPoints.record_event(

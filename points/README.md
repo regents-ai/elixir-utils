@@ -158,8 +158,10 @@ GitHub and Farcaster accounts (`social.*`) and its first paired agent
 (`agent.activated`), at most 80 points (`RegentPoints.Rules.start_rules/0`). Sean,
 6 November. The same run gives what came after the start that Points has not
 recorded yet, such as an account that joined after the start but before its site
-turned Points on (Sean, 19 November). `RegentPoints.StartAwards` runs at most once a
-day and asks each approved start rule's adapter for `existing(rule_id, at)`, with the
+turned Points on (Sean, 19 November). `RegentPoints.StartAwards` stops with
+`:not_started` while there is no start time or the start has not come, so the first
+hourly run after the start does the work. Once a run succeeds no other runs that day;
+one that ends cancelled or discarded lets the next hourly run start another. It asks each approved start rule's adapter for `existing(rule_id, at)`, with the
 run's own time as `at`: one `{account_id, reference}` per account for state that
 existed before `at` and still holds (a pairing still paired, a link still linked). It
 leaves out accounts whose event for the rule earned or was capped and records each

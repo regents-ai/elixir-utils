@@ -63,6 +63,9 @@ every other site leaves it out. A site that lists at least one start rule it has
 source for adds `{"@hourly", RegentPoints.StartAwards}` for the start awards below; a
 site with no start-rule source leaves it out. All hosts use the same shared database
 and schema.
+A site that can run without its job runner must not approve rules offered from a
+person's action: the offer's job is inserted in that action's transaction, and without
+the runner the action fails.
 Use the same Repo for source actions and Oban. The package's notifier broadcasts
 on the configured host PubSub under `points:<account_id>` when that account's total
 moves, and under `points:board` when any account's does; cross-node notification
@@ -170,8 +173,11 @@ reports the real time; what was there before the start earns at the start time, 
 anything later at its real time. The run offers with `start_run: true`, so its checks
 and their awards run at a lower Oban priority than live ones and a large run waits
 behind live awards; a run repeated before its checks run queues nothing more. The milestone ids are the same as for new actions,
-so an account earns each once whichever site records it. No other rule earns for
-anything before the start. A site
+so an account earns each once whichever site records it. The Regents account is named
+by one `source_app` on every site, `"regents"`, never the site that happens to read it.
+Every other record, a pairing included, keeps the site's own `source_app`, so two sites
+reading one pairing make two events; the award's once-per-account limit lets only one
+of them earn. No other rule earns for anything before the start. A site
 lists only the start rules it has a source for: Patchbay has no linked accounts, so it
 lists the account and the first pairing.
 

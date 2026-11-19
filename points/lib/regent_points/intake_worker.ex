@@ -149,13 +149,13 @@ defmodule RegentPoints.IntakeWorker do
     end
   end
 
-  # Under the account's lock: a one-time award the account has already earned,
-  # or one already on its way, records nothing more and queues no award.
+  # Under the account's lock: a one-time award the account has already earned
+  # records nothing more and queues no award. One still on its way, or refused,
+  # blocks nothing: the award's own limits, under the same lock, let one earn.
   defp earned?(account_id, %{"category" => "milestone", "id" => id}) do
     Event
     |> Ash.Query.filter(
-      account_id == ^account_id and rule_id == ^id and
-        processing_status in [:pending, :confirmed]
+      account_id == ^account_id and rule_id == ^id and processing_status == :confirmed
     )
     |> Ash.Query.for_read(:read, %{}, actor: Store.system())
     |> Ash.exists?()

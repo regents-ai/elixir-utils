@@ -75,10 +75,30 @@ defmodule RegentPoints.Event do
         :award_key
       ]
 
+      # A source whose event was rejected, so earned nothing, can be offered again:
+      # the new offer's facts replace the refused ones and wait for their own award,
+      # with the refusal's reason and time cleared. Any other event stands as it is.
+      change set_attribute(:reason_code, nil)
+      change set_attribute(:processed_at, nil)
       upsert? true
       upsert_identity :source_rule
-      upsert_fields []
-      upsert_condition expr(false)
+
+      upsert_fields [
+        :account_id,
+        :actor_kind,
+        :actor_id,
+        :source_action_at,
+        :qualified_at,
+        :evidence_ref,
+        :payload_digest,
+        :evidence,
+        :rule_snapshot,
+        :processing_status,
+        :reason_code,
+        :processed_at
+      ]
+
+      upsert_condition expr(processing_status == :rejected)
       return_skipped_upsert? true
     end
 

@@ -134,6 +134,13 @@ A source whose event ended `rejected` earned nothing, so it can be offered again
 such as a social account let go while its award waited and linked again later: the
 new offer's facts replace the refused ones on the same event, which waits for its
 own award and is asked again as usual. An event that earned, or was capped, stands.
+An event still waiting keeps its facts: the same source offered again with other
+facts, such as a social account now linked to someone else, is turned away as
+`source_identity_conflict`, and the waiting event's award runs, under its own
+account's lock, and awards or refuses it. Any offer of a waiting event's source
+queues its award, one job while it waits. The start run offers again every account
+whose event for the rule was refused or still waits, so a refused account, or the
+account a source now names, can earn it later; only one account ever earns it.
 
 Facts have atom keys: `source_app`, `source_kind`, `source_event_key`, `account_id`,
 `actor_kind` (`"human"` or `"agent"`), `actor_id`, `source_action_at`, `qualified_at`,
@@ -155,8 +162,8 @@ turned Points on (Sean, 19 November). `RegentPoints.StartAwards` runs at most on
 day and asks each approved start rule's adapter for `existing(rule_id, at)`, with the
 run's own time as `at`: one `{account_id, reference}` per account for state that
 existed before `at` and still holds (a pairing still paired, a link still linked). It
-leaves out accounts that already have an event for the rule and records each other
-reference through `record_event/2`, so the adapter's `verify/1` proves it as usual and
+leaves out accounts whose event for the rule earned or was capped and records each
+other reference through `record_event/2`, so the adapter's `verify/1` proves it as usual and
 reports the real time; what was there before the start earns at the start time, and
 anything later at its real time. The run offers with `start_run: true`, so its checks
 and their awards run at a lower Oban priority than live ones and a large run waits

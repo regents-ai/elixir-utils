@@ -258,6 +258,117 @@ defmodule RegentPoints.StartAndVersionsTest do
     end)
   end
 
+  test "an account whose only event for a start rule was refused is offered again and earns once" do
+    account = person()
+    other = person()
+    key = "account:#{account}"
+    before = DateTime.add(@start, -86_400)
+    existing(account, "account.activated", key, before)
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert :ok = StartAwards.perform(%Oban.Job{})
+      run_checks()
+      # By the award the source names another account, so the award is refused.
+      put_facts(key, facts(other, key, before, %{}, []))
+      run_awards()
+    end)
+
+    assert [:rejected] = statuses(account)
+    put_facts(key, facts(account, key, before, %{}, []))
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    assert [:confirmed] = statuses(account)
+    assert [%{rule_id: "account.activated", points_micro_delta: 25_000_000}] = entries(account)
+  end
+
+  for status <- [:confirmed, :capped] do
+    test "an account whose event for a start rule ended #{status} is not offered again" do
+      account = person()
+      existing(account, "account.activated", "account:#{account}", DateTime.add(@start, -60))
+
+      Oban.Testing.with_testing_mode(:manual, fn ->
+        assert :ok = StartAwards.perform(%Oban.Job{})
+        run_checks()
+
+        for event <- read_events(account),
+            do:
+              RegentPoints.finish_event!(event, %{processing_status: unquote(status)},
+                actor: Store.system()
+              )
+
+        assert :ok = StartAwards.perform(%Oban.Job{})
+        assert [] = all_enqueued(worker: IntakeWorker)
+      end)
+    end
+  end
+
+  test "a waiting event whose award job is gone gets one from the next start run and earns once" do
+    account = person()
+    existing(account, "account.activated", "account:#{account}", DateTime.add(@start, -60))
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert :ok = StartAwards.perform(%Oban.Job{})
+      run_checks()
+      assert [_award] = all_enqueued(worker: Worker)
+      drop_jobs(Worker)
+    end)
+
+    assert [:pending] = statuses(account)
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    assert [:confirmed] = statuses(account)
+    assert [%{points_micro_delta: 25_000_000}] = entries(account)
+  end
+
+  test "a waiting event whose award job still waits gets no second one" do
+    account = person()
+    existing(account, "account.activated", "account:#{account}", DateTime.add(@start, -60))
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert :ok = StartAwards.perform(%Oban.Job{})
+      run_checks()
+      assert :ok = StartAwards.perform(%Oban.Job{})
+      run_checks()
+      assert [_one] = all_enqueued(worker: Worker)
+    end)
+  end
+
+  test "a subject whose waiting event is offered for a second account earns only for the second" do
+    first = person()
+    second = person()
+    key = "x:subject-#{first}"
+    subject = %{"subject_key" => key}
+    linked = after_start(60)
+    existing(first, "social.x", key, linked, subject)
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert :ok = StartAwards.perform(%Oban.Job{})
+      run_checks()
+      drop_jobs(Worker)
+    end)
+
+    # The X account is linked to the second account now, under the same source key.
+    put_facts(key, facts(second, key, after_start(120), subject, []))
+    Application.put_env(:regent_points, :test_existing, [{second, reference("social.x", key)}])
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert {:ok, _} =
+               RegentPoints.record_event(reference("social.x", key), actor: Store.system())
+
+      run_checks()
+      assert [%{reason_code: "source_identity_conflict"}] = rejections(key)
+      run_awards()
+    end)
+
+    assert [%{account_id: ^first, processing_status: :rejected}] = read_events(first)
+
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    assert :ok = StartAwards.perform(%Oban.Job{})
+    assert entries(first) == []
+    assert [%{rule_id: "social.x", points_micro_delta: 10_000_000}] = entries(second)
+  end
+
   test "a start rule off the approved list earns nothing at the start" do
     account = person()
 
@@ -386,6 +497,42 @@ defmodule RegentPoints.StartAndVersionsTest do
 
   defp reference(rule_id, key, app \\ "site-a"),
     do: %{rule_id: rule_id, source_app: app, source_kind: "test", source_event_key: key}
+
+  # Runs each waiting job as Oban would, and marks it done.
+  defp run_checks, do: run_jobs(IntakeWorker)
+  defp run_awards, do: run_jobs(Worker)
+
+  defp run_jobs(worker) do
+    for %{args: args, priority: priority} <- all_enqueued(worker: worker),
+        do: assert(:ok = perform_job(worker, args, priority: priority))
+
+    set_done(worker)
+  end
+
+  defp set_done(worker),
+    do:
+      Oban.Job |> where_worker(worker) |> RegentPoints.Repo.update_all(set: [state: "completed"])
+
+  defp drop_jobs(worker), do: Oban.Job |> where_worker(worker) |> RegentPoints.Repo.delete_all()
+
+  defp where_worker(query, worker) do
+    name = inspect(worker)
+    import Ecto.Query, only: [where: 3]
+    where(query, [j], j.worker == ^name and j.state == "available")
+  end
+
+  defp read_events(account) do
+    RegentPoints.Event
+    |> Ash.Query.filter(account_id == ^account and program_id == ^Rules.program())
+    |> Ash.read!(actor: Store.system())
+  end
+
+  defp statuses(account), do: Enum.map(read_events(account), & &1.processing_status)
+
+  defp rejections(key) do
+    RegentPoints.read_rejections!(actor: Store.system())
+    |> Enum.filter(&(&1.source["source_event_key"] == key))
+  end
 
   defp priority(jobs, key),
     do: Enum.find(jobs, &(&1.args["source_event_key"] == key)).priority

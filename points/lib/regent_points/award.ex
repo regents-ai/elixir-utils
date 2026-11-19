@@ -29,13 +29,15 @@ defmodule RegentPoints.Award do
 
   # The source is asked again under the account's lock, in the transaction that
   # writes the award, so a source refused since intake earns nothing. Its answer only
-  # accepts or refuses: the facts and rule saved at intake decide the award. An
-  # answer it cannot give rolls the transaction back, and Oban retries.
-  defp check(event) do
+  # accepts or refuses: the facts and rule saved at intake decide the award, and a yes
+  # counts only for the account saved at intake. An answer it cannot give rolls the
+  # transaction back, and Oban retries.
+  defp check(%{account_id: account} = event) do
     reference = Map.new(@reference, &{to_string(&1), Map.fetch!(event, &1)})
 
     case Rules.adapter(event.rule_id).verify(reference) do
-      {:ok, _facts} -> award(event)
+      {:ok, %{account_id: ^account}} -> award(event)
+      {:ok, _facts} -> refuse(event, reference, :account_changed)
       {:error, reason} when is_atom(reason) -> refuse(event, reference, reason)
       {:retry, reason} -> {:error, reason}
       {:error, reason} -> {:error, reason}

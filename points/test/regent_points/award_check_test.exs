@@ -95,6 +95,42 @@ defmodule RegentPoints.AwardCheckTest do
     assert "source_hidden" in rejected(key)
   end
 
+  test "a source that names another account at the award earns for neither account", %{
+    account: account,
+    key: key
+  } do
+    answer(key, accepted(account, key))
+    award = checked_at_intake(key)
+
+    other = person()
+    answer(key, accepted(other, key))
+    assert :ok = perform_job(Worker, award)
+
+    assert entries(account) == []
+    assert entries(other) == []
+
+    assert %{processing_status: :rejected, reason_code: "award_refused"} =
+             Store.event(award["event_id"])
+
+    assert %{pending: 0, balance_micro: 0} = summary(account)
+    assert summary(other).balance_micro == 0
+    assert "account_changed" in rejected(key)
+  end
+
+  test "a source that names the same account at the award awards from the facts saved at intake",
+       %{account: account, key: key} do
+    answer(key, accepted(account, key))
+    award = checked_at_intake(key)
+
+    {:ok, facts} = accepted(account, key)
+    later = DateTime.add(@start, 120)
+    answer(key, {:ok, %{facts | source_action_at: later, qualified_at: later}})
+    assert :ok = perform_job(Worker, award)
+
+    assert [%{points_micro_delta: 25_000_000, earned_at: earned}] = entries(account)
+    assert DateTime.compare(earned, DateTime.add(@start, 60)) == :eq
+  end
+
   test "a source that cannot answer at the award is asked again on the next run", %{
     account: account,
     key: key

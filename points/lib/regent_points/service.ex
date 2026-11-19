@@ -15,6 +15,8 @@ defmodule RegentPoints.Service do
 
     action :record_event, :map do
       argument :event, :map, allow_nil?: false
+      # Only RegentPoints.StartAwards sets it: its offers wait behind live ones.
+      argument :start_run, :boolean, allow_nil?: false, default: false
       run RegentPoints.Intake
     end
 

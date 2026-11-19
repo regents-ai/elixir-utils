@@ -2,8 +2,9 @@ defmodule RegentPoints.StartAndVersionsTest do
   # Records actions through record_event, the source check and the award, on a real
   # database, with Oban running each job as it is queued.
   use ExUnit.Case, async: false
+  use Oban.Testing, repo: RegentPoints.Repo
   require Ash.Query
-  alias RegentPoints.{Entry, Rules, StartAwards, Store}
+  alias RegentPoints.{Entry, IntakeWorker, Rules, StartAwards, Store, Worker}
 
   defmodule Source do
     @moduledoc false
@@ -213,6 +214,52 @@ defmodule RegentPoints.StartAndVersionsTest do
     assert events(account) == first
   end
 
+  test "the start run's checks and awards wait behind live ones" do
+    started = person()
+    live = person()
+    before = DateTime.add(@start, -86_400)
+    existing(started, "account.activated", "account:#{started}", before)
+    put_facts("account:#{live}", facts(live, "account:#{live}", after_start(60), %{}, []))
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert :ok = StartAwards.perform(%Oban.Job{})
+
+      assert {:ok, _} =
+               RegentPoints.record_event(reference("account.activated", "account:#{live}"),
+                 actor: Store.system()
+               )
+
+      checks = all_enqueued(worker: IntakeWorker)
+      assert priority(checks, "account:#{started}") > priority(checks, "account:#{live}")
+
+      for %{args: args, priority: priority} <- checks,
+          do: assert(:ok = perform_job(IntakeWorker, args, priority: priority))
+
+      awards = all_enqueued(worker: Worker)
+      assert length(awards) == 2
+
+      assert Enum.sort(Enum.map(awards, & &1.priority)) ==
+               Enum.sort(Enum.map(checks, & &1.priority))
+    end)
+  end
+
+  test "a start run performed twice before its checks run queues each candidate once" do
+    account = person()
+    before = DateTime.add(@start, -86_400)
+    existing(account, "account.activated", "account:#{account}", before)
+    existing(account, "agent.activated", "pairing:#{account}", before, agent: true)
+
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      assert :ok = StartAwards.perform(%Oban.Job{})
+      assert :ok = StartAwards.perform(%Oban.Job{})
+
+      assert ["account:#{account}", "pairing:#{account}"] ==
+               all_enqueued(worker: IntakeWorker)
+               |> Enum.map(& &1.args["source_event_key"])
+               |> Enum.sort()
+    end)
+  end
+
   test "a start rule off the approved list earns nothing at the start" do
     account = person()
 
@@ -341,6 +388,9 @@ defmodule RegentPoints.StartAndVersionsTest do
 
   defp reference(rule_id, key, app \\ "site-a"),
     do: %{rule_id: rule_id, source_app: app, source_kind: "test", source_event_key: key}
+
+  defp priority(jobs, key),
+    do: Enum.find(jobs, &(&1.args["source_event_key"] == key)).priority
 
   defp rule(catalog, id), do: Enum.find(catalog, &(&1["id"] == id))
 

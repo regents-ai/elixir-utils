@@ -1,6 +1,20 @@
 defmodule RegentPoints.IntakeWorker do
-  @moduledoc "Verifies committed source facts and records Points work. Oban owns retries."
-  use Oban.Worker, queue: :points, max_attempts: 10
+  @moduledoc """
+  Verifies committed source facts and records Points work. Oban owns retries.
+
+  A job is unique on its four reference fields while it waits, so the same
+  reference offered twice before it runs is one job. The award job it queues
+  keeps its priority.
+  """
+  use Oban.Worker,
+    queue: :points,
+    max_attempts: 10,
+    unique: [
+      keys: [:rule_id, :source_app, :source_kind, :source_event_key],
+      period: :infinity,
+      states: [:suspended, :available, :scheduled, :retryable]
+    ]
+
   require Ash.Query
   alias RegentPoints, as: Points
   alias RegentPoints.{Account, Event, Rules, Store, Worker}
@@ -8,7 +22,7 @@ defmodule RegentPoints.IntakeWorker do
   @required ~w(source_app source_kind source_event_key account_id actor_kind actor_id source_action_at qualified_at evidence_ref evidence)a
 
   @impl true
-  def perform(%Oban.Job{args: input}) do
+  def perform(%Oban.Job{args: input, priority: priority}) do
     id = input["rule_id"]
 
     with true <- Rules.enabled?(id),
@@ -18,7 +32,7 @@ defmodule RegentPoints.IntakeWorker do
          facts = at_start(id, facts),
          {:ok, rule} <- Rules.snapshot(id, facts.source_action_at),
          :ok <- eligible_source(rule, facts),
-         {:ok, event} <- Ash.transact(Account, fn -> record(facts, rule) end) do
+         {:ok, event} <- Ash.transact(Account, fn -> record(facts, rule, priority) end) do
       case event do
         %{rejected: reason} -> reject(input, reason)
         _ -> :ok
@@ -116,7 +130,7 @@ defmodule RegentPoints.IntakeWorker do
       else: {:error, :missing_attribution_or_subject_proof}
   end
 
-  defp record(facts, rule) do
+  defp record(facts, rule, priority) do
     Store.lock_account(facts.account_id)
     # Business identity excludes transport, beneficiary and rule version. A WebMCP
     # retry or reassignment cannot invent a second award for the same operation.
@@ -141,7 +155,7 @@ defmodule RegentPoints.IntakeWorker do
       event = Points.create_event!(attrs, actor: Store.system())
 
       if event.payload_digest == attrs.payload_digest do
-        %{event_id: event.id} |> Worker.new() |> Oban.insert!()
+        %{event_id: event.id} |> Worker.new(priority: priority) |> Oban.insert!()
         %{id: event.id, status: event.processing_status}
       else
         %{rejected: :source_identity_conflict}

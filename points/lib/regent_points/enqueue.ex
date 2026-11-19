@@ -4,5 +4,5 @@ defmodule RegentPoints.Enqueue do
   same Repo. The job commits or rolls back with the source action, so a committed
   action always has its job; an insert failure raises and the source rolls back.
   """
-  def call(worker, args), do: {:ok, %{status: :queued, id: Oban.insert!(worker.new(args)).id}}
+  def call(job), do: {:ok, %{status: :queued, id: Oban.insert!(job).id}}
 end

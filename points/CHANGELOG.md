@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- At the award, the adapter's yes counts only for the account saved at the first
+  check (19 Nov 2026). When its fresh facts name another account, no entry is
+  written for either: the event ends `rejected` with `award_refused`, and the
+  refusal is audited in `source_rejections` as `account_changed`.
 - The rule's adapter is asked again, with the same reference, just before an award
   is written, under the account's lock and inside the award's transaction (14 Nov
   2026). `{:ok, _}` awards from the facts and rule saved at the first check, as

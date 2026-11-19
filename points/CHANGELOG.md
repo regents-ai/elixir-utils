@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- The start run offers again what has not earned (19 Nov 2026). `StartAwards`
+  leaves out only accounts whose event for the rule is `confirmed` or `capped`; one
+  whose event was refused or still waits is offered again. Any offer of a source
+  whose event still waits queues that event's award, one job while it waits, even
+  when the offer's facts differ: those facts are turned away as
+  `source_identity_conflict` and never replace the waiting event's, and the award
+  run awards or refuses the event under its own account's lock.
 - The start run's work waits behind live awards (19 Nov 2026). `record_event/2`
   takes `start_run: true`, which only `StartAwards` passes: its checks run at a lower
   Oban priority than live ones, and each award job keeps its check's priority. A

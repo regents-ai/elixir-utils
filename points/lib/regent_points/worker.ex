@@ -2,7 +2,8 @@ defmodule RegentPoints.Worker do
   @moduledoc """
   Awards one recorded event under its account's lock, once its source, asked again
   there, still accepts it for the same account; a source that refuses, or now names
-  another account, ends the event rejected as `award_refused`. Oban owns retries. When the last attempt fails, by an error or
+  another account, ends the event rejected as `award_refused`. Oban owns retries.
+  When the last attempt fails, by an error or
   a raise, the event is rejected as `award_failed`, so the account's summary never
   counts it as pending forever, and the job keeps the failure. A last attempt
   killed outright (its node stopped) is discarded by Oban's Lifeline and leaves the

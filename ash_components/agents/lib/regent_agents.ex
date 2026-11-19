@@ -132,8 +132,8 @@ defmodule RegentAgents do
 
   @doc """
   Each person's earliest pairing made before `at` that is still paired, one per
-  person, in order of their Privy user ID: the agents people already had when
-  something started, such as Points.
+  person, in order of their Privy user ID: the agents people already had at `at`,
+  such as the time the Points start run reads them.
 
   A lazy stream. It reads #{@held_page} people at a time as it is walked, each read
   starting after the last person of the one before, in no transaction, so the caller

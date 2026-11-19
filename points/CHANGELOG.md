@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+- The start awards cover a site that turned Points on after the start (Sean, 19
+  Nov 2026): `StartAwards` asks each start rule's source for `existing(rule_id,
+  now)` with the run's own time instead of the start, so what an account has that
+  Points has not recorded yet is recorded: from before the start it earns at the
+  start, from after it at its real time. The run is unique for a day instead of
+  until Oban prunes it, so it runs at most once a day. A site adds its hourly line
+  only when it lists a start rule it has a source for.
 - The start awards' pairing list is read in pages (19 Nov 2026):
   `RegentAgents.pairings_held_from_before/1` answers a lazy stream of 500 people
   a read, and `StartAwards` walks a start rule's `existing/2` once, so an adapter

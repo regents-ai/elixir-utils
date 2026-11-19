@@ -2,6 +2,9 @@
 
 ## 0.1.0 (unreleased)
 
+- `StartAwards` stops before the start (19 Nov 2026): it answers `{:cancel,
+  :not_started}`, as it does with no start time, and the first hourly run after the
+  start does the work. Once a run succeeds no other runs that day.
 - The start run offers again what has not earned (19 Nov 2026). `StartAwards`
   leaves out only accounts whose event for the rule is `confirmed` or `capped`; one
   whose event was refused or still waits is offered again. Any offer of a source

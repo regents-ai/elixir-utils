@@ -384,10 +384,9 @@ defmodule RegentPoints.StartAndVersionsTest do
     assert entries(account) == []
   end
 
-  test "the job waits for the start, and stops while there is none" do
+  test "the job stops before the start, and while there is none" do
     Application.put_env(:regent_points, :starts_at, DateTime.add(DateTime.utc_now(), 600))
-    assert {:snooze, wait} = StartAwards.perform(%Oban.Job{})
-    assert wait in 590..600
+    assert {:cancel, :not_started} = StartAwards.perform(%Oban.Job{})
 
     Application.put_env(:regent_points, :starts_at, nil)
     assert {:cancel, :not_started} = StartAwards.perform(%Oban.Job{})

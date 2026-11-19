@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A refusal from the hosted signer logs one warning with the signer's status
+  and its refusal code (`hosted signer refused status=422
+  code=hosted_request_refused`), or `no_answer` when it did not answer; never
+  its words, the identity key or the request. Before, a site could not tell why
+  an identity request was refused. The tool's answer is unchanged.
+
 - The tests start the test site's repository and keep the OAuth provider's rows
   through it, since `RegentOAuth` no longer starts a repository of its own.
 

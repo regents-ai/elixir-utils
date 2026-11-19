@@ -313,6 +313,27 @@ defmodule RegentMCPAgents.HostedIdentityTest do
     assert agents("did:privy:sol") == []
   end
 
+  test "a signer's refusal is logged with its status and code, and nothing it was sent or said" do
+    %{client_id: client, access: token} = connect!("did:privy:refused")
+
+    Req.Test.stub(RegentMCPAgents.HostedSigner, fn conn ->
+      conn
+      |> Plug.Conn.put_status(422)
+      |> Req.Test.json(%{
+        "error" => %{"code" => "hosted_request_refused", "message" => "signer's own words"}
+      })
+    end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert %{"isError" => true} = tool(token, "register_identity")
+      end)
+
+    assert log =~ "status=422 code=hosted_request_refused"
+    refute log =~ "signer's own words"
+    refute log =~ key("did:privy:refused", client)
+  end
+
   test "disconnecting the app revokes its access and refresh tokens: the next call is asked to sign in" do
     %{client_id: client, access: token, refresh: refresh_token} = connect!("did:privy:sol")
     assert %{"isError" => false} = tool(token, "register_identity")

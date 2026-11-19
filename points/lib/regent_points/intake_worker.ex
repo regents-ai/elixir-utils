@@ -154,8 +154,14 @@ defmodule RegentPoints.IntakeWorker do
     else
       event = Points.create_event!(attrs, actor: Store.system())
 
-      if event.payload_digest == attrs.payload_digest do
+      # A waiting event always has its award run, whoever offered it: the run awards
+      # or refuses it under the event's own account's lock. Facts that differ from
+      # the waiting event's are turned away and never replace them.
+      if event.processing_status == :pending do
         %{event_id: event.id} |> Worker.new(priority: priority) |> Oban.insert!()
+      end
+
+      if event.payload_digest == attrs.payload_digest do
         %{id: event.id, status: event.processing_status}
       else
         %{rejected: :source_identity_conflict}

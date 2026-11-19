@@ -216,3 +216,5 @@
   2026-10-19): trimmed, 1 to 80 characters, and no hidden characters. Pairing
   with any other name answers `invalid_name` (400) and the code stays unused.
   `regent_format` is a new path dependency.
+- `RegentAgents.HelloCard`: a read of the published keys that fails is not tried again
+  for a minute, and a site with no `siwa: [origin: ...]` accepts no service token.

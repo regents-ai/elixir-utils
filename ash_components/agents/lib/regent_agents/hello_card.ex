@@ -51,7 +51,8 @@ defmodule RegentAgents.HelloCard do
   `:persistent_term`. The SIWA service publishes a new key an hour before it
   signs with it; a token or card naming a key not among those kept reads them
   again, once in that call and at most once a minute. A read that fails keeps
-  nothing, so the next call reads again.
+  no keys and is not tried again for a minute. A site with no
+  `siwa: [origin: ...]` accepts no service token.
   """
 
   import Plug.Conn, only: [assign: 3, get_req_header: 2]
@@ -62,6 +63,7 @@ defmodule RegentAgents.HelloCard do
   @service_typ "siwa-service+jwt"
   @card_fields Enum.sort(~w(cardId subject name person pairedAt pairedOn issuedAt expiresAt))
   @held {__MODULE__, :keys}
+  @failed_at {__MODULE__, :keys_read_failed_at}
   @keep_seconds 3_600
   @read_again_after_seconds 60
   # Regent sites sign agents in on Base (`RegentAgents.HTTP`).
@@ -122,7 +124,8 @@ defmodule RegentAgents.HelloCard do
 
     case signed_payload(token, @service_typ, now) do
       {:ok, %{"iss" => ^issuer, "aud" => ^origin, "sub" => subject, "exp" => expires}}
-      when is_binary(subject) and is_integer(expires) and now_unix < expires ->
+      when is_binary(origin) and is_binary(subject) and is_integer(expires) and
+             now_unix < expires ->
         {:ok, subject}
 
       _refused ->
@@ -198,9 +201,16 @@ defmodule RegentAgents.HelloCard do
     end
   end
 
+  # A read that failed is not tried again for `@read_again_after_seconds`.
+  defp read_keys(now) do
+    if now - :persistent_term.get(@failed_at, 0) < @read_again_after_seconds,
+      do: {now, %{}},
+      else: fetch_keys(now)
+  end
+
   # One read of the published keys, kept only when it succeeds: each Ed25519
   # public key by its `kid`.
-  defp read_keys(now) do
+  defp fetch_keys(now) do
     case Broker.request(
            method: :get,
            url: siwa_url() <> "/.well-known/jwks.json",
@@ -221,6 +231,7 @@ defmodule RegentAgents.HelloCard do
         held
 
       _failed ->
+        :persistent_term.put(@failed_at, now)
         {now, %{}}
     end
   end

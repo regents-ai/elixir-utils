@@ -11,6 +11,9 @@ defmodule AgentEns.Normalize do
 
   @type normalized_name :: String.t()
 
+  # UTS #46 with its STD3 rule: in ASCII only letters, digits and hyphens.
+  @idna [:uts46, :std3_rules]
+
   @spec normalize(String.t()) :: {:ok, normalized_name()} | {:error, Error.t()}
   def normalize(name) when is_binary(name) do
     normalized =
@@ -30,8 +33,8 @@ defmodule AgentEns.Normalize do
           normalized_unicode =
             normalized
             |> String.to_charlist()
-            |> :idna.encode([:uts46])
-            |> :idna.decode([:uts46])
+            |> :idna.encode(@idna)
+            |> :idna.decode(@idna)
             |> List.to_string()
 
           if normalized_unicode == "" do

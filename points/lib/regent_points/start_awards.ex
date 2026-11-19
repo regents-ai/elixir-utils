@@ -9,7 +9,8 @@ defmodule RegentPoints.StartAwards do
 
   Every site with a start-rule source runs it from an hourly cron line. With no
   start time, before the start, and after the last season's end, it stops; the
-  first hourly run after the start does the work. From the start it asks each approved start rule's source,
+  first hourly run after the start does the work. From the start it asks each
+  approved start rule's source,
   `existing(rule_id, now)` with the run's own time, for what is there now, one
   `{account_id, reference}` per account, and records it through
   `RegentPoints.record_event/2` like any action, so the source still proves it and
